@@ -1,0 +1,10 @@
+# 核心：模型调用
+openai>=1.0.0
+
+# 企业微信回调的 AES 加解密（二选一，cryptography 更主流好装）
+cryptography>=40.0.0
+# 或者： pycryptodome>=3.18.0
+
+# 说明：
+# - Telegram / 飞书 / Server酱 只用 Python 标准库，无需额外安装。
+# - 仅当你要用「企业微信」双向对话时，才需要装 cryptography。

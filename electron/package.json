@@ -1,0 +1,29 @@
+{
+  "name": "crayfish-desktop",
+  "version": "0.1.0",
+  "description": "超能小助 · 你自己的本地 AI 助手桌面端",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "author": "你",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.you.crayfish",
+    "productName": "超能小助",
+    "files": ["main.js", "preload.js", "renderer/**/*", "assets/**/*"],
+    "extraResources": [
+      { "from": "../backend", "to": "backend",
+        "filter": ["**/*", "!**/__pycache__/**"] }
+    ],
+    "win": { "target": "nsis", "icon": "assets/icon.ico" },
+    "mac": { "target": "dmg", "icon": "assets/icon.png" },
+    "linux": { "target": "AppImage", "icon": "assets/icon.png" }
+  }
+}

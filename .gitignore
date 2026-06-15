@@ -1,0 +1,51 @@
+# ===== 超能小助 .gitignore =====
+# 放在项目根目录 D:\my projects\超能小助\.gitignore
+# 作用：GitHub 备份时，忽略这些又大又不该传的东西。
+
+# --- Electron 第三方依赖（最大的就是它，几百 MB，绝对不传）---
+electron/node_modules/
+node_modules/
+
+# Electron 打包产物
+dist/
+build/
+out/
+*.exe
+*.dmg
+*.AppImage
+
+# --- Python 缓存 / 虚拟环境 ---
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# --- 更新机制的临时/备份文件（不用进版本库）---
+updates/
+updates-backup/
+updates-history.log
+启动日志.txt
+诊断日志.txt
+
+# --- 个人数据 / 密钥（重要：别把密钥传上 GitHub）---
+backend/memory/conversations/
+backend/memory/briefings/
+backend/memory/snapshots/
+backend/memory/note-*.md
+backend/memory/reminders.md
+backend/memory/push.md
+backend/memory/wecom.md
+backend/memory/feishu.md
+backend/memory/telegram.md
+backend/学生档案/
+超能小助文件/
+
+# --- 系统杂物 ---
+.DS_Store
+Thumbs.db
+*.log
+
+# 说明：
+# - package-lock.json 建议保留（不在忽略列表里），它记录依赖版本，换电脑也能装出一样的环境。
+# - 教材（backend/教材/）默认会被备份；如果里面是不想公开的资料，自己在下面加一行 backend/教材/

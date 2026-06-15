@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>超能小助</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- 左侧栏 -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">🦞</div>
+        <div class="brand-text">
+          <div class="brand-name">超能小助</div>
+          <div class="brand-sub" id="statusLine">连接中…</div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-item active" data-view="chat">对话</button>
+        <button class="nav-item" data-view="study">学习</button>
+        <button class="nav-item" data-view="dashboard">看板</button>
+        <button class="nav-item" data-view="video">视频</button>
+        <button class="nav-item" data-view="memory">记忆</button>
+        <button class="nav-item" data-view="settings">设置</button>
+      </nav>
+
+      <div class="convo-section">
+        <div class="convo-head">
+          <span>会话</span>
+          <button class="new-convo-btn" id="newConvoBtn" title="新建会话">＋</button>
+        </div>
+        <div class="convo-list" id="convoList"></div>
+      </div>
+
+      <div class="sidebar-foot">
+        <button class="ghost-btn" id="briefingBtn">📊 生成情报简报</button>
+        <button class="ghost-btn" id="watchBtn">🔍 检查竞品变化</button>
+        <button class="ghost-btn" id="heartbeatBtn">💓 触发一次心跳</button>
+        <button class="ghost-btn" id="clearBtn">清空当前对话</button>
+      </div>
+    </aside>
+
+    <!-- 主区 -->
+    <main class="main">
+      <!-- 对话视图 -->
+      <section class="view view-chat active" id="view-chat">
+        <header class="topbar">
+          <span id="chatTitle">对话</span>
+          <span class="topbar-actions">
+            <span class="model-status" id="modelStatus" title="模型状态">
+              <span class="status-dot" id="statusDot"></span>
+              <span class="topbar-hint" id="modelHint"></span>
+            </span>
+          </span>
+        </header>
+        <div class="messages" id="messages"></div>
+        <div class="composer">
+          <button class="composer-tool" id="rememberBtn" title="把这次对话提炼进长期记忆，下次还记得">结束并记住</button>
+          <textarea id="input" rows="1"
+            placeholder="和超能小助说点什么…（Enter 发送，Shift+Enter 换行）"></textarea>
+          <button id="sendBtn" class="send-btn">发送</button>
+        </div>
+      </section>
+
+      <!-- 学习视图 -->
+      <section class="view view-study" id="view-study">
+        <header class="topbar"><span>英语学习</span></header>
+        <div class="study-pane">
+          <div class="study-row">
+            <label>学生：</label>
+            <input type="text" id="studentName" class="text-input"
+                   placeholder="输入学生名（如 小明）" value="default" />
+          </div>
+          <div class="study-actions">
+            <button class="send-btn" id="dailyTaskBtn">📋 生成今日任务</button>
+            <button class="ghost-btn" id="startTutorBtn">开始辅导对话</button>
+            <button class="ghost-btn" id="viewStudentBtn">查看学习档案</button>
+          </div>
+          <div class="study-output" id="studyOutput">
+            <div class="study-hint">
+              选好学生，点「生成今日任务」让它根据老师的教材出一份今天的练习；
+              或点「开始辅导对话」直接进入学习模式（出题、背单词、讲语法、答疑）。
+              <br><br>
+              老师把教材放在 backend/教材/ 文件夹里（支持 .md / .txt）。
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 看板视图 -->
+      <section class="view view-dashboard" id="view-dashboard">
+        <header class="topbar">
+          <span>情报看板</span>
+          <button class="ghost-btn small" id="refreshDashBtn">刷新</button>
+        </header>
+        <div class="dash-pane" id="dashPane">
+          <div class="dash-loading">点「刷新」加载看板…</div>
+        </div>
+      </section>
+
+      <!-- 视频内容提取视图 -->
+      <section class="view view-video" id="view-video">
+        <header class="topbar">
+          <span style="display:flex;align-items:center">视频内容提取
+            <button id="videoInfoBtn" class="info-btn" title="使用说明">ⓘ</button>
+          </span>
+        </header>
+        <div class="video-pane">
+          <div class="video-intro" id="videoIntro" style="display:none">
+            把视频的<b>分享文案整段粘进来就行</b>（抖音那种「标题…复制此链接打开Dou音…」一大段也可以，
+            它会自动从里面认出链接）。提取后会<b>自动保存</b>到下面的「已存的视频笔记」，以后随时点开看。
+            <b>第一次用需要装一次小工具</b>，并下载一次语音模型（存到 D 盘的 models and tools 文件夹，不占 C 盘）。
+            <br>💡 复制视频链接后，屏幕光标右上方会弹出超能小助的小按钮，点一下会把链接填进来，再点「提取并分析」即可。
+            可以连续点多个视频，会<b>自动排队</b>逐个处理。模型的下载位置和搬运，在「设置」里管理。
+          </div>
+          <div class="video-input-row">
+            <input type="text" id="videoUrl" class="text-input"
+              placeholder="粘贴视频链接或整段分享文案，如 https://v.douyin.com/xxxx/" />
+            <select id="videoLevel" class="text-input" style="width:130px">
+              <option value="speed">快速（糙）</option>
+              <option value="balanced">均衡（推荐）</option>
+              <option value="accurate" selected>精准（慢）</option>
+            </select>
+            <button id="videoGoBtn" class="send-btn">提取并分析</button>
+          </div>
+          <div class="video-hint">💡 可以随时再粘贴新链接点「提取并分析」，会自动排到队尾，不用等当前这个跑完。</div>
+          <div id="videoStatus" class="video-status"></div>
+          <div id="videoTasks" class="video-tasks"></div>
+          <div id="videoResult" class="dash-content video-result"></div>
+
+          <div class="video-saved">
+            <div class="video-saved-head">📚 已存的视频笔记</div>
+            <div id="videoNotesList" class="video-notes-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 记忆视图 -->
+      <section class="view view-memory" id="view-memory">
+        <header class="topbar"><span>设置与记忆</span></header>
+        <div class="memory-pane">
+          <div class="memory-tabs" id="memoryTabs"></div>
+          <div class="memory-desc" id="memoryDesc"></div>
+          <div class="memory-body" id="memoryBody"></div>
+          <textarea id="memoryEditor" class="memory-editor" style="display:none"
+            placeholder="选择一个文件编辑…"></textarea>
+          <div class="memory-actions">
+            <span class="save-hint" id="saveHint"></span>
+            <button id="saveMemoryBtn" class="send-btn">保存</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 设置视图 -->
+      <section class="view view-settings" id="view-settings">
+        <header class="topbar"><span>设置</span></header>
+        <div class="settings-pane">
+          <div class="settings-section">外观</div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-title">皮肤</div>
+              <div class="setting-desc">深色护眼，浅色清爽，按喜好切换</div>
+            </div>
+            <select id="themeSelect" class="text-input" style="width:140px">
+              <option value="dark">深色</option>
+              <option value="light">浅色</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-title">使用本地模型</div>
+              <div class="setting-desc">本地 Ollama，数据不出本机（推荐）</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="useLocal" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-title">模型名</div>
+              <div class="setting-desc">下拉里分「本地模型」和「☁ 云端模型」两组。
+                云端模型需先在命令行 ollama signin 登录后才能用；
+                找不到想要的可点「手动输入」直接打名字</div>
+            </div>
+            <div class="model-picker">
+              <select id="modelSelect" class="text-input"></select>
+              <input type="text" id="modelName" class="text-input"
+                     value="qwen2.5" style="display:none" />
+              <div class="picker-row">
+                <button id="refreshModelsBtn" class="ghost-btn small">刷新</button>
+                <button id="manualModelBtn" class="ghost-btn small">手动输入</button>
+              </div>
+            </div>
+          </div>
+          <div class="setting-row danger">
+            <div>
+              <div class="setting-title">⚠️ 允许执行 shell 命令</div>
+              <div class="setting-desc">有风险，用完建议关掉</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="shellEnabled" />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="settings-section">模型与下载</div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-title">模型下载位置</div>
+              <div class="setting-desc">语音等模型默认下载到这里，不占 C 盘：<br>
+                <span id="modelsDirText" class="mono-path">加载中…</span></div>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-title">已下载的模型</div>
+              <div class="setting-desc"><span id="modelsListText">—</span></div>
+            </div>
+            <button id="moveModelsBtn" class="vbtn">把 C 盘已下载模型搬到 D 盘</button>
+          </div>
+          <div class="setting-desc" id="moveModelsMsg" style="margin-top:-6px"></div>
+
+          <div class="settings-section">自动心跳</div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-title">开启自动心跳</div>
+              <div class="setting-desc">开了之后，软件开着期间它会定时自己醒来，
+                看「心跳待办」和「定时提醒」里有没有到点的事，有就做、就提醒你。
+                关掉软件或关掉这个开关就停。</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="heartbeatToggle" />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-title">多久醒一次</div>
+              <div class="setting-desc">间隔越短越勤快，但越耗电脑算力</div>
+            </div>
+            <select id="hbInterval" class="text-input" style="width:140px">
+              <option value="60">1 分钟</option>
+              <option value="300" selected>5 分钟</option>
+              <option value="900">15 分钟</option>
+              <option value="1800">30 分钟</option>
+              <option value="3600">1 小时</option>
+            </select>
+          </div>
+          <p class="settings-note" id="hbHint"></p>
+          <p class="settings-note">
+            云端模型需先在系统里设好环境变量 OPENAI_API_KEY。
+            本地模型模式下完全不联网（联网搜索工具除外）。
+          </p>
+
+          <div class="settings-section">手机遥控</div>
+          <p class="settings-note" style="margin-top:10px">
+            在手机上指挥超能小助。中国推荐<b>企业微信</b>（合规免费）或<b>飞书</b>（体验顺）；
+            <b>Server酱</b>只能单向给你的微信发提醒、最简单。各渠道的密钥到「记忆」里
+            分别编辑 wecom.md / feishu.md / push.md 保存。
+            企业微信和飞书需要公网回调，本机请配合内网穿透（见 README）。
+          </p>
+
+          <div class="setting-row">
+            <div><div class="setting-title">Server酱（单向推送）</div>
+              <div class="setting-desc">填好 push.md 后点这里测试能否推到微信</div></div>
+            <button id="pushTestBtn" class="send-btn">测试推送</button>
+          </div>
+          <p class="settings-note" id="pushHint"></p>
+
+          <div class="setting-row">
+            <div><div class="setting-title">企业微信 / 飞书（双向）</div>
+              <div class="setting-desc">配好密钥并打通公网回调后，直接在对应 App 里和超能小助聊</div></div>
+            <span class="topbar-hint">回调地址：你的公网域名 + /wecom/callback 或 /feishu/callback</span>
+          </div>
+
+          <div class="settings-section">Telegram（海外）</div>
+          <div class="setting-row">
+            <div><div class="setting-title">Bot Token</div>
+              <div class="setting-desc">找 @BotFather 用 /newbot 获取</div></div>
+            <input type="text" id="tgToken" class="text-input" placeholder="粘贴 token" />
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-title">你的 Chat ID</div>
+              <div class="setting-desc">找 @userinfobot 获取（只服务你一人）</div></div>
+            <input type="text" id="tgChatId" class="text-input" placeholder="数字 id" />
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-title">启动 Telegram</div>
+              <div class="setting-desc">跑起来后，手机 Telegram 直接发消息</div></div>
+            <button id="tgStartBtn" class="send-btn">保存并启动</button>
+          </div>
+          <p class="settings-note" id="tgHint"></p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
