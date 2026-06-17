@@ -19,7 +19,7 @@ import hashlib
 import datetime
 from pathlib import Path
 
-from agent_core import MEMORY_DIR, read_memory_file, make_client
+from agent_core import MEMORY_DIR, read_memory_file, make_client, make_client_for
 import web_tools as W
 
 SNAP_DIR = MEMORY_DIR / "snapshots"
@@ -103,7 +103,9 @@ def check_one(url, note, use_local, model):
 
     # 让模型判断变化是否值得提醒
     try:
-        client = make_client(use_local)
+        # ★ make_client_for：model=='web' → 网页大模型客户端（驱动网页 AI 卡片），
+        #   避免把 'web' 当普通模型名发给本地/云端接口而报 model 'web' not found。
+        client = make_client_for(model, use_local)
         resp = client.chat.completions.create(
             model=model,
             messages=[{"role": "user",

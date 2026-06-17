@@ -1,7 +1,7 @@
 // main.js — Electron 主进程
 // 职责：开一个独立桌面窗口，并在后台自动启动 Python 后端，退出时关掉它。
 
-const { app, BrowserWindow, ipcMain, shell, Menu, nativeImage, clipboard, screen } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, Menu, nativeImage, clipboard, screen, globalShortcut } = require("electron");
 const { spawn } = require("child_process");
 const path = require("path");
 const http = require("http");
@@ -10,6 +10,7 @@ let mainWindow = null;
 let backendProcess = null;
 
 const BACKEND_PORT = 8756;
+const WAKE_ACCEL = "CommandOrControl+Shift+Space";   // 全局唤起热键
 
 // 找到 backend 目录：开发时在 ../backend，打包后在 resources/backend
 function backendDir() {
@@ -154,6 +155,23 @@ function createWindow() {
   mainWindow.on("closed", () => { mainWindow = null; });
 }
 
+// 注册全局唤起热键：一键把窗口拉到最前并聚焦输入框（Marvis 式「动动嘴」前置）
+function registerHotkeys() {
+  try {
+    globalShortcut.register(WAKE_ACCEL, () => {
+      if (!mainWindow) { createWindow(); return; }
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+      mainWindow.webContents
+        .executeJavaScript("var i=document.getElementById('input'); if(i){i.focus();}")
+        .catch(() => {});
+    });
+  } catch (e) {
+    console.error("注册全局热键失败：", e);
+  }
+}
+
 // ---------- 剪贴板监听 + 悬浮"提取"按钮 ----------
 // 你在抖音等地方点"复制链接"后，这里检测到视频链接，就在屏幕右下角弹一个
 // 小圆按钮，点一下就把视频加入提取队列，省得你手动粘贴。
@@ -263,6 +281,7 @@ app.whenReady().then(async () => {
   startBackend();
   const ok = await waitForBackend();
   createWindow();
+  registerHotkeys();         // 注册全局唤起热键
   startClipboardWatch();     // 监听剪贴板，复制视频链接时弹悬浮按钮
   // 把后端是否就绪告诉前端
   mainWindow.webContents.once("did-finish-load", () => {
@@ -282,6 +301,7 @@ function killBackend() {
   }
 }
 app.on("before-quit", killBackend);
+app.on("will-quit", () => { try { globalShortcut.unregisterAll(); } catch (_) {} });
 app.on("window-all-closed", () => {
   killBackend();
   if (process.platform !== "darwin") app.quit();

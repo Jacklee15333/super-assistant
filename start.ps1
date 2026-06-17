@@ -315,17 +315,40 @@ function Start-App {
         if (Get-Command python3 -ErrorAction SilentlyContinue) { $pyExe = 'python3' }
     }
     if (Test-Path -LiteralPath $reqFile) {
-        & $pyExe -c "import openai" 2>$null
-        if ($LASTEXITCODE -ne 0) {
-            Write-Info "Installing Python deps (first run, may be slow)..."
-            & $pyExe -m pip install -r $reqFile
-            if ($LASTEXITCODE -ne 0) {
-                Write-Warn "Python deps may have failed. If chat says 'No module named openai', run: $pyExe -m pip install openai"
+        # IMPORTANT: probe must NOT throw. Under $ErrorActionPreference='Stop'
+        # (set at top) a native command that exits non-zero terminates the
+        # script in PowerShell 7.3+. The old probe used `python -c "import X"`
+        # which is *meant* to fail when deps are missing -> that crashed the
+        # launcher. We now (a) relax ErrorAction locally and (b) use
+        # importlib find_spec so Python always exits 0 and just prints OK/MISSING.
+        $oldEAP = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $needDeps = $true
+            $probe = & $pyExe -c "import importlib.util as u; mods=['openai','psutil','edge_tts','mss','send2trash','pyperclip','PIL']; print('OK' if all(u.find_spec(m) for m in mods) else 'MISSING')" 2>$null
+            if ($probe -match 'OK') { $needDeps = $false }
+
+            if ($needDeps) {
+                Write-Info "Installing/updating Python deps (new features added: computer-control + voice). May be slow the first time..."
+                # 1) canonical: install from requirements.txt if present
+                & $pyExe -m pip install -r $reqFile 2>&1 | Out-Host
+                # 2) safety net: install the new packages explicitly, so it works
+                #    even if an older requirements.txt is still in place.
+                & $pyExe -m pip install psutil pyautogui pillow mss pyperclip send2trash pytesseract opencv-python edge-tts pycaw comtypes 2>&1 | Out-Host
+                # re-probe to report status (still never throws)
+                $probe2 = & $pyExe -c "import importlib.util as u; mods=['openai','edge_tts','psutil','mss']; print('OK' if all(u.find_spec(m) for m in mods) else 'MISSING')" 2>$null
+                if ($probe2 -match 'OK') {
+                    Write-Ok "Python deps ready"
+                } else {
+                    Write-Warn "Some Python deps may still be missing. Core chat works; you can re-run the launcher, or run:  $pyExe -m pip install -r `"$reqFile`""
+                }
             } else {
-                Write-Ok "Python deps ready"
+                Write-Info "Python deps already installed"
             }
-        } else {
-            Write-Info "Python deps already installed"
+        } catch {
+            Write-Warn "Dep install step skipped due to: $($_.Exception.Message). You can run:  $pyExe -m pip install -r `"$reqFile`""
+        } finally {
+            $ErrorActionPreference = $oldEAP
         }
     }
 

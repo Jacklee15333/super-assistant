@@ -33,6 +33,70 @@ def make_client(use_local: bool):
         return OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
 
 
+def is_web_model(model):
+    """是不是「伪模型」（网页大模型）。"""
+    try:
+        import router
+        return router.is_web_model(model)
+    except Exception:
+        return model == "web"
+
+
+def make_client_for(model, use_local, on_progress=None):
+    """
+    按模型返回客户端。
+      · 伪模型(model=='web') → WebModelClient（伪装 OpenAI，忽略 tools、纯文本进出）
+      · 其它 → 原 make_client(use_local)
+    on_progress 只对伪模型有意义（用于播报「登录/思考中/接收回复」等进度）。
+    """
+    if is_web_model(model):
+        from web_model_client import WebModelClient
+        return WebModelClient(on_progress=on_progress)
+    return make_client(use_local)
+
+
+# ---------- 各任务用哪个模型（task_models.json）----------
+TASK_MODELS_PATH = MEMORY_DIR / "task_models.json"
+
+
+def _default_task_models():
+    # 默认就是用户要的：高级分析→伪模型；视频总结→伪模型；本机动作→本地
+    return {
+        "default": {"use_local": False, "model": "web"},
+        "chat": {"follow_default": True},
+        "video_summary": {"use_local": False, "model": "web"},
+        "local_action": {"use_local": True, "model": "qwen2.5"},
+        "quick_chat": {"use_local": True, "model": "qwen2.5"},
+    }
+
+
+def load_task_models():
+    if TASK_MODELS_PATH.exists():
+        try:
+            data = json.loads(TASK_MODELS_PATH.read_text(encoding="utf-8"))
+            base = _default_task_models()
+            base.update(data or {})
+            return base
+        except Exception:
+            pass
+    return _default_task_models()
+
+
+def save_task_models(tm):
+    merged = load_task_models()
+    merged.update(tm or {})
+    TASK_MODELS_PATH.write_text(
+        json.dumps(merged, ensure_ascii=False, indent=2), encoding="utf-8")
+    return merged
+
+
+def resolve_model(task, fallback_use_local=True, fallback_model="qwen2.5"):
+    """便捷封装：读 task_models.json 后调 router.resolve_model。"""
+    import router
+    return router.resolve_model(task, load_task_models(),
+                                fallback_use_local, fallback_model)
+
+
 # ---------- 记忆读写 ----------
 def read_memory_file(name: str) -> str:
     p = MEMORY_DIR / name
@@ -52,6 +116,21 @@ def write_memory_file(name: str, content: str) -> str:
     return f"已写入 {name}（{len(content)} 字符）"
 
 
+def remember(text: str) -> str:
+    """把一条值得长期记住的信息追加进 MEMORY.md。新对话开始会自动加载，于是"越用越懂你"。"""
+    text = (text or "").strip()
+    if not text:
+        return "拒绝：要记的内容为空。"
+    p = MEMORY_DIR / "MEMORY.md"
+    if not p.exists():
+        p.write_text("# 长期记忆\n\n超能小助从历次对话里记下的、关于你的要点。\n\n",
+                     encoding="utf-8")
+    today = datetime.date.today().isoformat()
+    with p.open("a", encoding="utf-8") as f:
+        f.write(f"- （{today}）{text}\n")
+    return f"好的，记住了：{text}"
+
+
 def append_note(text: str) -> str:
     """把一行追加到当天的笔记文件。"""
     today = datetime.date.today().isoformat()
@@ -60,7 +139,9 @@ def append_note(text: str) -> str:
     line = f"- {stamp} {text}\n"
     with p.open("a", encoding="utf-8") as f:
         f.write(line)
-    return f"已记到 note-{today}.md"
+    return (f"已追加到当天笔记 note-{today}.md（在 memory 目录下）。"
+            f"如果要查看这份笔记，请用 read_memory 工具（name=\"note-{today}.md\"），"
+            f"不要用 read_file 去猜路径。")
 
 
 def run_agent_autodeny(client, model, messages, on_tool=None, max_steps=8):
@@ -137,6 +218,10 @@ def tool_write_memory(args):
 
 def tool_append_note(args):
     return append_note(args.get("text", ""))
+
+
+def tool_remember(args):
+    return remember(args.get("text", ""))
 
 
 def tool_list_memory(_args=None):
@@ -251,7 +336,8 @@ def _call_model_with_retry(client, model, messages, schema, retries=2):
 
 
 def run_agent(client, model, messages, shell_enabled=False,
-              on_tool=None, max_steps=8, approvals=None):
+              on_tool=None, max_steps=8, approvals=None,
+              on_think=None, on_tool_start=None):
     """
     跑一轮 agent。返回 (回复文本, 更新后的 messages, pending)。
     - pending 为 None：正常完成。
@@ -265,6 +351,8 @@ def run_agent(client, model, messages, shell_enabled=False,
     approvals = approvals or {}
 
     for _ in range(max_steps):
+        if on_think:
+            on_think()
         msg = _call_model_with_retry(client, model, messages, T.TOOLS_SCHEMA)
 
         if not msg.tool_calls:
@@ -305,6 +393,8 @@ def run_agent(client, model, messages, shell_enabled=False,
                 # decision is True -> 往下执行
 
             fn = T.get_tool_fn(name)
+            if on_tool_start:
+                on_tool_start(name, args)
             if fn is None:
                 result = f"未知工具：{name}"
             else:

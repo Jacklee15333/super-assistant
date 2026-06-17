@@ -22,6 +22,7 @@ import re
 import glob
 import shutil
 import tempfile
+import threading
 from pathlib import Path
 
 # 关键：Hugging Face 在国内常连不上，语音模型下载会失败。
@@ -33,6 +34,25 @@ os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
 
 # 模型缓存，避免每次都重新加载
 _model_cache = {}
+
+# ★全局闸门：视频提取（下载+语音识别+总结）很吃 CPU/显存，
+#   保证同一时间只有一个提取任务在跑——对话里发链接、和「视频」板块队列，
+#   都共用这同一个闸门，避免互相抢资源、卡死。
+# Semaphore(1) 等价于一把可重复 acquire/release 的锁，但 release 多了不会抛硬错。
+extract_gate = threading.BoundedSemaphore(1)
+
+
+def extract_busy():
+    """当前是否有视频提取任务正在进行（闸门被占用）。
+    用非阻塞方式探一下：能拿到就立刻还回去，说明空闲；拿不到说明在忙。"""
+    got = extract_gate.acquire(blocking=False)
+    if got:
+        try:
+            extract_gate.release()
+        except (ValueError, RuntimeError):
+            pass
+        return False
+    return True
 
 
 def _models_dir():
@@ -155,19 +175,114 @@ def check_deps():
     return missing
 
 
+def _set_user_env(name, value):
+    """Windows 上持久设置用户环境变量（setx），让新启动的 Ollama 能读到。返回是否成功。"""
+    import sys
+    import subprocess
+    try:
+        os.environ[name] = value
+        if sys.platform != "win32":
+            return False
+        r = subprocess.run(["setx", name, value],
+                           capture_output=True, text=True, timeout=20)
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
+def _dir_size_gb(p):
+    try:
+        return sum(f.stat().st_size for f in p.rglob("*") if f.is_file()) / 1024 / 1024 / 1024
+    except Exception:
+        return 0.0
+
+
+def _file_count(p):
+    try:
+        return sum(1 for f in p.rglob("*") if f.is_file())
+    except Exception:
+        return 0
+
+
+def _move_ollama_models(dest):
+    """把 C 盘的 Ollama 大模型安全搬到 D 盘：先复制 → 校验完整 → 删源释放，
+    并设置 OLLAMA_MODELS 指向新位置。过程中任何一步出错都不会破坏 C 盘原文件。"""
+    moved, notes = [], []
+    src_env = (os.environ.get("OLLAMA_MODELS") or "").strip()
+    src = Path(src_env) if src_env else (Path.home() / ".ollama" / "models")
+
+    if not src.exists():
+        notes.append("没找到 Ollama 模型文件夹（可能没装 Ollama，或模型已不在默认位置）。")
+        return {"moved": moved, "notes": notes}
+
+    try:
+        on_c = str(src.resolve()).lower().startswith("c:")
+    except Exception:
+        on_c = True
+    if not on_c:
+        notes.append(f"Ollama 模型已经不在 C 盘了（{src}），无需搬运。")
+        return {"moved": moved, "notes": notes}
+
+    target = dest / "ollama-models"
+    src_gb = _dir_size_gb(src)
+
+    # ① 复制（源只读，最安全）
+    if target.exists() and _file_count(target) > 0:
+        notes.append(f"D 盘已有 Ollama 模型夹（{target}），跳过复制；将直接校验后清理 C 盘。")
+    else:
+        try:
+            shutil.copytree(str(src), str(target), dirs_exist_ok=True)
+        except Exception as e:
+            notes.append("复制 Ollama 模型失败——如果 Ollama 正在运行，请先在右下角托盘"
+                         f"退出 Ollama 再点一次按钮。详情：{e}")
+            return {"moved": moved, "notes": notes}
+
+    # ② 校验：D 盘文件数不少于 C 盘，才认为复制完整
+    if _file_count(target) < _file_count(src):
+        notes.append("复制后文件数不一致，为安全起见【没有删除 C 盘原文件】。"
+                     "请退出 Ollama 后再点一次按钮重试。")
+        return {"moved": moved, "notes": notes}
+
+    # ③ 设置 OLLAMA_MODELS（用户级，持久）
+    set_ok = _set_user_env("OLLAMA_MODELS", str(target))
+
+    # ④ 删源，释放 C 盘
+    leftover = False
+    try:
+        shutil.rmtree(str(src), ignore_errors=True)
+        if src.exists() and _file_count(src) > 0:
+            leftover = True
+    except Exception:
+        leftover = True
+
+    moved.append(f"Ollama 模型 → {target}（约 {src_gb:.1f} GB）")
+    if set_ok:
+        notes.append("✅ 已把 OLLAMA_MODELS 指向 D 盘。请【退出并重新打开 Ollama】，"
+                     "再重启本软件即可生效。")
+    else:
+        notes.append(f"模型已搬到 {target}，但没能自动写环境变量。请手动新建系统环境变量 "
+                     f"OLLAMA_MODELS = {target}，再重启 Ollama。")
+    if leftover:
+        notes.append(f"⚠ C 盘还有少量残留（Ollama 可能仍占用）：退出 Ollama 后手动删除 {src} 即可。")
+    return {"moved": moved, "notes": notes}
+
+
 def move_cached_models():
-    """把 C 盘 Hugging Face 缓存里已下载好的 faster-whisper 模型，搬到 D 盘的
-    models 文件夹，避免重新下载、也省 C 盘空间。返回搬了哪些。"""
+    """把 C 盘上已下载的模型搬到 D 盘的 models 文件夹（省 C 盘空间）：
+       ① faster-whisper 的 HuggingFace 缓存；② Ollama 的大模型（通常才是 C 盘爆满主因）。
+       返回搬了哪些。"""
     dest = _models_dir()
     try:
         dest.mkdir(parents=True, exist_ok=True)
     except Exception as e:
         return {"ok": False, "moved": [], "error": f"建目标文件夹失败：{e}"}
+    moved = []
+    notes = []
+    # ① faster-whisper / HuggingFace 缓存
     hubs = []
     if os.environ.get("HF_HOME"):
         hubs.append(Path(os.environ["HF_HOME"]) / "hub")
     hubs.append(Path.home() / ".cache" / "huggingface" / "hub")
-    moved = []
     for hub in hubs:
         try:
             if not hub.exists():
@@ -184,8 +299,15 @@ def move_cached_models():
                     moved.append(f"{d.name} 搬运失败：{e}")
         except Exception:
             continue
-    return {"ok": bool([m for m in moved if "失败" not in m]),
-            "moved": moved, "dest": str(dest)}
+    # ② Ollama 大模型
+    try:
+        ores = _move_ollama_models(dest)
+        moved.extend(ores.get("moved", []))
+        notes.extend(ores.get("notes", []))
+    except Exception as e:
+        notes.append(f"Ollama 模型处理出错：{e}")
+    return {"ok": bool([m for m in moved if "失败" not in m]) or bool(moved),
+            "moved": moved, "notes": notes, "dest": str(dest)}
 
 
 def install_deps():

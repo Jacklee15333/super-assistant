@@ -23,6 +23,7 @@
         <button class="nav-item" data-view="study">学习</button>
         <button class="nav-item" data-view="dashboard">看板</button>
         <button class="nav-item" data-view="video">视频</button>
+        <button class="nav-item" data-view="library">成长库</button>
         <button class="nav-item" data-view="memory">记忆</button>
         <button class="nav-item" data-view="settings">设置</button>
       </nav>
@@ -58,10 +59,35 @@
         </header>
         <div class="messages" id="messages"></div>
         <div class="composer">
-          <button class="composer-tool" id="rememberBtn" title="把这次对话提炼进长期记忆，下次还记得">结束并记住</button>
-          <textarea id="input" rows="1"
-            placeholder="和超能小助说点什么…（Enter 发送，Shift+Enter 换行）"></textarea>
-          <button id="sendBtn" class="send-btn">发送</button>
+          <div class="composer-box">
+            <textarea id="input" rows="1"
+              placeholder="和超能小助说点什么…（Enter 发送，Shift+Enter 换行）"></textarea>
+            <div class="composer-bar">
+              <div class="composer-bar-left">
+                <div class="plus-menu" id="plusMenu">
+                  <button type="button" class="composer-plus" id="plusBtn" title="更多">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  </button>
+                  <div class="plus-menu-pop" id="plusPop" hidden>
+                    <button type="button" class="plus-item" id="rememberBtn" title="把这次对话提炼进长期记忆，下次还记得">🧠 结束并记住</button>
+                  </div>
+                </div>
+              </div>
+              <div class="composer-bar-right">
+                <div class="model-picker" id="modelPicker">
+                  <button type="button" class="model-picker-btn" id="modelPickerBtn" title="选择模型 · 随时可切换">
+                    <span id="modelPickerLabel">模型</span>
+                    <svg class="mp-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                  </button>
+                  <div class="model-picker-menu" id="modelPickerMenu" hidden></div>
+                </div>
+                <button type="button" id="micBtn" class="composer-icon-btn" title="语音输入（点一下开始说话，再点停止）">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+                </button>
+                <button id="sendBtn" class="send-btn" title="发送（Enter）">发送</button>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -138,6 +164,19 @@
         </div>
       </section>
 
+      <!-- 成长库视图 -->
+      <section class="view view-library" id="view-library">
+        <header class="topbar"><span>📚 成长库 · 软件帮你积累的知识</span></header>
+        <div class="lib-pane">
+          <div class="lib-tabs">
+            <button class="lib-tab active" data-cat="video">🎬 视频内容库 <span class="lib-count" id="libCntVideo">·</span></button>
+            <button class="lib-tab" data-cat="learning">📚 学习管理库 <span class="lib-count" id="libCntLearning">·</span></button>
+            <button class="lib-tab" data-cat="info">📰 信息管理库 <span class="lib-count" id="libCntInfo">·</span></button>
+          </div>
+          <div class="lib-body" id="libBody"><div class="lib-empty">加载中…</div></div>
+        </div>
+      </section>
+
       <!-- 记忆视图 -->
       <section class="view view-memory" id="view-memory">
         <header class="topbar"><span>设置与记忆</span></header>
@@ -207,6 +246,117 @@
             </label>
           </div>
 
+          <div class="settings-section">电脑操作 · 语音</div>
+          <div class="setting-row danger">
+            <div>
+              <div class="setting-title">🖥️ 电脑操作权限
+                <button id="accessInfoBtn" class="info-btn" title="这个功能是干什么的？">ⓘ</button>
+              </div>
+              <div class="setting-desc">开启后超能小助可整理真实文件、调系统、操作其它程序、看屏幕；关闭则只在沙箱里活动。破坏性动作仍会逐次弹窗确认。</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="systemAccess" />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-title">语音播报音色</div>
+              <div class="setting-desc">每段文字/文章右边的 🔊 按钮用它朗读。神经网络音色，效果接近 ChatGPT，可换男/女声</div>
+            </div>
+            <span class="picker-row" style="display:flex;gap:8px;align-items:center">
+              <select id="ttsVoice" class="text-input" style="width:200px">
+                <option value="zh-CN-YunxiNeural">云希 · 男声（活泼，推荐）</option>
+                <option value="zh-CN-YunjianNeural">云健 · 男声（浑厚）</option>
+                <option value="zh-CN-YunyangNeural">云扬 · 男声（播报腔）</option>
+                <option value="zh-CN-XiaoxiaoNeural">晓晓 · 女声（亲切）</option>
+                <option value="zh-CN-XiaoyiNeural">晓伊 · 女声（甜美）</option>
+                <option value="en-US-GuyNeural">Guy · 英文男声</option>
+                <option value="en-US-AriaNeural">Aria · 英文女声</option>
+              </select>
+              <button id="ttsTestBtn" class="ghost-btn small">试听</button>
+            </span>
+          </div>
+
+          <div class="settings-section">智能路由 · 网页模型</div>
+          <p class="settings-note" style="margin-top:8px">
+            开启后，<b>高级分析 / 搜索 / 写作 / 总结</b>会自动交给「网页模型」（你的 sorryios 网页 ChatGPT，自带联网搜索）；
+            <b>记忆 / 提醒 / 笔记 / 读写文件</b>等本机动作仍由本地模型完成（请用 <code>/记住</code>、<code>/提醒</code> 等前缀）。
+            任何一步失败会<b>自动回退本地</b>，不影响使用。需先装依赖：
+            <code>pip install playwright</code> 再 <code>python -m playwright install chromium</code>。
+          </p>
+          <div class="setting-row">
+            <div><div class="setting-title">sorryios 账号</div>
+              <div class="setting-desc">登录 sorryios.ai 的账号</div></div>
+            <input type="text" id="wmUser" class="text-input" style="width:200px" placeholder="账号" />
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-title">sorryios 密码</div>
+              <div class="setting-desc">明文存在本机，注意安全；留空＝不修改</div></div>
+            <input type="password" id="wmPass" class="text-input" style="width:200px" placeholder="密码" />
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-title">显示浏览器窗口</div>
+              <div class="setting-desc">开：看得到自动化过程；关：后台运行</div></div>
+            <label class="switch">
+              <input type="checkbox" id="wmHeadful" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-title">联网搜索开关</div>
+              <div class="setting-desc">ChatGPT 一般会自动联网；个别卡需手动开时再勾</div></div>
+            <label class="switch">
+              <input type="checkbox" id="wmSearch" />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-title">保存 & 测试网页模型</div>
+              <div class="setting-desc">保存配置；测试会弹浏览器→登录→存登录态→发一句测试</div></div>
+            <span class="picker-row" style="display:flex;gap:8px">
+              <button id="wmSaveBtn" class="ghost-btn small">保存</button>
+              <button id="wmTestBtn" class="send-btn">测试网页模型</button>
+            </span>
+          </div>
+          <p class="settings-note" id="wmHint"></p>
+
+          <div class="settings-section">各任务用哪个模型</div>
+          <p class="settings-note" style="margin-top:8px">
+            给每类任务单独指定模型；选「跟随默认」就用下面的「默认模型」。改完点「保存任务配置」。
+            存到 <code>backend/memory/task_models.json</code>，可手改。
+          </p>
+          <div class="setting-row">
+            <div><div class="setting-title">默认模型（兜底）</div>
+              <div class="setting-desc">没单独配的任务都用它</div></div>
+            <select id="tmDefault" class="text-input" style="width:220px"></select>
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-title">高级分析 / 搜索 / 写作 / 总结</div>
+              <div class="setting-desc">默认走网页模型</div></div>
+            <select id="tm_chat" class="text-input" style="width:220px"></select>
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-title">视频总结</div>
+              <div class="setting-desc">视频先本地听写，再用这个模型总结</div></div>
+            <select id="tm_video_summary" class="text-input" style="width:220px"></select>
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-title">本机动作（记忆 / 提醒 / 文件）</div>
+              <div class="setting-desc">只能选本地模型（要支持工具调用）</div></div>
+            <select id="tm_local_action" class="text-input" style="width:220px"></select>
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-title">快速闲聊</div>
+              <div class="setting-desc">很短的招呼，本地秒回</div></div>
+            <select id="tm_quick_chat" class="text-input" style="width:220px"></select>
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-title">　</div><div class="setting-desc"></div></div>
+            <button id="tmSaveBtn" class="send-btn">保存任务配置</button>
+          </div>
+          <p class="settings-note" id="tmHint"></p>
+
           <div class="settings-section">模型与下载</div>
           <div class="setting-row">
             <div>
@@ -218,7 +368,9 @@
           <div class="setting-row">
             <div>
               <div class="setting-title">已下载的模型</div>
-              <div class="setting-desc"><span id="modelsListText">—</span></div>
+              <div class="setting-desc"><span id="modelsListText">—</span><br>
+                点右边按钮可把 <b>C 盘</b> 上的语音模型 <b>和 Ollama 大模型</b>（qwen2.5、deepseek 等，
+                通常才是占 C 盘的大头）安全搬到 D 盘并自动改好路径。搬之前建议先退出 Ollama。</div>
             </div>
             <button id="moveModelsBtn" class="vbtn">把 C 盘已下载模型搬到 D 盘</button>
           </div>

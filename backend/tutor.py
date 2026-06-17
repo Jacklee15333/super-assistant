@@ -142,7 +142,9 @@ def generate_daily_task(student="default", use_local=True, model="qwen2.5"):
         return "（教材库是空的，请老师先往 教材/ 文件夹放资料。）"
     sdata = load_student(student)
     try:
-        client = agent_core.make_client(use_local)
+        # ★ make_client_for：model=='web' → 网页大模型客户端（驱动网页 AI 卡片），
+        #   避免把 'web' 当普通模型名发给本地/云端接口而报 model 'web' not found。
+        client = agent_core.make_client_for(model, use_local)
         resp = client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": DAILY_PROMPT.format(

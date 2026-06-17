@@ -7,6 +7,12 @@ tools.py — 集中的工具定义，含安全分级
 
 危险工具不在这里直接执行；run_agent 检测到危险工具会挂起，
 等界面把用户的"批准/拒绝"传回来再执行。这样 AI 永远无法绕过你动危险操作。
+
+★ 2026-06 新增「电脑操作权限」总开关（system_tools）：
+  · 开关关闭（默认）：下面的文件读写被锁回沙箱 FILES_ROOT；system_tools 里的
+    真实文件系统 / 系统设置 / GUI / 看屏幕等工具一律拒绝。shell 也被冻结。
+  · 开关开启：read_file/write_file 等可访问任意路径；system_tools 全部解冻；
+    破坏性操作仍逐次弹窗确认。开关由界面右上角按钮控制。
 """
 
 import os
@@ -20,6 +26,7 @@ from agent_core import (
     MEMORY_DIR, read_memory_file, write_memory_file, append_note,
     tool_get_time, tool_calc, tool_read_memory, tool_write_memory,
     tool_append_note, tool_list_memory, tool_web_search,
+    tool_remember,
 )
 from web_tools import (
     tool_read_webpage, tool_search_web, tool_research,
@@ -32,6 +39,9 @@ from tutor import (
     tool_get_student, tool_update_student,
 )
 
+# ★ 电脑操作权限 + 全套电脑操作工具
+import system_tools
+
 # 工作区根：允许读写的本地目录边界（默认 memory 的上级，即 backend/）
 WORKSPACE = MEMORY_DIR.parent
 # 给"读写任意文件"工具一个更宽的边界：用户主目录下的一个专属文件夹
@@ -41,20 +51,34 @@ FILES_ROOT.mkdir(parents=True, exist_ok=True)
 
 
 def _safe_path(rel):
-    """把相对路径限制在 FILES_ROOT 内，防止越界（../ 逃逸）。"""
+    """
+    解析路径，边界由「电脑操作权限」开关决定：
+      · 权限开启 → 允许任意绝对路径 / ~ / 相对 FILES_ROOT（可动真实桌面、下载、D盘）。
+      · 权限关闭 → 死锁在 FILES_ROOT 沙箱内，越界即拒绝。
+    """
+    rel = rel or ""
+    if system_tools.is_enabled():
+        p = Path(os.path.expanduser(os.path.expandvars(rel)))
+        if not p.is_absolute():
+            p = FILES_ROOT / rel
+        return p.resolve()
+    # 权限关闭：锁回沙箱
     p = (FILES_ROOT / rel).resolve()
     if not str(p).startswith(str(FILES_ROOT)):
-        raise ValueError("路径越界，拒绝访问。")
+        raise ValueError("路径越界，拒绝访问。要操作沙箱外的真实文件，"
+                         "请先在界面右上角打开「电脑操作权限」开关。")
     return p
 
 
-# ---------- 新增：本地文件读写（带边界） ----------
+# ---------- 本地文件读写（边界随开关变化） ----------
 def tool_read_file(args):
-    """读取工作区文件。"""
+    """读取文件。权限关→只能读沙箱；权限开→可读任意路径。"""
     try:
         p = _safe_path(args.get("path", ""))
         if not p.exists():
             return f"文件不存在：{args.get('path')}"
+        if p.is_dir():
+            return "这是目录。权限开启后可用 fs_list 列目录。"
         if p.stat().st_size > 1_000_000:
             return "文件太大（>1MB），拒绝读取。"
         return p.read_text(encoding="utf-8", errors="replace")[:8000]
@@ -63,18 +87,18 @@ def tool_read_file(args):
 
 
 def tool_write_file(args):
-    """写入工作区文件（危险：会落盘）。"""
+    """写入文件（危险：会落盘）。权限关→只能写沙箱；权限开→可写任意路径。"""
     try:
         p = _safe_path(args.get("path", ""))
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(args.get("content", ""), encoding="utf-8")
-        return f"已写入 {args.get('path')}（{len(args.get('content',''))} 字符）"
+        return f"已写入 {p}（{len(args.get('content',''))} 字符）"
     except Exception as e:
         return f"写入出错：{e}"
 
 
 def tool_list_files(args):
-    """列出工作区某目录下的文件。"""
+    """列出某目录下的文件。权限关→沙箱内；权限开→任意目录。"""
     try:
         sub = args.get("path", "")
         base = _safe_path(sub) if sub else FILES_ROOT
@@ -90,7 +114,7 @@ def tool_list_files(args):
 
 
 def tool_search_files(args):
-    """在工作区按文件名关键词搜索。"""
+    """在沙箱内按文件名关键词搜索（要搜真实任意目录，权限开后用 fs_search）。"""
     try:
         kw = args.get("keyword", "").strip()
         if not kw:
@@ -107,7 +131,7 @@ def tool_search_files(args):
 
 
 def tool_delete_file(args):
-    """删除工作区文件（危险）。"""
+    """删除文件（危险）。权限关→沙箱内；权限开→任意路径（建议优先用 fs_trash 进回收站）。"""
     try:
         p = _safe_path(args.get("path", ""))
         if not p.exists():
@@ -115,12 +139,12 @@ def tool_delete_file(args):
         if p.is_dir():
             return "拒绝：这是目录，本工具只删单个文件。"
         p.unlink()
-        return f"已删除 {args.get('path')}"
+        return f"已删除 {p}"
     except Exception as e:
         return f"删除出错：{e}"
 
 
-# ---------- 新增：定时任务 ----------
+# ---------- 定时任务 ----------
 def tool_add_reminder(args):
     """添加一个定时提醒，写进 memory/reminders.md，由心跳检查触发。"""
     when = args.get("when", "").strip()
@@ -141,8 +165,11 @@ def tool_list_reminders(_args=None):
     return read_memory_file("reminders.md") or "（还没有提醒）"
 
 
-# ---------- shell（危险） ----------
+# ---------- shell（危险 + 受电脑操作权限闸门）----------
 def tool_shell(args):
+    if not system_tools.is_enabled():
+        return ("拒绝：电脑操作权限未开启，shell 已冻结。"
+                "请点界面右上角的「电脑操作权限」开关打开后再用。")
     cmd = args.get("command", "")
     try:
         r = subprocess.run(cmd, shell=True, capture_output=True,
@@ -175,6 +202,7 @@ TOOL_REGISTRY = {
     "search_files": (tool_search_files, "safe"),
     "list_reminders": (tool_list_reminders, "safe"),
     "append_note": (tool_append_note, "safe"),
+    "remember": (tool_remember, "safe"),
     "add_reminder": (tool_add_reminder, "safe"),
     # 危险（需用户确认）
     "write_memory": (tool_write_memory, "danger"),
@@ -182,6 +210,9 @@ TOOL_REGISTRY = {
     "delete_file": (tool_delete_file, "danger"),
     "shell": (tool_shell, "danger"),
 }
+
+# ★ 合并「电脑操作权限」下的全套电脑操作工具（真实文件系统 / 系统 / GUI / 看屏幕）
+TOOL_REGISTRY.update(system_tools.SYSTEM_TOOLS)
 
 DANGER_TOOLS = {k for k, (_, lvl) in TOOL_REGISTRY.items() if lvl == "danger"}
 
@@ -232,9 +263,9 @@ TOOLS_SCHEMA = [
             "read_count": {"type": "integer", "description": "读取几个网页，默认3"}},
             "required": ["query"]}}},
     {"type": "function", "function": {
-        "name": "video_transcript", "description": "取一个视频的文字稿（字幕），支持 YouTube、Bilibili 的公开字幕。用户发视频链接想要文字版或总结视频内容时用。抖音/快手没有公开字幕接口，会如实说明并给替代办法",
+        "name": "video_transcript", "description": "取一个视频的完整文字稿。YouTube/B站优先取公开字幕；抖音、快手、小红书等没有字幕的视频，会自动用本机的语音识别（faster-whisper）把音频转成文字。**只要用户发来视频链接（哪怕是抖音整段分享文案），或想要某个视频的文字版/总结/文案/讲了什么，就直接调用这个工具**。不要用 web_search 去搜视频链接——那样取不到内容。",
         "parameters": {"type": "object", "properties": {
-            "url": {"type": "string", "description": "视频链接"}},
+            "url": {"type": "string", "description": "视频链接，或包含链接的整段分享文案"}},
             "required": ["url"]}}},
     {"type": "function", "function": {
         "name": "list_textbooks", "description": "列出教材库里有哪些资料（英语辅导用）",
@@ -258,22 +289,27 @@ TOOLS_SCHEMA = [
             "note": {"type": "string", "description": "备注"}},
             "required": ["student"]}}},
     {"type": "function", "function": {
-        "name": "read_file", "description": "读取工作区文件（你的专属文件夹内）",
+        "name": "read_file", "description": "读取文件。电脑操作权限开启后可读任意路径（桌面/下载/D盘），关闭时只能读沙箱",
         "parameters": {"type": "object", "properties": {
-            "path": {"type": "string", "description": "相对路径"}},
+            "path": {"type": "string", "description": "权限开后可写绝对路径，如 C:\\\\Users\\\\me\\\\Desktop\\\\a.txt"}},
             "required": ["path"]}}},
     {"type": "function", "function": {
-        "name": "list_files", "description": "列出工作区目录内容",
+        "name": "list_files", "description": "列出目录内容。权限开后可列任意目录",
         "parameters": {"type": "object", "properties": {
-            "path": {"type": "string", "description": "相对路径，留空为根"}}}}},
+            "path": {"type": "string", "description": "路径，留空为沙箱根"}}}}},
     {"type": "function", "function": {
-        "name": "search_files", "description": "按文件名关键词搜索工作区",
+        "name": "search_files", "description": "在沙箱内按文件名搜索（搜真实任意目录用 fs_search）",
         "parameters": {"type": "object", "properties": {
             "keyword": {"type": "string"}}, "required": ["keyword"]}}},
     {"type": "function", "function": {
         "name": "append_note", "description": "把一句话追加到今天的笔记",
         "parameters": {"type": "object", "properties": {
             "text": {"type": "string"}}, "required": ["text"]}}},
+    {"type": "function", "function": {
+        "name": "remember", "description": "记住一条关于用户的长期信息（他的偏好、习惯、正在做的项目、重要决定、希望你怎么跟他相处等）。当你在对话中了解到值得长期记住的事，就主动调用——记下后以后每次对话都会自动想起，越用越懂他。只记真正持久有用的，不要记一次性的琐事。",
+        "parameters": {"type": "object", "properties": {
+            "text": {"type": "string", "description": "要长期记住的那条信息，一句话说清"}},
+            "required": ["text"]}}},
     {"type": "function", "function": {
         "name": "add_reminder", "description": "添加定时提醒，到点由心跳通知",
         "parameters": {"type": "object", "properties": {
@@ -290,16 +326,27 @@ TOOLS_SCHEMA = [
             "name": {"type": "string"}, "content": {"type": "string"}},
             "required": ["name", "content"]}}},
     {"type": "function", "function": {
-        "name": "write_file", "description": "写入工作区文件（危险，需确认）",
+        "name": "write_file", "description": "写入文件（危险，需确认）。权限开后可写任意路径",
         "parameters": {"type": "object", "properties": {
             "path": {"type": "string"}, "content": {"type": "string"}},
             "required": ["path", "content"]}}},
     {"type": "function", "function": {
-        "name": "delete_file", "description": "删除工作区文件（危险，需确认）",
+        "name": "delete_file", "description": "删除文件（危险，需确认）。权限开后可删任意路径，建议优先用 fs_trash 进回收站",
         "parameters": {"type": "object", "properties": {
             "path": {"type": "string"}}, "required": ["path"]}}},
     {"type": "function", "function": {
-        "name": "shell", "description": "执行 shell 命令（危险，需确认）",
+        "name": "shell", "description": "执行 shell 命令（危险，需确认，且需电脑操作权限开启）",
         "parameters": {"type": "object", "properties": {
             "command": {"type": "string"}}, "required": ["command"]}}},
 ]
+
+# ★ 把「电脑操作权限」下的工具 schema 合并进来（真实文件系统/系统/GUI/看屏幕）
+TOOLS_SCHEMA += system_tools.SYSTEM_SCHEMA
+
+# ★ 智能路由：T3（高级分析/搜索/写作/总结）改走「伪模型」（网页 ChatGPT 自带联网搜索），
+#   这些本地搜索类工具被取代，从模型可见的 schema 里移除，避免与伪模型的原生联网重复。
+#   （函数本体保留；想恢复本地搜索，把名字从这里删掉即可。）
+DISABLED_TOOLS = {"web_search", "search_web", "read_webpage", "research"}
+
+TOOLS_SCHEMA = [t for t in TOOLS_SCHEMA
+                if t.get("function", {}).get("name") not in DISABLED_TOOLS]

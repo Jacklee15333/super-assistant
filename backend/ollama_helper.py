@@ -127,7 +127,42 @@ def environment_check(use_local=True, model="qwen2.5"):
         if not ok:
             result["ok"] = False
 
-    # openai 库
+    # ★ 网页模型：它不走 Ollama 也不走 OPENAI_API_KEY，
+    #   所以单独检查它的依赖（Playwright）和账号配置，检查通过就算「环境就绪」。
+    #   （否则会去 Ollama 里找名为 'web' 的模型，永远找不到 → 右上角一直红点。）
+    is_web = False
+    try:
+        import agent_core
+        is_web = agent_core.is_web_model(model)
+    except Exception:
+        is_web = (model == "web")
+    if is_web:
+        try:
+            import web_model
+            if web_model.is_available():
+                add("Playwright（网页模型依赖）", True, "已安装")
+            else:
+                err = ""
+                try:
+                    err = str(web_model.playwright_import_error() or "")
+                except Exception:
+                    pass
+                add("Playwright（网页模型依赖）", False,
+                    "未安装：pip install playwright && python -m playwright install chromium"
+                    + (("（%s）" % err) if err else ""))
+            cfg = web_model.load_config()
+            if cfg.get("aiUsername") and cfg.get("aiPassword"):
+                add("网页模型账号", True, "已配置（%s）" % cfg.get("aiUsername"))
+            else:
+                add("网页模型账号", False,
+                    "请在「设置 → 网页模型」里填写 sorryios 账号和密码")
+        except Exception as e:
+            add("网页模型", False, "检查出错：%s" % e)
+        # 记忆/提醒/笔记等本机动作仍用本地模型，但即使没装也只是这些功能受影响，
+        # 不影响网页模型本身，所以这里不因为 Ollama 没装而判整体「环境有问题」。
+        return result
+
+    # openai 库（本地/云端模型才需要）
     try:
         import openai  # noqa
         add("Python openai 库", True, "已安装")
