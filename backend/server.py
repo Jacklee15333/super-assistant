@@ -113,6 +113,16 @@ def _cx_video_dir():
     return d
 
 
+def _cx_shots_dir():
+    """视频笔记截图的根目录：video_notes/shots/。每条笔记一个子目录（按笔记名）。"""
+    d = _cx_video_dir() / "shots"
+    try:
+        d.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+    return d
+
+
 def _bold_point_titles(md):
     """把"序号. 小标题"这种要点标题行加粗（重点更醒目）。
     只处理较短、像小标题的编号行；已经加粗的、太长的（像整段正文）不动。"""
@@ -130,7 +140,44 @@ def _bold_point_titles(md):
     return "\n".join(out)
 
 
-def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None):
+def _fmt_mmss(sec):
+    """秒 → mm:ss（给带时间戳文字稿和标记示例用）。"""
+    try:
+        sec = int(float(sec))
+    except Exception:
+        sec = 0
+    return "%02d:%02d" % (sec // 60, sec % 60)
+
+
+def _build_timestamped_transcript(segments, limit=10000):
+    """把带时间戳的分段拼成「[mm:ss] 这句话」的文字稿，让模型知道每段话在第几分秒，
+    才能把 Screenshot/Content 标记的时间打准。控制总长，避免超出上下文。"""
+    lines = []
+    total = 0
+    for s in segments or []:
+        t = (s.get("text") or "").strip()
+        if not t:
+            continue
+        line = "[%s] %s" % (_fmt_mmss(s.get("start", 0)), t)
+        total += len(line)
+        if total > limit:
+            break
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None,
+                           segments=None, do_screenshot=False, do_link=False):
+    # 要插图或跳转时，给模型「带时间戳的文字稿」，它才能把标记时间打准；
+    # 否则维持原样（纯文字稿），行为和以前完全一致。
+    want_markers = bool(do_screenshot or do_link) and bool(segments)
+    if want_markers:
+        body_text = _build_timestamped_transcript(segments, limit=10000)
+        if not body_text:
+            body_text = (transcript or "")[:10000]
+    else:
+        body_text = (transcript or "")[:10000]
+
     prompt = (
         "下面是一段视频的文字稿（语音识别得到，可能有个别错别字，请结合上下文理解）。"
         "请帮我做一份**尽量详细、有深度、信息密度高、排版清晰**的中文笔记——宁可写长一点、"
@@ -153,8 +200,27 @@ def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None
         "可操作的做法或最有用的信息，越具体、越能落地越好。\n\n"
         "## 我的点评\n用 4-6 句客观点评：这些观点有没有道理、哪里值得认同、"
         "哪里需要注意或保留、可能的片面之处，普通人可以怎么用。\n\n"
-        "整体要条理清晰、信息密度高、尽量详尽，是深度归纳不是照抄原文。\n\n"
-        f"视频标题：{title}\n\n=== 文字稿 ===\n{transcript[:10000]}\n")
+        "整体要条理清晰、信息密度高、尽量详尽，是深度归纳不是照抄原文。\n")
+
+    # 按开关追加「插图 / 跳转原片」标记要求。文字稿带 [mm:ss]，模型据此打准时间。
+    if want_markers:
+        prompt += (
+            "\n【特别要求 · 时间标记】下面的文字稿每行开头都有 [mm:ss] 时间，"
+            "请据此在笔记里恰当位置插入下面的标记（标记单独成行、原样输出，不要改写、不要加代码块）：\n")
+        if do_screenshot:
+            prompt += (
+                "- 当某段内容涉及**画面演示、操作步骤、图表、关键场景**等"
+                "「看一眼图更好懂」的地方，在该段末尾**单独一行**插入截图标记："
+                "`*Screenshot-[mm:ss]`，时间取该内容对应的时刻。"
+                "只在真正有助于理解时插，全篇控制在 3-8 个，别滥用。\n")
+        if do_link:
+            prompt += (
+                "- 每个 `## 小标题` 这种大块的**标题行末尾**，追加一个跳转标记 "
+                "`*Content-[mm:ss]`，时间取该大块开始讲的时刻，方便点回原片对应位置。\n")
+        prompt += (
+            "标记里的时间一定要用文字稿里真实出现的 [mm:ss]，不要瞎编。\n")
+
+    prompt += f"\n视频标题：{title}\n\n=== 文字稿 ===\n{body_text}\n"
 
     # 视频总结的设计：原文已用本地听写提取，这一步默认交给「网页模型」分析总结。
     try:
@@ -163,8 +229,9 @@ def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None
     except Exception:
         s_use_local, s_model = use_local, model
     # 若解析成"没配 OPENAI_API_KEY 的云端模型"，直接调用会报 Missing credentials，
-    # 改用网页模型（设计本意），避免硬失败。
-    if (not s_use_local) and (not core.is_web_model(s_model)) \
+    # 改用网页模型（设计本意），避免硬失败。Claude 模型有自己的 key，不在此列。
+    _is_claude_m = (s_model == "claude") or str(s_model).startswith("claude::")
+    if (not s_use_local) and (not core.is_web_model(s_model)) and (not _is_claude_m) \
             and not os.environ.get("OPENAI_API_KEY") \
             and not os.environ.get("OPENAI_ADMIN_KEY"):
         s_use_local, s_model = False, "web"
@@ -309,17 +376,26 @@ def _video_worker():
             _video_state["detail"] = "前面有视频提取任务在进行，排队等待…"
         video_transcribe.extract_gate.acquire()
         try:
+            do_screenshot = bool(job.get("screenshot"))
+            do_link = bool(job.get("link"))
+            sub_mode = job.get("mode") or "auto"   # auto / subtitle_only / transcribe
             res = video_transcribe.extract(job["url"], level=job["level"],
-                                           progress_cb=cb)
+                                           progress_cb=cb,
+                                           need_video=do_screenshot,
+                                           mode=sub_mode)
             if res.get("ok"):
                 cb("AI 分析", "让模型把文字稿总结成笔记…")
                 transcript = res["transcript"]
+                segments = res.get("segments") or []
                 title = res.get("title") or "（无标题）"
                 uploader = res.get("uploader") or ""
                 clean_url = res.get("url") or job["url"]
+                video_path = res.get("video_path")
                 analysis = _cx_analyze_transcript(
                     transcript, title, job["use_local"], job["model"],
-                    on_progress=lambda m: cb("AI 分析", m))
+                    on_progress=lambda m: cb("AI 分析", m),
+                    segments=segments,
+                    do_screenshot=do_screenshot, do_link=do_link)
                 # ★让模型顺手总结 1-3 个二级标签，写进笔记（用户之后可在界面改）
                 cb("AI 分析", "归纳标签…")
                 try:
@@ -332,6 +408,34 @@ def _video_worker():
                                if c.isalnum() or c in " 　-_") or "video"
                 fname = (f"{ts.strftime('%Y%m%d-%H%M%S')}-{safe}.md"
                          .replace(" ", "_"))
+
+                # ★插图 / 跳转原片后处理：把 AI 插的标记替换成真截图 / 跳转链接。
+                #   截图存到 video_notes/shots/<笔记stem>/，前端通过 /video_shot 取。
+                if do_screenshot or do_link:
+                    try:
+                        import video_screenshot
+                        note_stem = fname[:-3] if fname.endswith(".md") else fname
+                        shots_dir = _cx_shots_dir() / note_stem
+                        img_base = ("http://127.0.0.1:%d/video_shot?n=%s&f="
+                                    % (PORT, urllib.parse.quote(note_stem)))
+                        if do_screenshot:
+                            cb("AI 分析", "正在按标记抓取视频截图…")
+                        analysis, _shots = video_screenshot.post_process(
+                            analysis, url=clean_url, video_path=video_path,
+                            shots_dir=shots_dir, image_url_base=img_base,
+                            do_screenshot=do_screenshot, do_link=do_link)
+                    except Exception:
+                        pass  # 插图/跳转失败不影响笔记本体
+
+                # 用完即清：删掉为截图下载的视频画面文件，省空间
+                try:
+                    if video_path:
+                        import shutil as _shutil
+                        _vp = video_transcribe._video_file_dir(clean_url)
+                        _shutil.rmtree(str(_vp), ignore_errors=True)
+                except Exception:
+                    pass
+
                 tag_line = ("- 标签：" + "、".join(tags) + "\n") if tags else ""
                 doc = (f"# {title}\n\n"
                        f"- 来源链接：{clean_url}\n"
@@ -509,6 +613,18 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send({"enabled": False, "error": str(e)}, 200)
 
+        if path == "/claude_config":
+            try:
+                import claude_client
+                st = claude_client.status()
+                try:
+                    st["prefer_over_web"] = bool(claude_client.load_config().get("prefer_over_web", False))
+                except Exception:
+                    st["prefer_over_web"] = False
+                return self._send(st)
+            except Exception as e:
+                return self._send({"configured": False, "sdk": False, "error": str(e)}, 200)
+
         if path == "/heartbeat/status":
             return self._send({"running": _hb_state["running"],
                                "interval": _hb_state["interval"],
@@ -518,6 +634,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_video_notes_list()
         if path == "/video_progress":
             return self._send(self._video_progress_merged())
+        if path == "/video_shot":
+            return self._handle_video_shot(qs)
 
         if path == "/library":
             return self._handle_library()
@@ -551,6 +669,20 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send({"error": str(e)}, 200)
 
+        if path == "/lumi/status":
+            # 「懂你」面板：返回画像 / 关系 / 环境 / 演化记录 的当前内容
+            try:
+                import lumi_features as lf
+                return self._send({
+                    "ok": True,
+                    "profile": lf._read(lf.OWNER_PROFILE),
+                    "relationships": lf._read(lf.RELATIONS),
+                    "environment": lf._read(lf.ENVIRONMENT),
+                    "evolution_log": lf._read(lf.EVOLUTION_LOG),
+                })
+            except Exception as e:
+                return self._send({"ok": False, "error": str(e)}, 200)
+
         if path == "/models":
             try:
                 import ollama_helper
@@ -558,7 +690,19 @@ class Handler(BaseHTTPRequestHandler):
                 cloud = ollama_helper.known_cloud_models()
                 # 伪模型（网页大模型）作为一个特殊模型项 id=web
                 web = [{"id": "web", "name": "网页模型"}]
-                return self._send({"models": local, "cloud": cloud, "web": web})
+                # Claude 模型：支持多配置，每个配置一个模型选项
+                claude = []
+                try:
+                    import claude_client
+                    profiles = claude_client.load_profiles()
+                    for i, p in enumerate(profiles):
+                        if p.get("api_key"):
+                            _cname = (p.get("name") or p.get("model") or "Claude").strip()
+                            claude.append({"id": "claude::%d" % i, "name": _cname})
+                except Exception:
+                    pass
+                return self._send({"models": local, "cloud": cloud, "web": web,
+                                   "claude": claude})
             except Exception as e:
                 return self._send({"models": [], "cloud": [],
                                    "web": [{"id": "web", "name": "网页模型"}],
@@ -625,6 +769,35 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_tts(body)
         if path == "/system_access":
             return self._handle_system_access(body)
+        if path == "/claude_config":
+            try:
+                import claude_client
+                action = (body or {}).get("action", "save")
+                if action == "add":
+                    idx = claude_client.add_profile(body.get("profile") or body)
+                    return self._send({"ok": True, "index": idx, **claude_client.status()})
+                elif action == "update":
+                    idx = int(body.get("index", 0))
+                    claude_client.update_profile(idx, body.get("profile") or body)
+                    return self._send({"ok": True, **claude_client.status()})
+                elif action == "delete":
+                    idx = int(body.get("index", -1))
+                    claude_client.delete_profile(idx)
+                    return self._send({"ok": True, **claude_client.status()})
+                elif action == "set_pref":
+                    # 设置「用 Claude 替代网页模型」开关
+                    cfg = claude_client.load_config()
+                    cfg["prefer_over_web"] = bool(body.get("prefer_over_web", False))
+                    claude_client.save_config_raw(cfg)
+                    st = claude_client.status()
+                    st["prefer_over_web"] = cfg["prefer_over_web"]
+                    return self._send({"ok": True, **st})
+                else:
+                    # 向后兼容旧的 save 逻辑
+                    claude_client.save_config(body or {})
+                    return self._send({"ok": True, **claude_client.status()})
+            except Exception as e:
+                return self._send({"ok": False, "error": str(e)}, 200)
         if path == "/task_models":
             try:
                 tm = core.save_task_models(body.get("task_models") or body)
@@ -649,6 +822,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_heartbeat(body)
         if path == "/video_transcribe":
             return self._handle_video_transcribe(body)
+        if path == "/video_detect_subtitle":
+            return self._handle_video_detect_subtitle(body)
         if path == "/video_install":
             return self._handle_video_install(body)
         if path == "/video_note_delete":
@@ -677,6 +852,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_competitors(body)
         if path == "/daily_task":
             return self._handle_daily_task(body)
+        if path == "/lumi/evolve":
+            return self._handle_lumi_evolve(body)
+        if path == "/lumi/scan":
+            return self._handle_lumi_scan(body)
+        if path == "/lumi/greeting":
+            return self._handle_lumi_greeting(body)
         if path == "/env_check":
             use_local = body.get("use_local", True)
             model = body.get("model", "qwen2.5")
@@ -808,6 +989,41 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:
             return self._send({"ok": False, "task": f"出错：{e}"})
 
+    # ────────────────── 「懂你」四件套（lumi_features）──────────────────
+    def _handle_lumi_evolve(self, body):
+        """人格演化：读对话记忆 → 总结主人画像 → 写 OWNER_PROFILE.md。"""
+        use_local = body.get("use_local", True)
+        model = body.get("model", "qwen2.5")
+        try:
+            import lumi_features
+            return self._send(lumi_features.evolve_personality(
+                use_local=use_local, model=model))
+        except Exception as e:
+            return self._send({"ok": False, "message": f"演化出错：{e}"}, 200)
+
+    def _handle_lumi_scan(self, body):
+        """系统扫描 / 职业检测 → 写 ENVIRONMENT.md。"""
+        use_local = body.get("use_local", True)
+        model = body.get("model", "qwen2.5")
+        try:
+            import lumi_features
+            return self._send(lumi_features.scan_environment(
+                use_local=use_local, model=model, write=True))
+        except Exception as e:
+            return self._send({"ok": False, "message": f"扫描出错：{e}"}, 200)
+
+    def _handle_lumi_greeting(self, body):
+        """生成一句个性化问候（结合时间+画像+记忆）。"""
+        use_local = body.get("use_local", True)
+        model = body.get("model", "qwen2.5")
+        try:
+            import lumi_features
+            return self._send(lumi_features.make_greeting(
+                use_local=use_local, model=model))
+        except Exception as e:
+            return self._send({"ok": False, "greeting": "", "error": str(e)}, 200)
+
+
     # ────────────────── 会话智能起标题 ──────────────────
     def _handle_summarize_title(self, body):
         """根据会话前几条消息，用模型总结一个简短中文标题（4-12字）。
@@ -882,7 +1098,22 @@ class Handler(BaseHTTPRequestHandler):
         try:
             import system_tools
             if "enabled" in (body or {}):
-                system_tools.set_enabled(bool(body.get("enabled")))
+                want = bool(body.get("enabled"))
+                system_tools.set_enabled(want)
+                # ★开启时在后台线程预热那些较重的依赖（pyautogui / mss / pytesseract 等），
+                #  避免第一次真正用到时在对话中途卡几秒。预热失败无所谓，用到时再说。
+                if want:
+                    def _warm():
+                        try:
+                            import importlib
+                            for _m in ("psutil", "mss", "PIL", "pyautogui"):
+                                try:
+                                    importlib.import_module(_m)
+                                except Exception:
+                                    pass
+                        except Exception:
+                            pass
+                    _threading.Thread(target=_warm, daemon=True).start()
             return self._send({"ok": True, "enabled": system_tools.is_enabled()})
         except Exception as e:
             return self._send({"ok": False, "error": str(e)}, 200)
@@ -1013,6 +1244,119 @@ class Handler(BaseHTTPRequestHandler):
                                "result": str(result)[:1000]})
 
         approvals = body.get("approvals", {})  # {tool_call_id: true/false}
+        auto_approve_tools = body.get("auto_approve_tools", [])  # 本次对话已授权的工具类别
+
+        # ════════ 网页模型 Agent：电脑操作权限开启时，让网页模型也能进工具循环 ════════
+        # 复用右上角「电脑操作权限」总开关：开 → 网页模型当 agent 大脑（能操作电脑）；
+        # 关 → 网页模型保持纯文本直出（老行为，快）。
+        try:
+            import system_tools as _systools
+            web_agent_enabled = _systools.is_enabled()
+        except Exception:
+            web_agent_enabled = False
+
+        def _web_prog(msg):
+            if cp is not None and chat_id:
+                cp.push(chat_id, msg)
+
+        def _run_web_agent():
+            """网页模型走工具循环（电脑操作权限开启时）。返回 (reply, messages, pending)。
+            消息/pending 形态与本地·Claude 模型完全一致，前端的确认框/续跑无需改动。"""
+            client = core.make_client_for("web", use_local=False, on_progress=_web_prog)
+            return core.run_agent(
+                client, "web", messages,
+                shell_enabled=shell_enabled, on_tool=on_tool,
+                approvals=approvals, on_think=on_think,
+                on_tool_start=on_tool_start,
+                auto_approve_tools=auto_approve_tools)
+
+        # ════════ 显式选择 Claude 模型：直接用 Claude 跑工具循环（绕过智能路由）════════
+        # 支持 "claude"（旧，取第一个配置）和 "claude::N"（新，取第 N 个配置）。
+        if (not use_local) and (model == "claude" or model.startswith("claude::")):
+            try:
+                import claude_client
+                # 解析配置索引
+                _claude_idx = None
+                if model.startswith("claude::"):
+                    try:
+                        _claude_idx = int(model.split("::")[1])
+                    except (ValueError, IndexError):
+                        _claude_idx = 0
+                if not claude_client.is_configured():
+                    return self._send({"reply": "还没配置 Claude API Key。请到「设置 → "
+                                       "Claude 模型管理」添加配置。",
+                                       "tool_calls": [], "messages": messages})
+                client = claude_client.make(profile_index=_claude_idx)
+                reply, messages, pending = core.run_agent(
+                    client, model, messages,
+                    shell_enabled=shell_enabled, on_tool=on_tool,
+                    approvals=approvals, on_think=on_think,
+                    on_tool_start=on_tool_start,
+                    auto_approve_tools=auto_approve_tools)
+                if pending is not None:
+                    return self._send({"pending": pending, "tool_calls": tool_calls,
+                                       "messages": messages})
+                return self._send({"reply": reply, "tool_calls": tool_calls,
+                                   "messages": messages})
+            except Exception as e:
+                return self._send({"reply": f"Claude 调用出错：{e}",
+                                   "tool_calls": tool_calls, "error": str(e)}, 200)
+            finally:
+                if cp is not None and chat_id:
+                    cp.finish(chat_id)
+
+        # ════════ 常规模式：关掉智能路由 → 选哪个模型就用哪个，不自动切换 ════════
+        smart_routing = body.get("smart_routing", True)
+        if not smart_routing:
+            try:
+                if (not use_local) and core.is_web_model(model):
+                    # 网页模型：电脑操作权限开 → 进工具循环当 agent；否则纯文本直出（老行为）。
+                    if web_agent_enabled:
+                        try:
+                            reply, messages, pending = _run_web_agent()
+                            if pending is not None:
+                                return self._send({"pending": pending,
+                                                   "tool_calls": tool_calls,
+                                                   "messages": messages})
+                            return self._send({"reply": reply, "tool_calls": tool_calls,
+                                               "messages": messages})
+                        except Exception as web_err:
+                            return self._send({"reply": "网页模型不可用：%s" % web_err,
+                                               "tool_calls": tool_calls,
+                                               "error": str(web_err)}, 200)
+                    def _wp(msg):
+                        if cp is not None and chat_id:
+                            cp.push(chat_id, msg)
+                    try:
+                        client = core.make_client_for("web", use_local=False, on_progress=_wp)
+                        resp = client.chat.completions.create(model="web", messages=messages)
+                        reply = resp.choices[0].message.content
+                        messages = messages + [{"role": "assistant", "content": reply}]
+                        return self._send({"reply": reply, "tool_calls": tool_calls,
+                                           "messages": messages})
+                    except Exception as web_err:
+                        return self._send({"reply": "网页模型不可用：%s" % web_err,
+                                           "tool_calls": tool_calls, "error": str(web_err)}, 200)
+                else:
+                    # 本地 / 云端模型：直接用它跑工具循环
+                    client = core.make_client(use_local)
+                    reply, messages, pending = core.run_agent(
+                        client, model, messages,
+                        shell_enabled=shell_enabled, on_tool=on_tool,
+                        approvals=approvals, on_think=on_think,
+                        on_tool_start=on_tool_start,
+                        auto_approve_tools=auto_approve_tools)
+                    if pending is not None:
+                        return self._send({"pending": pending, "tool_calls": tool_calls,
+                                           "messages": messages})
+                    return self._send({"reply": reply, "tool_calls": tool_calls,
+                                       "messages": messages})
+            except Exception as e:
+                return self._send({"reply": f"出错了：{e}", "tool_calls": tool_calls,
+                                   "error": str(e)}, 200)
+            finally:
+                if cp is not None and chat_id:
+                    cp.finish(chat_id)
 
         # ════════ 智能路由（§2/§3）════════
         import router
@@ -1028,27 +1372,42 @@ class Handler(BaseHTTPRequestHandler):
                 cp.push(chat_id, msg)
 
         def _run_local(_model, _use_local):
-            """本地/云端工具循环（T1/T2 或回退用）。"""
-            client = core.make_client(_use_local)
+            """本地/云端/Claude 工具循环（T1/T2 或回退用）。"""
+            if _model == "claude" or str(_model).startswith("claude::"):
+                client = core.make_client_for(_model, _use_local)
+            else:
+                client = core.make_client(_use_local)
             return core.run_agent(
                 client, _model, messages,
                 shell_enabled=shell_enabled, on_tool=on_tool,
                 approvals=approvals,
-                on_think=on_think, on_tool_start=on_tool_start)
+                on_think=on_think, on_tool_start=on_tool_start,
+                auto_approve_tools=auto_approve_tools)
 
         try:
             if task in (router.T_CHAT, router.T_QUICK) and core.is_web_model(r_model):
-                # T3/T4 走伪模型：纯文本直出，【不进工具循环】
+                # T3/T4 走伪模型：电脑操作权限开 → 进工具循环当 agent；否则纯文本直出（老行为）。
                 try:
-                    client = core.make_client_for(
-                        "web", use_local=False, on_progress=_web_progress)
-                    resp = client.chat.completions.create(model="web", messages=messages)
-                    reply = resp.choices[0].message.content
-                    messages = messages + [{"role": "assistant", "content": reply}]
-                    self._send({"reply": reply, "tool_calls": tool_calls,
-                                "messages": messages})
-                    # 「懂你」不依赖伪模型：回答后本地轻量记忆后处理（§6，尽力而为）
-                    self._maybe_remember_after(messages)
+                    if web_agent_enabled:
+                        reply, messages, pending = _run_web_agent()
+                        if pending is not None:
+                            self._send({"pending": pending, "tool_calls": tool_calls,
+                                        "messages": messages})
+                        else:
+                            self._send({"reply": reply, "tool_calls": tool_calls,
+                                        "messages": messages})
+                            # 「懂你」不依赖伪模型：回答后本地轻量记忆后处理（§6，尽力而为）
+                            self._maybe_remember_after(messages)
+                    else:
+                        client = core.make_client_for(
+                            "web", use_local=False, on_progress=_web_progress)
+                        resp = client.chat.completions.create(model="web", messages=messages)
+                        reply = resp.choices[0].message.content
+                        messages = messages + [{"role": "assistant", "content": reply}]
+                        self._send({"reply": reply, "tool_calls": tool_calls,
+                                    "messages": messages})
+                        # 「懂你」不依赖伪模型：回答后本地轻量记忆后处理（§6，尽力而为）
+                        self._maybe_remember_after(messages)
                 except Exception as web_err:
                     # ★铁律：伪模型任何一步失败 → 优雅回退本地，主流程不中断
                     if cp is not None and chat_id:
@@ -1115,6 +1474,13 @@ class Handler(BaseHTTPRequestHandler):
                     out = (resp.choices[0].message.content or "").strip()
                     if out and out != "无" and "无" != out[:1]:
                         core.remember(out)
+                    # 顺手抽取「关系网络」：这段对话提到的人记一笔（尽力而为，失败静默）
+                    try:
+                        import lumi_features
+                        lumi_features.extract_relationships(
+                            messages=messages, use_local=True, model="qwen2.5")
+                    except Exception:
+                        pass
                 except Exception:
                     pass
             threading.Thread(target=_bg, daemon=True).start()
@@ -1293,12 +1659,33 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:
             return self._send({"ok": False, "message": f"安装出错：{e}"})
 
+    def _handle_video_detect_subtitle(self, body):
+        """轻量检测：这个链接有没有平台字幕（不下载正文，秒级返回）。
+        前端在用户点「提取并分析」后先调它：有字幕才提醒用户可选「只用字幕/字幕+听写」。"""
+        url = (body or {}).get("url", "").strip()
+        if not url:
+            return self._send({"ok": False, "has": False, "error": "请先粘贴视频链接。"})
+        try:
+            import video_subtitle
+            info = video_subtitle.detect_subtitle(url)
+            return self._send({"ok": True, **info})
+        except Exception as e:
+            # 检测失败就当没字幕，前端照常按「自动」提交，不卡用户
+            return self._send({"ok": True, "has": False, "error": str(e)})
+
     def _handle_video_transcribe(self, body):
         """把视频任务加入队列，后台逐个处理。前端轮询 /video_progress。"""
         url = body.get("url", "").strip()
         level = body.get("level", "balanced")
         use_local = body.get("use_local", True)
         model = body.get("model", "qwen2.5")
+        # 新增：插图 / 跳转原片开关（前端「视频」面板的两个勾选）
+        do_screenshot = bool(body.get("screenshot", False))
+        do_link = bool(body.get("link", False))
+        # 新增：字幕模式 auto / subtitle_only / transcribe（默认 auto）
+        mode = body.get("mode") or "auto"
+        if mode not in ("auto", "subtitle_only", "transcribe"):
+            mode = "auto"
         if not url:
             return self._send({"ok": False, "error": "请先粘贴视频链接。"})
         try:
@@ -1308,10 +1695,25 @@ class Handler(BaseHTTPRequestHandler):
 
         missing = video_transcribe.check_deps()
         if missing:
-            return self._send({"need": missing})
+            # 依赖没装齐，但如果这个链接能直接拿到平台字幕、且用户没强制要听写，
+            # 那这次根本用不到下载+本地听写，放行入队即可（字幕优先）。
+            # mode="transcribe" 是用户明确要听写覆盖 → 不绕过，照常提示装依赖。
+            has_subtitle = False
+            if mode != "transcribe":
+                try:
+                    import video_subtitle
+                    _probe = video_subtitle.try_fetch_subtitle(url)
+                    has_subtitle = bool(_probe and _probe.get("ok")
+                                        and _probe.get("transcript"))
+                except Exception:
+                    has_subtitle = False
+            if not has_subtitle:
+                return self._send({"need": missing})
 
         pos = _enqueue_video({"url": url, "level": level,
-                              "use_local": use_local, "model": model})
+                              "use_local": use_local, "model": model,
+                              "screenshot": do_screenshot, "link": do_link,
+                              "mode": mode})
         return self._send({"queued": True, "position": pos})
 
     def _handle_video_move_models(self, _body):
@@ -1330,6 +1732,25 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(r)
         except Exception as e:
             return self._send({"ok": False, "message": f"搬运出错：{e}"})
+
+    def _handle_video_shot(self, qs):
+        """提供视频笔记的本地截图给前端显示。
+        参数：n=笔记目录名（笔记 stem），f=图片文件名。两者都做防穿越校验。"""
+        n = (qs.get("n", [""])[0] or "").strip()
+        f = (qs.get("f", [""])[0] or "").strip()
+        # 只允许干净的文件名/目录名，挡掉 / \ .. 等穿越
+        bad = lambda s: (not s) or ("/" in s) or ("\\" in s) or (".." in s)
+        if bad(n) or bad(f):
+            return self._send({"error": "非法路径"}, 400)
+        try:
+            p = _cx_shots_dir() / n / f
+            if not p.exists() or p.suffix.lower() not in (".jpg", ".jpeg", ".png"):
+                return self._send({"error": "找不到截图"}, 404)
+            data = p.read_bytes()
+            ctype = "image/png" if p.suffix.lower() == ".png" else "image/jpeg"
+            return self._send_bytes(data, ctype)
+        except Exception as e:
+            return self._send({"error": str(e)}, 200)
 
     def _handle_video_notes_list(self):
         try:
@@ -1363,6 +1784,14 @@ class Handler(BaseHTTPRequestHandler):
             p = self._video_dir() / name
             if p.exists():
                 p.unlink()
+            # 一并清掉这条笔记的截图子目录（video_notes/shots/<笔记stem>/）
+            try:
+                import shutil as _shutil
+                stem = name[:-3] if name.endswith(".md") else name
+                if stem and "/" not in stem and "\\" not in stem and ".." not in stem:
+                    _shutil.rmtree(str(_cx_shots_dir() / stem), ignore_errors=True)
+            except Exception:
+                pass
             return self._send({"ok": True})
         except Exception as e:
             return self._send({"ok": False, "error": str(e)})

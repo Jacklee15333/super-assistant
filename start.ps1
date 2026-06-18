@@ -325,7 +325,7 @@ function Start-App {
         $ErrorActionPreference = 'Continue'
         try {
             $needDeps = $true
-            $probe = & $pyExe -c "import importlib.util as u; mods=['openai','psutil','edge_tts','mss','send2trash','pyperclip','PIL']; print('OK' if all(u.find_spec(m) for m in mods) else 'MISSING')" 2>$null
+            $probe = & $pyExe -c "import importlib.util as u; mods=['openai','psutil','edge_tts','mss','send2trash','pyperclip','PIL','anthropic']; print('OK' if all(u.find_spec(m) for m in mods) else 'MISSING')" 2>$null
             if ($probe -match 'OK') { $needDeps = $false }
 
             if ($needDeps) {
@@ -334,7 +334,7 @@ function Start-App {
                 & $pyExe -m pip install -r $reqFile 2>&1 | Out-Host
                 # 2) safety net: install the new packages explicitly, so it works
                 #    even if an older requirements.txt is still in place.
-                & $pyExe -m pip install psutil pyautogui pillow mss pyperclip send2trash pytesseract opencv-python edge-tts pycaw comtypes 2>&1 | Out-Host
+                & $pyExe -m pip install psutil pyautogui pillow mss pyperclip send2trash pytesseract opencv-python edge-tts anthropic pycaw comtypes 2>&1 | Out-Host
                 # re-probe to report status (still never throws)
                 $probe2 = & $pyExe -c "import importlib.util as u; mods=['openai','edge_tts','psutil','mss']; print('OK' if all(u.find_spec(m) for m in mods) else 'MISSING')" 2>$null
                 if ($probe2 -match 'OK') {

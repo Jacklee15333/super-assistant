@@ -1,0 +1,18 @@
+{
+  "profiles": [
+    {
+      "name": "claude-opus-4-8",
+      "api_key": "sk-WD2RwmMHt2mzZYyEz2ewNLlyvMr3MIsY4Hl8stD372Onzcip",
+      "base_url": "https://api.dakeai.cc",
+      "model": "claude-opus-4-8",
+      "max_tokens": 4096
+    },
+    {
+      "name": "gpt-5.4-mini",
+      "api_key": "sk-BOsUJYq8PoHCldPfRqXcrn2rRgp9LhiUSoaKjobmGJxOkkxs",
+      "base_url": "https://api.dakeai.cc",
+      "model": "gpt-5.4-mini",
+      "max_tokens": 4096
+    }
+  ]
+}

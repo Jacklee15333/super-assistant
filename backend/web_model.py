@@ -561,6 +561,18 @@ class _WebWorker:
         prog("打开网页 / 就位中…")
         self._ensure_started()
 
+        # ★ 2026-06 新增：forceNewCard —— 主动换一张新卡再问。
+        #   用于 agent 工具循环里碰到「轴卡」（死活不肯输出工具块、一直用文字推辞）时，
+        #   由上层（web_model_client）请求换一张卡重抽，直到碰到肯配合的卡。
+        if opts.get("forceNewCard"):
+            self._log("[换卡] 上层请求换一张新卡重试…")
+            prog("换一张 AI 卡片重试…")
+            self._safe(lambda: self._page.goto(CARLIST_URL,
+                       wait_until="networkidle", timeout=30000))
+            time.sleep(3)
+            self._select_card_and_enter_chat()
+            self._state = "ready"
+
         disable_switch = bool(opts.get("disableCardSwitch"))
         max_attempts = 1 if disable_switch else 2
         last_err = None

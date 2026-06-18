@@ -85,15 +85,58 @@ def _human(n: float) -> str:
     return f"{n:.1f}PB"
 
 
+def _decode_bytes(b):
+    """解码命令输出。Windows 上：PowerShell 已被上层强制 UTF-8 输出，
+    传统 cmd 工具（tasklist 等）多为 GBK —— 先按 UTF-8 严格解，失败再回退 GBK，
+    两边都能正确显示中文，根治“UTF-8 当 GBK 解”的乱码。"""
+    if not b:
+        return ""
+    if IS_WIN:
+        try:
+            return b.decode("utf-8")
+        except UnicodeDecodeError:
+            return b.decode("gbk", "replace")
+    return b.decode("utf-8", "replace")
+
+
+def _clean_clixml(s):
+    """去掉 PowerShell 在重定向输出时混进来的 CLIXML/进度噪音，
+    并把其中的报错/警告抽成可读中文，方便模型据此修正、也不污染界面。"""
+    if not s or ("CLIXML" not in s and "<Objs" not in s and "Preparing modules" not in s):
+        return s
+    import re as _re
+
+    def _unesc(t):
+        t = (t.replace("_x000D__x000A_", "\n").replace("_x000A_", "\n")
+             .replace("_x000D_", ""))
+        return _re.sub(r"_x([0-9A-Fa-f]{4})_",
+                       lambda m: chr(int(m.group(1), 16)), t)
+
+    # 先抽出 Error / Warning 文本
+    msgs = _re.findall(r'<S\s+S="(?:Error|Warning)">(.*?)</S>', s, _re.DOTALL)
+    err = "".join(_unesc(m) for m in msgs).strip()
+    # 去掉所有 CLIXML 块与进度对象、以及 "Preparing modules..." 噪音
+    s = _re.sub(r"<Objs[\s\S]*?</Objs>", "", s)
+    s = _re.sub(r"#<\s*CLIXML[^\n]*", "", s)
+    s = _re.sub(r"Preparing modules for first use\.?", "", s)
+    s = _re.sub(r"\n{3,}", "\n\n", s).strip()
+    if err:
+        s = (s + "\n" if s else "") + "（PowerShell 报错）" + err
+    return s.strip()
+
+
 def _run(cmd, timeout=30, cwd=None):
-    """跑命令，统一捕获输出（Windows 用 gbk 容错）。cmd 可为字符串或列表。"""
+    """跑命令，统一捕获输出。UTF-8 优先解码 + 清理 CLIXML 噪音。cmd 可为字符串或列表。"""
     try:
         r = subprocess.run(cmd, shell=isinstance(cmd, str), cwd=cwd,
                            capture_output=True, timeout=timeout)
-        enc = "gbk" if IS_WIN else "utf-8"
-        out = (r.stdout or b"").decode(enc, "replace") + \
-              (r.stderr or b"").decode(enc, "replace")
+        out = _decode_bytes(r.stdout) + _decode_bytes(r.stderr)
+        out = _clean_clixml(out.strip())
+        # 去掉每行尾部空格：表格对齐会留一大片尾随空格，白占长度、易触发截断
+        out = "\n".join(ln.rstrip() for ln in out.split("\n"))
         return out.strip()
+    except subprocess.TimeoutExpired:
+        return "（命令执行超时，已中止；如果是在统计很大的目录，换更小的范围再试）"
     except Exception as e:
         return f"（命令执行出错：{e}）"
 
@@ -380,12 +423,16 @@ def tool_sys_clean_temp(_args=None):
         targets.append(Path(os.environ.get("WINDIR", "C:\\Windows")) / "Temp")
     else:
         targets.append(Path("/tmp"))
-    seen, freed, removed = set(), 0, 0
+    seen, freed, removed, skipped = set(), 0, 0, 0
     for t in targets:
         if not t.exists() or str(t) in seen:
             continue
         seen.add(str(t))
-        for p in list(t.iterdir()):
+        try:
+            entries = list(t.iterdir())
+        except Exception:
+            continue
+        for p in entries:
             try:
                 sz = p.stat().st_size if p.is_file() else 0
                 if p.is_file():
@@ -394,9 +441,64 @@ def tool_sys_clean_temp(_args=None):
                     shutil.rmtree(p, ignore_errors=True)
                 freed += sz
                 removed += 1
+            except (PermissionError, OSError):
+                # 正被占用、或系统保护的文件——跳过，属正常，不是失败
+                skipped += 1
+                continue
             except Exception:
-                continue  # 正被占用的跳过，属正常
-    return f"已清理临时目录 {len(seen)} 处，删除约 {removed} 项，释放约 {_human(freed)}（占用中的文件已跳过）。"
+                skipped += 1
+                continue
+    # 顺手清空回收站（Windows）
+    recycle_note = ""
+    if IS_WIN:
+        try:
+            r = _run('powershell -NoProfile -Command "Clear-RecycleBin -Force -ErrorAction SilentlyContinue"')
+            recycle_note = "，并已尝试清空回收站"
+        except Exception:
+            pass
+    msg = (f"已清理临时目录 {len(seen)} 处，删除约 {removed} 项，"
+           f"释放约 {_human(freed)}{recycle_note}。")
+    if skipped:
+        msg += f"（有 {skipped} 项正被占用或受系统保护，已自动跳过——这是正常现象，不影响清理结果。）"
+    return msg
+
+
+def tool_empty_recycle_bin(_args=None):
+    """清空回收站（彻底删除回收站里的内容）。这是「清空回收站」的专用工具，
+    和 fs_trash（把文件移进回收站）正好相反，不要混用。"""
+    d = _guard()
+    if d:
+        return d
+    if IS_WIN:
+        try:
+            # PowerShell 的 Clear-RecycleBin 是清空回收站的官方方式
+            out = _run('powershell -NoProfile -Command '
+                       '"Clear-RecycleBin -Force -ErrorAction SilentlyContinue; '
+                       'Write-Output OK"')
+            if out is not None:
+                return "已清空回收站。（如果原本就是空的，也算完成。）"
+            return "已尝试清空回收站。"
+        except Exception as e:
+            return f"清空回收站时出错：{e}"
+    else:
+        # macOS / Linux：尝试清空用户回收站目录
+        candidates = [
+            Path.home() / ".local/share/Trash/files",
+            Path.home() / ".Trash",
+        ]
+        removed = 0
+        for trash in candidates:
+            if trash.exists():
+                for p in list(trash.iterdir()):
+                    try:
+                        if p.is_file() or p.is_symlink():
+                            p.unlink()
+                        else:
+                            shutil.rmtree(p, ignore_errors=True)
+                        removed += 1
+                    except Exception:
+                        continue
+        return f"已清空回收站，删除约 {removed} 项。" if removed else "回收站已经是空的。"
 
 
 def tool_sys_volume(args):
@@ -474,7 +576,7 @@ def tool_sys_run(args):
     cwd = args.get("cwd", "")
     cwd_path = str(_resolve(cwd)) if cwd else None
     out = _run(cmd, timeout=60, cwd=cwd_path)
-    return out[:4000] or "（无输出）"
+    return out[:12000] or "（无输出）"
 
 
 # ══════════════════════════ 三、看屏幕 + GUI 自动化 ══════════════════════════
@@ -684,6 +786,7 @@ SYSTEM_TOOLS = {
     "sys_processes": (tool_sys_processes, "safe"),
     "sys_kill": (tool_sys_kill, "danger"),
     "sys_clean_temp": (tool_sys_clean_temp, "danger"),
+    "empty_recycle_bin": (tool_empty_recycle_bin, "danger"),
     "sys_volume": (tool_sys_volume, "danger"),
     "sys_brightness": (tool_sys_brightness, "danger"),
     "sys_open_settings": (tool_sys_open_settings, "danger"),
@@ -720,13 +823,20 @@ SYSTEM_SCHEMA = [
     _fn("fs_move", "【需电脑操作权限·危险】移动或重命名文件/文件夹", {"src": _S, "dst": _S}, ["src", "dst"]),
     _fn("fs_copy", "【需电脑操作权限·危险】复制文件/文件夹", {"src": _S, "dst": _S}, ["src", "dst"]),
     _fn("fs_mkdir", "【需电脑操作权限·危险】新建目录", {"path": _S}, ["path"]),
-    _fn("fs_trash", "【需电脑操作权限·危险】把文件/文件夹移到回收站（可恢复，不硬删）", {"path": _S}, ["path"]),
+    _fn("fs_trash", "【需电脑操作权限·危险】把指定的文件/文件夹移到回收站（可恢复，不硬删）。"
+        "注意：这是\"删某个文件\"用的；若用户要\"清空回收站\"，请用 empty_recycle_bin，不要用本工具。",
+        {"path": _S}, ["path"]),
     _fn("fs_organize", "【需电脑操作权限·危险】把一个文件夹（如桌面）里的文件按类型归类到子文件夹，整理乱桌面用",
         {"path": {**_S, "description": "要整理的文件夹，默认桌面"}}),
     _fn("sys_info", "【需电脑操作权限】查看系统信息：CPU/内存/磁盘剩余/电池"),
     _fn("sys_processes", "【需电脑操作权限】列出占内存最多的进程", {"top": {**_I, "description": "前几名，默认12"}}),
     _fn("sys_kill", "【需电脑操作权限·危险】结束一个进程（按 PID 或进程名）", {"target": _S}, ["target"]),
-    _fn("sys_clean_temp", "【需电脑操作权限·危险】清理系统临时文件，释放磁盘空间"),
+    _fn("sys_clean_temp", "【需电脑操作权限·危险】清理系统临时文件并清空回收站，释放磁盘空间。"
+        "清理 C 盘垃圾/临时文件就用这个工具，不要用 sys_run 跑 PowerShell 删除命令。"
+        "正被占用或受系统保护的文件会自动跳过，属正常，不算失败。"),
+    _fn("empty_recycle_bin", "【需电脑操作权限·危险】清空回收站（彻底删除回收站里的所有内容）。"
+        "用户说「清空回收站」「把回收站清空/清掉」就用这个工具。"
+        "注意：它和 fs_trash 相反——fs_trash 是把文件\"移进\"回收站，这个是把回收站\"倒空\"。"),
     _fn("sys_volume", "【需电脑操作权限·危险】设置系统音量（0-100，或 mute 静音）", {"level": _S}, ["level"]),
     _fn("sys_brightness", "【需电脑操作权限·危险】设置屏幕亮度（0-100）", {"level": _I}, ["level"]),
     _fn("sys_open_settings", "【需电脑操作权限·危险】打开 Windows 系统设置页（如 wifi/蓝牙/显示/声音/更新/存储）",

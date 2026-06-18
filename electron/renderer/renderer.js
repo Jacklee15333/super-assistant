@@ -4,6 +4,15 @@
 let BACKEND = "http://127.0.0.1:8756";
 let messages = [];          // 喂给模型的完整历史
 let busy = false;
+// 本次对话里用户已授权「这类操作不用再问」的工具名集合（换对话时清空）
+let sessionAllowedTools = new Set();
+// 智能模式开关：true=按任务自动选模型；false=常规模式，只用所选模型。默认智能。
+let smartRouting = (function () {
+  try {
+    const v = localStorage.getItem("cx_smart_routing");
+    return v === null ? true : v === "1";
+  } catch (_) { return true; }
+})();
 
 // 取后端端口（主进程提供）
 async function initBackend() {
@@ -27,7 +36,28 @@ window.crayfish?.onBackendStatus((ok) => {
   line.textContent = ok ? "已就绪" : "后端未连接";
   line.style.color = ok ? "var(--text-dim)" : "var(--accent)";
   if (!ok) setStatusDot(false);  // 后端都没连上，模型必然不正常
+  if (ok) maybeGreetOnce();
 });
+
+// 后端首次就绪时，显示一句个性化问候（只显示一次；没画像/记忆时后端会给通用问候）
+let _greeted = false;
+async function maybeGreetOnce() {
+  if (_greeted) return;
+  _greeted = true;
+  try {
+    const s = (typeof settings === "function") ? settings() : { use_local: true, model: "qwen2.5" };
+    const r = await fetch(BACKEND + "/lumi/greeting", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ use_local: s.use_local, model: s.model }),
+    });
+    const d = await r.json();
+    if (d && d.greeting && typeof addBubble === "function") {
+      // 只在对话还空着的时候打个招呼，不打断已有对话
+      const msgs = document.getElementById("messages");
+      if (msgs && msgs.children.length === 0) addBubble("assistant", d.greeting);
+    }
+  } catch (e) { /* 静默 */ }
+}
 
 // ---------- 视图切换 ----------
 document.querySelectorAll(".nav-item").forEach((btn) => {
@@ -36,11 +66,15 @@ document.querySelectorAll(".nav-item").forEach((btn) => {
     document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
     btn.classList.add("active");
     document.getElementById("view-" + btn.dataset.view).classList.add("active");
-    if (btn.dataset.view === "memory") loadMemoryTabs();
+    if (btn.dataset.view === "memory") { loadMemoryTabs(); }
     if (btn.dataset.view === "dashboard") loadDashboard();
     if (btn.dataset.view === "video") { loadVideoNotes(); pollVideoProgress(); }
     if (btn.dataset.view === "library") loadLibrary();
+    if (btn.dataset.view === "lumi") { loadLumi(); }
     if (btn.dataset.view === "settings") { refreshHeartbeatStatus(); loadModelsInfo(); loadWebModelConfig(); loadTaskModels(); }
+    // 懂你子菜单只在懂你视图下显示
+    const subNav = document.getElementById("lumiSubNav");
+    if (subNav) subNav.style.display = (btn.dataset.view === "lumi") ? "" : "none";
   });
 });
 
@@ -61,10 +95,84 @@ function addBubble(role, text) {
   }
   bubble.dataset.raw = text || "";            // 朗读用的原文
   wrap.appendChild(bubble);
-  if (role === "assistant") wrap.appendChild(makeSpeakRow());
+  if (role === "assistant") {
+    wrap.appendChild(makeSpeakRow());
+    // 如果助手在问「是/否」之类的问题，给出可点击的快捷回复按钮，省得用户打字
+    const quick = makeQuickReplies(text);
+    if (quick) wrap.appendChild(quick);
+  }
   messagesEl.appendChild(wrap);
   messagesEl.scrollTop = messagesEl.scrollHeight;
   return bubble;
+}
+
+// 这一轮（从最后一条用户消息往后）有没有真正执行过工具 / 操作过电脑。
+// 用来判断是不是"任务型"对话——是的话跑完给一个明确的"已完成"反馈。
+function turnUsedTools(msgs) {
+  if (!msgs || !msgs.length) return false;
+  let lastUser = -1;
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    if (msgs[i] && msgs[i].role === "user") { lastUser = i; break; }
+  }
+  for (let i = lastUser + 1; i < msgs.length; i++) {
+    if (msgs[i] && msgs[i].role === "tool") return true;
+  }
+  return false;
+}
+
+// 任务完成的明确反馈条："✓ 已完成"（网页模型当 agent 时尤其有用，能一眼看出它收工了）。
+function addCompletionMarker() {
+  const wrap = document.createElement("div");
+  wrap.className = "msg assistant task-done";
+  wrap.innerHTML =
+    '<div class="task-done-chip" style="display:inline-flex;align-items:center;' +
+    'gap:6px;padding:5px 14px;border-radius:14px;background:#e7f6ec;' +
+    'color:#1b873f;font-size:13px;font-weight:600;border:1px solid #bfe6cb;">' +
+    '<span style="font-size:14px;">✓</span><span>已完成</span></div>';
+  messagesEl.appendChild(wrap);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+// 根据助手回复里的提问，生成可点击的快捷回复按钮（点了直接当成用户输入发出去）。
+// 目的：工作流程里尽量让用户「点」而不是「打字」。
+function makeQuickReplies(text) {
+  const t = (text || "").trim();
+  if (!t) return null;
+  // 只看结尾部分（问题通常在最后一句）
+  const tail = t.slice(-60);
+  let options = null;
+
+  // 明确的「是/否」信号（避免对开放式提问也弹是否）
+  const yesNoPat = /(是否|要不要|需不需要|确认.*吗|继续吗|可以吗|好吗|对吗|要我.*吗|帮你.*吗|是或否|确定吗|开始吗|执行吗|清空吗|删除吗)/;
+  if (yesNoPat.test(tail)) {
+    options = ["是", "否"];
+  }
+  // 「请回复 是 或 否」这种显式提示
+  if (/请回复\s*[“"']?\s*是\s*[”"']?\s*(或|还是|\/|、)\s*[“"']?\s*否/.test(t)) {
+    options = ["是", "否"];
+  }
+
+  if (!options) return null;
+
+  const row = document.createElement("div");
+  row.className = "quick-replies";
+  options.forEach((opt) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "quick-reply-btn";
+    b.textContent = opt;
+    b.addEventListener("click", () => {
+      if (busy) return;
+      // 点击后禁用这一组按钮，避免重复点
+      row.querySelectorAll(".quick-reply-btn").forEach((x) => { x.disabled = true; });
+      b.classList.add("chosen");
+      // 直接当成用户输入发送
+      inputEl.value = opt;
+      send();
+    });
+    row.appendChild(b);
+  });
+  return row;
 }
 
 // 助手气泡下方的「语音播报」按钮。用事件委托处理点击，所以会话快照/恢复后依然可用。
@@ -99,12 +207,35 @@ function renderMarkdown(src) {
   s = s.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
   // 斜体 *x*
   s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<i>$2</i>");
+  // 图片 ![alt](url) —— 必须在「链接」规则之前处理（否则 ![]() 里的 []() 会先被当成链接）。
+  // 只允许 http(s) 图片地址（含本机 127.0.0.1 的截图地址），避免注入。
+  s = s.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g,
+    '<img class="md-img" src="$2" alt="$1" loading="lazy">');
   // 链接 [text](url)
   s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
     '<a href="$2" target="_blank">$1</a>');
   // 裸链接（行内直接出现的 http(s) 网址）也变成可点击
   s = s.replace(/(^|[\s>])(https?:\/\/[^\s<）)]+)/g,
     '$1<a href="$2" target="_blank">$2</a>');
+  // 表格 | a | b |\n| --- | --- |\n| 1 | 2 |
+  // 识别连续的表格行（含表头分隔行），渲染成 <table>
+  s = s.replace(
+    /(^\|.+\|[ \t]*\n)(\|[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\|[ \t]*\n)((?:\|.*\|[ \t]*\n?)*)/gm,
+    (m, header, _sep, body) => {
+      const cells = (row) => row.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+      const head = cells(header);
+      const rows = body.trim().split("\n").filter((r) => r.trim()).map(cells);
+      let html = '\u0002<table class="md-table"><thead><tr>';
+      head.forEach((h) => { html += "<th>" + h + "</th>"; });
+      html += "</tr></thead><tbody>";
+      rows.forEach((r) => {
+        html += "<tr>";
+        head.forEach((_, i) => { html += "<td>" + (r[i] || "") + "</td>"; });
+        html += "</tr>";
+      });
+      html += "</tbody></table>\u0002";
+      return html;
+    });
   // 有序列表 1. 2. 3.（保留真实序号：项与项之间夹了解释段落时，也不会都从 1 开始）
   s = s.replace(/^(\d+)\.\s+(.+)$/gm, "\u0003<oli data-n=\"$1\">$2</oli>");
   s = s.replace(/(\u0003<oli[\s\S]*?<\/oli>)(?:\n?\u0003<oli[\s\S]*?<\/oli>)*/g,
@@ -138,14 +269,74 @@ function renderMarkdown(src) {
   return s;
 }
 
+// 工具中文名（让折叠条的标题像人话，而不是 sys_run 这种）
+const _TOOL_LABEL_CN = {
+  shell: "执行命令", sys_run: "执行命令",
+  write_file: "写入文件", delete_file: "删除文件", write_memory: "写入记忆",
+  fs_open: "打开文件", fs_move: "移动/重命名", fs_copy: "复制文件",
+  fs_mkdir: "新建文件夹", fs_trash: "移到回收站", fs_organize: "整理文件夹",
+  fs_list: "查看目录", fs_read: "读取文件", fs_search: "搜索文件",
+  sys_info: "查看系统信息", sys_processes: "查看进程", sys_kill: "结束进程",
+  sys_clean_temp: "清理临时文件", empty_recycle_bin: "清空回收站", sys_volume: "调整音量", sys_brightness: "调整亮度",
+  sys_open_settings: "打开系统设置",
+  gui_screenshot: "屏幕截图", screen_read: "识别屏幕文字", gui_open_app: "打开程序",
+  gui_click: "点击鼠标", gui_type: "输入文字", gui_press: "按键", gui_scroll: "滚动",
+  web_search: "联网搜索", search_web: "联网搜索", research: "深度调研",
+  read_webpage: "读取网页", video_transcript: "提取视频文字",
+  read_memory: "读取记忆", list_memory: "翻看记忆", append_note: "记笔记",
+  remember: "记住", add_reminder: "设置提醒", list_reminders: "查看提醒",
+  read_file: "读取文件", list_files: "浏览文件", search_files: "搜索文件",
+  get_time: "查询时间", calc: "计算",
+};
+
 function addToolCall(name, args, result) {
   const el = document.createElement("div");
-  el.className = "tool-call";
-  el.innerHTML = `🔧 <b>${name}</b>(${escapeHtml(JSON.stringify(args))})
-    <div class="tc-result">→ ${escapeHtml(result)}</div>`;
+  el.className = "tool-call collapsed";
+
+  const label = _TOOL_LABEL_CN[name] || name;
+  const resStr = String(result == null ? "" : result);
+  // 结果首行做预览（去掉换行，截断）
+  const firstLine = (resStr.split("\n").find((l) => l.trim()) || "").trim();
+  const preview = firstLine.length > 40 ? firstLine.slice(0, 40) + "…" : firstLine;
+
+  // 折叠条：图标 + 中文名 + 一句结果预览 + 展开箭头
+  const header = document.createElement("div");
+  header.className = "tc-header";
+  header.innerHTML =
+    `<span class="tc-icon">🔧</span>` +
+    `<span class="tc-label">${escapeHtml(label)}</span>` +
+    (preview ? `<span class="tc-preview">${escapeHtml(preview)}</span>` : "") +
+    `<span class="tc-chevron">▾</span>`;
+
+  // 展开后的详情：完整参数 + 完整结果
+  const body = document.createElement("div");
+  body.className = "tc-body";
+  let detailHtml = "";
+  try {
+    const argStr = JSON.stringify(args, null, 2);
+    if (argStr && argStr !== "{}") {
+      detailHtml += `<div class="tc-section-label">参数</div><pre class="tc-pre">${escapeHtml(argStr)}</pre>`;
+    }
+  } catch (_) {}
+  if (resStr) {
+    detailHtml += `<div class="tc-section-label">结果</div><pre class="tc-pre">${escapeHtml(resStr)}</pre>`;
+  }
+  body.innerHTML = detailHtml || '<div class="tc-empty">（无输出）</div>';
+
+  el.appendChild(header);
+  el.appendChild(body);
   messagesEl.appendChild(el);
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
+
+// 事件委托：让折叠条在「切换/恢复对话后」(innerHTML 重建、监听器丢失) 仍能点击展开
+messagesEl.addEventListener("click", (e) => {
+  const header = e.target.closest && e.target.closest(".tc-header");
+  if (header) {
+    const card = header.closest(".tool-call");
+    if (card) card.classList.toggle("collapsed");
+  }
+});
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) =>
@@ -198,7 +389,12 @@ async function runChatLoop(approvals) {
     const resp = await fetch(BACKEND + "/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages, approvals, chat_id: chatId, ...s }),
+      body: JSON.stringify({
+        messages, approvals, chat_id: chatId,
+        auto_approve_tools: Array.from(sessionAllowedTools),
+        smart_routing: smartRouting,
+        ...s,
+      }),
     });
     const data = await resp.json();
     prog.done();
@@ -214,6 +410,9 @@ async function runChatLoop(approvals) {
     }
 
     addBubble("assistant", data.reply || "（无回复）");
+    // 任务型对话（用到了工具 / 操作了电脑）跑完时，给一个明确的"✓ 已完成"反馈，
+    // 让用户一眼看出 AI 已收工（网页模型偏慢，这点尤其重要）。
+    if (turnUsedTools(messages)) addCompletionMarker();
     saveCurrentConversation();
     busy = false;
     sendBtn.disabled = false;
@@ -227,36 +426,130 @@ async function runChatLoop(approvals) {
   }
 }
 
-// 危险操作确认框
+// 危险操作确认框（支持批量 + 友好说明 + 本次免问）
 function askApproval(pending) {
+  // 兼容：新后端给 batch 列表；老后端只给单条
+  const items = (pending.batch && pending.batch.length)
+    ? pending.batch
+    : [{
+        tool_call_id: pending.tool_call_id,
+        name: pending.name,
+        args: pending.args,
+        title: pending.title || ("执行操作：" + pending.name),
+        detail: pending.detail || "",
+      }];
+
   const el = document.createElement("div");
   el.className = "approval";
-  const argsStr = escapeHtml(JSON.stringify(pending.args, null, 2));
+
+  const multi = items.length > 1;
+  const head = multi
+    ? `⚠️ 超能小助想执行 ${items.length} 个操作，需要你确认`
+    : `⚠️ 超能小助想执行一个操作，需要你确认`;
+
+  const rows = items.map((it) => `
+    <label class="approval-item">
+      <input type="checkbox" class="approval-check" data-id="${escapeHtml(it.tool_call_id)}" checked />
+      <span class="approval-item-body">
+        <span class="approval-item-title">${escapeHtml(it.title)}</span>
+        ${it.detail ? `<span class="approval-item-detail">${escapeHtml(it.detail)}</span>` : ""}
+      </span>
+    </label>`).join("");
+
   el.innerHTML =
-    `<div class="approval-head">⚠️ 超能小助想执行一个危险操作，需要你批准</div>
-     <div class="approval-tool">${escapeHtml(pending.name)}</div>
-     <pre class="approval-args">${argsStr}</pre>
+    `<div class="approval-head">${head}</div>
+     <div class="approval-list">${rows}</div>
+     <label class="approval-trust">
+       <input type="checkbox" class="approval-trust-chk" />
+       <span>批准后，本次对话里这类操作不用再问我（适合人不在电脑旁的批量任务）</span>
+     </label>
      <div class="approval-btns">
-       <button class="approve-yes">批准执行</button>
-       <button class="approve-no">拒绝</button>
+       ${multi ? `<button class="approve-all">全部批准</button>
+                  <button class="approve-selected">只批准勾选的</button>
+                  <button class="approve-none">全部拒绝</button>`
+               : `<button class="approve-all">批准执行</button>
+                  <button class="approve-none">拒绝</button>`}
      </div>`;
   messagesEl.appendChild(el);
   messagesEl.scrollTop = messagesEl.scrollHeight;
 
-  el.querySelector(".approve-yes").addEventListener("click", () => {
-    el.querySelector(".approval-btns").innerHTML = "<span class='approved'>已批准 ✓</span>";
-    runChatLoop({ [pending.tool_call_id]: true });
+  // 把一组操作涉及的工具类别加入「本次免问」
+  function trustTheseTools(itemList) {
+    const trustChk = el.querySelector(".approval-trust-chk");
+    if (trustChk && trustChk.checked) {
+      itemList.forEach((it) => { if (it.name) sessionAllowedTools.add(it.name); });
+    }
+  }
+
+  function finish(decisionMap, label) {
+    el.querySelector(".approval-btns").innerHTML =
+      `<span class="approved">${label}</span>`;
+    el.querySelectorAll(".approval-check").forEach((c) => { c.disabled = true; });
+    const tc = el.querySelector(".approval-trust");
+    if (tc) tc.style.display = "none";
+    runChatLoop(decisionMap);
+  }
+
+  // 全部批准
+  el.querySelector(".approve-all").addEventListener("click", () => {
+    trustTheseTools(items);
+    const m = {};
+    items.forEach((it) => { m[it.tool_call_id] = true; });
+    finish(m, multi ? "已全部批准 ✓" : "已批准 ✓");
   });
-  el.querySelector(".approve-no").addEventListener("click", () => {
-    el.querySelector(".approval-btns").innerHTML = "<span class='denied'>已拒绝 ✕</span>";
-    runChatLoop({ [pending.tool_call_id]: false });
+
+  // 全部拒绝
+  el.querySelector(".approve-none").addEventListener("click", () => {
+    const m = {};
+    items.forEach((it) => { m[it.tool_call_id] = false; });
+    finish(m, multi ? "已全部拒绝 ✕" : "已拒绝 ✕");
   });
+
+  // 只批准勾选的（仅多条时有这个按钮）
+  const selBtn = el.querySelector(".approve-selected");
+  if (selBtn) {
+    selBtn.addEventListener("click", () => {
+      const approvedItems = items.filter((it) => {
+        const c = el.querySelector(`.approval-check[data-id="${CSS.escape(it.tool_call_id)}"]`);
+        return c && c.checked;
+      });
+      trustTheseTools(approvedItems);
+      const m = {};
+      el.querySelectorAll(".approval-check").forEach((c) => {
+        m[c.dataset.id] = c.checked;
+      });
+      finish(m, "已按勾选执行 ✓");
+    });
+  }
 }
 
 sendBtn.addEventListener("click", send);
 inputEl.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
 });
+
+// ---------- 智能模式 / 常规模式 切换 ----------
+function updateRouteModeBtn() {
+  const btn = document.getElementById("routeModeBtn");
+  const lab = document.getElementById("routeModeLabel");
+  if (!btn || !lab) return;
+  lab.textContent = smartRouting ? "智能" : "常规";
+  btn.classList.toggle("route-smart", smartRouting);
+  btn.classList.toggle("route-normal", !smartRouting);
+  btn.title = smartRouting
+    ? "智能模式：按任务自动分配最合适的模型（点一下切到常规）"
+    : "常规模式：只用你在右边选的模型，不自动切换（点一下切到智能）";
+}
+(function initRouteMode() {
+  const btn = document.getElementById("routeModeBtn");
+  if (!btn) return;
+  updateRouteModeBtn();
+  btn.addEventListener("click", () => {
+    smartRouting = !smartRouting;
+    try { localStorage.setItem("cx_smart_routing", smartRouting ? "1" : "0"); } catch (_) {}
+    updateRouteModeBtn();
+  });
+})();
 
 function autoGrow() {
   inputEl.style.height = "auto";
@@ -274,6 +567,7 @@ function newConversation() {
   conversations.unshift({ id, title: "新会话", messages: [], display: [] });
   activeConvoId = id;
   messages = [];
+  sessionAllowedTools = new Set();   // 新对话：清空已授权的操作类别
   messagesEl.innerHTML = "";
   renderConvoList();
 }
@@ -301,6 +595,7 @@ function saveCurrentConversation() {
   const c = conversations.find((x) => x.id === activeConvoId);
   if (!c) return;
   c.messages = messages;
+  c.allowedTools = Array.from(sessionAllowedTools);   // 记住本对话已授权的操作类别
   // 固定名字的功能会话（情报简报等）保留原名；用户手动改过名的也不动
   if (!c.fixedTitle && !c.userRenamed) {
     // 先给一个干净的兜底标题（不再是生硬截前20字、避免乱码）
@@ -368,6 +663,7 @@ function switchConversation(id) {
   if (!c) return;
   activeConvoId = id;
   messages = c.messages || [];
+  sessionAllowedTools = new Set(c.allowedTools || []);   // 恢复该对话已授权的操作类别
   messagesEl.innerHTML = c.displayHtml || "";
   renderConvoList();
 }
@@ -460,6 +756,7 @@ document.getElementById("newConvoBtn").addEventListener("click", newConversation
 
 document.getElementById("clearBtn").addEventListener("click", () => {
   messages = [];
+  sessionAllowedTools = new Set();
   messagesEl.innerHTML = "";
   saveCurrentConversation();
 });
@@ -679,7 +976,7 @@ function addSystemNote(text) {
   // 切到对话视图并显示一条提示
   document.querySelector('.nav-item[data-view="chat"]').click();
   const el = document.createElement("div");
-  el.className = "tool-call";
+  el.className = "tool-call tc-note";
   el.style.alignSelf = "center";
   el.style.maxWidth = "90%";
   el.textContent = text;
@@ -1029,9 +1326,49 @@ async function startVideoJob(url, level) {
   setVideoStatus("正在提交…");
   try {
     const s = settings();
+    // 读「插图 / 跳转原片」开关（不存在就当未勾选）
+    const shotEl = document.getElementById("videoShot");
+    const linkEl = document.getElementById("videoLink");
+    const screenshot = !!(shotEl && shotEl.checked);
+    const link = !!(linkEl && linkEl.checked);
+    // 读字幕模式（auto / subtitle_only / transcribe），默认 auto
+    const modeEl = document.getElementById("videoSubMode");
+    const mode = (modeEl && modeEl.value) || "auto";
+
+    // 先轻量检测有没有平台字幕（秒级，不下载正文）。失败/超时就当没字幕，照常提交。
+    const hintEl = document.getElementById("videoSubHint");
+    if (hintEl) { hintEl.style.display = "none"; hintEl.innerHTML = ""; }
+    if (mode !== "transcribe") {
+      try {
+        setVideoStatus("正在检测字幕…");
+        const dr = await fetch(BACKEND + "/video_detect_subtitle", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        });
+        const dd = await dr.json();
+        if (dd && dd.has && hintEl) {
+          const srcName = dd.source === "bilibili_subtitle" ? "B站字幕"
+            : (dd.source === "youtube_subtitle" ? "YouTube 字幕" : "字幕");
+          if (mode === "auto") {
+            hintEl.innerHTML = "✅ 检测到" + srcName +
+              "，已按「自动」直接用字幕（最快）。想更准更全，可在上方「字幕模式」改选" +
+              "『字幕+视频听写』后重新提取。";
+          } else {
+            hintEl.innerHTML = "✅ 检测到" + srcName + "，将优先使用字幕。";
+          }
+          hintEl.style.display = "";
+        } else if (hintEl && mode === "subtitle_only") {
+          hintEl.innerHTML = "ℹ️ 没检测到平台字幕，将自动回退到视频听写。";
+          hintEl.style.display = "";
+        }
+      } catch (e) { /* 检测失败：静默，照常提交 */ }
+    }
+
+    setVideoStatus("正在提交…");
     const resp = await fetch(BACKEND + "/video_transcribe", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, level, use_local: s.use_local, model: s.model }),
+      body: JSON.stringify({ url, level, use_local: s.use_local, model: s.model,
+                             screenshot, link, mode }),
     });
     const data = await resp.json();
 
@@ -1267,6 +1604,52 @@ function mountVideoResult(data, target) {
       ? (data.transcript || "")
       : (detailMode === "brief" ? conciseMarkdown(data.analysis || "") : (data.analysis || ""));
     if (window.cxSpeak) window.cxSpeak(text, $("#vSpeakBtn"));
+  });
+}
+
+// 信息简报 / 学习档案的详情：套用和视频笔记一样舒展的排版（标题色块 + 工具条 + 朗读/复制/导出），
+// 但只有一个正文面板（没有 AI分析/原文 两个标签）。解决信息库展示"挤"的问题。
+function mountSimpleDoc(content, target, opts) {
+  opts = opts || {};
+  const md = content || "";
+  // 抽出首个 # 标题当大标题，其余作为正文
+  const lines = md.split("\n");
+  let title = opts.title || "";
+  let bodyStart = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^#\s+(.+)$/);
+    if (m) { if (!title) title = m[1].trim(); bodyStart = i + 1; break; }
+    if (lines[i].trim()) break;   // 第一行非空又不是标题，就不剥离
+  }
+  const body = bodyStart ? lines.slice(bodyStart).join("\n") : md;
+
+  const head = title ? "<h2>" + escapeHtml(title) + "</h2>" : "";
+  target.innerHTML =
+    '<div class="video-toolbar">' +
+      '<span class="vspacer"></span>' +
+      '<button class="vbtn vbtn-speak" id="sdSpeakBtn">🔊 朗读</button>' +
+      '<button class="vbtn" id="sdCopyBtn">复制本页</button>' +
+      '<button class="vbtn" id="sdExportBtn">导出 Markdown</button>' +
+    '</div>' +
+    head +
+    '<div class="vtab-body">' + renderMarkdown(body) + '</div>';
+
+  const $ = (sel) => target.querySelector(sel);
+  $("#sdCopyBtn").addEventListener("click", () => {
+    copyText(md);
+    const b = $("#sdCopyBtn");
+    b.textContent = "已复制 ✓"; setTimeout(() => (b.textContent = "复制本页"), 1500);
+  });
+  $("#sdExportBtn").addEventListener("click", () => {
+    const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = ((title || "笔记").slice(0, 30).replace(/[\\/:*?"<>|]/g, "_")) + ".md";
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  });
+  $("#sdSpeakBtn").addEventListener("click", () => {
+    if (window.cxSpeak) window.cxSpeak(body, $("#sdSpeakBtn"));
   });
 }
 
@@ -1691,8 +2074,8 @@ async function openLibItem(cat, name) {
       parsed._noteCat = "video";
       mountVideoResult(parsed, host);
     } else {
-      // 学习 / 信息条目：同样用 dash-content 的色块标题样式渲染
-      host.innerHTML = renderMarkdown(d.content || "（空）");
+      // 学习 / 信息条目：套用和视频一样舒展的排版（标题色块 + 工具条），不再是挤巴巴的纯 markdown
+      mountSimpleDoc(d.content || "（空）", host);
     }
   } catch (e) {
     host.innerHTML = '<div class="dash-empty">打开出错：' + escapeHtml(e.message) + "</div>";
@@ -1789,6 +2172,12 @@ async function loadMemoryContent(name) {
   const editor = document.getElementById("memoryEditor");
   const meta = MEMORY_META[name] || { type: "text" };
   descEl.textContent = meta.desc || "";
+  // 每次切文件，文本型默认回到「结构化」模式
+  _memTextMode = "struct";
+  document.getElementById("memModeStruct")?.classList.add("active");
+  document.getElementById("memModeRaw")?.classList.remove("active");
+  const _tip = document.getElementById("memModeTip");
+  if (_tip) _tip.textContent = "按小标题分区编辑，更清晰";
   // 默认先把自由文本框藏起来、清空 body
   editor.style.display = "none";
   body.innerHTML = "<div class='dash-loading'>加载中…</div>";
@@ -1802,19 +2191,152 @@ async function loadMemoryContent(name) {
     return;
   }
 
+  const modeBar = document.getElementById("memoryModeBar");
   if (meta.type === "text") {
-    // 自由文本：隐藏 body，显示常驻的 textarea（占满高度）
-    body.innerHTML = "";
-    body.style.display = "none";
-    editor.value = content;
-    editor.style.display = "";
+    // 自由文本（SOUL/USER/MEMORY…）：默认结构化分区编辑，可切原始文本
+    if (modeBar) modeBar.style.display = "";
+    body.style.display = "";
+    _memTextRaw = content;            // 缓存原始内容，供两种模式互转
+    renderTextEditor(body, name, content, meta);
   } else if (meta.type === "list") {
+    if (modeBar) modeBar.style.display = "none";
     body.style.display = "";
     renderListEditor(body, name, content, meta);
   } else if (meta.type === "config") {
+    if (modeBar) modeBar.style.display = "none";
     body.style.display = "";
     renderConfigEditor(body, name, content, meta);
   }
+}
+
+// ---- 文本型结构化编辑器：把 ## 小标题解析成可编辑的分区块 ----
+let _memTextRaw = "";           // 当前文本文件的原始内容
+let _memTextMode = "struct";    // struct | raw
+
+function parseTextSections(content) {
+  // 返回 { preamble, sections:[{heading, level, text}] }
+  const lines = (content || "").split("\n");
+  const sections = [];
+  let preamble = [];
+  let cur = null;
+  for (const ln of lines) {
+    const m = ln.match(/^(#{1,3})\s+(.+)$/);
+    if (m) {
+      if (cur) sections.push(cur);
+      else if (preamble.join("\n").trim() === "" && sections.length === 0) preamble = [];
+      cur = { level: m[1].length, heading: m[2].trim(), body: [] };
+    } else if (cur) {
+      cur.body.push(ln);
+    } else {
+      preamble.push(ln);
+    }
+  }
+  if (cur) sections.push(cur);
+  return { preamble: preamble.join("\n").trim(), sections };
+}
+
+function renderTextEditor(body, name, content, meta) {
+  const editor = document.getElementById("memoryEditor");
+  if (_memTextMode === "raw") {
+    // 原始文本模式：用常驻 textarea
+    body.style.display = "none";
+    editor.value = content;
+    editor.style.display = "";
+    return;
+  }
+  // 结构化模式（阅读态为主，点笔才进编辑）
+  editor.style.display = "none";
+  body.style.display = "";
+  body.innerHTML = "";
+  const { preamble, sections } = parseTextSections(content);
+
+  if (preamble) {
+    const pre = document.createElement("div");
+    pre.className = "mem-preamble";
+    pre.textContent = preamble.replace(/^#\s+.*$/m, "").trim() || preamble;
+    if (pre.textContent.trim()) body.appendChild(pre);
+  }
+
+  // 造一个分区块：默认显示「阅读卡片」，点笔切换成编辑框
+  function makeBlock(heading, level, text) {
+    const blk = document.createElement("div");
+    blk.className = "mem-section";
+
+    const head = document.createElement("div");
+    head.className = "mem-section-head";
+    const htext = document.createElement("span");
+    htext.textContent = (level >= 3 ? "› " : "") + (heading || "（无标题）");
+    head.appendChild(htext);
+    const pen = document.createElement("button");
+    pen.className = "mem-edit-btn"; pen.title = "编辑这一节"; pen.textContent = "✏️";
+    head.appendChild(pen);
+    blk.appendChild(head);
+
+    // 阅读视图（渲染 markdown，好看）
+    const read = document.createElement("div");
+    read.className = "mem-section-read";
+    const renderRead = (t) => {
+      read.innerHTML = (t || "").trim()
+        ? renderMarkdown(t)
+        : '<span class="mem-section-empty">（空，点 ✏️ 添加内容）</span>';
+    };
+    renderRead(text);
+    blk.appendChild(read);
+
+    // 编辑视图（textarea，默认隐藏）
+    const ta = document.createElement("textarea");
+    ta.className = "mem-section-text";
+    ta.value = text;
+    ta.dataset.heading = heading || "";
+    ta.dataset.level = level;
+    ta.style.display = "none";
+    blk.appendChild(ta);
+
+    let editing = false;
+    pen.onclick = () => {
+      editing = !editing;
+      if (editing) {
+        read.style.display = "none";
+        ta.style.display = "";
+        pen.textContent = "✓"; pen.title = "完成";
+        autoGrowArea(ta); ta.focus();
+      } else {
+        renderRead(ta.value);
+        read.style.display = "";
+        ta.style.display = "none";
+        pen.textContent = "✏️"; pen.title = "编辑这一节";
+      }
+    };
+    return blk;
+  }
+
+  if (!sections.length) {
+    body.appendChild(makeBlock("", 2, content));
+    return;
+  }
+  sections.forEach((sec) => {
+    body.appendChild(makeBlock(sec.heading, sec.level,
+      sec.body.join("\n").replace(/^\n+|\n+$/g, "")));
+  });
+
+  // 末尾「+ 添加一节」
+  const add = document.createElement("button");
+  add.className = "ghost-btn mem-add-section";
+  add.textContent = "＋ 添加一节";
+  add.onclick = () => {
+    const h = prompt("新分节的小标题（如：我的偏好）");
+    if (!h) return;
+    const blk = makeBlock(h.trim(), 2, "");
+    body.insertBefore(blk, add);
+    blk.querySelector(".mem-edit-btn")?.click();   // 新节直接进编辑态
+  };
+  body.appendChild(add);
+}
+
+function autoGrowArea(ta) {
+  const fit = () => { ta.style.height = "auto"; ta.style.height = Math.max(44, ta.scrollHeight) + "px"; };
+  ta.addEventListener("input", fit);
+  setTimeout(fit, 0);
 }
 
 // 把文件顶部的说明行（# 或 > 开头、空行）抽出来，保存时原样写回
@@ -1947,7 +2469,26 @@ function collectMemoryContent() {
   const name = currentMemoryFile;
   const meta = MEMORY_META[name] || { type: "text" };
   if (meta.type === "text") {
-    return document.getElementById("memoryEditor").value;
+    if (_memTextMode === "raw") {
+      return document.getElementById("memoryEditor").value;
+    }
+    // 结构化模式：把各分区块拼回 markdown
+    const body = document.getElementById("memoryBody");
+    const blocks = body.querySelectorAll(".mem-section");
+    if (!blocks.length) return _memTextRaw;   // 没解析出分区，原样返回
+    const out = [];
+    const pre = body.querySelector(".mem-preamble");
+    if (pre && pre.textContent.trim()) { out.push(pre.textContent.trim(), ""); }
+    blocks.forEach((blk) => {
+      const ta = blk.querySelector(".mem-section-text");
+      const heading = ta.dataset.heading || "";
+      const level = parseInt(ta.dataset.level || "2", 10);
+      if (heading) out.push("#".repeat(level) + " " + heading);
+      const txt = (ta.value || "").replace(/\n+$/g, "");
+      if (txt.trim()) out.push("", txt);
+      out.push("");
+    });
+    return out.join("\n").replace(/\n{3,}/g, "\n\n").trim() + "\n";
   }
   const head = _rawHeader ? _rawHeader.replace(/\s+$/, "") + "\n\n" : "";
   if (meta.type === "list") {
@@ -1976,6 +2517,26 @@ function collectMemoryContent() {
   }
   return "";
 }
+
+// ---- 记忆：结构化 / 原始文本 切换 ----
+function setMemMode(mode) {
+  if (mode === _memTextMode) return;
+  // 切换前先把当前编辑序列化，保留改动
+  const cur = collectMemoryContent();
+  _memTextRaw = cur;
+  _memTextMode = mode;
+  document.getElementById("memModeStruct")?.classList.toggle("active", mode === "struct");
+  document.getElementById("memModeRaw")?.classList.toggle("active", mode === "raw");
+  const tip = document.getElementById("memModeTip");
+  if (tip) tip.textContent = mode === "raw"
+    ? "高级模式：直接编辑原始 .md 文本"
+    : "按小标题分区编辑，更清晰";
+  const meta = MEMORY_META[currentMemoryFile] || { type: "text" };
+  const body = document.getElementById("memoryBody");
+  renderTextEditor(body, currentMemoryFile, cur, meta);
+}
+document.getElementById("memModeStruct")?.addEventListener("click", () => setMemMode("struct"));
+document.getElementById("memModeRaw")?.addEventListener("click", () => setMemMode("raw"));
 
 document.getElementById("saveMemoryBtn").addEventListener("click", async () => {
   const content = collectMemoryContent();
@@ -2108,6 +2669,10 @@ function updateModelHint() {
   if (el) {
     // 网页大模型（伪模型）：它不是本地也不是普通云端，单独显示，避免「本地 · web」的误导
     if (s.model === "web") el.textContent = "🌐 网页模型";
+    else if (s.model === "claude" || s.model.startsWith("claude::")) {
+      const ent = _modelEntries.find((e) => e.value === s.model);
+      el.textContent = ent ? ent.label : "✦ Claude";
+    }
     else el.textContent = (s.use_local ? "本地 · " : "云端 · ") + s.model;
   }
   // 让输入框里的模型选择器跟随当前模型（在设置里改了模型时也保持一致）
@@ -2144,6 +2709,7 @@ async function loadModels(preferred) {
     const models = data.models || [];
     const cloud = data.cloud || [];
     const web = data.web || [];
+    const claude = data.claude || [];
     sel.innerHTML = "";
 
     const addOpt = (group, m, label) => {
@@ -2176,8 +2742,14 @@ async function loadModels(preferred) {
         web.forEach((m) => addOpt(g, m.id || "web", "☁☁ " + (m.name || "网页模型")));
         sel.appendChild(g);
       }
+      if (claude.length) {
+        const g = document.createElement("optgroup");
+        g.label = "✦ Claude 官方";
+        claude.forEach((m) => addOpt(g, m.id || "claude", "✦ " + (m.name || "Claude")));
+        sel.appendChild(g);
+      }
     }
-    buildComposerModel(models, cloud, web);
+    buildComposerModel(models, cloud, web, claude);
     updateModelHint();
   } catch (e) {
     // 连不上后端时静默，保留手动输入
@@ -2200,17 +2772,18 @@ function _rank(name) {
 
 let _modelEntries = [];   // 全部 {value,label} 备用（用来显示当前模型名）
 
-function buildComposerModel(models, cloud, web) {
+function buildComposerModel(models, cloud, web, claude) {
   const menu = document.getElementById("modelPickerMenu");
   if (!menu) return;
   const local = (models || []).map((m) => ({ value: "local::" + m, label: m, rank: _rank(m) }));
   const cld = (cloud || []).map((m) => ({ value: "cloud::" + m, label: "☁ " + m, rank: _rank(m) + 20 }));
   const webItems = (web || []).map((m) => ({ value: "web", label: "🌐 " + (m.name || "网页模型"), rank: -1 }));
-  _modelEntries = [...webItems, ...local, ...cld];
+  const claudeItems = (claude || []).map((m) => ({ value: m.id || "claude", label: "✦ " + (m.name || "Claude"), rank: -2 }));
+  _modelEntries = [...claudeItems, ...webItems, ...local, ...cld];
 
-  // 第一层：网页大模型 + 最多 4 个最优先的本地/云端模型；其余进「更多模型」
+  // 第一层：Claude + 网页大模型 + 最多 4 个最优先的本地/云端模型；其余进「更多模型」
   const ranked = [...local, ...cld].sort((a, b) => a.rank - b.rank);
-  const top = [...webItems, ...ranked.slice(0, 4)];
+  const top = [...claudeItems, ...webItems, ...ranked.slice(0, 4)];
   const more = ranked.slice(4);
 
   menu.innerHTML = "";
@@ -2431,12 +3004,14 @@ const _TASK_IDS = ["chat", "video_summary", "local_action", "quick_chat"];
 function _entryToValue(entry) {
   if (!entry || entry.follow_default) return "follow";
   if (entry.model === "web") return "web";
+  if (entry.model === "claude" || (entry.model && entry.model.startsWith("claude::"))) return entry.model;
   return (entry.use_local ? "local::" : "cloud::") + (entry.model || "");
 }
 // 把下拉 value 解码回 task_models 条目
 function _valueToEntry(v) {
   if (v === "follow") return { follow_default: true };
   if (v === "web") return { use_local: false, model: "web" };
+  if (v === "claude" || v.startsWith("claude::")) return { use_local: false, model: v };
   if (v.startsWith("local::")) return { use_local: true, model: v.slice(7) };
   if (v.startsWith("cloud::")) return { use_local: false, model: v.slice(7) };
   return { follow_default: true };
@@ -2601,17 +3176,86 @@ newConversation();  // 开一个初始会话
     }
   }
 
-  // ---------- 语音播报（神经网络 TTS，失败回退浏览器内置）----------
-  let cxAudio = null, cxBtn = null;
+  // ---------- 语音播报（神经网络 TTS，分段边读边取，可随时打断）----------
+  // 关键设计：
+  //  · cxGen 代号：每次开始/停止都自增；任何“在飞”的请求或排队回调发现代号变了就作废，
+  //    彻底杜绝“点两次 → 两个声音一起读”。
+  //  · 长文章按句子切成小段，第一段很短 → 秒出声；播放当前段的同时预取下一段。
+  //  · 停止/换一段会 abort 在途请求并暂停当前音频，反应即时。
+  let cxGen = 0;            // 当前播放代号
+  let cxAbort = null;       // 在途 fetch 控制器
+  let cxAudioEl = null;     // 当前 Audio
+  let cxBtn = null;         // 当前朗读按钮（用于高亮/再点停止）
+
   function cxStop() {
-    if (cxAudio) { try { cxAudio.pause(); } catch (_) {} cxAudio = null; }
+    cxGen++;                                   // 让所有旧回调失效
+    if (cxAbort) { try { cxAbort.abort(); } catch (_) {} cxAbort = null; }
+    if (cxAudioEl) { try { cxAudioEl.pause(); } catch (_) {} cxAudioEl = null; }
     try { window.speechSynthesis && speechSynthesis.cancel(); } catch (_) {}
-    if (cxBtn) { cxBtn.classList.remove("speaking"); cxBtn = null; }
+    if (cxBtn) { cxBtn.classList.remove("speaking", "loading"); cxBtn = null; }
   }
   function curVoice() {
     try { return localStorage.getItem("cx_tts_voice") || "zh-CN-YunxiNeural"; }
     catch (_) { return "zh-CN-YunxiNeural"; }
   }
+
+  // 把长文本按句子/标点切成 ≤180 字的小段，便于快速合成、即时开口
+  function splitForTTS(text) {
+    const clean = (text || "").replace(/\s+/g, " ").trim();
+    if (!clean) return [];
+    // 关键提速：把「第一段」切得很短（首句、最多 ~40 字），
+    // 这样 edge-tts 几乎瞬间就能合成出第一段、声音 1 秒内就响；
+    // 后面的内容在播第一段时已经在后台预取，听感上几乎无延迟。
+    const chunks = [];
+    let rest = clean;
+    // 先尽量按句末标点取出"第一句"
+    let firstCut = -1;
+    const m = rest.slice(0, 60).match(/[。！？!?；;，,、]/);
+    if (m) firstCut = m.index + 1;
+    if (firstCut < 0) firstCut = Math.min(40, rest.length);   // 没标点就硬切 40 字
+    if (firstCut > 45) firstCut = 45;                          // 第一段别超 45 字
+    chunks.push(rest.slice(0, firstCut).trim());
+    rest = rest.slice(firstCut).trim();
+    if (!rest) return chunks;
+    // 剩下的按原逻辑分段（每段 ~180 字，句末优先）
+    const parts = rest.split(/(?<=[。！？!?；;])/);
+    let cur = "";
+    for (let p of parts) {
+      while (p.length > 220) { if (cur) { chunks.push(cur); cur = ""; } chunks.push(p.slice(0, 220)); p = p.slice(220); }
+      if ((cur + p).length > 180) { if (cur) chunks.push(cur); cur = p; }
+      else cur += p;
+    }
+    if (cur.trim()) chunks.push(cur);
+    return chunks.slice(0, 80);   // 极长文章兜底，最多 80 段
+  }
+
+  async function ttsFetch(text, gen) {
+    cxAbort = new AbortController();
+    const resp = await fetch(BACKEND + "/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, voice: curVoice() }),
+      signal: cxAbort.signal,
+    });
+    if (gen !== cxGen) return null;            // 已被新播放/停止取代
+    const ct = resp.headers.get("Content-Type") || "";
+    if (!resp.ok || ct.indexOf("audio") < 0) throw new Error("no-audio");
+    return await resp.blob();
+  }
+
+  function playBlob(blob, gen, btn) {
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(blob);
+      const a = new Audio(url);
+      cxAudioEl = a;
+      if (btn) { btn.classList.remove("loading"); btn.classList.add("speaking"); }
+      const done = () => { URL.revokeObjectURL(url); resolve(); };
+      a.onended = done;
+      a.onerror = done;
+      a.play().catch(done);
+    });
+  }
+
   function fallbackSpeak(text, btn) {
     try {
       if (!window.speechSynthesis) { cxStop(); return; }
@@ -2621,35 +3265,35 @@ newConversation();  // 开一个初始会话
       const vs = speechSynthesis.getVoices() || [];
       const want = vs.find((v) => (isEn ? /en/i : /zh|cn|chinese/i).test(v.lang + v.name));
       if (want) u.voice = want;
-      u.rate = 1.0;
       u.onend = () => cxStop();
       u.onerror = () => cxStop();
+      if (btn) { btn.classList.remove("loading"); btn.classList.add("speaking"); }
       speechSynthesis.speak(u);
     } catch (_) { cxStop(); }
   }
+
   async function cxSpeak(text, btn) {
     text = (text || "").trim();
-    if (cxBtn === btn) { cxStop(); return; }   // 再点一次＝停止
-    cxStop();
+    if (cxBtn === btn) { cxStop(); return; }   // 对同一个按钮再点一次＝停止
+    cxStop();                                  // 先把上一段彻底停掉（含在途请求）
     if (!text) return;
+    const gen = ++cxGen;                        // 本次播放的代号
     cxBtn = btn || null;
-    if (cxBtn) cxBtn.classList.add("speaking");
+    if (cxBtn) cxBtn.classList.add("loading");
+    const chunks = splitForTTS(text);
     try {
-      const resp = await fetch(BACKEND + "/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, voice: curVoice() }),
-      });
-      const ct = resp.headers.get("Content-Type") || "";
-      if (!resp.ok || ct.indexOf("audio") < 0) throw new Error("no-audio");
-      const blob = await resp.blob();
-      const url = URL.createObjectURL(blob);
-      cxAudio = new Audio(url);
-      cxAudio.onended = () => { URL.revokeObjectURL(url); cxStop(); };
-      cxAudio.onerror = () => { URL.revokeObjectURL(url); fallbackSpeak(text, btn); };
-      await cxAudio.play();
-    } catch (_) {
-      fallbackSpeak(text, btn);   // 后端没装 edge-tts / 离线时，退浏览器语音
+      let nextP = ttsFetch(chunks[0], gen);     // 预取第一段
+      for (let i = 0; i < chunks.length; i++) {
+        const blob = await nextP;
+        if (gen !== cxGen) return;              // 被打断
+        if (!blob) return;                      // 代号失效
+        nextP = (i + 1 < chunks.length) ? ttsFetch(chunks[i + 1], gen).catch(() => null) : null;  // 边播边预取下一段（自吞中断）
+        await playBlob(blob, gen, btn);
+        if (gen !== cxGen) return;
+      }
+      if (gen === cxGen) cxStop();              // 全部读完，复位
+    } catch (e) {
+      if (gen === cxGen) fallbackSpeak(text, btn);  // 后端不可用/离线 → 退浏览器语音（整段）
     }
   }
   window.cxSpeak = cxSpeak;
@@ -2752,3 +3396,255 @@ newConversation();  // 开一个初始会话
     mask.querySelector("#cxAccessClose").addEventListener("click", close);
   }
 })();
+
+// ============================================================
+//  Claude 模型管理（多配置）—— 每个配置有独立的 key、地址、模型名
+// ============================================================
+(function () {
+  const listEl = document.getElementById("claudeProfileList");
+  const hintEl = document.getElementById("claudeHint");
+  const addBtn = document.getElementById("claudeAddBtn");
+  const preferChk = document.getElementById("claudePreferWeb");
+  if (!listEl) return;
+
+  function renderProfiles(profiles) {
+    listEl.innerHTML = "";
+    if (!profiles || !profiles.length) {
+      listEl.innerHTML = '<div style="color:var(--text-secondary);padding:12px 0">还没有配置，点击下方「添加」按钮创建。</div>';
+      return;
+    }
+    profiles.forEach((p, i) => {
+      const card = document.createElement("div");
+      card.className = "claude-profile-card";
+      card.innerHTML = `
+        <div class="cpf-header">
+          <span class="cpf-name">${_esc(p.name || "未命名")}</span>
+          <span class="cpf-model">${_esc(p.model)}</span>
+          <span class="cpf-status">${p.configured ? "✓ 已配置" : "✗ 未配置 key"}</span>
+        </div>
+        <div class="cpf-details" hidden>
+          <div class="cpf-row"><label>名称</label><input type="text" class="text-input cpf-input" data-field="name" value="${_esc(p.name || "")}" placeholder="如：Claude Opus" /></div>
+          <div class="cpf-row"><label>地址</label><input type="text" class="text-input cpf-input" data-field="base_url" value="${_esc(p.base_url || "")}" placeholder="如 https://api.dakeai.cc" /></div>
+          <div class="cpf-row"><label>密钥</label><input type="password" class="text-input cpf-input" data-field="api_key" value="" placeholder="${p.configured ? "已保存（留空＝不修改）" : "粘贴你的 API Key"}" /></div>
+          <div class="cpf-row"><label>模型</label><input type="text" class="text-input cpf-input" data-field="model" value="${_esc(p.model || "")}" placeholder="如 claude-opus-4-8" /></div>
+          <div class="cpf-actions">
+            <button class="send-btn cpf-save" data-idx="${i}">保存</button>
+            <button class="send-btn cpf-delete" data-idx="${i}" style="background:var(--accent)">删除</button>
+          </div>
+        </div>`;
+      card.querySelector(".cpf-header").addEventListener("click", () => {
+        const det = card.querySelector(".cpf-details");
+        det.hidden = !det.hidden;
+      });
+      card.querySelector(".cpf-save").addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        const idx = parseInt(ev.target.dataset.idx);
+        const profile = {};
+        card.querySelectorAll(".cpf-input").forEach((inp) => {
+          const f = inp.dataset.field;
+          const v = inp.value.trim();
+          if (f === "api_key" && !v) return;
+          profile[f] = v;
+        });
+        await claudeAction("update", { index: idx, profile });
+      });
+      card.querySelector(".cpf-delete").addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        if (!confirm("确定删除这个配置吗？")) return;
+        await claudeAction("delete", { index: parseInt(ev.target.dataset.idx) });
+      });
+      listEl.appendChild(card);
+    });
+  }
+
+  function _esc(s) { return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+  async function claudeAction(action, extra) {
+    if (hintEl) hintEl.textContent = "处理中…";
+    try {
+      const r = await fetch(BACKEND + "/claude_config", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, ...extra }),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        if (hintEl) hintEl.textContent = "操作成功";
+        renderProfiles(d.profiles || []);
+        if (typeof loadModels === "function") loadModels();
+      } else {
+        if (hintEl) hintEl.textContent = "失败：" + (d.error || "未知");
+      }
+    } catch (e) {
+      if (hintEl) hintEl.textContent = "出错：" + e.message;
+    }
+  }
+
+  async function loadClaudeConfig() {
+    try {
+      const r = await fetch(BACKEND + "/claude_config");
+      const d = await r.json();
+      renderProfiles(d.profiles || []);
+      if (preferChk) preferChk.checked = !!d.prefer_over_web;
+    } catch (_) {}
+  }
+
+  if (preferChk) preferChk.addEventListener("change", async () => {
+    if (hintEl) hintEl.textContent = "保存中…";
+    try {
+      const r = await fetch(BACKEND + "/claude_config", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_pref", prefer_over_web: preferChk.checked }),
+      });
+      const d = await r.json();
+      if (hintEl) hintEl.textContent = d.ok
+        ? (preferChk.checked
+            ? "已开启：分析/搜索/总结等任务将改用 Claude，不再走网页模型。"
+            : "已关闭：这些任务会按原设置（可能用网页模型）。")
+        : "保存失败：" + (d.error || "未知");
+    } catch (e) {
+      if (hintEl) hintEl.textContent = "出错：" + e.message;
+    }
+  });
+
+  if (addBtn) addBtn.addEventListener("click", async () => {
+    await claudeAction("add", { profile: { name: "", base_url: "", api_key: "", model: "" } });
+  });
+
+  document.querySelectorAll('.nav-item[data-view="settings"]').forEach((b) =>
+    b.addEventListener("click", loadClaudeConfig));
+  loadClaudeConfig();
+})();
+
+// ===== 笔记截图：点击放大查看（轻量灯箱，事件委托，动态渲染也生效）=====
+(function setupImgLightbox() {
+  let overlay = null;
+  function close() {
+    if (overlay) { overlay.remove(); overlay = null; }
+  }
+  document.addEventListener("click", (e) => {
+    const img = e.target.closest && e.target.closest("img.md-img");
+    if (!img) return;
+    e.preventDefault();
+    close();
+    overlay = document.createElement("div");
+    overlay.className = "img-lightbox";
+    const big = document.createElement("img");
+    big.src = img.src;
+    overlay.appendChild(big);
+    overlay.addEventListener("click", close);
+    document.body.appendChild(overlay);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") close();
+  });
+})();
+
+// ===== 「懂你」面板（lumi_features）=====
+let _lumiData = { profile: "", relationships: "", environment: "", evolution_log: "" };
+async function loadLumi() {
+  try {
+    const r = await fetch(BACKEND + "/lumi/status");
+    const d = await r.json();
+    if (!d || !d.ok) return;
+    _lumiData = d;
+    const profEl = document.getElementById("lumiProfile");
+    if (profEl) profEl.innerHTML = (d.profile || "").trim()
+      ? renderMarkdown(d.profile)
+      : '<div class="lumi-empty">还没演化。点右上角「✨ 人格演化」，小助会从你的对话里总结出你的说话风格、关注点和偏好。</div>';
+    const relEl = document.getElementById("lumiRelations");
+    if (relEl) relEl.innerHTML = (d.relationships || "").trim()
+      ? renderRelationsRich(d.relationships)
+      : '<div class="lumi-empty">还没记录到人。聊天时提到具体的人（同事、朋友、客户…），小助会自动记下来。</div>';
+    const envEl = document.getElementById("lumiEnv");
+    if (envEl) envEl.innerHTML = (d.environment || "").trim()
+      ? renderMarkdown(d.environment)
+      : '<div class="lumi-empty">还没扫描。点右上角「🖥️ 扫描环境」，小助会看你装了什么软件、推断你的职业方向。</div>';
+  } catch (e) { /* 静默 */ }
+}
+
+// 把 relationships.md 解析成一组「人卡片」，比纯文本更直观
+function renderRelationsRich(md) {
+  const people = [];
+  (md || "").split("\n").forEach((line) => {
+    const m = line.trim().match(/^[-•]\s*([^:：]{1,20})[:：]\s*(.+)$/);
+    if (m) people.push({ name: m[1].trim(), info: m[2].trim() });
+  });
+  if (!people.length) return renderMarkdown(md || "（还没记录到人）");
+  let h = '<div class="rel-grid">';
+  people.forEach((p) => {
+    const initial = (p.name[0] || "?");
+    h += '<div class="rel-card">' +
+      '<div class="rel-avatar">' + escapeHtml(initial) + "</div>" +
+      '<div class="rel-info">' +
+        '<div class="rel-name">' + escapeHtml(p.name) + "</div>" +
+        '<div class="rel-desc">' + escapeHtml(p.info) + "</div>" +
+      "</div></div>";
+  });
+  h += "</div>";
+  return h;
+}
+
+// 懂你子菜单：切换画像/关系/环境三个子页
+function switchLumiSub(which) {
+  const map = { profile: "lumiPageProfile", relations: "lumiPageRelations", env: "lumiPageEnv" };
+  Object.entries(map).forEach(([k, id]) => {
+    const pg = document.getElementById(id);
+    if (pg) pg.style.display = (k === which) ? "" : "none";
+  });
+  document.querySelectorAll("#lumiSubNav .nav-subitem").forEach((b) =>
+    b.classList.toggle("active", b.dataset.lumi === which));
+}
+document.querySelectorAll("#lumiSubNav .nav-subitem").forEach((b) => {
+  b.addEventListener("click", () => {
+    // 点子菜单时确保主视图切到懂你
+    document.querySelectorAll(".nav-item").forEach((x) => x.classList.remove("active"));
+    document.querySelector('.nav-item[data-view="lumi"]')?.classList.add("active");
+    document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
+    document.getElementById("view-lumi")?.classList.add("active");
+    switchLumiSub(b.dataset.lumi);
+    loadLumi();
+  });
+});
+
+function setLumiStatus(msg, kind) {
+  const el = document.getElementById("lumiStatus");
+  if (!el) return;
+  el.textContent = msg || "";
+  el.className = "lumi-status" + (kind ? " " + kind : "");
+}
+
+document.getElementById("lumiEvolveBtn")?.addEventListener("click", async () => {
+  const btn = document.getElementById("lumiEvolveBtn");
+  const s = settings();
+  btn.disabled = true; setLumiStatus("正在读对话、总结你的画像…（可能要十几秒）");
+  try {
+    const r = await fetch(BACKEND + "/lumi/evolve", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ use_local: s.use_local, model: s.model }),
+    });
+    const d = await r.json();
+    setLumiStatus(d.message || (d.ok ? "演化完成" : "演化没成功"), d.ok ? "ok" : "warn");
+    if (d.ok) { loadLumi(); switchLumiSub("profile"); }
+  } catch (e) { setLumiStatus("出错：" + e.message, "warn"); }
+  finally { btn.disabled = false; }
+});
+
+document.getElementById("lumiScanBtn")?.addEventListener("click", async () => {
+  const btn = document.getElementById("lumiScanBtn");
+  const s = settings();
+  btn.disabled = true; setLumiStatus("正在扫描本机环境…");
+  try {
+    const r = await fetch(BACKEND + "/lumi/scan", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ use_local: s.use_local, model: s.model }),
+    });
+    const d = await r.json();
+    let msg = d.message || (d.ok ? "扫描完成" : "扫描没成功");
+    if (d.ok && d.professions && d.professions.length) msg += "（推断：" + d.professions.join("、") + "）";
+    setLumiStatus(msg, d.ok ? "ok" : "warn");
+    if (d.ok) { loadLumi(); switchLumiSub("env"); }
+  } catch (e) { setLumiStatus("出错：" + e.message, "warn"); }
+  finally { btn.disabled = false; }
+});
+
+document.getElementById("lumiRefreshBtn")?.addEventListener("click", () => { setLumiStatus(""); loadLumi(); });

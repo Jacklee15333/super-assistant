@@ -162,6 +162,48 @@ def environment_check(use_local=True, model="qwen2.5"):
         # 不影响网页模型本身，所以这里不因为 Ollama 没装而判整体「环境有问题」。
         return result
 
+    # ★ Claude 模型（claude / claude::N）：走 Claude API，不依赖 Ollama 也不依赖 OPENAI_API_KEY。
+    #   只检查它自己的配置（是否填了 key、SDK 是否装好），不要去启动 Ollama（会卡 UI），
+    #   也不要因为没装 Ollama 就判红灯。
+    is_claude = (model == "claude") or (str(model).startswith("claude::"))
+    if is_claude:
+        try:
+            import claude_client
+            # 解析具体配置
+            idx = None
+            if str(model).startswith("claude::"):
+                try:
+                    idx = int(str(model).split("::")[1])
+                except (ValueError, IndexError):
+                    idx = None
+            profiles = claude_client.load_profiles()
+            prof = None
+            if idx is not None and 0 <= idx < len(profiles):
+                prof = profiles[idx]
+            elif profiles:
+                prof = profiles[0]
+            if prof and prof.get("api_key"):
+                add("Claude 配置「%s」" % (prof.get("name") or "未命名"), True,
+                    "已配置 key，模型：%s" % prof.get("model", "?"))
+            else:
+                add("Claude 配置", False, "还没填 API Key，请到「设置 → Claude 模型管理」添加")
+            # 检查对应的 SDK 是否装好
+            base_url = (prof or {}).get("base_url", "")
+            official = claude_client._is_official(base_url)
+            if official:
+                if claude_client.sdk_available():
+                    add("anthropic 库", True, "已安装")
+                else:
+                    add("anthropic 库", False, "未安装：pip install anthropic")
+            else:
+                if claude_client.openai_sdk_available():
+                    add("openai 库", True, "已安装")
+                else:
+                    add("openai 库", False, "未安装：pip install openai")
+        except Exception as e:
+            add("Claude", False, "检查出错：%s" % e)
+        return result
+
     # openai 库（本地/云端模型才需要）
     try:
         import openai  # noqa

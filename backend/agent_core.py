@@ -46,12 +46,22 @@ def make_client_for(model, use_local, on_progress=None):
     """
     按模型返回客户端。
       · 伪模型(model=='web') → WebModelClient（伪装 OpenAI，忽略 tools、纯文本进出）
+      · Claude(model=='claude' / 'claude::N') → ClaudeClient
       · 其它 → 原 make_client(use_local)
     on_progress 只对伪模型有意义（用于播报「登录/思考中/接收回复」等进度）。
     """
     if is_web_model(model):
         from web_model_client import WebModelClient
         return WebModelClient(on_progress=on_progress)
+    if model == "claude" or str(model).startswith("claude::"):
+        import claude_client
+        idx = None
+        if str(model).startswith("claude::"):
+            try:
+                idx = int(str(model).split("::")[1])
+            except (ValueError, IndexError):
+                idx = None
+        return claude_client.make(profile_index=idx)
     return make_client(use_local)
 
 
@@ -91,10 +101,25 @@ def save_task_models(tm):
 
 
 def resolve_model(task, fallback_use_local=True, fallback_model="qwen2.5"):
-    """便捷封装：读 task_models.json 后调 router.resolve_model。"""
+    """便捷封装：读 task_models.json 后调 router.resolve_model。
+    若解析结果是「网页模型」，但用户开了「用 Claude 替代网页模型」且配了 Claude，
+    则自动改用第一个 Claude 配置（claude::0）——避免老去触发不稳定的网页模型。"""
     import router
-    return router.resolve_model(task, load_task_models(),
-                                fallback_use_local, fallback_model)
+    use_local, model = router.resolve_model(
+        task, load_task_models(), fallback_use_local, fallback_model)
+    if is_web_model(model):
+        try:
+            import claude_client
+            cfg = claude_client.load_config()
+            profiles = cfg.get("profiles") or []
+            prefer = cfg.get("prefer_over_web", False)
+            # 找第一个配好 key 的 Claude 配置
+            idx = next((i for i, p in enumerate(profiles) if p.get("api_key")), None)
+            if prefer and idx is not None:
+                return False, "claude::%d" % idx
+        except Exception:
+            pass
+    return use_local, model
 
 
 # ---------- 记忆读写 ----------
@@ -178,6 +203,14 @@ def build_system_prompt() -> str:
         if len(long_term) > 4000:
             long_term = "（早期记忆已省略）\n...\n" + long_term[-4000:]
         prompt += f"=== 你和用户过往的长期记忆 (MEMORY.md) ===\n{long_term}\n\n"
+    # 「懂你」四件套：人格演化画像 / 关系网络 / 环境画像（有才注入，失败安静跳过）
+    try:
+        import lumi_features
+        ctx = lumi_features.build_context_block()
+        if ctx and ctx.strip():
+            prompt += ctx + "\n\n"
+    except Exception:
+        pass
     prompt += (
         "请严格按以上设定行事。\n"
         "【关于联网】你**有**可用的联网工具：web_search（快速搜索）、research（深度调研+读网页）、"
@@ -186,7 +219,24 @@ def build_system_prompt() -> str:
         "**必须直接调用 web_search 或 research 工具**去查，然后用查到的结果回答。\n"
         "- **绝对不要**说自己\"无法联网\"\"不能访问互联网\"\"没有联网功能\"——这是错的，你有联网工具。\n"
         "- **绝对不要**把 `web_search(\"...\")` 这种代码打印给用户让他自己执行——你应该自己调用工具。\n"
-        "- 需要做事时调用工具，不要假装执行、不要凭记忆编造。"
+        "- 需要做事时调用工具，不要假装执行、不要凭记忆编造。\n"
+        "- **意图已经清楚时就直接调用工具去做，不要反复问「能再详细说明吗」「您是想…吗」。**"
+        "用户说「把回收站清空」「清理C盘垃圾」这类已经很明确，直接调用对应工具"
+        "（如 sys_clean_temp）；真正缺关键信息时才问一句，问完就做，不要绕圈。\n"
+        "- **需要用户确认危险操作时，直接调用那个工具**——程序会自动弹出「批准/拒绝」按钮让用户点。"
+        "**不要用文字写「请回复是或否」让用户打字确认**，那样用户还得手动输入，体验差。"
+        "【做事的呈现方式】当你要帮用户检查/清理/整理（比如查 C 盘垃圾、整理桌面）时：\n"
+        "- 先用只读工具（查看、扫描、统计）把情况摸清楚，**用 Markdown 表格**把结果整理给用户看，"
+        "列清楚类别、位置、大小/数量、是否安全等，再给一句总结。表格要点：用 `| 列1 | 列2 |` 语法，"
+        "表头下面要有 `| --- | --- |` 分隔行。\n"
+        "- 如果接下来要做有副作用的操作（删除、清理、移动等），**把所有要执行的操作在同一轮里一次性发起**"
+        "（同时调用多个工具），这样用户能在一个确认框里批量勾选批准，而不是一个一个地确认。"
+        "不要一次只提一个操作、做完再提下一个。\n"
+        "- **清理 C 盘垃圾 / 临时文件**：直接用 sys_clean_temp 工具（它会清临时目录+清空回收站），"
+        "不要用 sys_run 跑 PowerShell 删除命令——那样容易碰到访问被拒。\n"
+        "- 清理时如果有些文件提示「访问被拒 / 权限不足 / 正被占用」，这是**正常现象**"
+        "（系统保护文件或文件正在使用），跳过即可，不要反复重试、也不要说成失败。"
+        "如实告诉用户「这些文件正被占用或受保护，已跳过，其余已清理」即可。"
     )
     return prompt
 
@@ -325,8 +375,16 @@ def _call_model_with_retry(client, model, messages, schema, retries=2):
     last_err = None
     for attempt in range(retries + 1):
         try:
-            resp = client.chat.completions.create(
-                model=model, messages=messages, tools=schema)
+            try:
+                # 带上 tool_choice=auto：能促使部分本地模型（Ollama）真正去调用工具，
+                # 而不是只用文字\"叙述\"它打算做什么。
+                resp = client.chat.completions.create(
+                    model=model, messages=messages, tools=schema,
+                    tool_choice="auto")
+            except TypeError:
+                # 个别旧版 SDK 不认 tool_choice 参数，退回不带
+                resp = client.chat.completions.create(
+                    model=model, messages=messages, tools=schema)
             return resp.choices[0].message
         except Exception as e:
             last_err = e
@@ -335,9 +393,122 @@ def _call_model_with_retry(client, model, messages, schema, retries=2):
     raise last_err
 
 
+def describe_tool(name, args):
+    """把工具调用翻译成普通用户看得懂的中文说明。返回 (标题, 详情)。
+    标题是一句话概括「要做什么」；详情是补充的具体信息（路径/命令摘要等）。"""
+    args = args or {}
+
+    def _short(v, n=120):
+        s = str(v or "")
+        return s if len(s) <= n else s[:n] + "…"
+
+    # 文件类
+    if name == "write_file":
+        return ("写入文件", "路径：%s" % _short(args.get("path", "")))
+    if name == "delete_file":
+        return ("删除文件", "路径：%s" % _short(args.get("path", "")))
+    if name == "write_memory":
+        return ("写入记忆笔记", "文件：%s" % _short(args.get("name", "")))
+    if name == "fs_open":
+        return ("用默认程序打开", "%s" % _short(args.get("path", "")))
+    if name == "fs_move":
+        return ("移动 / 重命名", "从 %s\n到 %s" % (_short(args.get("src", "")), _short(args.get("dst", ""))))
+    if name == "fs_copy":
+        return ("复制文件", "从 %s\n到 %s" % (_short(args.get("src", "")), _short(args.get("dst", ""))))
+    if name == "fs_mkdir":
+        return ("新建文件夹", "%s" % _short(args.get("path", "")))
+    if name == "fs_trash":
+        return ("移到回收站（可恢复）", "%s" % _short(args.get("path", "")))
+    if name == "fs_organize":
+        return ("整理文件夹（按类型归类）", "目标：%s" % _short(args.get("path", "") or "桌面"))
+
+    # 系统类
+    if name == "sys_kill":
+        return ("结束一个进程", "目标：%s" % _short(args.get("target", "")))
+    if name == "sys_clean_temp":
+        return ("清理系统临时文件，释放磁盘空间", "")
+    if name == "empty_recycle_bin":
+        return ("清空回收站（彻底删除回收站里的所有文件）", "")
+    if name == "sys_volume":
+        return ("调整系统音量", "设为：%s" % _short(args.get("level", "")))
+    if name == "sys_brightness":
+        return ("调整屏幕亮度", "设为：%s" % _short(args.get("level", "")))
+    if name == "sys_open_settings":
+        return ("打开 Windows 系统设置", "页面：%s" % _short(args.get("which", "") or "设置主页"))
+    if name == "sys_run":
+        # 若带了 _script（网页模型写的原始 PowerShell/命令，command 里其实是编码后的可执行形式），
+        # 弹给用户看的应是这段可读脚本，而不是 base64。
+        raw = args.get("_script") or args.get("command", "")
+        lang = args.get("_lang")
+        cmd = _short(raw, 600)
+        guess = _guess_command_intent(raw)
+        head = ("将运行这段 %s 命令：\n" % lang) if lang else "命令："
+        detail = (guess + "\n\n" if guess else "") + head + cmd
+        return ("在电脑上执行一条命令", detail)
+    if name == "shell":
+        raw = args.get("_script") or args.get("command", "")
+        lang = args.get("_lang")
+        cmd = _short(raw, 600)
+        guess = _guess_command_intent(raw)
+        head = ("将运行这段 %s 命令：\n" % lang) if lang else "命令："
+        detail = (guess + "\n\n" if guess else "") + head + cmd
+        return ("执行一条命令", detail)
+
+    # GUI 类
+    if name == "gui_open_app":
+        return ("打开一个应用程序", "%s" % _short(args.get("name", "")))
+    if name == "gui_click":
+        return ("在屏幕上点击鼠标", "坐标：(%s, %s)" % (args.get("x", "?"), args.get("y", "?")))
+    if name == "gui_type":
+        return ("在当前位置输入文字", "内容：%s" % _short(args.get("text", "")))
+    if name == "gui_press":
+        return ("按下按键", "%s" % _short(args.get("keys", "")))
+    if name == "gui_scroll":
+        return ("滚动鼠标滚轮", "幅度：%s" % _short(args.get("amount", "")))
+
+    # 兜底：用工具名 + 简短参数
+    extra = ""
+    try:
+        kv = [f"{k}={_short(v, 40)}" for k, v in args.items() if v]
+        extra = "、".join(kv[:3])
+    except Exception:
+        pass
+    return ("执行操作：%s" % name, extra)
+
+
+def _guess_command_intent(command):
+    """对命令行做粗略意图猜测，给个白话说明（尽力而为，猜不出就返回空）。"""
+    c = str(command or "").lower()
+    if not c:
+        return ""
+    if "measure-object" in c or ("get-childitem" in c and "sum" in c):
+        return "（这条命令是在统计某些文件夹占用了多少磁盘空间，只读不删）"
+    if "remove-item" in c or "del " in c or "rmdir" in c or "rm -" in c:
+        return "（⚠️ 这条命令会删除文件，请仔细确认）"
+    if "test-path" in c and "remove" not in c:
+        return "（这条命令只是检查文件/文件夹是否存在，不会改动任何东西）"
+    if "get-process" in c or "tasklist" in c:
+        return "（这条命令是在查看正在运行的程序，只读）"
+    if "stop-process" in c or "taskkill" in c:
+        return "（⚠️ 这条命令会结束某个程序）"
+    if "clear-recyclebin" in c:
+        return "（⚠️ 这条命令会清空回收站）"
+    return ""
+
+
+def _has_tool_result(messages, tool_call_id):
+    """判断某个 tool_call 是否已经有对应的 tool 结果消息（续跑去重用）。"""
+    if not tool_call_id:
+        return False
+    for m in messages:
+        if m.get("role") == "tool" and m.get("tool_call_id") == tool_call_id:
+            return True
+    return False
+
+
 def run_agent(client, model, messages, shell_enabled=False,
               on_tool=None, max_steps=8, approvals=None,
-              on_think=None, on_tool_start=None):
+              on_think=None, on_tool_start=None, auto_approve_tools=None):
     """
     跑一轮 agent。返回 (回复文本, 更新后的 messages, pending)。
     - pending 为 None：正常完成。
@@ -345,49 +516,93 @@ def run_agent(client, model, messages, shell_enabled=False,
       界面拿到后弹确认框，用户批准/拒绝后，把决定放进 approvals 再调一次本函数续跑。
 
     approvals: {tool_call_id: True/False}，已获批准/拒绝的危险调用。
+    auto_approve_tools: 一组工具名，本次对话已被用户授权「这类操作不用再问」，
+      遇到这些工具直接放行，不再弹确认。
     """
     # 延迟导入，避免循环依赖
     import tools as T
     approvals = approvals or {}
+    auto_set = set(auto_approve_tools or [])
 
     for _ in range(max_steps):
-        if on_think:
-            on_think()
-        msg = _call_model_with_retry(client, model, messages, T.TOOLS_SCHEMA)
+        # ── 续跑判断：如果 messages 末尾已经是一条「带 tool_calls 但还没有 tool 结果」的
+        #    assistant 消息，说明这是用户批准/拒绝后回来续跑，直接执行那批工具，
+        #    不要再调一次模型（否则会重复生成、消息错乱）。
+        resume_msg = None
+        if messages and messages[-1].get("role") == "assistant" and messages[-1].get("tool_calls"):
+            resume_msg = messages[-1]
 
-        if not msg.tool_calls:
-            messages.append({"role": "assistant", "content": msg.content or ""})
-            return msg.content or "", messages, None
+        if resume_msg is None:
+            if on_think:
+                on_think()
+            msg = _call_model_with_retry(client, model, messages, T.TOOLS_SCHEMA)
 
-        messages.append({
-            "role": "assistant",
-            "content": msg.content or "",
-            "tool_calls": [tc.model_dump() for tc in msg.tool_calls],
-        })
+            if not msg.tool_calls:
+                messages.append({"role": "assistant", "content": msg.content or ""})
+                return msg.content or "", messages, None
 
-        for tc in msg.tool_calls:
-            name = tc.function.name
+            messages.append({
+                "role": "assistant",
+                "content": msg.content or "",
+                "tool_calls": [tc.model_dump() for tc in msg.tool_calls],
+            })
+            tool_calls_data = [tc.model_dump() for tc in msg.tool_calls]
+        else:
+            # 续跑：直接用末尾那条 assistant 消息里的 tool_calls
+            tool_calls_data = resume_msg.get("tool_calls") or []
+
+        # ── 先扫一遍这一批工具调用，把还没决定的危险操作收集起来 ──
+        #    一次性打包给界面批量确认，而不是一个一个弹窗。
+        pending_list = []
+        for tcd in tool_calls_data:
+            fn_d = tcd.get("function", {}) or {}
+            name = fn_d.get("name")
+            tcid = tcd.get("id")
             try:
-                args = json.loads(tc.function.arguments or "{}")
-            except json.JSONDecodeError:
+                args = json.loads(fn_d.get("arguments") or "{}")
+            except (json.JSONDecodeError, TypeError):
+                args = {}
+            if T.is_danger(name) and approvals.get(tcid) is None and name not in auto_set:
+                title, detail = describe_tool(name, args)
+                pending_list.append({
+                    "tool_call_id": tcid,
+                    "name": name,
+                    "args": args,
+                    "title": title,
+                    "detail": detail,
+                })
+        if pending_list:
+            return None, messages, {
+                "tool_call_id": pending_list[0]["tool_call_id"],
+                "name": pending_list[0]["name"],
+                "args": pending_list[0]["args"],
+                "title": pending_list[0]["title"],
+                "detail": pending_list[0]["detail"],
+                "batch": pending_list,
+            }
+
+        # ── 执行这一批工具（已全部有决定）──
+        for tcd in tool_calls_data:
+            fn_d = tcd.get("function", {}) or {}
+            name = fn_d.get("name")
+            tcid = tcd.get("id")
+            try:
+                args = json.loads(fn_d.get("arguments") or "{}")
+            except (json.JSONDecodeError, TypeError):
                 args = {}
 
-            # 危险工具：检查是否已获批准
-            if T.is_danger(name):
-                decision = approvals.get(tc.id)
-                if decision is None:
-                    # 还没批准 -> 挂起，交给界面去问用户
-                    return None, messages, {
-                        "tool_call_id": tc.id,
-                        "name": name,
-                        "args": args,
-                    }
+            # 已经有结果的工具（续跑时上一轮已执行过的）跳过，避免重复执行
+            if _has_tool_result(messages, tcid):
+                continue
+
+            # 危险工具：检查是否已获批准（或属于本次对话已授权的类别）
+            if T.is_danger(name) and name not in auto_set:
+                decision = approvals.get(tcid)
                 if decision is False:
-                    # 用户拒绝了
                     result = "用户拒绝了这次操作。"
                     if on_tool:
                         on_tool(name, args, result)
-                    messages.append({"role": "tool", "tool_call_id": tc.id,
+                    messages.append({"role": "tool", "tool_call_id": tcid,
                                      "content": result})
                     continue
                 # decision is True -> 往下执行
@@ -404,7 +619,7 @@ def run_agent(client, model, messages, shell_enabled=False,
                     result = f"工具执行出错：{e}"
             if on_tool:
                 on_tool(name, args, result)
-            messages.append({"role": "tool", "tool_call_id": tc.id,
+            messages.append({"role": "tool", "tool_call_id": tcid,
                              "content": str(result)})
 
     messages.append({"role": "assistant", "content": "（达到最大步数，停止。）"})

@@ -19,13 +19,22 @@
       </div>
 
       <nav class="nav">
-        <button class="nav-item active" data-view="chat">对话</button>
-        <button class="nav-item" data-view="study">学习</button>
-        <button class="nav-item" data-view="dashboard">看板</button>
-        <button class="nav-item" data-view="video">视频</button>
-        <button class="nav-item" data-view="library">成长库</button>
-        <button class="nav-item" data-view="memory">记忆</button>
-        <button class="nav-item" data-view="settings">设置</button>
+        <div class="nav-group-label">功能区 · 产生内容</div>
+        <button class="nav-item active" data-view="chat">💬 对话</button>
+        <button class="nav-item" data-view="study">📖 学习</button>
+        <button class="nav-item" data-view="dashboard">📊 看板</button>
+        <button class="nav-item" data-view="video">🎬 视频</button>
+        <div class="nav-group-label">展示区 · 浏览与记忆</div>
+        <button class="nav-item" data-view="library">📂 成长库</button>
+        <button class="nav-item" data-view="lumi">💗 懂你</button>
+        <div class="nav-sub" id="lumiSubNav" style="display:none">
+          <button class="nav-subitem active" data-lumi="profile">👤 你的画像</button>
+          <button class="nav-subitem" data-lumi="relations">🤝 关系网络</button>
+          <button class="nav-subitem" data-lumi="env">🖥️ 环境画像</button>
+        </div>
+        <button class="nav-item" data-view="memory">🧠 记忆</button>
+        <div class="nav-group-label">系统</div>
+        <button class="nav-item" data-view="settings">⚙️ 设置</button>
       </nav>
 
       <div class="convo-section">
@@ -72,6 +81,9 @@
                     <button type="button" class="plus-item" id="rememberBtn" title="把这次对话提炼进长期记忆，下次还记得">🧠 结束并记住</button>
                   </div>
                 </div>
+                <button type="button" id="routeModeBtn" class="route-mode-btn" title="智能模式：按任务自动选模型；常规模式：只用你选的模型">
+                  <span id="routeModeLabel">智能</span>
+                </button>
               </div>
               <div class="composer-bar-right">
                 <div class="model-picker" id="modelPicker">
@@ -152,6 +164,24 @@
             </select>
             <button id="videoGoBtn" class="send-btn">提取并分析</button>
           </div>
+          <div class="video-opts">
+            <label class="video-opt" title="勾选后会下载视频画面，让 AI 在合适的地方插入截图。会比只听写慢一些、占点流量。">
+              <input type="checkbox" id="videoShot" /> 🖼️ 插图（自动截取关键画面）
+            </label>
+            <label class="video-opt" title="勾选后笔记里的小标题会带「跳转原片」链接，点一下跳到原视频对应时间。支持 B站 / YouTube / 抖音。">
+              <input type="checkbox" id="videoLink" /> 🔗 跳转原片（点标题回看对应片段）
+            </label>
+          </div>
+          <div class="video-mode-row">
+            <span class="video-mode-label">📝 字幕模式</span>
+            <select id="videoSubMode" class="video-mode-sel">
+              <option value="auto" selected>自动（推荐）</option>
+              <option value="subtitle_only">只用字幕（最快）</option>
+              <option value="transcribe">字幕+视频听写（更准更全）</option>
+            </select>
+            <span class="video-mode-tip">有字幕的视频（B站/YouTube）才有区别；抖音等用听写。</span>
+          </div>
+          <div id="videoSubHint" class="video-sub-hint" style="display:none"></div>
           <div class="video-hint">💡 可以随时再粘贴新链接点「提取并分析」，会自动排到队尾，不用等当前这个跑完。</div>
           <div id="videoStatus" class="video-status"></div>
           <div id="videoTasks" class="video-tasks"></div>
@@ -177,18 +207,70 @@
         </div>
       </section>
 
+      <!-- 懂你视图（独立页，左侧子菜单切换画像/关系/环境）-->
+      <section class="view view-lumi" id="view-lumi">
+        <header class="topbar">
+          <span>💗 懂你 · 小助越用越懂你</span>
+          <span class="lumi-topbar-actions">
+            <button id="lumiEvolveBtn" class="lumi-btn2" title="读最近对话，总结你的说话风格/关注点">✨ 人格演化</button>
+            <button id="lumiScanBtn" class="lumi-btn2" title="扫描本机软件、推断职业（只读、不上传）">🖥️ 扫描环境</button>
+            <button id="lumiRefreshBtn" class="lumi-btn2" title="刷新">🔄 刷新</button>
+          </span>
+        </header>
+        <div class="lumi-pane">
+          <div id="lumiStatus" class="lumi-status"></div>
+          <div class="lumi-page" id="lumiPageProfile">
+            <div class="lumi-page-head">
+              <span class="lumi-page-title">👤 你的画像</span>
+              <span class="lumi-page-sub">小助从你历次对话里总结的「你」——说话风格、关注点、偏好</span>
+            </div>
+            <div class="lumi-page-body" id="lumiProfile"><div class="lumi-empty">还没演化。点右上角「✨ 人格演化」，小助会从你的对话里总结出你的说话风格、关注点和偏好。</div></div>
+          </div>
+          <div class="lumi-page" id="lumiPageRelations" style="display:none">
+            <div class="lumi-page-head">
+              <span class="lumi-page-title">🤝 关系网络</span>
+              <span class="lumi-page-sub">聊天里提到的人，小助自动记下来（谁、什么关系、聊过什么）</span>
+            </div>
+            <div class="lumi-page-body" id="lumiRelations"><div class="lumi-empty">还没记录到人。聊天时提到具体的人（同事、朋友、客户…），小助会自动记下来。</div></div>
+          </div>
+          <div class="lumi-page" id="lumiPageEnv" style="display:none">
+            <div class="lumi-page-head">
+              <span class="lumi-page-title">🖥️ 环境画像</span>
+              <span class="lumi-page-sub">小助扫描本机得到的环境信息（已装软件、推断职业），只读、不上传</span>
+            </div>
+            <div class="lumi-page-body" id="lumiEnv"><div class="lumi-empty">还没扫描。点右上角「🖥️ 扫描环境」，小助会看你装了什么软件、推断你的职业方向。</div></div>
+          </div>
+          <div class="lumi-foot">这些内容都存在本地 memory 文件夹里（OWNER_PROFILE.md / relationships.md / ENVIRONMENT.md），你随时能在「记忆」里编辑或删除。</div>
+        </div>
+      </section>
+
       <!-- 记忆视图 -->
       <section class="view view-memory" id="view-memory">
         <header class="topbar"><span>设置与记忆</span></header>
         <div class="memory-pane">
           <div class="memory-tabs" id="memoryTabs"></div>
           <div class="memory-desc" id="memoryDesc"></div>
+          <div class="memory-mode-bar" id="memoryModeBar" style="display:none">
+            <button class="mem-mode-btn active" id="memModeStruct" data-mode="struct">🧩 结构化</button>
+            <button class="mem-mode-btn" id="memModeRaw" data-mode="raw">⚙️ 原始文本</button>
+            <span class="mem-mode-tip" id="memModeTip"></span>
+          </div>
           <div class="memory-body" id="memoryBody"></div>
           <textarea id="memoryEditor" class="memory-editor" style="display:none"
             placeholder="选择一个文件编辑…"></textarea>
           <div class="memory-actions">
             <span class="save-hint" id="saveHint"></span>
             <button id="saveMemoryBtn" class="send-btn">保存</button>
+          </div>
+        </div>
+
+        <div class="lumi-modal" id="lumiModal" hidden>
+          <div class="lumi-modal-card">
+            <div class="lumi-modal-head">
+              <span class="lumi-modal-title" id="lumiModalTitle">详情</span>
+              <button class="lumi-modal-close" id="lumiModalClose" title="关闭">✕</button>
+            </div>
+            <div class="lumi-modal-body" id="lumiModalBody"></div>
           </div>
         </div>
       </section>
@@ -277,6 +359,26 @@
               <button id="ttsTestBtn" class="ghost-btn small">试听</button>
             </span>
           </div>
+
+          <div class="settings-section">Claude 模型管理</div>
+          <p class="settings-note" style="margin-top:8px">
+            在这里添加多个 Claude 配置（每个配置可以用不同的 key / 地址 / 模型），
+            保存后会出现在模型选择里，随时切换。
+            适合在中转站为不同模型创建不同分组密钥的场景。
+            key 明文存在本机 <code>backend/memory/claude_config.json</code>。
+          </p>
+          <div id="claudeProfileList"></div>
+          <div class="setting-row" style="margin-top:12px">
+            <div><div class="setting-title">添加新配置</div>
+              <div class="setting-desc">每个配置对应一个模型 + 一个 key，互不影响</div></div>
+            <button id="claudeAddBtn" class="send-btn">＋ 添加</button>
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-title">用 Claude 替代网页模型</div>
+              <div class="setting-desc">开启后，原本会交给「网页模型」的任务（分析/搜索/写作/总结/视频总结等）改用你的第一个 Claude 配置，避免网页模型反复弹窗、崩溃。推荐开启。</div></div>
+            <label class="switch"><input type="checkbox" id="claudePreferWeb" /><span class="slider"></span></label>
+          </div>
+          <p class="settings-note" id="claudeHint"></p>
 
           <div class="settings-section">智能路由 · 网页模型</div>
           <p class="settings-note" style="margin-top:8px">
