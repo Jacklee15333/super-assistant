@@ -467,10 +467,11 @@
         <header class="topbar">
           <span>📡 嗅探</span>
           <span class="sniff-topbar-actions">
-            <button id="sniffRunBtn" class="sniff-run-btn" title="立即扫一遍所有网站">
-              <span class="sniff-run-dot"></span> 立即嗅探
+            <button id="sniffRunBtn" class="sniff-run-btn" title="① 快速盯梢：扫一遍所有网站，把新变化列到右边时间线（很快）">
+              <span class="sniff-run-dot"></span> 快速嗅探
             </button>
-            <button id="sniffRefreshBtn" class="sniff-ghost-btn" title="刷新时间线">刷新</button>
+            <button id="sniffBriefBtn" class="sniff-ghost-btn" title="② 深度调研：让网页模型 AI 逐站搜+读+总结，生成一份带来源的报告（较慢）">📄 深度嗅探</button>
+            <button id="sniffRefreshBtn" class="sniff-ghost-btn" title="刷新右边的「新动向」时间线">刷新</button>
           </span>
         </header>
         <div class="sniff-pane">
@@ -481,6 +482,28 @@
               <div class="sniff-ov-sub">抓取你关心的网站 · 和上次对比 · 只把新的「发布 / 功能 / 概念」提炼给你，已报过的不重复</div>
             </div>
             <div class="sniff-ov-stats" id="sniffStats"></div>
+          </div>
+
+          <!-- 怎么用：两种玩法 -->
+          <div class="sniff-guide">
+            <div class="sniff-guide-cards">
+              <div class="sniff-guide-card">
+                <div class="sniff-guide-icon">🔍</div>
+                <div class="sniff-guide-body">
+                  <div class="sniff-guide-title">① 快速嗅探 · 快速盯梢</div>
+                  <div class="sniff-guide-desc">软件飞快扫一遍你清单里的网站，和上次对比，把<b>新变化</b>列到右边「新动向」时间线里。每天看一眼有什么新东西。
+                    <span class="sniff-guide-tip">⚠ 第一次只记快照、不出内容；<b>第二次起</b>才会报新增。</span></div>
+                </div>
+              </div>
+              <div class="sniff-guide-card">
+                <div class="sniff-guide-icon">📄</div>
+                <div class="sniff-guide-body">
+                  <div class="sniff-guide-title">② 深度嗅探 · 深度调研</div>
+                  <div class="sniff-guide-desc">让<b>网页模型 AI</b> 一个个站点自己去搜索、读取、总结，出一份<b>带原文链接的中文报告</b>（和「生成情报简报」同一套）。慢一点，适合要一份能存、能发的报告。</div>
+                </div>
+              </div>
+            </div>
+            <div class="sniff-guide-note">两种用法<b>互相独立</b>，不用先点谁：想快速看变化点右上角「快速嗅探」；想要成文报告点「深度嗅探」。</div>
           </div>
 
           <!-- 实时嗅探进度（运行时显示，逐个网站报状态）-->
@@ -501,6 +524,7 @@
                   <span class="sniff-panel-title">嗅探源</span>
                   <span class="sniff-count-pill" id="sniffSrcCount">·</span>
                 </div>
+                <div class="sniff-panel-hint">你想盯哪些网站，在这里加/删/开关。下面两种用法都用这份清单。</div>
                 <div class="sniff-add">
                   <input type="text" id="sniffAddTitle" class="sniff-input" placeholder="名称，如 OpenAI 新闻" />
                   <div class="sniff-add-row">
@@ -513,6 +537,15 @@
                     <datalist id="sniffCatList"></datalist>
                   </div>
                 </div>
+                <div class="sniff-engine">
+                  <span class="sniff-engine-label">「快速嗅探」用哪个模型</span>
+                  <select id="sniffEngine" class="sniff-input">
+                    <option value="follow">跟随对话模型（快）</option>
+                    <option value="web">网页模型（更强·更慢）</option>
+                    <option value="claude">Claude（若已配·更强）</option>
+                  </select>
+                </div>
+                <div class="sniff-engine-hint">只影响①「快速嗅探」时间线的总结质量；②「深度嗅探」固定用网页模型。改完点下面「保存」生效。</div>
                 <div class="sniff-auto">
                   <label class="sniff-switch">
                     <input type="checkbox" id="sniffAuto" />
@@ -543,9 +576,24 @@
                   </div>
                   <button class="sniff-mini-btn sniff-clear" id="sniffClearBtn" title="清空时间线">清空</button>
                 </div>
+                <div class="sniff-panel-hint">这条时间线来自①「快速嗅探」。点上面的类别卡或下面的标签可筛选。</div>
                 <div class="sniff-feed" id="sniffFeed"></div>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- 简报弹窗 -->
+        <div class="sniff-brief-mask" id="sniffBriefMask" hidden>
+          <div class="sniff-brief-card">
+            <div class="sniff-brief-head">
+              <span class="sniff-brief-title">📄 AI 嗅探简报</span>
+              <span class="sniff-brief-actions">
+                <button class="sniff-mini-btn" id="sniffBriefCopy">复制全文</button>
+                <button class="sniff-mini-btn" id="sniffBriefClose">关闭</button>
+              </span>
+            </div>
+            <div class="sniff-brief-body" id="sniffBriefBody"></div>
           </div>
         </div>
       </section>
@@ -644,8 +692,21 @@
           </div>
           <div class="setting-row">
             <div>
+              <div class="setting-title">语音引擎</div>
+              <div class="setting-desc">
+                <b>在线·高音质</b>：微软神经网络音色，效果接近 ChatGPT，但要连微软服务器，国内可能要等几秒（配了代理会快）。<br>
+                <b>本地·极速</b>：用你电脑系统自带的语音，<b>瞬间出声、完全离线</b>，音质一般、音色按系统而定。嫌慢就选这个。
+              </div>
+            </div>
+            <select id="ttsEngine" class="text-input" style="width:200px">
+              <option value="online">在线·高音质（edge-tts）</option>
+              <option value="local">本地·极速（瞬间出声）</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <div>
               <div class="setting-title">语音播报音色</div>
-              <div class="setting-desc">每段文字/文章右边的 🔊 按钮用它朗读。神经网络音色，效果接近 ChatGPT，可换男/女声</div>
+              <div class="setting-desc">每段话末尾的小喇叭用它朗读。仅「在线·高音质」生效；本地极速用系统自带音色。</div>
             </div>
             <span class="picker-row" style="display:flex;gap:8px;align-items:center">
               <select id="ttsVoice" class="text-input" style="width:200px">

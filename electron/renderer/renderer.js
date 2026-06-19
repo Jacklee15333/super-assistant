@@ -100,7 +100,12 @@ function addBubble(role, text) {
   bubble.dataset.raw = text || "";            // 朗读用的原文
   wrap.appendChild(bubble);
   if (role === "assistant") {
-    wrap.appendChild(makeSpeakRow());
+    // 喇叭直接跟在这段话末尾（塞进最后一个文字块里，而不是另起一行）
+    const sp = makeSpeakBtn();
+    const blocks = bubble.querySelectorAll("p, li, h1, h2, h3, h4, blockquote");
+    const last = blocks.length ? blocks[blocks.length - 1] : null;
+    if (last && !last.querySelector("pre, img")) last.appendChild(sp);
+    else bubble.appendChild(sp);
     // 如果助手在问「是/否」之类的问题，给出可点击的快捷回复按钮，省得用户打字
     const quick = makeQuickReplies(text);
     if (quick) wrap.appendChild(quick);
@@ -179,14 +184,15 @@ function makeQuickReplies(text) {
   return row;
 }
 
-// 助手气泡下方的「语音播报」按钮。用事件委托处理点击，所以会话快照/恢复后依然可用。
-function makeSpeakRow() {
-  const row = document.createElement("div");
-  row.className = "msg-actions";
-  row.innerHTML = '<button type="button" class="speak-btn" title="语音播报这段">'
-    + '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a9 9 0 0 1 0 14"/></svg>'
-    + '<span class="speak-label">朗读</span></button>';
-  return row;
+// 行内喇叭按钮：直接跟在助手这段话的末尾，只有图标、没有「朗读」二字。
+// 仍用 .speak-btn 类，点击交给下面的事件委托。
+function makeSpeakBtn() {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "speak-btn speak-inline";
+  btn.title = "朗读这段";
+  btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a9 9 0 0 1 0 14"/></svg>';
+  return btn;
 }
 
 // 轻量 Markdown 渲染：标题/粗体/斜体/行内代码/代码块/列表/链接。
@@ -3369,6 +3375,10 @@ newConversation();  // 开一个初始会话
     try { return localStorage.getItem("cx_tts_voice") || "zh-CN-YunxiNeural"; }
     catch (_) { return "zh-CN-YunxiNeural"; }
   }
+  function curEngine() {
+    try { return localStorage.getItem("cx_tts_engine") || "online"; }
+    catch (_) { return "online"; }
+  }
 
   // 把长文本按句子/标点切成 ≤180 字的小段，便于快速合成、即时开口
   function splitForTTS(text) {
@@ -3451,6 +3461,8 @@ newConversation();  // 开一个初始会话
     const gen = ++cxGen;                        // 本次播放的代号
     cxBtn = btn || null;
     if (cxBtn) cxBtn.classList.add("loading");
+    // 本地·极速：直接用浏览器/系统语音，瞬间出声、不连网
+    if (curEngine() === "local") { fallbackSpeak(text, btn); return; }
     const chunks = splitForTTS(text);
     try {
       let nextP = ttsFetch(chunks[0], gen);     // 预取第一段
@@ -3487,6 +3499,13 @@ newConversation();  // 开一个初始会话
     } catch (_) {}
     voiceSel.addEventListener("change", () => {
       try { localStorage.setItem("cx_tts_voice", voiceSel.value); } catch (_) {}
+    });
+  }
+  const engineSel = document.getElementById("ttsEngine");
+  if (engineSel) {
+    try { const s = localStorage.getItem("cx_tts_engine"); if (s) engineSel.value = s; } catch (_) {}
+    engineSel.addEventListener("change", () => {
+      try { localStorage.setItem("cx_tts_engine", engineSel.value); } catch (_) {}
     });
   }
   const ttsTest = document.getElementById("ttsTestBtn");
@@ -4371,6 +4390,7 @@ let _sniffTimer = null;
 let _sniffSources = [];
 let _sniffCategories = [];
 let _sniffCat = "all";   // 当前选中的类别筛选
+let _sniffCollapsed = {};  // 源列表里每个类别是否折叠
 
 function loadSniff() {
   loadSniffSources();
@@ -4391,6 +4411,7 @@ async function loadSniffSources() {
     const c = d.config || {};
     if (document.getElementById("sniffAuto")) document.getElementById("sniffAuto").checked = !!c.auto;
     if (document.getElementById("sniffEvery")) document.getElementById("sniffEvery").value = c.every || 6;
+    if (document.getElementById("sniffEngine")) document.getElementById("sniffEngine").value = c.engine || "follow";
   } catch (e) { /* 忽略 */ }
 }
 
@@ -4444,17 +4465,29 @@ function renderSniffSources(srcs) {
       );
     }).join("");
     return (
-      '<div class="sniff-cat-group">' +
-        '<div class="sniff-cat-head">' +
+      '<div class="sniff-cat-group' + (_sniffCollapsed[g.cat] ? " collapsed" : "") + '" data-cat="' + escapeHtml(g.cat) + '">' +
+        '<div class="sniff-cat-head" data-cat="' + escapeHtml(g.cat) + '" title="点这里收起/展开这一类">' +
+          '<span class="sniff-cat-caret">▾</span>' +
           '<span class="sniff-cat-name">📁 ' + escapeHtml(g.cat) + "</span>" +
           '<span class="sniff-cat-cnt">' + onCount + "/" + g.items.length + "</span>" +
           '<label class="sniff-switch sniff-switch-sm sniff-cat-toggle" title="开启/暂停整个类别" data-cat="' + escapeHtml(g.cat) + '">' +
             '<input type="checkbox" class="sniff-cat-cb"' + (allOn ? " checked" : "") + " />" +
             '<span class="sniff-switch-track"></span></label>' +
-        "</div>" + rows +
+        "</div>" +
+        '<div class="sniff-cat-body">' + rows + "</div>" +
       "</div>"
     );
   }).join("");
+
+  // 折叠/展开：点类别标题栏切换（点开关本身不触发折叠）
+  box.querySelectorAll(".sniff-cat-head").forEach((head) => {
+    head.addEventListener("click", (e) => {
+      if (e.target.closest(".sniff-cat-toggle")) return;   // 点的是开关，别折叠
+      const cat = head.dataset.cat;
+      _sniffCollapsed[cat] = !_sniffCollapsed[cat];
+      head.closest(".sniff-cat-group").classList.toggle("collapsed", !!_sniffCollapsed[cat]);
+    });
+  });
 
   box.querySelectorAll(".sniff-source").forEach((el) => {
     const id = el.dataset.id;
@@ -4537,10 +4570,11 @@ document.getElementById("sniffAddBtn")?.addEventListener("click", async () => {
 document.getElementById("sniffAutoSave")?.addEventListener("click", async () => {
   const auto = document.getElementById("sniffAuto").checked;
   const every = parseInt(document.getElementById("sniffEvery").value, 10) || 6;
+  const engine = document.getElementById("sniffEngine") ? document.getElementById("sniffEngine").value : "follow";
   try {
     await fetch(BACKEND + "/sniff/config", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ auto, every }),
+      body: JSON.stringify({ auto, every, engine }),
     });
     const st = document.getElementById("sniffAutoSave");
     const old = st.textContent; st.textContent = "✓"; setTimeout(() => { st.textContent = old; }, 1500);
@@ -4673,7 +4707,7 @@ function paintSniffFeed() {
       '<div class="sniff-empty-rich">' +
         '<div class="sniff-empty-icon">📡</div>' +
         '<div class="sniff-empty-title">还没有动向</div>' +
-        '<div class="sniff-empty-desc">点右上角「立即嗅探」扫一遍。<b>第一次只记录快照</b>，从第二次起才会报新内容。</div>' +
+        '<div class="sniff-empty-desc">点右上角「快速嗅探」扫一遍。<b>第一次只记录快照</b>，从第二次起才会报新内容。</div>' +
         '<div class="sniff-legend">' +
           '<div class="sniff-legend-item"><span class="sniff-legend-ic">🆕</span><div><b>发布</b><span>新模型、新版本上线</span></div></div>' +
           '<div class="sniff-legend-item"><span class="sniff-legend-ic">🧩</span><div><b>功能</b><span>新能力、新特性</span></div></div>' +
@@ -4683,7 +4717,12 @@ function paintSniffFeed() {
     return;
   }
   if (!feed.length) {
-    box.innerHTML = '<div class="sniff-empty">这个分类下还没有动向。</div>';
+    const kindName = _sniffFilter === "all" ? "" : "「" + _sniffFilter + "」";
+    const catName = _sniffCat === "all" ? "" : "「" + _sniffCat + "」";
+    const cond = [catName, kindName].filter(Boolean).join("·");
+    box.innerHTML = '<div class="sniff-empty">当前筛选' + (cond ? "（" + cond + "）" : "") +
+      '下没有动向，但一共有 <b>' + _sniffFeedCache.length + '</b> 条。' +
+      '<br>点上面的<b>「全部」</b>（类别和类型各一个）看全部内容。</div>';
     return;
   }
   const kindIcon = { "发布": "🆕", "功能": "🧩", "概念": "💡" };
@@ -4775,4 +4814,85 @@ document.getElementById("proxyTestBtn")?.addEventListener("click", async () => {
     const d = await r.json();
     if (h) h.textContent = d.message || (d.ok ? "代理可用" : "测试失败");
   } catch (e) { if (h) h.textContent = "测试出错：" + e.message; }
+});
+
+// ============================================================
+// 嗅探 · 生成中文简报（把已嗅到的动向汇编成可读报告）
+// ============================================================
+function buildSniffBriefMarkdown() {
+  const items = _sniffFeedCache || [];
+  const d = new Date();
+  const p2 = (n) => String(n).padStart(2, "0");
+  const stamp = d.getFullYear() + "-" + p2(d.getMonth() + 1) + "-" + p2(d.getDate()) +
+                " " + p2(d.getHours()) + ":" + p2(d.getMinutes());
+  if (!items.length) return "# 📡 AI 嗅探简报\n\n暂时还没有新动向。先点「快速嗅探」扫一遍，第二次起就会有内容。";
+  const icon = { "发布": "🆕", "功能": "🧩", "概念": "💡" };
+  const groups = []; const idx = {};
+  items.forEach((it) => {
+    const c = it.category || "AI动态";
+    if (!(c in idx)) { idx[c] = groups.length; groups.push({ c, list: [] }); }
+    groups[idx[c]].list.push(it);
+  });
+  let md = "# 📡 AI 嗅探简报\n\n> " + stamp + " 生成 · 共 " + items.length + " 条新动向\n";
+  groups.forEach((g) => {
+    md += "\n## 📁 " + g.c + "（" + g.list.length + " 条）\n\n";
+    g.list.forEach((it) => {
+      md += "**" + (icon[it.kind] || "•") + " " + (it.kind || "") + " · " +
+            (it.importance || "") + "度 · " + (it.title || "") + "**\n\n";
+      if (it.summary) md += it.summary + "\n\n";
+      const src = it.source_title || "";
+      md += (it.link ? "[查看原文](" + it.link + ")" : "") +
+            (src ? " · 来自 " + src : "") + (it.ts ? " · " + it.ts : "") + "\n\n";
+    });
+  });
+  return md.trim();
+}
+
+let _sniffBriefRaw = "";
+// 「生成简报」：和「生成情报简报」完全一致的工作模式——
+// 开一个命名会话、显示实时进度，让网页模型 AI 一个个站点去搜+读+总结（每段自带来源链接），
+// 全部生成完后软件拼成报告显示出来。
+document.getElementById("sniffBriefBtn")?.addEventListener("click", () => runSniffReport());
+
+async function runSniffReport() {
+  goToNamedConvo("📡 嗅探简报");
+  const btn = document.getElementById("sniffBriefBtn");
+  const old = btn ? btn.textContent : "";
+  if (btn) { btn.textContent = "逐站搜集中…"; btn.disabled = true; }
+  const chatId = "sniff-" + Date.now();
+  const prog = addLiveProgress(chatId);
+  const s = settings();
+  syncComposerModel(false, "web");          // 默认用网页模型，同步聊天框 + 右上角
+  try {
+    const resp = await fetch(BACKEND + "/sniff/report", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        use_local: false, model: "web",
+        fallback_use_local: s.use_local, fallback_model: s.model,
+        chat_id: chatId }),
+    });
+    const data = await resp.json();
+    prog.done();
+    if (data && data.used_model) syncComposerModel(!!data.used_use_local, data.used_model);
+    addBubble("assistant", data.brief || "（没有内容）");
+    saveCurrentConversation();
+  } catch (e) {
+    prog.done();
+    addSystemNote("嗅探简报出错：" + e.message);
+  } finally {
+    if (btn) { btn.textContent = old || "📄 深度嗅探"; btn.disabled = false; }
+  }
+}
+document.getElementById("sniffBriefClose")?.addEventListener("click", () => {
+  const m = document.getElementById("sniffBriefMask"); if (m) m.hidden = true;
+});
+document.getElementById("sniffBriefMask")?.addEventListener("click", (e) => {
+  if (e.target.id === "sniffBriefMask") e.target.hidden = true;
+});
+document.getElementById("sniffBriefCopy")?.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(_sniffBriefRaw);
+    const b = document.getElementById("sniffBriefCopy"); const o = b.textContent;
+    b.textContent = "✓ 已复制"; setTimeout(() => { b.textContent = o; }, 1500);
+  } catch (e) { alert("复制失败，可手动选中复制。"); }
 });

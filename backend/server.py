@@ -1029,6 +1029,9 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send({"ok": False, "message": str(e)}, 200)
 
+        if path == "/sniff/report":
+            return self._handle_sniff_report(body)
+
         if path == "/sniff/config":
             try:
                 import sniffer
@@ -1118,6 +1121,50 @@ class Handler(BaseHTTPRequestHandler):
             return self._send({"ok": ok, "message": msg})
         except Exception as e:
             return self._send({"ok": False, "message": str(e)})
+
+    def _handle_sniff_report(self, body):
+        """像情报简报一样，让网页模型逐个站点搜+读+总结，生成一份嗅探简报。
+        默认走网页模型；网页模型不可用则回退到调用方给的 fallback 模型。"""
+        use_local = body.get("use_local", False)
+        model = body.get("model", "web")
+        chat_id = body.get("chat_id") or ""
+
+        if (not use_local) and model == "web":
+            web_ok = True
+            try:
+                import web_model
+                web_ok = web_model.is_available()
+            except Exception:
+                web_ok = False
+            if not web_ok:
+                use_local = body.get("fallback_use_local", True)
+                model = body.get("fallback_model", "qwen2.5")
+                if cp is not None and chat_id:
+                    try:
+                        cp.push(chat_id, "网页模型不可用，改用当前所选模型生成…")
+                    except Exception:
+                        pass
+
+        on_step = on_detail = None
+        if cp is not None and chat_id:
+            cp.start(chat_id)
+            on_step = lambda m: cp.push(chat_id, m)
+            on_detail = lambda m: cp.set_pct(chat_id, None, m)
+        try:
+            import sniffer
+            report = sniffer.generate_sniff_report(
+                use_local=use_local, model=model, verbose=False,
+                on_step=on_step, on_detail=on_detail)
+            if cp is not None and chat_id:
+                cp.finish(chat_id)
+            return self._send({"ok": True, "brief": report,
+                               "used_model": model, "used_use_local": use_local})
+        except Exception as e:
+            if cp is not None and chat_id:
+                try: cp.finish(chat_id)
+                except Exception: pass
+            return self._send({"ok": False, "brief": f"出错：{e}",
+                               "used_model": model, "used_use_local": use_local})
 
     def _handle_briefing(self, body):
         """生成一次情报简报（搜+读+提炼+推送）。
@@ -1347,15 +1394,32 @@ class Handler(BaseHTTPRequestHandler):
             import edge_tts
             import asyncio
 
-            async def _synth():
+            # 国内直连微软 TTS 端点常常很慢（10秒+）。若配了代理（设置→联网与代理），
+            # 让 edge-tts 也走代理，通常能从十几秒降到一两秒。没配就直连。
+            try:
+                import web_tools as W
+                _proxy = W._read_proxy()
+            except Exception:
+                _proxy = ""
+
+            async def _synth(use_proxy):
                 buf = bytearray()
-                communicate = edge_tts.Communicate(text, voice, rate=rate)
+                kw = {"rate": rate}
+                if use_proxy and _proxy:
+                    kw["proxy"] = _proxy
+                communicate = edge_tts.Communicate(text, voice, **kw)
                 async for chunk in communicate.stream():
                     if chunk.get("type") == "audio":
                         buf += chunk["data"]
                 return bytes(buf)
 
-            audio = asyncio.run(_synth())
+            if _proxy:
+                try:
+                    audio = asyncio.run(_synth(True))      # 先走代理（快）
+                except Exception:
+                    audio = asyncio.run(_synth(False))     # 代理不行再直连兜底
+            else:
+                audio = asyncio.run(_synth(False))
             if not audio:
                 return self._send({"error": "合成为空"}, 200)
             return self._send_bytes(audio, "audio/mpeg")

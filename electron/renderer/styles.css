@@ -1677,7 +1677,13 @@ body {
 /* 左侧：按类别分组 */
 .sniff-cat-group { margin-bottom: 12px; }
 .sniff-cat-head { display: flex; align-items: center; gap: 8px; padding: 4px 4px 6px;
-                  border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+                  border-bottom: 1px solid var(--line); margin-bottom: 4px; cursor: pointer;
+                  user-select: none; border-radius: 6px 6px 0 0; }
+.sniff-cat-head:hover { background: var(--bg-elev); }
+.sniff-cat-caret { font-size: 11px; color: var(--text-dim); width: 12px; text-align: center;
+                   transition: transform .15s; }
+.sniff-cat-group.collapsed .sniff-cat-caret { transform: rotate(-90deg); }
+.sniff-cat-group.collapsed .sniff-cat-body { display: none; }
 .sniff-cat-name { font-size: 12px; font-weight: 600; color: var(--text); }
 .sniff-cat-cnt { font-size: 11px; color: var(--text-dim); background: var(--bg); border: 1px solid var(--line);
                  border-radius: 20px; padding: 0 8px; line-height: 17px; }
@@ -1766,4 +1772,71 @@ body {
 @media (max-width: 640px) {
   .tm-card { flex-wrap: wrap; }
   .tm-select { width: 100%; }
+}
+
+/* ===== 嗅探 · 简报弹窗 ===== */
+.sniff-brief-mask { position: fixed; inset: 0; background: rgba(0,0,0,.4);
+                    display: flex; align-items: center; justify-content: center; z-index: 50; padding: 28px; }
+.sniff-brief-mask[hidden] { display: none; }
+.sniff-brief-card { background: var(--bg); border: 1px solid var(--line); border-radius: 14px;
+                    width: 100%; max-width: 720px; max-height: 84vh; display: flex; flex-direction: column;
+                    box-shadow: 0 16px 48px rgba(0,0,0,.35); }
+.sniff-brief-head { display: flex; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.sniff-brief-title { font-size: 15px; font-weight: 600; color: var(--text); }
+.sniff-brief-actions { margin-left: auto; display: flex; gap: 8px; }
+.sniff-brief-body { padding: 18px 22px; overflow-y: auto; font-size: 14px; line-height: 1.7; color: var(--text); }
+.sniff-brief-body h1 { font-size: 19px; margin: 0 0 6px; }
+.sniff-brief-body h2 { font-size: 15px; margin: 18px 0 8px; color: var(--accent); }
+.sniff-brief-body blockquote { color: var(--text-dim); border-left: 3px solid var(--line);
+                               margin: 6px 0 14px; padding: 2px 12px; font-size: 13px; }
+.sniff-brief-body p { margin: 6px 0; }
+.sniff-brief-body a { color: var(--accent); text-decoration: none; }
+.sniff-brief-body a:hover { text-decoration: underline; }
+.sniff-brief-body strong { color: var(--text); }
+
+/* 行内喇叭：直接跟在助手这段话末尾，只有图标 */
+.speak-inline {
+  display: inline-flex; align-items: center; justify-content: center;
+  vertical-align: -3px; margin-left: 5px; gap: 0;
+  width: 22px; height: 22px; padding: 0;
+  border: none; border-radius: 50%;
+  background: transparent; color: var(--text-dim);
+  cursor: pointer; transition: color .15s, background .15s;
+}
+.speak-inline:hover { color: var(--accent); background: var(--accent-soft); border: none; }
+.speak-inline.loading { color: var(--accent); }
+.speak-inline.loading svg { animation: cxWave .7s ease-in-out infinite; }
+.speak-inline.speaking { color: var(--accent); background: var(--accent-soft); }
+
+/* 嗅探模型选择器 */
+.sniff-engine { display: flex; align-items: center; gap: 10px; margin: 6px 0 4px; }
+.sniff-engine-label { font-size: 12px; color: var(--text-dim); white-space: nowrap; }
+.sniff-engine .sniff-input { flex: 1; }
+.sniff-engine-hint { font-size: 11px; color: var(--text-dim); line-height: 1.5;
+                     margin: 0 0 10px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+
+/* ===== 嗅探 · 怎么用引导卡 ===== */
+.sniff-guide { margin-bottom: 18px; }
+.sniff-guide-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.sniff-guide-card { display: flex; gap: 12px; background: var(--bg-elev);
+                    border: 1px solid var(--line); border-radius: 12px; padding: 13px 15px; }
+.sniff-guide-icon { width: 34px; height: 34px; flex-shrink: 0; border-radius: 9px;
+                    display: flex; align-items: center; justify-content: center; font-size: 18px;
+                    background: var(--accent-soft); }
+.sniff-guide-body { min-width: 0; }
+.sniff-guide-title { font-size: 13.5px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+.sniff-guide-desc { font-size: 12px; color: var(--text-dim); line-height: 1.6; }
+.sniff-guide-desc b { color: var(--text); }
+.sniff-guide-tip { display: block; margin-top: 4px; color: var(--accent); }
+.sniff-guide-tip b { color: var(--accent); }
+.sniff-guide-note { margin-top: 10px; font-size: 12px; color: var(--text-dim);
+                    background: var(--accent-soft); border-radius: 9px; padding: 9px 13px; line-height: 1.55; }
+.sniff-guide-note b { color: var(--text); }
+
+/* 面板下方的小说明 */
+.sniff-panel-hint { font-size: 11.5px; color: var(--text-dim); line-height: 1.5;
+                    margin: -2px 0 10px; }
+
+@media (max-width: 720px) {
+  .sniff-guide-cards { grid-template-columns: 1fr; }
 }

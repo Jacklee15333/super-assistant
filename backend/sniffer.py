@@ -23,8 +23,14 @@ import hashlib
 import datetime
 from pathlib import Path
 
-from agent_core import MEMORY_DIR, make_client_for
+from agent_core import MEMORY_DIR, make_client_for, is_web_model
 import web_tools as W
+
+SNIFF_REPORT_DIR = MEMORY_DIR / "sniff_reports"
+try:
+    SNIFF_REPORT_DIR.mkdir(exist_ok=True)
+except Exception:
+    pass
 
 SNAP_DIR = MEMORY_DIR / "snapshots"
 SNAP_DIR.mkdir(exist_ok=True)
@@ -50,7 +56,7 @@ _DEFAULT_SOURCES = [
 
 # ---------------- 配置 ----------------
 def get_config():
-    cfg = {"auto": False, "every": 6}  # 默认不自动；开了的话每 6 次心跳嗅探一次
+    cfg = {"auto": False, "every": 6, "engine": "follow"}  # engine: follow/web/claude
     try:
         if CONFIG_PATH.exists():
             cfg.update(json.loads(CONFIG_PATH.read_text(encoding="utf-8")))
@@ -61,6 +67,8 @@ def get_config():
     except Exception:
         cfg["every"] = 6
     cfg["auto"] = bool(cfg.get("auto", False))
+    if cfg.get("engine") not in ("follow", "web", "claude"):
+        cfg["engine"] = "follow"
     return cfg
 
 
@@ -70,6 +78,8 @@ def save_config(patch):
         cfg["auto"] = bool(patch["auto"])
     if "every" in (patch or {}):
         cfg["every"] = patch["every"]
+    if "engine" in (patch or {}):
+        cfg["engine"] = patch["engine"]
     try:
         CONFIG_PATH.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception:
@@ -209,7 +219,7 @@ def _normalize(text):
     return re.sub(r"\s+", " ", text or "").strip()
 
 
-def _diff(old, new, max_len=2500):
+def _diff(old, new, max_len=4500):
     old_set = set(s.strip() for s in re.split(r"[。\n]", old) if s.strip())
     parts = [s.strip() for s in re.split(r"[。\n]", new)
              if s.strip() and s.strip() not in old_set]
@@ -217,16 +227,20 @@ def _diff(old, new, max_len=2500):
 
 
 # ---------------- 提炼 ----------------
-_EXTRACT_PROMPT = """下面是「{title}」这个 AI 相关网站这次抓取**相比上次新增/变化**的内容片段。
-请从中挑出真正值得关注的「新东西」，每条归到三类之一：
+_EXTRACT_PROMPT = """下面是「{title}」这个网站这次抓取**相比上次新增/变化**的内容片段（多数是新出现的标题/条目）。
+你是中文科技情报分析助手。请挑出真正值得关注的「新东西」，把每条**用中文**整理成一条有信息量的情报，归到三类之一：
 - 发布：新模型、新版本、新产品上线
-- 功能：新能力、新特性、新工具
+- 功能：新能力、新特性、新工具、新基准/数据集
 - 概念：新术语、新方法、新趋势（比如 Loop、Harness 这类）
 
 只输出一个 JSON 数组（不要别的话、不要代码块包裹），每个元素：
-{{"kind":"发布|功能|概念","title":"简短标题","summary":"一句话说清是什么","importance":"高|中|低"}}
-没有值得报的就输出：[]
-只挑 AI 相关、确实是新出现的；广告、导航、无意义改动一律忽略。最多 6 条。
+{{"kind":"发布|功能|概念","title":"简短中文标题（英文专有名词可保留）","summary":"用中文写 2~3 句，把这条是什么、属于哪类技术、解决什么问题或有什么意义说清楚","importance":"高|中|低"}}
+
+写 summary 的要求（重要）：
+- 片段里常常只有一句标题，信息很少。请**结合你已掌握的领域背景知识**，把这条展开解释清楚——它大概是什么、属于什么方向、为什么值得关注，让没看过原文的人也能读懂。
+- 但**不要编造具体的数字、跑分、日期或结论**：这些片段里没有就不要写死，可以用「据其标题/介绍」这类措辞。
+- summary 必须是通顺的中文（专有名词如 GPT、Llama、Lean 可保留），不要照抄英文、不要只写半句。
+- 没有值得报的就输出：[]；广告、导航、菜单、无意义改动一律忽略。最多 6 条。
 
 === 变化片段 ===
 {diff}
@@ -349,13 +363,13 @@ def _humanize_err(e):
 
 def _fetch_smart(url):
     """更聪明的抓取：配了代理就优先走代理（境外站多数需要），失败再直连兜底；
-    没配代理就直连。返回 (page, via, err)。via ∈ {'proxy','direct'}。"""
+    没配代理就直连。给慢/不稳的站点一次重试机会。返回 (page, via, err)。"""
     try:
         has_proxy = bool(W._read_proxy())
     except Exception:
         has_proxy = False
-    # 配了代理 → 先代理后直连；没配 → 只直连
-    attempts = [(True, 18), (False, 10)] if has_proxy else [(False, 15)]
+    # (是否用代理, 超时秒数)；代理给两次机会（有些站第一次握手慢/偶发失败），再直连兜底
+    attempts = [(True, 25), (True, 18), (False, 12)] if has_proxy else [(False, 18), (False, 12)]
     last_err = None
     for use_proxy, to in attempts:
         try:
@@ -416,6 +430,134 @@ def _scan_one(client, model, src, report):
     return items, f"[{title}] 发现 {len(items)} 条新内容。"
 
 
+# ============================================================
+#  情报简报式：让「网页模型 AI」一个个站点自己去搜+读+总结，
+#  每段自带来源超链接；全部生成完，软件再拼成一份报告。
+#  —— 工作模式与「生成情报简报」完全一致。
+# ============================================================
+SNIFF_WEB_PROMPT = (
+    "请帮我盯一下「{title}」这个站点（{url}）的最新动态。\n"
+    "**如果你现在能联网，请打开/搜索这个网站及其官方来源**，找出它**最近新发布、新更新**的内容"
+    "（新模型 / 新版本 / 新功能 / 新基准 / 新概念 / 重要公告等），用中文整理成情报。\n"
+    "【正文】\n"
+    "- 列出最近最值得关注的 3~6 条，每条 2~3 句：说清是什么、属于什么方向、为什么值得关注；\n"
+    "- 只挑真正『新』的，过滤导航、广告、过时内容；每条尽量标出大致时间。\n"
+    "【来源】正文之后另起一段，写「来源：」，用 Markdown 列表给出你参考的原文链接，"
+    "格式 `- [标题](完整网址)`，网址以 http 开头、指向官方或原文页面。\n"
+    "【重要】如果此刻你**确实无法联网**，不要拒绝也不要空着——基于你已掌握的关于该站点/机构的可靠信息尽力整理，"
+    "开头用一句话注明「（注：本次未能联网，以下为已知信息，时效以官方为准）」；"
+    "来源处给出该站官方主页即可（拿不准的具体链接别编造）。开头不要重复站点名（我会自己加）。"
+)
+
+SNIFF_READ_PROMPT = (
+    "下面是从「{title}」（{url}）这个网站抓取到的页面正文。请你用中文整理出这个站点**最近值得关注的新内容**"
+    "（新模型 / 新版本 / 新功能 / 新概念等）：\n"
+    "- 列出 3~6 条，每条 2~3 句，说清是什么、为什么值得关注；\n"
+    "- 资料里只有标题时，结合你的背景知识把它说清楚，但不要编造具体数字/日期/结论；\n"
+    "- 过滤导航、广告、无意义内容。直接输出正文，不用写来源（我会统一附上原文链接）。\n\n"
+    "=== 页面正文 ===\n{material}\n"
+)
+
+
+def _clean_web_summary(t):
+    """清理网页模型回复里常见的引用角标杂质（+1/+2 之类）。"""
+    t = (t or "").replace("\u00a0", " ")
+    t = re.sub(r"(?m)^[ \t]*[+＋﹢][ \t]*[\d０-９]+[ \t]*$", "", t)
+    t = re.sub(r"[ \t]*[+＋﹢][ \t]*[\d０-９]+(?=[\s，。；、,\.\)\]）】]|$)", "", t)
+    t = re.sub(r"\n{3,}", "\n\n", t)
+    return t.strip()
+
+
+def generate_sniff_report(use_local=False, model="web", verbose=False,
+                          on_step=None, on_detail=None):
+    """像「生成情报简报」一样：让网页模型 AI 一个个站点自己去搜索/读取/总结，
+    每段自带来源超链接；全部生成完，再拼成一份中文报告返回。
+    on_step：站点级里程碑；on_detail：当前站点的实时明细（网页模型活动）。"""
+    def _step(m):
+        if on_step:
+            try: on_step(m)
+            except Exception: pass
+    def _detail(m):
+        if on_detail:
+            try: on_detail(m)
+            except Exception: pass
+
+    ensure_seeded()
+    sources = [s for s in _load_sources() if s.get("enabled", True)]
+    if not sources:
+        return "（嗅探清单是空的，或都关掉了。先去左边添加你关心的网站。）"
+
+    _step("准备开始，连接模型…")
+    try:
+        client = make_client_for(model, use_local, on_progress=_detail)
+    except Exception as e:
+        return f"连接模型出错：{e}"
+
+    try:
+        web = is_web_model(model)
+    except Exception:
+        web = (model == "web")
+
+    ts = datetime.datetime.now()
+    sections = []
+    todo = sources[:12]          # 控制时间，最多 12 个站
+    n = len(todo)
+    for i, src in enumerate(todo, 1):
+        title = src.get("title") or src.get("url")
+        url = src.get("url", "")
+        _step(f"调研第 {i}/{n} 个网站：{title}")
+        summary = ""
+        try:
+            if web:
+                # 网页模型：让它自己联网搜该站最新动态并总结（来源由 AI 在文末自带）
+                resp = client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user",
+                               "content": SNIFF_WEB_PROMPT.format(title=title, url=url)}],
+                )
+                summary = _clean_web_summary(resp.choices[0].message.content or "")
+            else:
+                # 非网页模型兜底：软件抓正文再喂给模型
+                _detail("抓取网页内容中…")
+                page, via, err = _fetch_smart(url)
+                text = _normalize(W._extract_text(page)) if page else ""
+                if not text:
+                    summary = f"（这个站点这次没抓到内容{('：' + _humanize_err(err)) if err else ''}。）"
+                else:
+                    _detail("模型提炼中…")
+                    resp = client.chat.completions.create(
+                        model=model,
+                        messages=[{"role": "user",
+                                   "content": SNIFF_READ_PROMPT.format(
+                                       title=title, url=url, material=text[:6000])}],
+                    )
+                    summary = (resp.choices[0].message.content or "").strip()
+        except Exception as e:
+            summary = f"（这个站点生成出错：{e}）"
+
+        block = [f"## 📡 {title}", "", summary or "（暂无可报内容）"]
+        # 非网页模型这边软件帮忙附上站点原文链接（网页模型会自己带来源）
+        if (not web) and url:
+            block += ["", f"- [打开 {title}]({url})"]
+        block.append("\n---")
+        sections.append("\n".join(block))
+
+    _step("全部站点整理完成，正在拼合成报告…")
+    body = "\n\n".join(sections).rstrip("-\n ")
+    mode = "网页模型逐站搜集" if web else "软件抓取 + 模型提炼"
+    header = (f"# 📡 AI 嗅探简报\n\n"
+              f"> {ts.strftime('%Y-%m-%d %H:%M')} 生成 · {mode} · 共 {n} 个站点\n")
+    report = header + "\n" + body
+
+    # 存档一份，方便回看
+    try:
+        fn = SNIFF_REPORT_DIR / f"sniff-report-{ts.strftime('%Y%m%d-%H%M%S')}.md"
+        fn.write_text(report, encoding="utf-8")
+    except Exception:
+        pass
+    return report
+
+
 def run_sniff(use_local=True, model="qwen2.5", verbose=False):
     """嗅探所有启用的源。返回 (新增条目列表, 日志文本)。新增高/中重要度的会推送。
     过程中实时写 _run_state['progress']，前端轮询 /sniff/feed 拿到。"""
@@ -430,7 +572,19 @@ def run_sniff(use_local=True, model="qwen2.5", verbose=False):
     if not sources:
         return [], "（嗅探清单是空的，或都关掉了）"
 
-    client = make_client_for(model, use_local)
+    # 嗅探用哪个模型：follow=跟随调用方；web=网页模型（更强，但慢）；claude=第一个 Claude 配置
+    engine = get_config().get("engine", "follow")
+    if engine == "web":
+        model, use_local = "web", False
+    elif engine == "claude":
+        model, use_local = "claude", False
+    try:
+        client = make_client_for(model, use_local)
+    except Exception as e:
+        # 选的模型连不上（比如没配网页模型/Claude）→ 退回本地默认，别让整轮失败
+        _run_state["stage"] = f"所选模型不可用（{e}），改用默认模型"
+        model, use_local = "qwen3:14b", True
+        client = make_client_for(model, use_local)
     feed = _load_feed()
     seen = set(it.get("key") for it in feed)
     new_items, logs = [], []
@@ -449,6 +603,7 @@ def run_sniff(use_local=True, model="qwen2.5", verbose=False):
         _run_state["stage"] = f"正在嗅探（{idx + 1}/{len(sources)}）：{src.get('title')}"
         items, msg = _scan_one(client, model, src, report)
         logs.append(msg)
+        added_here = 0
         for it in items:
             key = _item_key(it.get("link", ""), it.get("title", ""))
             if key in seen:
@@ -458,6 +613,10 @@ def run_sniff(use_local=True, model="qwen2.5", verbose=False):
             it["ts"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
             feed.append(it)
             new_items.append(it)
+            added_here += 1
+        # 这个源有新内容就立刻落盘，前端下次轮询（约1.5秒）就能看到，不用等整轮跑完
+        if added_here:
+            _save_feed(feed)
 
     if new_items:
         _save_feed(feed)
@@ -466,7 +625,8 @@ def run_sniff(use_local=True, model="qwen2.5", verbose=False):
             try:
                 import push_serverchan
                 body = "\n\n".join(
-                    f"[{i['kind']}] {i['title']}\n{i.get('summary','')}\n{i.get('link','')}"
+                    f"**[{i['kind']}] {i['title']}**\n{i.get('summary','')}\n"
+                    f"[查看原文]({i.get('link','')}) · 来自 {i.get('source_title','')}"
                     for i in notable[:10])
                 push_serverchan.push(f"AI 嗅探到 {len(notable)} 条新动态", body[:2000])
             except Exception:
