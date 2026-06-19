@@ -45,7 +45,7 @@ async function maybeGreetOnce() {
   if (_greeted) return;
   _greeted = true;
   try {
-    const s = (typeof settings === "function") ? settings() : { use_local: true, model: "qwen2.5" };
+    const s = (typeof settings === "function") ? settings() : { use_local: true, model: "qwen3:14b" };
     const r = await fetch(BACKEND + "/lumi/greeting", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ use_local: s.use_local, model: s.model }),
@@ -71,7 +71,11 @@ document.querySelectorAll(".nav-item").forEach((btn) => {
     if (btn.dataset.view === "video") { loadVideoNotes(); pollVideoProgress(); }
     if (btn.dataset.view === "library") loadLibrary();
     if (btn.dataset.view === "lumi") { loadLumi(); }
-    if (btn.dataset.view === "settings") { refreshHeartbeatStatus(); loadModelsInfo(); loadWebModelConfig(); loadTaskModels(); }
+    if (btn.dataset.view === "skills") { loadSkills(); }
+    if (btn.dataset.view === "loop") { loadLoop(); }
+    if (btn.dataset.view === "harness") { loadHarness(); }
+    if (btn.dataset.view === "sniff") { loadSniff(); }
+    if (btn.dataset.view === "settings") { refreshHeartbeatStatus(); loadModelsInfo(); loadWebModelConfig(); loadTaskModels(); loadProxySetting(); }
     // 懂你子菜单只在懂你视图下显示
     const subNav = document.getElementById("lumiSubNav");
     if (subNav) subNav.style.display = (btn.dataset.view === "lumi") ? "" : "none";
@@ -201,8 +205,8 @@ function renderMarkdown(src) {
   s = s.replace(/^### (.+)$/gm, "<h3>$1</h3>");
   s = s.replace(/^## (.+)$/gm, "<h2>$1</h2>");
   s = s.replace(/^# (.+)$/gm, "<h1>$1</h1>");
-  // 分隔线 ---
-  s = s.replace(/^\s*---+\s*$/gm, "<hr>");
+  // 分隔线 --- ：界面从简，不画横线（模型偶尔会输出 ---，渲染成横线显得乱）
+  s = s.replace(/^\s*---+\s*$/gm, "");
   // 粗体 **x**
   s = s.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
   // 斜体 *x*
@@ -352,7 +356,7 @@ function currentModel() {
   }
   if (sel && sel.value) return sel.value;
   if (manual && manual.value.trim()) return manual.value.trim();
-  return "qwen2.5";
+  return "qwen3:14b";  // 启动默认本地模型
 }
 
 function settings() {
@@ -754,11 +758,101 @@ function deleteConversation(id) {
 
 document.getElementById("newConvoBtn").addEventListener("click", newConversation);
 
-document.getElementById("clearBtn").addEventListener("click", () => {
-  messages = [];
-  sessionAllowedTools = new Set();
-  messagesEl.innerHTML = "";
-  saveCurrentConversation();
+// ---------- 结束对话（弹框：清空并保存 / 结束并记住 / 取消）----------
+function openEndDialog() {
+  const dlg = document.getElementById("endDialog");
+  const st = document.getElementById("endDialogStatus");
+  if (st) st.textContent = "";
+  if (messages.length === 0) {
+    // 没内容时也允许，但提示一下
+    if (st) st.textContent = "当前对话还是空的，没什么要保存或记住的。";
+  }
+  if (dlg) dlg.hidden = false;
+}
+function closeEndDialog() {
+  const dlg = document.getElementById("endDialog");
+  if (dlg) dlg.hidden = true;
+}
+document.getElementById("endConvoBtn")?.addEventListener("click", openEndDialog);
+document.getElementById("endOptCancel")?.addEventListener("click", closeEndDialog);
+document.getElementById("endDialog")?.addEventListener("click", (e) => {
+  if (e.target.id === "endDialog") closeEndDialog();
+});
+
+// 清空并保存：把当前对话存进侧边栏历史，然后开新对话（不提炼长期记忆）
+document.getElementById("endOptSave")?.addEventListener("click", () => {
+  saveCurrentConversation();   // 落进历史会话
+  newConversation();           // 开一个干净的新会话
+  closeEndDialog();
+});
+
+// 结束并记住：先存历史，再提炼要点进长期记忆，然后开新对话
+document.getElementById("endOptRemember")?.addEventListener("click", async () => {
+  const st = document.getElementById("endDialogStatus");
+  if (messages.length === 0) {
+    if (st) st.textContent = "当前对话是空的，先聊几句再记住吧。";
+    return;
+  }
+  const btn = document.getElementById("endOptRemember");
+  btn.disabled = true;
+  if (st) st.textContent = "正在提炼这段对话的要点…（可能要十几秒）";
+  try {
+    saveCurrentConversation();   // 先存历史
+    const s = settings();
+    const resp = await fetch(BACKEND + "/remember", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages, use_local: s.use_local, model: s.model }),
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      newConversation();
+      addSystemNote(
+        "🧠 已把上一段对话的要点存入长期记忆，并保留为历史会话。提炼出的要点：\n"
+        + (data.summary || "（这段没什么特别要记的）"));
+      closeEndDialog();
+    } else {
+      if (st) st.textContent = "记忆失败：" + (data.error || "未知");
+    }
+  } catch (e) {
+    if (st) st.textContent = "记忆出错：" + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// 提炼成技能：把这段对话解析成一个可复用技能，打开编辑器让用户确认后保存
+document.getElementById("endOptSkill")?.addEventListener("click", async () => {
+  const st = document.getElementById("endDialogStatus");
+  if (messages.length === 0) {
+    if (st) st.textContent = "当前对话是空的，先做点事再提炼技能吧。";
+    return;
+  }
+  const btn = document.getElementById("endOptSkill");
+  btn.disabled = true;
+  if (st) st.textContent = "正在解析这段对话、提炼技能…（可能要十几秒）";
+  try {
+    const s = settings();
+    const resp = await fetch(BACKEND + "/skills/from_conversation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages, use_local: s.use_local, model: s.model }),
+    });
+    const data = await resp.json();
+    if (!data.ok) { if (st) st.textContent = "提炼失败：" + (data.message || "未知"); return; }
+    if (!data.skill) {
+      if (st) st.textContent = data.message || "这段对话没提炼出可复用的技能。";
+      return;
+    }
+    // 跳到技能页，打开编辑器（预填草稿），让用户确认/修改后保存
+    closeEndDialog();
+    document.querySelector('.nav-item[data-view="skills"]')?.click();
+    setTimeout(() => fillSkillEditor(data.skill, { draft: true }), 60);
+  } catch (e) {
+    if (st) st.textContent = "提炼出错：" + e.message;
+  } finally {
+    btn.disabled = false;
+  }
 });
 
 // ---------- 竞品监控 ----------
@@ -2750,11 +2844,88 @@ async function loadModels(preferred) {
       }
     }
     buildComposerModel(models, cloud, web, claude);
+    populateDefaultModelSelect(models, cloud, web, claude);
     updateModelHint();
   } catch (e) {
     // 连不上后端时静默，保留手动输入
   }
 }
+
+// ---------- 默认启动模型 ----------
+function getDefaultModelPref() {
+  try { return JSON.parse(localStorage.getItem("cx_default_model") || "null"); }
+  catch (_) { return null; }
+}
+function setDefaultModelPref(pref) {
+  try { localStorage.setItem("cx_default_model", JSON.stringify(pref)); } catch (_) {}
+}
+function populateDefaultModelSelect(models, cloud, web, claude) {
+  const sel = document.getElementById("defaultModelSelect");
+  if (!sel) return;
+  const pref = getDefaultModelPref();
+  const wantVal = pref ? (pref.use_local ? "local::" + pref.model
+    : (pref.model === "web" ? "web" : "cloud::" + pref.model)) : "__follow__";
+  sel.innerHTML = "";
+  const addOpt = (group, value, label, selected) => {
+    const opt = document.createElement("option");
+    opt.value = value; opt.textContent = label;
+    if (selected) opt.selected = true;
+    (group || sel).appendChild(opt);
+  };
+  addOpt(sel, "__follow__", "跟随上次（不固定）", wantVal === "__follow__");
+  if ((models || []).length) {
+    const g = document.createElement("optgroup"); g.label = "本地模型";
+    models.forEach((m) => addOpt(g, "local::" + m, m, wantVal === "local::" + m));
+    sel.appendChild(g);
+  }
+  if ((cloud || []).length) {
+    const g = document.createElement("optgroup"); g.label = "☁ 云端模型";
+    cloud.forEach((m) => addOpt(g, "cloud::" + m, "☁ " + m, wantVal === "cloud::" + m));
+    sel.appendChild(g);
+  }
+  if ((web || []).length) {
+    const g = document.createElement("optgroup"); g.label = "☁☁ 网页模型";
+    web.forEach((m) => addOpt(g, "web", "☁☁ " + (m.name || "网页模型"), wantVal === "web"));
+    sel.appendChild(g);
+  }
+}
+// 把默认模型选择应用到当前（启动时调用一次）
+function applyDefaultModelOnStartup() {
+  const pref = getDefaultModelPref();
+  if (!pref) return;   // 没设默认就跟随上次
+  try {
+    const useLocalEl = document.getElementById("useLocal");
+    if (useLocalEl) useLocalEl.checked = !!pref.use_local;
+    // 通过自绘 composer 下拉同步（如果可用），否则直接设 select
+    if (typeof syncComposerModel === "function" && pref.model) {
+      syncComposerModel(!!pref.use_local, pref.model);
+    }
+    const sel = document.getElementById("modelSelect");
+    if (sel && pref.model && pref.model !== "web") {
+      for (const o of sel.options) { if (o.value === pref.model) { o.selected = true; break; } }
+    }
+    if (typeof updateModelHint === "function") updateModelHint();
+  } catch (_) {}
+}
+document.getElementById("defaultModelSelect")?.addEventListener("change", (e) => {
+  const v = e.target.value;
+  if (v === "__follow__") { setDefaultModelPref(null); return; }
+  if (v === "web") { setDefaultModelPref({ use_local: false, model: "web" }); return; }
+  if (v.startsWith("local::")) { setDefaultModelPref({ use_local: true, model: v.slice(7) }); return; }
+  if (v.startsWith("cloud::")) { setDefaultModelPref({ use_local: false, model: v.slice(7) }); return; }
+});
+document.getElementById("setDefaultNowBtn")?.addEventListener("click", () => {
+  const s = settings();
+  setDefaultModelPref({ use_local: s.use_local, model: s.model });
+  // 刷新默认下拉的选中态
+  const sel = document.getElementById("defaultModelSelect");
+  if (sel) {
+    const wantVal = s.use_local ? "local::" + s.model : (s.model === "web" ? "web" : "cloud::" + s.model);
+    for (const o of sel.options) { if (o.value === wantVal) { o.selected = true; break; } }
+  }
+  const st = document.getElementById("defaultModelSelect");
+  if (st) { const old = st.title; st.title = "已设为默认"; setTimeout(() => st.title = old, 1500); }
+});
 
 // ===== 输入框里的「随时切换模型」自绘下拉（仿 Claude） =====
 function currentComposerValue() {
@@ -3118,7 +3289,7 @@ async function runEnvCheck(silent) {
 // 启动
 initBackend().then(() => {
   updateModelHint();
-  loadModels();
+  loadModels("qwen3:14b").then(() => { applyDefaultModelOnStartup(); });
   // 等后端起来再检查环境（延迟一下，给 Ollama 自启动留时间）
   setTimeout(() => runEnvCheck(false), 2000);
 });
@@ -3549,7 +3720,7 @@ async function loadLumi() {
     _lumiData = d;
     const profEl = document.getElementById("lumiProfile");
     if (profEl) profEl.innerHTML = (d.profile || "").trim()
-      ? renderMarkdown(d.profile)
+      ? renderProfileRich(d.profile)
       : '<div class="lumi-empty">还没演化。点右上角「✨ 人格演化」，小助会从你的对话里总结出你的说话风格、关注点和偏好。</div>';
     const relEl = document.getElementById("lumiRelations");
     if (relEl) relEl.innerHTML = (d.relationships || "").trim()
@@ -3579,6 +3750,42 @@ function renderRelationsRich(md) {
         '<div class="rel-name">' + escapeHtml(p.name) + "</div>" +
         '<div class="rel-desc">' + escapeHtml(p.info) + "</div>" +
       "</div></div>";
+  });
+  h += "</div>";
+  return h;
+}
+
+// 把画像 OWNER_PROFILE.md 渲染成漂亮的分区卡片（带图标），比纯 markdown 好看
+function renderProfileRich(md) {
+  // 去掉顶部 # 标题和说明引语
+  let body = (md || "").replace(/^#\s+.*$/m, "").replace(/^>.*$/gm, "").trim();
+  const iconFor = (title) => {
+    if (/风格|说话|语气/.test(title)) return "🗣️";
+    if (/关注|在意|话题|领域/.test(title)) return "🎯";
+    if (/偏好|习惯/.test(title)) return "⭐";
+    if (/怎么|建议|对他/.test(title)) return "💡";
+    return "📌";
+  };
+  // 解析 ## 分区
+  const sections = [];
+  let cur = null;
+  body.split("\n").forEach((ln) => {
+    const m = ln.match(/^#{2,3}\s+(.+)$/);
+    if (m) { if (cur) sections.push(cur); cur = { title: m[1].trim(), lines: [] }; }
+    else if (cur) cur.lines.push(ln);
+    else if (ln.trim()) { cur = { title: "", lines: [ln] }; }
+  });
+  if (cur) sections.push(cur);
+  if (!sections.length) return renderMarkdown(md);
+
+  let h = '<div class="profile-grid">';
+  sections.forEach((sec) => {
+    const inner = renderMarkdown(sec.lines.join("\n").trim());
+    h += '<div class="profile-card">' +
+      (sec.title ? '<div class="profile-card-head"><span class="profile-icon">' +
+        iconFor(sec.title) + '</span>' + escapeHtml(sec.title) + "</div>" : "") +
+      '<div class="profile-card-body">' + inner + "</div>" +
+      "</div>";
   });
   h += "</div>";
   return h;
@@ -3648,3 +3855,924 @@ document.getElementById("lumiScanBtn")?.addEventListener("click", async () => {
 });
 
 document.getElementById("lumiRefreshBtn")?.addEventListener("click", () => { setLumiStatus(""); loadLumi(); });
+
+// ============================================================
+// 技能（Skills）—— 工具区
+// ============================================================
+let _skillsCache = [];
+
+async function loadSkills() {
+  const grid = document.getElementById("skillsGrid");
+  if (!grid) return;
+  grid.innerHTML = '<div class="skills-empty">加载中…</div>';
+  try {
+    const r = await fetch(BACKEND + "/skills/list");
+    const d = await r.json();
+    _skillsCache = d.skills || [];
+    renderSkillsGrid();
+  } catch (e) {
+    grid.innerHTML = '<div class="skills-empty">加载失败：' + escapeHtml(e.message) + "</div>";
+  }
+}
+
+function renderSkillsGrid() {
+  const grid = document.getElementById("skillsGrid");
+  if (!grid) return;
+  if (!_skillsCache.length) {
+    grid.innerHTML = '<div class="skills-empty">还没有技能。点右上角「✏️ 新建技能」写一个，或保留内置的几课。</div>';
+    return;
+  }
+  grid.innerHTML = _skillsCache.map((s) => {
+    const on = s.enabled;
+    const tag = s.builtin
+      ? '<span class="skill-tag builtin">内置</span>'
+      : '<span class="skill-tag custom">自建</span>';
+    return (
+      '<div class="skill-card' + (on ? "" : " off") + '" data-slug="' + escapeHtml(s.slug) + '">' +
+        '<div class="skill-card-head">' +
+          '<span class="skill-card-name">🧩 ' + escapeHtml(s.name) + "</span>" + tag +
+        "</div>" +
+        '<div class="skill-card-desc">' + escapeHtml(s.description || "（没写用途说明）") + "</div>" +
+        '<div class="skill-card-foot">' +
+          '<label class="skill-toggle" title="开启后，小助遇到匹配任务会自动用这个技能">' +
+            '<input type="checkbox" class="skill-toggle-input"' + (on ? " checked" : "") + " /> " +
+            "<span>" + (on ? "已开启" : "已关闭") + "</span>" +
+          "</label>" +
+          '<span class="skill-card-actions">' +
+            '<button class="skill-mini-btn skill-open" title="查看/编辑">查看</button>' +
+            (s.builtin ? "" : '<button class="skill-mini-btn skill-del" title="删除">删除</button>') +
+          "</span>" +
+        "</div>" +
+      "</div>"
+    );
+  }).join("");
+
+  grid.querySelectorAll(".skill-card").forEach((card) => {
+    const slug = card.dataset.slug;
+    card.querySelector(".skill-toggle-input")?.addEventListener("change", async (e) => {
+      await toggleSkill(slug, e.target.checked);
+    });
+    card.querySelector(".skill-open")?.addEventListener("click", () => openSkillView(slug));
+    card.querySelector(".skill-del")?.addEventListener("click", () => deleteSkill(slug));
+  });
+}
+
+async function toggleSkill(slug, enabled) {
+  try {
+    await fetch(BACKEND + "/skills/toggle", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slug, enabled }),
+    });
+    const it = _skillsCache.find((x) => x.slug === slug);
+    if (it) it.enabled = enabled;
+    renderSkillsGrid();
+  } catch (e) { /* 忽略 */ }
+}
+
+async function deleteSkill(slug) {
+  if (!confirm("确定删除这个技能吗？删了就没了（内置技能删掉后，删对应文件夹再重启可恢复）。")) return;
+  try {
+    await fetch(BACKEND + "/skills/delete", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slug }),
+    });
+    loadSkills();
+  } catch (e) { alert("删除失败：" + e.message); }
+}
+
+// —— 弹层：查看 / 编辑 / 新建 / 指南 ——
+function openSkillModal(mode) {
+  document.getElementById("skillModal").style.display = "flex";
+  document.getElementById("skillEdit").style.display = mode === "edit" ? "" : "none";
+  document.getElementById("skillView").style.display = mode === "view" ? "" : "none";
+  document.getElementById("skillGuide").style.display = mode === "guide" ? "" : "none";
+}
+function closeSkillModal() {
+  document.getElementById("skillModal").style.display = "none";
+}
+
+async function openSkillView(slug) {
+  try {
+    const r = await fetch(BACKEND + "/skills/get?slug=" + encodeURIComponent(slug));
+    const d = await r.json();
+    if (!d.skill) { alert("读取失败"); return; }
+    const s = d.skill;
+    document.getElementById("skillModalTitle").textContent = "🧩 " + (s.name || s.slug);
+    const view = document.getElementById("skillView");
+    view.innerHTML =
+      '<div class="skill-view-desc"><b>什么时候用：</b>' + escapeHtml(s.description || "（未写）") + "</div>" +
+      '<div class="skill-view-body">' + renderMarkdown(s.body || "") + "</div>" +
+      '<div class="skill-view-actions">' +
+        '<button class="send-btn" id="skillEditNowBtn">✏️ 编辑这个技能</button>' +
+      "</div>";
+    openSkillModal("view");
+    document.getElementById("skillEditNowBtn")?.addEventListener("click", () => fillSkillEditor(s));
+  } catch (e) { alert("读取失败：" + e.message); }
+}
+
+function fillSkillEditor(s, opts) {
+  // s 为空表示新建；opts.draft 表示是从对话提炼来的草稿（slug 仍可改）
+  opts = opts || {};
+  const isExisting = !!s && !opts.draft;
+  document.getElementById("skillModalTitle").textContent =
+    opts.draft ? "✏️ 确认新技能（从对话提炼）" : (s ? "✏️ 编辑技能" : "✏️ 新建技能");
+  document.getElementById("skillName").value = s ? (s.name || "") : "";
+  document.getElementById("skillSlug").value = s ? (s.slug || "") : "";
+  document.getElementById("skillSlug").readOnly = isExisting; // 已存在的不改 slug；草稿/新建可改
+  document.getElementById("skillDesc").value = s ? (s.description || "") : "";
+  document.getElementById("skillBody").value = s ? (s.body || "") : "";
+  openSkillModal("edit");
+}
+
+async function saveSkillFromEditor() {
+  const name = document.getElementById("skillName").value.trim();
+  const slug = document.getElementById("skillSlug").value.trim();
+  const description = document.getElementById("skillDesc").value.trim();
+  const body = document.getElementById("skillBody").value;
+  if (!name) { alert("先给技能起个名字"); return; }
+  if (!slug) { alert("填一个英文 slug（小写字母/数字/连字符），作为文件夹名"); return; }
+  if (!description) { alert("「什么时候用」很关键，必须写——小助靠它判断何时用这个技能"); return; }
+  try {
+    const r = await fetch(BACKEND + "/skills/save", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slug, name, description, content: body }),
+    });
+    const d = await r.json();
+    if (!d.ok) { alert("保存失败：" + (d.message || "")); return; }
+    closeSkillModal();
+    loadSkills();
+  } catch (e) { alert("保存失败：" + e.message); }
+}
+
+function openSkillGuide() {
+  document.getElementById("skillModalTitle").textContent = "📖 怎么写一个技能";
+  document.getElementById("skillGuide").innerHTML = renderMarkdown(SKILL_GUIDE_MD);
+  openSkillModal("guide");
+}
+
+const SKILL_GUIDE_MD = [
+  "「技能」就是教小助**一套做事的方法**。写好后，遇到匹配的任务它会自动按你的步骤来，而不是随便发挥。",
+  "",
+  "## 一个技能由两部分组成",
+  "1. **什么时候用**（最重要）：写清「遇到哪类任务就用它」。小助就是靠这句话判断要不要用这个技能。写具体的触发场景，最好再写一句「不适用：……」。",
+  "2. **具体步骤**（正文）：一步步写清楚遇到这类任务该怎么做。",
+  "",
+  "## 关键诀窍",
+  "- **描述写「场景」，不要写「是什么」**。",
+  "  - 别写：「这是一个写周报的技能」。",
+  "  - 要写：「当用户想把这周做的零散事项整理成条理清楚的周报时用」。",
+  "- **正文写成可执行的清单**，分步骤（## 第一步 / ## 第二步），每步告诉它具体做什么、注意什么。越具体越好，少讲大道理。",
+  "- **加一条「红线」**：列几个「绝对不要这么做」，能让小助更稳。",
+  "- **短小精悍**：一个技能聚焦一类任务。任务差别大就拆成两个技能。",
+  "",
+  "## 一个最简模板（照着填）",
+  "```",
+  "什么时候用：当用户想 ___ 的时候用。不适用：___。",
+  "",
+  "## 第一步：___",
+  "（这一步具体做什么）",
+  "## 第二步：___",
+  "（这一步具体做什么）",
+  "## 红线",
+  "- 不要 ___",
+  "- 不要 ___",
+  "```",
+  "",
+  "## 写完之后",
+  "保存后这个技能默认就开启了。回到技能页能看到它，遇到匹配的活儿小助会自己调用。想临时不用，把它的开关关掉即可。",
+  "",
+  "> 小提示：技能都存在本地 `backend/skills/` 文件夹里，每个技能一个子文件夹。你也可以把别处下载的技能文件夹直接拷进去，重启后就能用。",
+].join("\n");
+
+// —— 事件绑定 ——
+document.getElementById("skillRefreshBtn")?.addEventListener("click", loadSkills);
+document.getElementById("skillNewBtn")?.addEventListener("click", () => fillSkillEditor(null));
+document.getElementById("skillGuideBtn")?.addEventListener("click", openSkillGuide);
+document.getElementById("skillModalClose")?.addEventListener("click", closeSkillModal);
+document.getElementById("skillCancelBtn")?.addEventListener("click", closeSkillModal);
+document.getElementById("skillSaveBtn")?.addEventListener("click", saveSkillFromEditor);
+document.getElementById("skillModal")?.addEventListener("click", (e) => {
+  if (e.target.id === "skillModal") closeSkillModal();
+});
+
+// ============================================================
+// 目标循环（Loop）—— 工具区
+// ============================================================
+let _loopTimer = null;
+
+// 现成的循环模板：目标 + 验收标准。挑一个点一下就填进表单，再改成自己的。
+const LOOP_PRESETS = [
+  {
+    label: "📊 文件夹整理成报告",
+    needAction: true,
+    goal: "把指定文件夹里这段时间的零散记录/文档，整理成一份结构清晰的报告，存成一个 .md 文件。",
+    criteria: [
+      "报告 .md 文件已生成在指定位置",
+      "包含「概况 / 关键内容 / 结论或下一步」等清晰分段",
+      "每个要点都来自原始文件里的真实内容，没有编造",
+      "通读一遍语句通顺、没有明显错别字",
+    ],
+  },
+  {
+    label: "🔎 深度调研一个主题",
+    needAction: false,
+    goal: "围绕某个主题做一次深度网络调研，产出一份有条理、可直接读的调研简报。",
+    criteria: [
+      "至少查阅了 3 个不同来源（用 research / 搜索 / 读网页）",
+      "简报分「背景 / 现状与关键事实 / 不同观点或争议 / 我的判断」几部分",
+      "关键事实都标注了来源链接",
+      "结尾给出一段可执行的结论或建议",
+    ],
+  },
+  {
+    label: "⚖️ 几个产品/方案对比",
+    needAction: false,
+    goal: "调研并对比几个同类产品（或方案），帮我判断该选哪个，输出一张对比表 + 推荐。",
+    criteria: [
+      "覆盖了我列出的全部对比对象，没有遗漏",
+      "用 Markdown 表格列出：价格 / 核心功能 / 优点 / 缺点 / 适合谁",
+      "每项信息尽量来自官网或可靠来源",
+      "最后给出明确推荐，并说明在什么情况下选哪个",
+    ],
+  },
+  {
+    label: "🎬 视频转成可发布文案",
+    needAction: false,
+    goal: "把一个视频链接转成文字稿，再整理成一篇可直接发布的文案。",
+    criteria: [
+      "已取得视频完整文字稿（video_transcript）",
+      "文案分成「开头钩子 / 主体要点 / 结尾」结构",
+      "把口语整理成通顺书面语，但不改变原意、不添加视频里没有的事实",
+      "结尾附 3 条可用的标题备选",
+    ],
+  },
+  {
+    label: "🗓️ 制定一个学习/执行计划",
+    needAction: false,
+    goal: "针对我要达成的某个目标，制定一份可执行的分阶段计划。",
+    criteria: [
+      "计划拆成有先后顺序的阶段，每阶段有明确产出",
+      "每个阶段列出具体可做的任务（不是空泛口号）",
+      "标出每阶段大概要花的时间",
+      "结尾有一个「怎样算完成」的总验收清单",
+    ],
+  },
+];
+
+function renderLoopPresets() {
+  const box = document.getElementById("loopPresetBtns");
+  if (!box || box.dataset.done) return;
+  box.innerHTML = LOOP_PRESETS.map((p, i) =>
+    '<button class="loop-preset-btn" data-i="' + i + '" title="' +
+    (p.needAction ? "可能需要勾选「允许自动执行操作」" : "只读/联网即可") + '">' +
+    escapeHtml(p.label) + "</button>"
+  ).join("");
+  box.querySelectorAll(".loop-preset-btn").forEach((b) => {
+    b.addEventListener("click", () => {
+      const p = LOOP_PRESETS[+b.dataset.i];
+      document.getElementById("loopGoal").value = p.goal;
+      document.getElementById("loopCriteria").value = p.criteria.join("\n");
+      if (p.needAction) document.getElementById("loopAllowActions").checked = true;
+      document.getElementById("loopGoal").focus();
+    });
+  });
+  box.dataset.done = "1";
+}
+
+function loadLoop() {
+  renderLoopPresets();
+  // 进入页面时，如果后台正有循环在跑，恢复显示；否则显示表单
+  pollLoopOnce();
+}
+
+document.getElementById("loopStartBtn")?.addEventListener("click", async () => {
+  const goal = document.getElementById("loopGoal").value.trim();
+  const criteria = document.getElementById("loopCriteria").value
+    .split("\n").map((x) => x.trim()).filter(Boolean);
+  const max_rounds = parseInt(document.getElementById("loopMaxRounds").value, 10) || 5;
+  const allow_actions = document.getElementById("loopAllowActions").checked;
+  if (!goal) { alert("先写一个目标"); return; }
+  if (!criteria.length) { alert("至少写一条验收标准——Loop 的关键就是「怎样算干完」"); return; }
+  const s = settings();
+  try {
+    const r = await fetch(BACKEND + "/loop/start", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ goal, criteria, max_rounds, allow_actions,
+                             use_local: s.use_local, model: s.model }),
+    });
+    const d = await r.json();
+    if (!d.ok) { alert(d.message || "启动失败"); return; }
+    document.getElementById("loopRun").style.display = "";
+    document.getElementById("loopStartBtn").style.display = "none";
+    document.getElementById("loopStopBtn").style.display = "";
+    startLoopPolling();
+  } catch (e) { alert("启动出错：" + e.message); }
+});
+
+document.getElementById("loopStopBtn")?.addEventListener("click", async () => {
+  try { await fetch(BACKEND + "/loop/stop", { method: "POST" }); } catch (e) {}
+  document.getElementById("loopStage").textContent = "正在停止…（这一轮跑完就停）";
+});
+
+function startLoopPolling() {
+  if (_loopTimer) clearInterval(_loopTimer);
+  _loopTimer = setInterval(pollLoopOnce, 1600);
+}
+
+async function pollLoopOnce() {
+  try {
+    const r = await fetch(BACKEND + "/loop/status");
+    const st = await r.json();
+    renderLoop(st);
+    if (!st.running && _loopTimer) {
+      clearInterval(_loopTimer); _loopTimer = null;
+      document.getElementById("loopStartBtn").style.display = "";
+      document.getElementById("loopStopBtn").style.display = "none";
+    }
+    // 若有正在跑的循环但本地没在轮询（比如刚切回页面），补上轮询
+    if (st.running && !_loopTimer) {
+      document.getElementById("loopRun").style.display = "";
+      document.getElementById("loopStartBtn").style.display = "none";
+      document.getElementById("loopStopBtn").style.display = "";
+      startLoopPolling();
+    }
+  } catch (e) { /* 忽略一次轮询失败 */ }
+}
+
+function renderLoop(st) {
+  if (!st || (!st.goal && !(st.rounds || []).length)) return;
+  const stage = document.getElementById("loopStage");
+  if (stage) stage.textContent = st.stage || (st.running ? "运行中…" : "");
+
+  // 验收标准勾选状态
+  const cs = document.getElementById("loopCriteriaStatus");
+  if (cs) {
+    const crit = st.criteria || [];
+    cs.innerHTML =
+      '<div class="loop-section-title">验收标准</div>' +
+      crit.map((c) =>
+        '<div class="loop-crit' + (c.met ? " met" : "") + '">' +
+          '<span class="loop-crit-box">' + (c.met ? "✅" : "⬜") + "</span>" +
+          '<span class="loop-crit-text">' + escapeHtml(c.text) + "</span>" +
+        "</div>"
+      ).join("");
+  }
+
+  // 每轮日志
+  const rr = document.getElementById("loopRounds");
+  if (rr) {
+    const rounds = st.rounds || [];
+    let html = '<div class="loop-section-title">过程</div>';
+    if (!rounds.length) {
+      html += '<div class="loop-round-empty">' + (st.running ? "第一轮进行中…" : "（暂无）") + "</div>";
+    } else {
+      html += rounds.map((rd) => {
+        const tools = (rd.tools && rd.tools.length)
+          ? '<div class="loop-round-tools">用到：' + rd.tools.map(escapeHtml).join("、") + "</div>"
+          : "";
+        return (
+          '<div class="loop-round">' +
+            '<div class="loop-round-head"><b>第 ' + rd.n + " 轮</b>" +
+              '<span class="loop-round-ts">' + escapeHtml(rd.ts || "") + "</span></div>" +
+            '<div class="loop-round-summary">' + renderMarkdown(rd.summary || "") + "</div>" +
+            tools +
+          "</div>"
+        );
+      }).join("");
+    }
+    if (st.error) html += '<div class="loop-error">出错：' + escapeHtml(st.error) + "</div>";
+    rr.innerHTML = html;
+  }
+}
+
+// ============================================================
+// 运行台（Harness）—— 工具区
+// ============================================================
+function loadHarness() {
+  loadHarnessConfig();
+  loadHarnessRuns();
+}
+
+async function loadHarnessConfig() {
+  try {
+    const r = await fetch(BACKEND + "/harness/config");
+    const d = await r.json();
+    const c = d.config || {};
+    const ctx = document.getElementById("hCtxBudget");
+    const steps = document.getElementById("hMaxSteps");
+    if (ctx) { ctx.value = c.context_budget || 4000; document.getElementById("hCtxVal").textContent = (c.context_budget || 4000) + " 字"; }
+    if (steps) { steps.value = c.max_steps || 8; document.getElementById("hStepsVal").textContent = (c.max_steps || 8) + " 步"; }
+    if (document.getElementById("hSafety")) document.getElementById("hSafety").value = c.safety || "ask";
+    if (document.getElementById("hKeepLog")) document.getElementById("hKeepLog").checked = c.keep_log !== false;
+  } catch (e) { /* 忽略 */ }
+}
+
+document.getElementById("hCtxBudget")?.addEventListener("input", (e) => {
+  document.getElementById("hCtxVal").textContent = e.target.value + " 字";
+});
+document.getElementById("hMaxSteps")?.addEventListener("input", (e) => {
+  document.getElementById("hStepsVal").textContent = e.target.value + " 步";
+});
+
+document.getElementById("hSaveBtn")?.addEventListener("click", async () => {
+  const patch = {
+    context_budget: parseInt(document.getElementById("hCtxBudget").value, 10),
+    max_steps: parseInt(document.getElementById("hMaxSteps").value, 10),
+    safety: document.getElementById("hSafety").value,
+    keep_log: document.getElementById("hKeepLog").checked,
+  };
+  const st = document.getElementById("hSaveStatus");
+  try {
+    const r = await fetch(BACKEND + "/harness/config", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    const d = await r.json();
+    if (st) { st.textContent = d.ok ? "✓ 已保存" : "保存失败"; setTimeout(() => { st.textContent = ""; }, 2000); }
+  } catch (e) { if (st) st.textContent = "保存出错"; }
+});
+
+document.getElementById("hRefreshBtn")?.addEventListener("click", loadHarnessRuns);
+document.getElementById("hClearBtn")?.addEventListener("click", async () => {
+  if (!confirm("清空所有运行日志？")) return;
+  try { await fetch(BACKEND + "/harness/runs/clear", { method: "POST" }); loadHarnessRuns(); } catch (e) {}
+});
+
+async function loadHarnessRuns() {
+  try {
+    const r = await fetch(BACKEND + "/harness/runs");
+    const d = await r.json();
+    renderHarnessMetrics(d.metrics || {});
+    renderHarnessRuns(d.runs || []);
+  } catch (e) { /* 忽略 */ }
+}
+
+function renderHarnessMetrics(m) {
+  const box = document.getElementById("hMetrics");
+  if (!box) return;
+  if (!m || !m.count) {
+    box.innerHTML = '<div class="harness-empty">还没有运行记录。去「目标循环」跑一个任务，这里就会出数据。</div>';
+    return;
+  }
+  const card = (label, val, sub) =>
+    '<div class="harness-metric"><div class="harness-metric-val">' + val + "</div>" +
+    '<div class="harness-metric-label">' + label + "</div>" +
+    (sub ? '<div class="harness-metric-sub">' + sub + "</div>" : "") + "</div>";
+  let html = "";
+  html += card("总运行次数", m.count, "对话/循环合计");
+  if (m.loop_success_rate !== null && m.loop_success_rate !== undefined)
+    html += card("循环达标率", m.loop_success_rate + "%", "成功 " + m.loop_done + "/" + m.loop_count + " 次");
+  html += card("出错率", m.error_rate + "%", "鲁棒性");
+  html += card("平均步数", m.avg_steps, "效率");
+  html += card("估算 token", (m.tokens_est_total || 0).toLocaleString(), "成本（粗略）");
+  box.innerHTML = '<div class="harness-metrics-grid">' + html + "</div>" +
+    ((m.top_tools && m.top_tools.length)
+      ? '<div class="harness-toptools">最常用工具：' +
+        m.top_tools.map((t) => escapeHtml(t[0]) + " ×" + t[1]).join("、") + "</div>"
+      : "");
+}
+
+function renderHarnessRuns(runs) {
+  const box = document.getElementById("hRuns");
+  if (!box) return;
+  if (!runs.length) {
+    box.innerHTML = '<div class="harness-empty">暂无记录。目前记录「目标循环」的运行。</div>';
+    return;
+  }
+  box.innerHTML = runs.map((r) => {
+    const kindTag = r.kind === "loop" ? "🔁 循环" : "💬 对话";
+    const out = r.outcome === "done" ? '<span class="harness-out done">达标</span>'
+      : r.outcome === "stopped" ? '<span class="harness-out">已停</span>'
+      : r.outcome === "maxed" ? '<span class="harness-out warn">未达标</span>' : "";
+    const tools = (r.tools && r.tools.length)
+      ? '<div class="harness-run-tools">工具：' +
+        Object.entries(r.tool_count || {}).map(([k, v]) => escapeHtml(k) + "×" + v).join("、") + "</div>"
+      : '<div class="harness-run-tools">没调工具</div>';
+    const err = r.error ? '<div class="harness-run-err">⚠ ' + escapeHtml(r.error) + "</div>" : "";
+    const secs = r.seconds ? " · " + r.seconds + "s" : "";
+    return (
+      '<div class="harness-run">' +
+        '<div class="harness-run-head">' +
+          '<span class="harness-run-kind">' + kindTag + "</span>" + out +
+          '<span class="harness-run-ts">' + escapeHtml(r.ts || "") + secs + "</span>" +
+        "</div>" +
+        '<div class="harness-run-title">' + escapeHtml(r.title || "（无标题）") + "</div>" +
+        tools + err +
+      "</div>"
+    );
+  }).join("");
+}
+
+// ============================================================
+// 嗅探（AI 雷达）—— 工具区
+// ============================================================
+let _sniffTimer = null;
+
+let _sniffSources = [];
+let _sniffCategories = [];
+let _sniffCat = "all";   // 当前选中的类别筛选
+
+function loadSniff() {
+  loadSniffSources();
+  loadSniffFeed();
+}
+
+async function loadSniffSources() {
+  try {
+    const r = await fetch(BACKEND + "/sniff/sources");
+    const d = await r.json();
+    _sniffSources = d.sources || [];
+    _sniffCategories = d.categories || [];
+    renderSniffSources(_sniffSources);
+    renderSniffCatTiles(_sniffCategories);
+    // 类别下拉补全
+    const dl = document.getElementById("sniffCatList");
+    if (dl) dl.innerHTML = _sniffCategories.map((c) => '<option value="' + escapeHtml(c.name) + '">').join("");
+    const c = d.config || {};
+    if (document.getElementById("sniffAuto")) document.getElementById("sniffAuto").checked = !!c.auto;
+    if (document.getElementById("sniffEvery")) document.getElementById("sniffEvery").value = c.every || 6;
+  } catch (e) { /* 忽略 */ }
+}
+
+function _sniffAvatar(title, url) {
+  let ch = (title || url || "?").trim().replace(/^https?:\/\//, "").replace(/^www\./, "");
+  ch = (ch[0] || "?").toUpperCase();
+  let host = "";
+  try { host = new URL(url).hostname; } catch (e) { host = url || title || ""; }
+  let h = 0;
+  for (let i = 0; i < host.length; i++) h = (h * 31 + host.charCodeAt(i)) % 360;
+  return '<span class="sniff-src-avatar" style="--h:' + h + '">' + escapeHtml(ch) + "</span>";
+}
+
+function renderSniffSources(srcs) {
+  const box = document.getElementById("sniffSources");
+  if (!box) return;
+  const cnt = document.getElementById("sniffSrcCount");
+  if (cnt) cnt.textContent = srcs.length;
+  updateSniffStats();
+  if (!srcs.length) {
+    box.innerHTML = '<div class="sniff-empty">还没有嗅探源。在上面填名称、链接、类别，点「添加」。</div>';
+    return;
+  }
+  // 按类别分组（保持出现顺序）
+  const groups = [];
+  const idx = {};
+  srcs.forEach((s) => {
+    const cat = s.category || "AI动态";
+    if (!(cat in idx)) { idx[cat] = groups.length; groups.push({ cat, items: [] }); }
+    groups[idx[cat]].items.push(s);
+  });
+
+  box.innerHTML = groups.map((g) => {
+    const onCount = g.items.filter((s) => s.enabled).length;
+    const allOn = onCount === g.items.length;
+    const rows = g.items.map((s) => {
+      let host = "";
+      try { host = new URL(s.url).hostname.replace(/^www\./, ""); } catch (e) { host = s.url; }
+      return (
+        '<div class="sniff-source' + (s.enabled ? "" : " off") + '" data-id="' + escapeHtml(s.id) + '">' +
+          _sniffAvatar(s.title, s.url) +
+          '<a class="sniff-src-main" href="' + escapeHtml(s.url) + '" target="_blank" title="' + escapeHtml(s.url) + '">' +
+            '<span class="sniff-src-title">' + escapeHtml(s.title || host) + "</span>" +
+            '<span class="sniff-src-url">' + escapeHtml(host) + "</span>" +
+          "</a>" +
+          '<label class="sniff-switch sniff-switch-sm" title="开启/暂停这个源">' +
+            '<input type="checkbox" class="sniff-src-cb"' + (s.enabled ? " checked" : "") + " />" +
+            '<span class="sniff-switch-track"></span></label>' +
+          '<button class="sniff-src-del" title="删除">✕</button>' +
+        "</div>"
+      );
+    }).join("");
+    return (
+      '<div class="sniff-cat-group">' +
+        '<div class="sniff-cat-head">' +
+          '<span class="sniff-cat-name">📁 ' + escapeHtml(g.cat) + "</span>" +
+          '<span class="sniff-cat-cnt">' + onCount + "/" + g.items.length + "</span>" +
+          '<label class="sniff-switch sniff-switch-sm sniff-cat-toggle" title="开启/暂停整个类别" data-cat="' + escapeHtml(g.cat) + '">' +
+            '<input type="checkbox" class="sniff-cat-cb"' + (allOn ? " checked" : "") + " />" +
+            '<span class="sniff-switch-track"></span></label>' +
+        "</div>" + rows +
+      "</div>"
+    );
+  }).join("");
+
+  box.querySelectorAll(".sniff-source").forEach((el) => {
+    const id = el.dataset.id;
+    el.querySelector(".sniff-src-cb")?.addEventListener("change", async (e) => {
+      await fetch(BACKEND + "/sniff/source/toggle", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, enabled: e.target.checked }),
+      });
+      loadSniffSources();
+    });
+    el.querySelector(".sniff-src-del")?.addEventListener("click", async () => {
+      await fetch(BACKEND + "/sniff/source/delete", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      loadSniffSources();
+    });
+  });
+  box.querySelectorAll(".sniff-cat-cb").forEach((cb) => {
+    cb.addEventListener("change", async (e) => {
+      const cat = e.target.closest(".sniff-cat-toggle").dataset.cat;
+      await fetch(BACKEND + "/sniff/category/toggle", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: cat, enabled: e.target.checked }),
+      });
+      loadSniffSources();
+    });
+  });
+}
+
+// 右侧 dashboard：类别概览卡片（点一下按类别筛选动向）
+function renderSniffCatTiles(categories) {
+  const box = document.getElementById("sniffCatTiles");
+  if (!box) return;
+  const counts = {};
+  _sniffFeedCache.forEach((it) => {
+    const c = it.category || "AI动态";
+    counts[c] = (counts[c] || 0) + 1;
+  });
+  let tiles = '<button class="sniff-tile' + (_sniffCat === "all" ? " active" : "") + '" data-cat="all">' +
+    '<span class="sniff-tile-name">全部类别</span>' +
+    '<span class="sniff-tile-stat">' + (_sniffSources.length) + " 源 · " + _sniffFeedCache.length + " 条</span></button>";
+  tiles += categories.map((c) =>
+    '<button class="sniff-tile' + (_sniffCat === c.name ? " active" : "") + '" data-cat="' + escapeHtml(c.name) + '">' +
+      '<span class="sniff-tile-name">📁 ' + escapeHtml(c.name) + "</span>" +
+      '<span class="sniff-tile-stat">' + c.total + " 源 · " + (counts[c.name] || 0) + " 条</span>" +
+    "</button>"
+  ).join("");
+  box.innerHTML = tiles;
+  box.querySelectorAll(".sniff-tile").forEach((t) => {
+    t.addEventListener("click", () => {
+      _sniffCat = t.dataset.cat;
+      box.querySelectorAll(".sniff-tile").forEach((x) => x.classList.remove("active"));
+      t.classList.add("active");
+      const lbl = document.getElementById("sniffCatActive");
+      if (lbl) lbl.textContent = _sniffCat === "all" ? "" : "· " + _sniffCat;
+      paintSniffFeed();
+    });
+  });
+}
+
+document.getElementById("sniffAddBtn")?.addEventListener("click", async () => {
+  const title = document.getElementById("sniffAddTitle").value.trim();
+  const url = document.getElementById("sniffAddUrl").value.trim();
+  const category = (document.getElementById("sniffAddCat").value.trim() || "AI动态");
+  if (!url) { alert("填一个链接"); return; }
+  try {
+    const r = await fetch(BACKEND + "/sniff/source/add", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, url, category }),
+    });
+    const d = await r.json();
+    if (!d.ok) { alert(d.message || "添加失败"); return; }
+    document.getElementById("sniffAddTitle").value = "";
+    document.getElementById("sniffAddUrl").value = "";
+    loadSniffSources();
+  } catch (e) { alert("添加出错：" + e.message); }
+});
+
+document.getElementById("sniffAutoSave")?.addEventListener("click", async () => {
+  const auto = document.getElementById("sniffAuto").checked;
+  const every = parseInt(document.getElementById("sniffEvery").value, 10) || 6;
+  try {
+    await fetch(BACKEND + "/sniff/config", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ auto, every }),
+    });
+    const st = document.getElementById("sniffAutoSave");
+    const old = st.textContent; st.textContent = "✓"; setTimeout(() => { st.textContent = old; }, 1500);
+  } catch (e) {}
+});
+
+document.getElementById("sniffRefreshBtn")?.addEventListener("click", () => { loadSniffSources(); loadSniffFeed(); });
+document.getElementById("sniffClearBtn")?.addEventListener("click", async () => {
+  if (!confirm("清空时间线？（嗅探源和快照保留）")) return;
+  try { await fetch(BACKEND + "/sniff/feed/clear", { method: "POST" }); loadSniffFeed(); } catch (e) {}
+});
+
+document.getElementById("sniffRunBtn")?.addEventListener("click", async () => {
+  const s = settings();
+  try {
+    const r = await fetch(BACKEND + "/sniff/run", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ use_local: s.use_local, model: s.model }),
+    });
+    const d = await r.json();
+    if (!d.ok) { alert(d.message || "启动失败"); return; }
+    const panel = document.getElementById("sniffProgress");
+    if (panel) panel.hidden = false;
+    document.getElementById("sniffProgStage").textContent = "准备开始…";
+    document.getElementById("sniffProgList").innerHTML = "";
+    startSniffPolling();
+  } catch (e) { alert("出错：" + e.message); }
+});
+
+function startSniffPolling() {
+  if (_sniffTimer) clearInterval(_sniffTimer);
+  _sniffTimer = setInterval(loadSniffFeed, 1500);
+}
+
+// 逐源状态 → 图标 + 样式
+const _SNIFF_PROG = {
+  queued:     { ic: "○", cls: "wait" },
+  fetching:   { ic: "◌", cls: "run" },
+  failed:     { ic: "✕", cls: "fail" },
+  empty:      { ic: "⚠", cls: "warn" },
+  first:      { ic: "◍", cls: "info" },
+  unchanged:  { ic: "=", cls: "dim" },
+  nodiff:     { ic: "=", cls: "dim" },
+  extracting: { ic: "◌", cls: "run" },
+  found:      { ic: "★", cls: "hit" },
+  nonew:      { ic: "–", cls: "dim" },
+};
+
+function renderSniffProgress(status) {
+  const panel = document.getElementById("sniffProgress");
+  if (!panel) return;
+  const prog = status.progress || [];
+  const stageEl = document.getElementById("sniffProgStage");
+  const cntEl = document.getElementById("sniffProgCount");
+  if (stageEl) stageEl.textContent = status.stage || "正在嗅探…";
+  const done = prog.filter((p) => !["queued", "fetching", "extracting"].includes(p.status)).length;
+  if (cntEl) cntEl.textContent = prog.length ? done + "/" + prog.length : "";
+  const list = document.getElementById("sniffProgList");
+  if (list) {
+    list.innerHTML = prog.map((p) => {
+      const m = _SNIFF_PROG[p.status] || { ic: "·", cls: "dim" };
+      return (
+        '<div class="sniff-prog-row ' + m.cls + '">' +
+          '<span class="sniff-prog-ic">' + m.ic + "</span>" +
+          '<span class="sniff-prog-name">' + escapeHtml(p.title || p.host || "") + "</span>" +
+          '<span class="sniff-prog-detail">' + escapeHtml(p.detail || "") + "</span>" +
+        "</div>"
+      );
+    }).join("");
+  }
+}
+
+async function loadSniffFeed() {
+  try {
+    const r = await fetch(BACKEND + "/sniff/feed");
+    const d = await r.json();
+    renderSniffFeed(d.feed || []);
+    const stt = d.status || {};
+    const panel = document.getElementById("sniffProgress");
+    if (stt.running) {
+      if (panel) panel.hidden = false;
+      renderSniffProgress(stt);
+      if (!_sniffTimer) startSniffPolling();
+    } else {
+      if (_sniffTimer) { clearInterval(_sniffTimer); _sniffTimer = null; }
+      if ((stt.progress || []).length) {
+        // 跑完了：把最终状态再渲一次，几秒后收起，并刷新源统计
+        renderSniffProgress(stt);
+        loadSniffSources();
+        setTimeout(() => { if (panel) panel.hidden = true; }, 8000);
+      } else if (panel) {
+        panel.hidden = true;
+      }
+    }
+  } catch (e) { /* 忽略一次失败 */ }
+}
+
+let _sniffFeedCache = [];
+let _sniffFilter = "all";
+
+function updateSniffStats() {
+  const box = document.getElementById("sniffStats");
+  if (!box) return;
+  const n = _sniffFeedCache.length;
+  const cntEl = document.getElementById("sniffSrcCount");
+  const srcN = cntEl ? (cntEl.textContent || "·") : "·";
+  const last = n ? (_sniffFeedCache[0].ts || "") : "";
+  box.innerHTML =
+    '<div class="sniff-stat"><span class="sniff-stat-num">' + srcN + '</span><span class="sniff-stat-label">个源</span></div>' +
+    '<div class="sniff-stat"><span class="sniff-stat-num">' + n + '</span><span class="sniff-stat-label">条动向</span></div>' +
+    (last ? '<div class="sniff-stat"><span class="sniff-stat-num sniff-stat-time">' + escapeHtml(last) + '</span><span class="sniff-stat-label">最近一条</span></div>' : "");
+}
+
+function renderSniffFeed(feed) {
+  _sniffFeedCache = feed || [];
+  updateSniffStats();
+  renderSniffCatTiles(_sniffCategories);
+  paintSniffFeed();
+}
+
+function paintSniffFeed() {
+  const box = document.getElementById("sniffFeed");
+  if (!box) return;
+  const feed = _sniffFeedCache.filter((it) =>
+    (_sniffFilter === "all" || it.kind === _sniffFilter) &&
+    (_sniffCat === "all" || (it.category || "AI动态") === _sniffCat));
+
+  if (!_sniffFeedCache.length) {
+    box.innerHTML =
+      '<div class="sniff-empty-rich">' +
+        '<div class="sniff-empty-icon">📡</div>' +
+        '<div class="sniff-empty-title">还没有动向</div>' +
+        '<div class="sniff-empty-desc">点右上角「立即嗅探」扫一遍。<b>第一次只记录快照</b>，从第二次起才会报新内容。</div>' +
+        '<div class="sniff-legend">' +
+          '<div class="sniff-legend-item"><span class="sniff-legend-ic">🆕</span><div><b>发布</b><span>新模型、新版本上线</span></div></div>' +
+          '<div class="sniff-legend-item"><span class="sniff-legend-ic">🧩</span><div><b>功能</b><span>新能力、新特性</span></div></div>' +
+          '<div class="sniff-legend-item"><span class="sniff-legend-ic">💡</span><div><b>概念</b><span>新术语、新玩法</span></div></div>' +
+        "</div>" +
+      "</div>";
+    return;
+  }
+  if (!feed.length) {
+    box.innerHTML = '<div class="sniff-empty">这个分类下还没有动向。</div>';
+    return;
+  }
+  const kindIcon = { "发布": "🆕", "功能": "🧩", "概念": "💡" };
+  const impCls = { "高": "high", "中": "mid", "低": "low" };
+  box.innerHTML = feed.map((it) => {
+    let host = "";
+    try { host = new URL(it.link).hostname.replace(/^www\./, ""); } catch (e) { host = ""; }
+    return (
+      '<div class="sniff-item">' +
+        '<div class="sniff-item-kind k-' + (impCls[it.importance] || "mid") + '">' + (kindIcon[it.kind] || "•") + "</div>" +
+        '<div class="sniff-item-body">' +
+          '<div class="sniff-item-title">' + escapeHtml(it.title || "") + "</div>" +
+          (it.summary ? '<div class="sniff-item-summary">' + escapeHtml(it.summary) + "</div>" : "") +
+          '<div class="sniff-item-foot">' +
+            '<span class="sniff-item-tag">' + escapeHtml(it.kind || "") + "</span>" +
+            (it.importance ? '<span class="sniff-item-imp ' + (impCls[it.importance] || "mid") + '">' + escapeHtml(it.importance) + "度</span>" : "") +
+            '<span class="sniff-item-src">' + escapeHtml(it.source_title || host) + "</span>" +
+            '<span class="sniff-item-ts">' + escapeHtml(it.ts || "") + "</span>" +
+            (it.link ? '<a class="sniff-item-link" href="' + escapeHtml(it.link) + '" target="_blank">查看原文 →</a>' : "") +
+          "</div>" +
+        "</div>" +
+      "</div>"
+    );
+  }).join("");
+}
+
+// 分类筛选
+document.getElementById("sniffFilters")?.addEventListener("click", (e) => {
+  const btn = e.target.closest(".sniff-chip");
+  if (!btn) return;
+  document.querySelectorAll("#sniffFilters .sniff-chip").forEach((c) => c.classList.remove("active"));
+  btn.classList.add("active");
+  _sniffFilter = btn.dataset.k;
+  paintSniffFeed();
+});
+
+// ============================================================
+// 设置页 · 分页签 + 代理设置
+// ============================================================
+document.getElementById("settingsTabs")?.addEventListener("click", (e) => {
+  const btn = e.target.closest(".settings-tab-btn");
+  if (!btn) return;
+  const tab = btn.dataset.tab;
+  document.querySelectorAll("#settingsTabs .settings-tab-btn").forEach((b) => b.classList.toggle("active", b === btn));
+  document.querySelectorAll("#view-settings .settings-tab").forEach((p) => p.classList.toggle("active", p.id === tab));
+});
+
+async function loadProxySetting() {
+  try {
+    const r = await fetch(BACKEND + "/memory?name=proxy.md");
+    const d = await r.json();
+    const m = (d.content || "").match(/^\s*proxy:\s*(.*)$/im);
+    const el = document.getElementById("proxyInput");
+    if (el) el.value = m ? m[1].trim() : "";
+  } catch (e) { /* 忽略 */ }
+}
+
+async function _saveProxy() {
+  const val = document.getElementById("proxyInput").value.trim();
+  let txt = "";
+  try { const r = await fetch(BACKEND + "/memory?name=proxy.md"); txt = (await r.json()).content || ""; } catch (e) {}
+  if (/^\s*proxy:/im.test(txt)) {
+    txt = txt.replace(/^\s*proxy:.*$/im, "proxy: " + val);
+  } else {
+    if (!txt) txt = "# 联网与代理\n> 软件访问境外网站用的代理，填科学上网工具的本地端口。不用就留空。\n";
+    if (!txt.endsWith("\n")) txt += "\n";
+    txt += "proxy: " + val + "\n";
+  }
+  await fetch(BACKEND + "/memory", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "proxy.md", content: txt }),
+  });
+}
+
+document.getElementById("proxySaveBtn")?.addEventListener("click", async () => {
+  await _saveProxy();
+  const h = document.getElementById("proxyHint");
+  if (h) { h.textContent = "✓ 已保存"; setTimeout(() => { if (h) h.textContent = ""; }, 2500); }
+});
+
+document.getElementById("proxyTestBtn")?.addEventListener("click", async () => {
+  const h = document.getElementById("proxyHint");
+  await _saveProxy();
+  if (h) h.textContent = "正在测试（用代理打开 huggingface.co）…";
+  try {
+    const r = await fetch(BACKEND + "/proxy/test", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+    });
+    const d = await r.json();
+    if (h) h.textContent = d.message || (d.ok ? "代理可用" : "测试失败");
+  } catch (e) { if (h) h.textContent = "测试出错：" + e.message; }
+});

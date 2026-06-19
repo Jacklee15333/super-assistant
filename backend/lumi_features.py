@@ -116,6 +116,38 @@ def _recent_conversation_corpus(limit_chars=6000, max_files=12):
     return corpus[:limit_chars]
 
 
+def _growth_library_corpus(limit_chars=2500, max_files=8):
+    """从成长库（video_notes 视频笔记 + briefings 情报简报）取一些内容，
+    作为演化画像的补充语料——你看过/做过的内容也反映你关注什么。尽力而为。"""
+    roots = [core.MEMORY_DIR / "video_notes", core.MEMORY_DIR / "briefings"]
+    files = []
+    for r in roots:
+        if not r.exists():
+            continue
+        try:
+            files += list(r.glob("*.md"))
+        except Exception:
+            continue
+    if not files:
+        return ""
+    try:
+        files = sorted(files, key=lambda p: p.stat().st_mtime, reverse=True)[:max_files]
+    except Exception:
+        files = files[:max_files]
+    parts, total = [], 0
+    for p in files:
+        try:
+            # 只取每篇前面一部分（标题+开头），够反映"关注什么"即可，不灌满
+            txt = p.read_text(encoding="utf-8", errors="replace")[:600]
+        except Exception:
+            continue
+        total += len(txt)
+        parts.append(txt)
+        if total >= limit_chars:
+            break
+    return ("\n\n---\n\n".join(parts))[:limit_chars]
+
+
 # ════════════════════════════════════════════════════════════════════
 #  ① 人格演化
 # ════════════════════════════════════════════════════════════════════
@@ -130,8 +162,10 @@ def evolve_personality(use_local=True, model="qwen2.5"):
     corpus = _recent_conversation_corpus()
     # 也把已有的长期记忆带上，让画像更稳（不只看最近几段）
     long_term = _read("MEMORY.md")
-    if not corpus and not long_term.strip():
-        return {"ok": False, "message": "还没有足够的对话记忆，多聊几次再来演化。"}
+    # 成长库（视频笔记/情报简报）也是你关注什么的线索
+    growth = _growth_library_corpus()
+    if not corpus and not long_term.strip() and not growth.strip():
+        return {"ok": False, "message": "还没有足够的对话/成长库内容，多聊几次或多积累点内容再来演化。"}
 
     prev = _read(OWNER_PROFILE).strip()
     prompt = (
@@ -151,6 +185,9 @@ def evolve_personality(use_local=True, model="qwen2.5"):
                    + prev[:2000] + "\n\n")
     if long_term.strip():
         prompt += "=== 长期记忆 ===\n" + long_term[-2500:] + "\n\n"
+    if growth.strip():
+        prompt += ("=== 你成长库里的内容（看过的视频笔记/情报，反映你关注什么）===\n"
+                   + growth + "\n\n")
     prompt += "=== 最近对话 ===\n" + (corpus or "（暂无）") + "\n\n直接输出画像："
 
     profile = _ask(use_local, model, prompt, max_chars=4000)

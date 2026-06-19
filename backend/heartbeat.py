@@ -101,6 +101,17 @@ def main():
                         print(f"[{stamp}] 竞品有动静（已推送）：{len(alerts)} 条")
                 except Exception as e:
                     print(f"竞品检查出错（忽略）：{e}")
+            # 定时 AI 嗅探（界面里开了「自动嗅探」才跑）
+            try:
+                import sniffer
+                if sniffer.should_run_now(beat_count):
+                    new_items, _ = sniffer.run_sniff(
+                        use_local=not args.cloud, model=args.model)
+                    if new_items:
+                        stamp = datetime.datetime.now().strftime("%H:%M")
+                        print(f"[{stamp}] AI 嗅探到 {len(new_items)} 条新内容（已推送）")
+            except Exception as e:
+                print(f"AI 嗅探出错（忽略）：{e}")
             # 每日英语任务
             if args.daily_student:
                 now = datetime.datetime.now()

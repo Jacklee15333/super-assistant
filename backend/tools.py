@@ -165,6 +165,18 @@ def tool_list_reminders(_args=None):
     return read_memory_file("reminders.md") or "（还没有提醒）"
 
 
+# ---------- 技能：加载某个技能的完整方法（渐进式披露）----------
+def tool_load_skill(args):
+    """按名字/slug 把某个技能的完整正文读进来。系统提示里已列出有哪些技能，
+    模型判断当前任务匹配某技能时调它，拿到完整步骤后照着做。"""
+    name = (args or {}).get("name") or (args or {}).get("slug") or ""
+    try:
+        import skills_store
+        return skills_store.load_skill_body(name)
+    except Exception as e:
+        return f"加载技能失败：{e}"
+
+
 # ---------- shell（危险 + 受电脑操作权限闸门）----------
 def tool_shell(args):
     if not system_tools.is_enabled():
@@ -204,6 +216,7 @@ TOOL_REGISTRY = {
     "append_note": (tool_append_note, "safe"),
     "remember": (tool_remember, "safe"),
     "add_reminder": (tool_add_reminder, "safe"),
+    "load_skill": (tool_load_skill, "safe"),
     # 危险（需用户确认）
     "write_memory": (tool_write_memory, "danger"),
     "write_file": (tool_write_file, "danger"),
@@ -319,6 +332,11 @@ TOOLS_SCHEMA = [
     {"type": "function", "function": {
         "name": "list_reminders", "description": "查看所有定时提醒",
         "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {
+        "name": "load_skill", "description": "加载一个「技能」的完整方法步骤。系统提示的「技能库」里列出了你掌握哪些技能及各自适用场景。当用户的任务匹配某个技能时，先调用本工具把该技能的完整步骤读进来，再照着做（不要凭记忆瞎做）。一次只加载当前真正用得上的那一个。",
+        "parameters": {"type": "object", "properties": {
+            "name": {"type": "string", "description": "要加载的技能名或 slug（取自系统提示「技能库」清单里的名字）"}},
+            "required": ["name"]}}},
     # 危险工具（模型可调用，但执行前会被挂起等用户确认）
     {"type": "function", "function": {
         "name": "write_memory", "description": "写入/覆盖 memory 目录下的文件（危险，需确认）",

@@ -1,13 +1,13 @@
 {
   "current": {
-    "url": "https://v.douyin.com/vtv_meTyuJU/",
+    "url": "https://v.douyin.com/lF80bvve1Vw/",
     "level": "accurate",
-    "use_local": false,
-    "model": "claude::1",
+    "use_local": true,
+    "model": "qwen3:14b",
     "screenshot": false,
     "link": false,
     "mode": "auto",
-    "id": "vj1781758918.0504563-0"
+    "id": "vj1781845385.0793917-0"
   },
   "pending": []
 }

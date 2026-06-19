@@ -1,0 +1,6 @@
+{
+  "context_budget": 7000,
+  "max_steps": 8,
+  "safety": "ask",
+  "keep_log": true
+}

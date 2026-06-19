@@ -1,0 +1,50 @@
+[
+  {
+    "id": "4b54fb28",
+    "title": "OpenAI 新闻",
+    "url": "https://openai.com/news/",
+    "enabled": true
+  },
+  {
+    "id": "073aab7d",
+    "title": "Anthropic 新闻",
+    "url": "https://www.anthropic.com/news",
+    "enabled": true
+  },
+  {
+    "id": "073aab7d",
+    "title": "Google DeepMind 博客",
+    "url": "https://deepmind.google/discover/blog/",
+    "enabled": true
+  },
+  {
+    "id": "073aab7d",
+    "title": "Hugging Face 博客",
+    "url": "https://huggingface.co/blog",
+    "enabled": true
+  },
+  {
+    "id": "073aab7d",
+    "title": "Qwen 博客",
+    "url": "https://qwenlm.github.io/blog/",
+    "enabled": true
+  },
+  {
+    "id": "073aab7d",
+    "title": "Meta AI 博客",
+    "url": "https://ai.meta.com/blog/",
+    "enabled": true
+  },
+  {
+    "id": "073aab7d",
+    "title": "Hacker News",
+    "url": "https://news.ycombinator.com/",
+    "enabled": true
+  },
+  {
+    "id": "073aab7d",
+    "title": "arXiv cs.AI 最新",
+    "url": "https://arxiv.org/list/cs.AI/recent",
+    "enabled": true
+  }
+]

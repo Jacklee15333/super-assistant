@@ -200,8 +200,14 @@ def build_system_prompt() -> str:
         f"=== 关于用户 (USER.md) ===\n{user}\n\n"
     )
     if long_term.strip():
-        if len(long_term) > 4000:
-            long_term = "（早期记忆已省略）\n...\n" + long_term[-4000:]
+        # 上下文预算（Harness 设置）：注入多少长期记忆。塞太多会「上下文腐烂」，让模型忘了原始目标。
+        try:
+            import harness
+            _budget = harness.context_budget()
+        except Exception:
+            _budget = 4000
+        if len(long_term) > _budget:
+            long_term = "（早期记忆已省略）\n...\n" + long_term[-_budget:]
         prompt += f"=== 你和用户过往的长期记忆 (MEMORY.md) ===\n{long_term}\n\n"
     # 「懂你」四件套：人格演化画像 / 关系网络 / 环境画像（有才注入，失败安静跳过）
     try:
@@ -209,6 +215,14 @@ def build_system_prompt() -> str:
         ctx = lumi_features.build_context_block()
         if ctx and ctx.strip():
             prompt += ctx + "\n\n"
+    except Exception:
+        pass
+    # 技能库：把已启用技能的「名字+用途」注入提示，让模型知道有哪些技能、何时该加载（失败安静跳过）
+    try:
+        import skills_store
+        sk = skills_store.build_skills_index()
+        if sk and sk.strip():
+            prompt += sk + "\n\n"
     except Exception:
         pass
     prompt += (

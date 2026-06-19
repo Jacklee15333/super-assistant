@@ -12,9 +12,11 @@
     "model": "web"
   },
   "local_action": {
-    "follow_default": true
+    "use_local": true,
+    "model": "qwen3:14b"
   },
   "quick_chat": {
-    "follow_default": true
+    "use_local": true,
+    "model": "qwen3:14b"
   }
 }

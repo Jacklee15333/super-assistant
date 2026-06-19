@@ -737,6 +737,61 @@ class Handler(BaseHTTPRequestHandler):
             name = qs.get("name", [""])[0]
             return self._send({"content": core.read_memory_file(name)})
 
+        if path == "/skills/list":
+            try:
+                import skills_store
+                return self._send({"skills": skills_store.list_skills()})
+            except Exception as e:
+                return self._send({"skills": [], "error": str(e)}, 200)
+
+        if path == "/skills/get":
+            slug = qs.get("slug", [""])[0]
+            try:
+                import skills_store
+                s = skills_store.get_skill(slug)
+                if not s:
+                    return self._send({"error": "not found"}, 404)
+                return self._send({"skill": s})
+            except Exception as e:
+                return self._send({"error": str(e)}, 200)
+
+        if path == "/loop/status":
+            try:
+                import loop_engine
+                return self._send(loop_engine.get_status())
+            except Exception as e:
+                return self._send({"running": False, "error": str(e)}, 200)
+
+        if path == "/harness/config":
+            try:
+                import harness
+                return self._send({"config": harness.get_config()})
+            except Exception as e:
+                return self._send({"error": str(e)}, 200)
+
+        if path == "/harness/runs":
+            try:
+                import harness
+                return self._send({"runs": harness.list_runs(), "metrics": harness.metrics_summary()})
+            except Exception as e:
+                return self._send({"runs": [], "metrics": {"count": 0}, "error": str(e)}, 200)
+
+        if path == "/sniff/sources":
+            try:
+                import sniffer
+                return self._send({"sources": sniffer.list_sources(),
+                                   "categories": sniffer.list_categories(),
+                                   "config": sniffer.get_config()})
+            except Exception as e:
+                return self._send({"sources": [], "categories": [], "error": str(e)}, 200)
+
+        if path == "/sniff/feed":
+            try:
+                import sniffer
+                return self._send({"feed": sniffer.get_feed(), "status": sniffer.get_run_state()})
+            except Exception as e:
+                return self._send({"feed": [], "error": str(e)}, 200)
+
         if path == "/wecom/callback":
             # 企业微信 URL 验证：返回解密后的 echostr（纯文本）
             try:
@@ -867,6 +922,152 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send({"ok": False, "items": [
                     {"name": "环境检查", "ok": False, "detail": str(e)}]}, 200)
+        if path == "/skills/save":
+            try:
+                import skills_store
+                slug = skills_store.save_skill(
+                    body.get("slug", ""), body.get("content", ""),
+                    name=body.get("name", ""), description=body.get("description", ""))
+                return self._send({"ok": True, "slug": slug})
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/skills/delete":
+            try:
+                import skills_store
+                ok = skills_store.delete_skill(body.get("slug", ""))
+                return self._send({"ok": ok})
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/skills/toggle":
+            try:
+                import skills_store
+                skills_store.set_enabled(body.get("slug", ""), bool(body.get("enabled", True)))
+                return self._send({"ok": True})
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/skills/from_conversation":
+            return self._handle_skill_from_conversation(body)
+
+        if path == "/loop/start":
+            try:
+                import loop_engine
+                return self._send(loop_engine.start_loop(
+                    body.get("use_local", True), body.get("model", "qwen2.5"),
+                    body.get("goal", ""), body.get("criteria", []),
+                    body.get("max_rounds", 5), body.get("allow_actions", False)))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/loop/stop":
+            try:
+                import loop_engine
+                return self._send(loop_engine.stop_loop())
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/harness/config":
+            try:
+                import harness
+                return self._send({"ok": True, "config": harness.save_config(body)})
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/harness/runs/clear":
+            try:
+                import harness
+                harness.clear_runs()
+                return self._send({"ok": True})
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/sniff/source/add":
+            try:
+                import sniffer
+                return self._send(sniffer.add_source(
+                    body.get("title", ""), body.get("url", ""),
+                    category=body.get("category", "AI动态")))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/sniff/source/category":
+            try:
+                import sniffer
+                return self._send(sniffer.set_category(body.get("id", ""), body.get("category", "")))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/sniff/category/toggle":
+            try:
+                import sniffer
+                return self._send(sniffer.toggle_category(
+                    body.get("category", ""), body.get("enabled", True)))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/sniff/source/delete":
+            try:
+                import sniffer
+                return self._send(sniffer.delete_source(body.get("id", "")))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/sniff/source/toggle":
+            try:
+                import sniffer
+                return self._send(sniffer.toggle_source(body.get("id", ""), body.get("enabled", True)))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/sniff/run":
+            try:
+                import sniffer
+                return self._send(sniffer.start_async(
+                    body.get("use_local", True), body.get("model", "qwen2.5")))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/sniff/config":
+            try:
+                import sniffer
+                return self._send({"ok": True, "config": sniffer.save_config(body)})
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/sniff/feed/clear":
+            try:
+                import sniffer
+                sniffer.clear_feed()
+                return self._send({"ok": True})
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/proxy/test":
+            try:
+                import web_tools as W
+                p = W._read_proxy()
+                if not p:
+                    return self._send({"ok": False, "message": "还没填代理地址，先填上再测。"})
+                try:
+                    page = W._fetch("https://huggingface.co/", timeout=15, use_proxy=True)
+                    n = len((page or "").strip())
+                    if n > 0:
+                        return self._send({"ok": True,
+                                           "message": f"代理可用 ✓ 经 {p} 读到 {n} 字（境外站点能访问了）"})
+                    return self._send({"ok": False, "message": "连上了但没读到内容，换个端口或工具试试。"})
+                except Exception as fe:
+                    msg = str(fe)
+                    try:
+                        import sniffer
+                        msg = sniffer._humanize_err(fe)
+                    except Exception:
+                        pass
+                    return self._send({"ok": False, "message": f"测试失败：{msg}"})
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
         if path == "/memory":
             name = body.get("name", "")
             content = body.get("content", "")
@@ -1515,6 +1716,25 @@ class Handler(BaseHTTPRequestHandler):
             self._send({"reply": reply})
         except Exception as e:
             self._send({"reply": f"心跳出错：{e}", "error": str(e)}, 200)
+
+    def _handle_skill_from_conversation(self, body):
+        """读这段对话，提炼出一个可复用的技能草稿（不保存，返回给界面让用户确认编辑）。"""
+        use_local = body.get("use_local", True)
+        model = body.get("model", "qwen2.5")
+        messages = body.get("messages", [])
+        try:
+            import skills_store
+            # 提炼属于本机动作：优先用本地模型，快、私密、稳；
+            # 当前若用的是网页/云端模型，这一步也退回本地，避免缺凭据。
+            ex_model = model if use_local else "qwen2.5"
+            client = core.make_client(True)
+            draft = skills_store.extract_skill_from_conversation(client, ex_model, messages)
+            if not draft:
+                return self._send({"ok": True, "skill": None,
+                                   "message": "这段对话没提炼出可复用的技能（可能只是闲聊或一次性问答）。"})
+            return self._send({"ok": True, "skill": draft})
+        except Exception as e:
+            return self._send({"ok": False, "message": str(e)}, 200)
 
     def _handle_remember(self, body):
         """存档当前对话并更新长期记忆。"""

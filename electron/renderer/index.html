@@ -33,6 +33,11 @@
           <button class="nav-subitem" data-lumi="env">🖥️ 环境画像</button>
         </div>
         <button class="nav-item" data-view="memory">🧠 记忆</button>
+        <div class="nav-group-label">工具区 · 能力与扩展</div>
+        <button class="nav-item" data-view="skills">🧩 技能</button>
+        <button class="nav-item" data-view="loop">🔁 目标循环</button>
+        <button class="nav-item" data-view="harness">🛠️ 运行台</button>
+        <button class="nav-item" data-view="sniff">📡 嗅探</button>
         <div class="nav-group-label">系统</div>
         <button class="nav-item" data-view="settings">⚙️ 设置</button>
       </nav>
@@ -49,7 +54,7 @@
         <button class="ghost-btn" id="briefingBtn">📊 生成情报简报</button>
         <button class="ghost-btn" id="watchBtn">🔍 检查竞品变化</button>
         <button class="ghost-btn" id="heartbeatBtn">💓 触发一次心跳</button>
-        <button class="ghost-btn" id="clearBtn">清空当前对话</button>
+        <button class="ghost-btn" id="endConvoBtn">🔚 结束对话</button>
       </div>
     </aside>
 
@@ -73,7 +78,7 @@
               placeholder="和超能小助说点什么…（Enter 发送，Shift+Enter 换行）"></textarea>
             <div class="composer-bar">
               <div class="composer-bar-left">
-                <div class="plus-menu" id="plusMenu">
+                <div class="plus-menu" id="plusMenu" style="display:none">
                   <button type="button" class="composer-plus" id="plusBtn" title="更多">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                   </button>
@@ -275,10 +280,290 @@
         </div>
       </section>
 
+      <!-- 技能视图（工具区）-->
+      <section class="view view-skills" id="view-skills">
+        <header class="topbar">
+          <span>🧩 技能 · 让小助掌握一套套做事方法</span>
+          <span class="skills-topbar-actions">
+            <button id="skillNewBtn" class="lumi-btn2" title="自己写一个新技能">✏️ 新建技能</button>
+            <button id="skillGuideBtn" class="lumi-btn2" title="怎么写技能">📖 怎么写技能</button>
+            <button id="skillRefreshBtn" class="lumi-btn2" title="刷新">🔄 刷新</button>
+          </span>
+        </header>
+        <div class="skills-pane">
+          <div class="skills-intro">
+            「技能」是一套针对特定任务的做事方法。开了的技能，小助在遇到匹配的活儿时会自动按它的步骤去做。
+            你也可以<b>自己写技能</b>——点右上角「✏️ 新建技能」，写好它就学会了。技能都存在本地 <code>backend/skills/</code> 里。
+          </div>
+          <div class="skills-grid" id="skillsGrid"><div class="skills-empty">加载中…</div></div>
+        </div>
+
+        <!-- 技能详情/编辑弹层 -->
+        <div class="skill-modal" id="skillModal" style="display:none">
+          <div class="skill-modal-card">
+            <div class="skill-modal-head">
+              <span class="skill-modal-title" id="skillModalTitle">技能</span>
+              <button class="skill-modal-close" id="skillModalClose" title="关闭">✕</button>
+            </div>
+            <div class="skill-modal-body" id="skillModalBody">
+              <!-- 编辑态：表单 -->
+              <div class="skill-edit" id="skillEdit" style="display:none">
+                <label class="skill-field">
+                  <span class="skill-field-label">技能名（中文，给人看）</span>
+                  <input type="text" id="skillName" class="text-input" placeholder="例如：周报生成" />
+                </label>
+                <label class="skill-field">
+                  <span class="skill-field-label">英文 slug（文件夹名，只用小写字母/数字/连字符）</span>
+                  <input type="text" id="skillSlug" class="text-input" placeholder="例如：weekly-report" />
+                </label>
+                <label class="skill-field">
+                  <span class="skill-field-label">什么时候用（关键！写清「遇到哪类任务就用它」）</span>
+                  <textarea id="skillDesc" class="text-input" rows="2"
+                    placeholder="例如：用户想把这周做的零散事项整理成一篇条理清楚的周报时用。不适用：只是随口提一句某件事。"></textarea>
+                </label>
+                <label class="skill-field">
+                  <span class="skill-field-label">具体步骤（正文 · Markdown）</span>
+                  <textarea id="skillBody" class="text-input skill-body-input" rows="14"
+                    placeholder="一步步写清楚遇到这类任务该怎么做。可以分「## 第一步 / ## 第二步」，写成可执行的清单，越具体越好。"></textarea>
+                </label>
+                <div class="skill-edit-actions">
+                  <button class="send-btn" id="skillSaveBtn">保存技能</button>
+                  <button class="ghost-btn" id="skillCancelBtn">取消</button>
+                </div>
+              </div>
+              <!-- 查看态：渲染好的内容 -->
+              <div class="skill-view" id="skillView" style="display:none"></div>
+              <!-- 指南态：怎么写技能 -->
+              <div class="skill-guide" id="skillGuide" style="display:none"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 目标循环（Loop）视图（工具区）-->
+      <section class="view view-loop" id="view-loop">
+        <header class="topbar">
+          <span>🔁 目标循环 · 定目标 + 定验收，让小助自己一圈圈跑到达标</span>
+        </header>
+        <div class="loop-pane">
+          <div class="loop-intro">
+            把一件<b>复杂、要反复验证</b>的事交给小助自己跑：你写清<b>目标</b>和<b>验收标准</b>（怎样算干完），
+            它就一轮轮地「做 → 对照验收自检 → 没达标就接着修」，直到全部达标或到达最多轮数。
+            <span class="loop-warn">提示：循环会反复调用模型，比较费 token；简单的事（10 分钟能搞定）直接在「对话」里做更划算。</span>
+          </div>
+
+          <div class="loop-presets" id="loopPresets">
+            <span class="loop-presets-label">不会写？挑个模板改改：</span>
+            <div class="loop-presets-btns" id="loopPresetBtns"></div>
+          </div>
+
+          <div class="loop-form" id="loopForm">
+            <label class="loop-field">
+              <span class="loop-field-label">🎯 目标（想达成什么）</span>
+              <textarea id="loopGoal" class="text-input" rows="2"
+                placeholder="例如：把 D:\项目\report 文件夹里这周的零散记录，整理成一份结构清晰的项目周报，存成 周报.md"></textarea>
+            </label>
+            <label class="loop-field">
+              <span class="loop-field-label">✅ 验收标准（怎样算干完 · 每行一条，越具体越好）</span>
+              <textarea id="loopCriteria" class="text-input" rows="5"
+                placeholder="周报.md 文件已生成&#10;包含「本周完成 / 进行中 / 下周计划」三个部分&#10;每条都引用了原始记录里的真实内容，没有编造&#10;通读一遍语句通顺、没有明显错别字"></textarea>
+            </label>
+            <div class="loop-options">
+              <label class="loop-inline">
+                <span>最多轮数</span>
+                <input type="number" id="loopMaxRounds" class="text-input loop-num" value="5" min="1" max="12" />
+              </label>
+              <label class="loop-inline loop-check" title="勾选后，循环里遇到需确认的操作会自动放行（仍受右上角「电脑操作权限」总开关约束）。不勾则只跑只读/安全操作。">
+                <input type="checkbox" id="loopAllowActions" />
+                <span>允许自动执行操作（含需确认的操作）</span>
+              </label>
+            </div>
+            <div class="loop-actions">
+              <button class="send-btn" id="loopStartBtn">▶ 开始循环</button>
+              <button class="ghost-btn" id="loopStopBtn" style="display:none">⏹ 停止</button>
+            </div>
+          </div>
+
+          <div class="loop-run" id="loopRun" style="display:none">
+            <div class="loop-stage" id="loopStage"></div>
+            <div class="loop-criteria" id="loopCriteriaStatus"></div>
+            <div class="loop-rounds" id="loopRounds"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 运行台（Harness）视图（工具区）-->
+      <section class="view view-harness" id="view-harness">
+        <header class="topbar">
+          <span>🛠️ 运行台（Harness）· 给「大脑」套上工程的壳</span>
+        </header>
+        <div class="harness-pane">
+          <div class="harness-intro">
+            一句话：<b>Agent = 模型 + Harness</b>。模型只是「大脑」，它天生<b>没记性、会跑偏、会卡死循环、会半途自以为做完</b>。
+            Harness 就是套在大脑外面那层工程系统——管上下文、调度工具、出错能恢复、危险操作要审批、还能把每次运行记下来复盘。
+            你的超能小助其实<b>已经是一个 Harness</b>：危险操作要你点确认（安全控制）、记忆越用越懂你（状态）、目标循环会自检（错误恢复+验收）。
+            这一页把这些「壳」的旋钮交到你手里。
+          </div>
+
+          <!-- 运行设置 -->
+          <div class="harness-card">
+            <div class="harness-card-title">运行设置 · 几个真正生效的旋钮</div>
+            <div class="harness-setting">
+              <div class="harness-setting-head">
+                <span class="harness-setting-name">🧠 长期记忆注入量</span>
+                <span class="harness-setting-val" id="hCtxVal">4000 字</span>
+              </div>
+              <input type="range" id="hCtxBudget" min="500" max="20000" step="500" value="4000" class="harness-range" />
+              <div class="harness-setting-hint">每次对话注入多少长期记忆。塞太多会「上下文腐烂」——模型反而忘了当前要做的事。一般 4000 够用。</div>
+            </div>
+            <div class="harness-setting">
+              <div class="harness-setting-head">
+                <span class="harness-setting-name">🔁 单次最多步数</span>
+                <span class="harness-setting-val" id="hStepsVal">8 步</span>
+              </div>
+              <input type="range" id="hMaxSteps" min="2" max="20" step="1" value="8" class="harness-range" />
+              <div class="harness-setting-hint">一次任务里最多连续调用几次工具。到顶就停，防止「工具死循环」一直空转烧 token。（主要作用于目标循环每一轮）</div>
+            </div>
+            <div class="harness-setting">
+              <div class="harness-setting-head">
+                <span class="harness-setting-name">🛡️ 危险操作策略</span>
+              </div>
+              <select id="hSafety" class="text-input harness-select">
+                <option value="ask">每次都问我（最稳）—— 删文件/写文件/跑命令都弹确认</option>
+                <option value="readonly_auto">只读自动、危险仍问 —— 读取/搜索放行，动手的要确认</option>
+                <option value="auto">全自动（含危险操作）—— 目标循环里不再逐个确认，最快但要小心</option>
+              </select>
+              <div class="harness-setting-hint">安全控制是 Harness 的生死线。「全自动」只影响目标循环；普通对话里的危险操作始终受右上角「电脑操作权限」总开关约束。</div>
+            </div>
+            <div class="harness-setting harness-setting-row">
+              <label class="harness-check">
+                <input type="checkbox" id="hKeepLog" checked /> <span>记录运行日志（下面的复盘表）</span>
+              </label>
+              <button class="send-btn" id="hSaveBtn">保存设置</button>
+              <span class="harness-save-status" id="hSaveStatus"></span>
+            </div>
+          </div>
+
+          <!-- 评估指标 -->
+          <div class="harness-card">
+            <div class="harness-card-title">评估度量 · 把「好像不太稳」变成硬指标</div>
+            <div class="harness-metrics" id="hMetrics"><div class="harness-empty">还没有运行记录。去「目标循环」跑一个任务，这里就会出数据。</div></div>
+          </div>
+
+          <!-- 运行日志 -->
+          <div class="harness-card">
+            <div class="harness-card-title">
+              运行日志 · 复盘每次都做了什么
+              <button class="harness-mini-btn" id="hClearBtn" title="清空日志">清空</button>
+              <button class="harness-mini-btn" id="hRefreshBtn" title="刷新">刷新</button>
+            </div>
+            <div class="harness-runs" id="hRuns"><div class="harness-empty">暂无记录。目前记录「目标循环」的运行。</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 嗅探（AI 雷达）视图（工具区）-->
+      <section class="view view-sniff" id="view-sniff">
+        <header class="topbar">
+          <span>📡 嗅探</span>
+          <span class="sniff-topbar-actions">
+            <button id="sniffRunBtn" class="sniff-run-btn" title="立即扫一遍所有网站">
+              <span class="sniff-run-dot"></span> 立即嗅探
+            </button>
+            <button id="sniffRefreshBtn" class="sniff-ghost-btn" title="刷新时间线">刷新</button>
+          </span>
+        </header>
+        <div class="sniff-pane">
+          <!-- 概览条 -->
+          <div class="sniff-overview">
+            <div class="sniff-ov-text">
+              <div class="sniff-ov-title">盯着 AI 圈，有新东西第一时间告诉你</div>
+              <div class="sniff-ov-sub">抓取你关心的网站 · 和上次对比 · 只把新的「发布 / 功能 / 概念」提炼给你，已报过的不重复</div>
+            </div>
+            <div class="sniff-ov-stats" id="sniffStats"></div>
+          </div>
+
+          <!-- 实时嗅探进度（运行时显示，逐个网站报状态）-->
+          <div class="sniff-progress" id="sniffProgress" hidden>
+            <div class="sniff-prog-head">
+              <span class="sniff-prog-spin"></span>
+              <span class="sniff-prog-stage" id="sniffProgStage">正在嗅探…</span>
+              <span class="sniff-prog-count" id="sniffProgCount"></span>
+            </div>
+            <div class="sniff-prog-list" id="sniffProgList"></div>
+          </div>
+
+          <div class="sniff-cols">
+            <!-- 左：嗅探源管理 -->
+            <div class="sniff-col sniff-sources-col">
+              <div class="sniff-panel">
+                <div class="sniff-panel-head">
+                  <span class="sniff-panel-title">嗅探源</span>
+                  <span class="sniff-count-pill" id="sniffSrcCount">·</span>
+                </div>
+                <div class="sniff-add">
+                  <input type="text" id="sniffAddTitle" class="sniff-input" placeholder="名称，如 OpenAI 新闻" />
+                  <div class="sniff-add-row">
+                    <input type="text" id="sniffAddUrl" class="sniff-input" placeholder="https://…" />
+                    <button class="sniff-add-btn" id="sniffAddBtn" title="添加到清单">添加</button>
+                  </div>
+                  <div class="sniff-add-cat">
+                    <span class="sniff-add-cat-label">归到类别</span>
+                    <input type="text" id="sniffAddCat" class="sniff-input" list="sniffCatList" value="AI动态" placeholder="如 AI动态 / 竞品" />
+                    <datalist id="sniffCatList"></datalist>
+                  </div>
+                </div>
+                <div class="sniff-auto">
+                  <label class="sniff-switch">
+                    <input type="checkbox" id="sniffAuto" />
+                    <span class="sniff-switch-track"></span>
+                    <span class="sniff-switch-label">自动嗅探</span>
+                  </label>
+                  <span class="sniff-auto-every">每
+                    <input type="number" id="sniffEvery" class="sniff-num" value="6" min="1" max="100" />
+                    次心跳</span>
+                  <button class="sniff-mini-btn" id="sniffAutoSave">保存</button>
+                </div>
+                <div class="sniff-sources" id="sniffSources"><div class="sniff-empty">加载中…</div></div>
+              </div>
+            </div>
+
+            <!-- 右：dashboard（类别概览 + 动向）-->
+            <div class="sniff-col sniff-feed-col">
+              <div class="sniff-cat-tiles" id="sniffCatTiles"></div>
+              <div class="sniff-panel">
+                <div class="sniff-panel-head">
+                  <span class="sniff-panel-title">新动向</span>
+                  <span class="sniff-cat-active" id="sniffCatActive"></span>
+                  <div class="sniff-filters" id="sniffFilters">
+                    <button class="sniff-chip active" data-k="all">全部</button>
+                    <button class="sniff-chip" data-k="发布">🆕 发布</button>
+                    <button class="sniff-chip" data-k="功能">🧩 功能</button>
+                    <button class="sniff-chip" data-k="概念">💡 概念</button>
+                  </div>
+                  <button class="sniff-mini-btn sniff-clear" id="sniffClearBtn" title="清空时间线">清空</button>
+                </div>
+                <div class="sniff-feed" id="sniffFeed"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- 设置视图 -->
       <section class="view view-settings" id="view-settings">
         <header class="topbar"><span>设置</span></header>
         <div class="settings-pane">
+          <div class="settings-tabs" id="settingsTabs">
+            <button class="settings-tab-btn active" data-tab="tab-general">常规</button>
+            <button class="settings-tab-btn" data-tab="tab-model">模型</button>
+            <button class="settings-tab-btn" data-tab="tab-net">联网与代理</button>
+            <button class="settings-tab-btn" data-tab="tab-pc">电脑 · 语音</button>
+            <button class="settings-tab-btn" data-tab="tab-auto">自动化</button>
+            <button class="settings-tab-btn" data-tab="tab-notify">通知</button>
+          </div>
+
+          <div class="settings-tab active" id="tab-general">
           <div class="settings-section">外观</div>
           <div class="setting-row">
             <div>
@@ -317,6 +602,19 @@
               </div>
             </div>
           </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-title">默认启动模型</div>
+              <div class="setting-desc">软件每次启动时自动用这个模型，省得忘了换、误用了不想用的。
+                设为「跟随上次」则用你上次手动选的。</div>
+            </div>
+            <div class="model-picker">
+              <select id="defaultModelSelect" class="text-input"></select>
+              <div class="picker-row">
+                <button id="setDefaultNowBtn" class="ghost-btn small" title="把当前正在用的模型设为默认">用当前模型</button>
+              </div>
+            </div>
+          </div>
           <div class="setting-row danger">
             <div>
               <div class="setting-title">⚠️ 允许执行 shell 命令</div>
@@ -328,6 +626,9 @@
             </label>
           </div>
 
+          </div><!-- /tab-general -->
+
+          <div class="settings-tab" id="tab-pc">
           <div class="settings-section">电脑操作 · 语音</div>
           <div class="setting-row danger">
             <div>
@@ -360,36 +661,111 @@
             </span>
           </div>
 
-          <div class="settings-section">Claude 模型管理</div>
+          </div><!-- /tab-pc -->
+
+          <div class="settings-tab" id="tab-model">
+
+          <!-- 顶部：这页是干嘛的 -->
+          <div class="model-intro">
+            <div class="model-intro-title">超能小助能用哪些模型？</div>
+            <div class="model-intro-grid">
+              <div class="model-intro-item"><b>💻 本地模型</b><span>装在你电脑里（Ollama，如 qwen3:14b）。免费、私密、断网也能用，要先装。日常首选。</span></div>
+              <div class="model-intro-item"><b>☁ 网页 / 云端模型</b><span>更强、自带联网。查资料、写长文、深度分析用它更好。</span></div>
+              <div class="model-intro-item"><b>✦ Claude</b><span>最强，需要你自己的 key。在下方配好后，也会出现在选项里。</span></div>
+            </div>
+            <div class="model-intro-tip">💡 不想折腾就一句话：把下面第一项「默认模型」选成你常用的（比如 qwen3:14b），其余全留「跟随默认」，就能用了。想精细分工再往下调。</div>
+          </div>
+
+          <!-- 各任务分工 -->
+          <div class="settings-section">谁来干哪类活 · 任务分工</div>
           <p class="settings-note" style="margin-top:8px">
-            在这里添加多个 Claude 配置（每个配置可以用不同的 key / 地址 / 模型），
-            保存后会出现在模型选择里，随时切换。
-            适合在中转站为不同模型创建不同分组密钥的场景。
-            key 明文存在本机 <code>backend/memory/claude_config.json</code>。
+            超能小助会按你要做的事自动挑模型。每类活儿都能单独指定；选「跟随默认」就用第一项的默认模型。改完别忘了点最下面「保存任务配置」。
+          </p>
+
+          <div class="tm-card tm-card-master">
+            <div class="tm-card-icon">⭐</div>
+            <div class="tm-card-body">
+              <div class="tm-card-name">默认模型（先设这个）</div>
+              <div class="tm-card-when">所有没单独指定的活儿都用它。把它设好，下面几项就都能省事。</div>
+              <div class="tm-card-tip">建议：选你已装好的本地模型，比如 <code>qwen3:14b</code>。</div>
+            </div>
+            <select id="tmDefault" class="text-input tm-select"></select>
+          </div>
+
+          <div class="tm-card">
+            <div class="tm-card-icon">🔎</div>
+            <div class="tm-card-body">
+              <div class="tm-card-name">查资料 · 写长文 · 深度分析 · 总结</div>
+              <div class="tm-card-when">例：让它上网查最新信息、写一篇文章、把长文总结成要点。</div>
+              <div class="tm-card-tip">建议：选更强、能联网的「网页模型」或 Claude；没有就「跟随默认」。</div>
+            </div>
+            <select id="tm_chat" class="text-input tm-select"></select>
+          </div>
+
+          <div class="tm-card">
+            <div class="tm-card-icon">🎬</div>
+            <div class="tm-card-body">
+              <div class="tm-card-name">视频总结</div>
+              <div class="tm-card-when">视频会先在本地听写成文字，再用这个模型整理成总结。</div>
+              <div class="tm-card-tip">建议：和上面一类，选强一点的；没有就「跟随默认」。</div>
+            </div>
+            <select id="tm_video_summary" class="text-input tm-select"></select>
+          </div>
+
+          <div class="tm-card">
+            <div class="tm-card-icon">🛠️</div>
+            <div class="tm-card-body">
+              <div class="tm-card-name">动手干活：记笔记 · 提醒 · 读写文件</div>
+              <div class="tm-card-when">例：「记住…」「提醒我…」、整理桌面文件，这类要真正调用工具的动作。</div>
+              <div class="tm-card-tip">⚠ 这一项<b>只能选本地模型</b>，而且要支持工具调用（如 <code>qwen3:14b</code>）。网页模型干不了这个。</div>
+            </div>
+            <select id="tm_local_action" class="text-input tm-select"></select>
+          </div>
+
+          <div class="tm-card">
+            <div class="tm-card-icon">💬</div>
+            <div class="tm-card-body">
+              <div class="tm-card-name">随便聊两句</div>
+              <div class="tm-card-when">「在吗」「你好」这种短招呼，用快的小模型秒回。</div>
+              <div class="tm-card-tip">建议：选个小而快的本地模型；不在意就「跟随默认」。</div>
+            </div>
+            <select id="tm_quick_chat" class="text-input tm-select"></select>
+          </div>
+
+          <div class="tm-save-row">
+            <button id="tmSaveBtn" class="send-btn">保存任务配置</button>
+            <span class="settings-note" id="tmHint" style="margin:0"></span>
+          </div>
+
+          <!-- Claude 配置 -->
+          <div class="settings-section">Claude 配置 · 可选（有 key 才需要）</div>
+          <p class="settings-note" style="margin-top:8px">
+            有 Claude 的 key（或中转站 key）就在这加。配好后，它会出现在上面任务分工的下拉选项里，随时切。
+            可加多个，每个用不同 key / 地址 / 模型。key 明文存在本机 <code>backend/memory/claude_config.json</code>。
           </p>
           <div id="claudeProfileList"></div>
           <div class="setting-row" style="margin-top:12px">
-            <div><div class="setting-title">添加新配置</div>
-              <div class="setting-desc">每个配置对应一个模型 + 一个 key，互不影响</div></div>
+            <div><div class="setting-title">添加一个 Claude 配置</div>
+              <div class="setting-desc">一个配置 = 一个模型 + 一个 key，互不影响</div></div>
             <button id="claudeAddBtn" class="send-btn">＋ 添加</button>
           </div>
           <div class="setting-row">
-            <div><div class="setting-title">用 Claude 替代网页模型</div>
-              <div class="setting-desc">开启后，原本会交给「网页模型」的任务（分析/搜索/写作/总结/视频总结等）改用你的第一个 Claude 配置，避免网页模型反复弹窗、崩溃。推荐开启。</div></div>
+            <div><div class="setting-title">用 Claude 代替网页模型</div>
+              <div class="setting-desc">开了之后，本来要走「网页模型」的活儿（分析/搜索/写作/总结/视频总结）改用你的第一个 Claude 配置——更稳、不弹浏览器。<b>有 Claude key 的话推荐开。</b></div></div>
             <label class="switch"><input type="checkbox" id="claudePreferWeb" /><span class="slider"></span></label>
           </div>
           <p class="settings-note" id="claudeHint"></p>
 
-          <div class="settings-section">智能路由 · 网页模型</div>
+          <!-- 网页模型 -->
+          <div class="settings-section">网页模型 · 可选（借网页版 ChatGPT）</div>
           <p class="settings-note" style="margin-top:8px">
-            开启后，<b>高级分析 / 搜索 / 写作 / 总结</b>会自动交给「网页模型」（你的 sorryios 网页 ChatGPT，自带联网搜索）；
-            <b>记忆 / 提醒 / 笔记 / 读写文件</b>等本机动作仍由本地模型完成（请用 <code>/记住</code>、<code>/提醒</code> 等前缀）。
-            任何一步失败会<b>自动回退本地</b>，不影响使用。需先装依赖：
-            <code>pip install playwright</code> 再 <code>python -m playwright install chromium</code>。
+            把<b>查资料 / 写作 / 总结</b>这类活儿交给网页版 ChatGPT（sorryios 账号，自带联网）；<b>动手干活</b>（记忆/提醒/文件）仍由本地模型做。
+            任何一步失败会<b>自动回退本地</b>，不会卡住。需先装依赖：<code>pip install playwright</code> 再 <code>python -m playwright install chromium</code>。
+            <br>提示：如果你已经配了 Claude，更推荐用上面那个「Claude 代替网页模型」，省得弹浏览器。
           </p>
           <div class="setting-row">
             <div><div class="setting-title">sorryios 账号</div>
-              <div class="setting-desc">登录 sorryios.ai 的账号</div></div>
+              <div class="setting-desc">登录 sorryios.ai 用的账号</div></div>
             <input type="text" id="wmUser" class="text-input" style="width:200px" placeholder="账号" />
           </div>
           <div class="setting-row">
@@ -399,7 +775,7 @@
           </div>
           <div class="setting-row">
             <div><div class="setting-title">显示浏览器窗口</div>
-              <div class="setting-desc">开：看得到自动化过程；关：后台运行</div></div>
+              <div class="setting-desc">开：看得到自动化过程；关：后台静默运行</div></div>
             <label class="switch">
               <input type="checkbox" id="wmHeadful" checked />
               <span class="slider"></span>
@@ -407,15 +783,15 @@
           </div>
           <div class="setting-row">
             <div><div class="setting-title">联网搜索开关</div>
-              <div class="setting-desc">ChatGPT 一般会自动联网；个别卡需手动开时再勾</div></div>
+              <div class="setting-desc">ChatGPT 一般会自动联网；个别情况要手动开时再勾</div></div>
             <label class="switch">
               <input type="checkbox" id="wmSearch" />
               <span class="slider"></span>
             </label>
           </div>
           <div class="setting-row">
-            <div><div class="setting-title">保存 & 测试网页模型</div>
-              <div class="setting-desc">保存配置；测试会弹浏览器→登录→存登录态→发一句测试</div></div>
+            <div><div class="setting-title">保存 & 测试</div>
+              <div class="setting-desc">保存配置；测试会弹浏览器 → 登录 → 存登录态 → 发一句测试</div></div>
             <span class="picker-row" style="display:flex;gap:8px">
               <button id="wmSaveBtn" class="ghost-btn small">保存</button>
               <button id="wmTestBtn" class="send-btn">测试网页模型</button>
@@ -423,47 +799,12 @@
           </div>
           <p class="settings-note" id="wmHint"></p>
 
-          <div class="settings-section">各任务用哪个模型</div>
-          <p class="settings-note" style="margin-top:8px">
-            给每类任务单独指定模型；选「跟随默认」就用下面的「默认模型」。改完点「保存任务配置」。
-            存到 <code>backend/memory/task_models.json</code>，可手改。
-          </p>
-          <div class="setting-row">
-            <div><div class="setting-title">默认模型（兜底）</div>
-              <div class="setting-desc">没单独配的任务都用它</div></div>
-            <select id="tmDefault" class="text-input" style="width:220px"></select>
-          </div>
-          <div class="setting-row">
-            <div><div class="setting-title">高级分析 / 搜索 / 写作 / 总结</div>
-              <div class="setting-desc">默认走网页模型</div></div>
-            <select id="tm_chat" class="text-input" style="width:220px"></select>
-          </div>
-          <div class="setting-row">
-            <div><div class="setting-title">视频总结</div>
-              <div class="setting-desc">视频先本地听写，再用这个模型总结</div></div>
-            <select id="tm_video_summary" class="text-input" style="width:220px"></select>
-          </div>
-          <div class="setting-row">
-            <div><div class="setting-title">本机动作（记忆 / 提醒 / 文件）</div>
-              <div class="setting-desc">只能选本地模型（要支持工具调用）</div></div>
-            <select id="tm_local_action" class="text-input" style="width:220px"></select>
-          </div>
-          <div class="setting-row">
-            <div><div class="setting-title">快速闲聊</div>
-              <div class="setting-desc">很短的招呼，本地秒回</div></div>
-            <select id="tm_quick_chat" class="text-input" style="width:220px"></select>
-          </div>
-          <div class="setting-row">
-            <div><div class="setting-title">　</div><div class="setting-desc"></div></div>
-            <button id="tmSaveBtn" class="send-btn">保存任务配置</button>
-          </div>
-          <p class="settings-note" id="tmHint"></p>
-
-          <div class="settings-section">模型与下载</div>
+          <!-- 下载/搬家 -->
+          <div class="settings-section">模型存储与搬家</div>
           <div class="setting-row">
             <div>
               <div class="setting-title">模型下载位置</div>
-              <div class="setting-desc">语音等模型默认下载到这里，不占 C 盘：<br>
+              <div class="setting-desc">语音等模型默认下到这里，不占 C 盘：<br>
                 <span id="modelsDirText" class="mono-path">加载中…</span></div>
             </div>
           </div>
@@ -471,13 +812,44 @@
             <div>
               <div class="setting-title">已下载的模型</div>
               <div class="setting-desc"><span id="modelsListText">—</span><br>
-                点右边按钮可把 <b>C 盘</b> 上的语音模型 <b>和 Ollama 大模型</b>（qwen2.5、deepseek 等，
-                通常才是占 C 盘的大头）安全搬到 D 盘并自动改好路径。搬之前建议先退出 Ollama。</div>
+                点右边按钮，可把 <b>C 盘</b> 上的语音模型 <b>和 Ollama 大模型</b>（qwen3、deepseek 等，通常才是占 C 盘的大头）安全搬到 D 盘并自动改好路径。搬之前建议先退出 Ollama。</div>
             </div>
             <button id="moveModelsBtn" class="vbtn">把 C 盘已下载模型搬到 D 盘</button>
           </div>
           <div class="setting-desc" id="moveModelsMsg" style="margin-top:-6px"></div>
 
+          </div><!-- /tab-model -->
+
+          <div class="settings-tab" id="tab-net">
+            <div class="settings-section">联网与代理</div>
+            <p class="settings-note" style="margin-top:8px">
+              软件抓取/搜索<b>境外网站</b>（OpenAI、DeepMind、Hugging Face、嗅探等）时走这个代理。
+              填你科学上网工具的<b>本地端口</b>地址；不填则只能访问国内可直连的站点。
+            </p>
+            <div class="setting-row">
+              <div>
+                <div class="setting-title">代理地址</div>
+                <div class="setting-desc">格式 <code>http://127.0.0.1:端口</code>。
+                  小麦加速：设置里的 SOCKS5/HTTP 端口（如 7897）→ 填 <code>http://127.0.0.1:7897</code>；
+                  Clash 一般是 7890。改了端口记得对应改这里。</div>
+              </div>
+              <input type="text" id="proxyInput" class="text-input" style="width:230px"
+                     placeholder="http://127.0.0.1:7897" />
+            </div>
+            <div class="setting-row">
+              <div>
+                <div class="setting-title">测试代理</div>
+                <div class="setting-desc">保存后点这里，试着用代理打开一个境外站，看通不通。</div>
+              </div>
+              <span class="picker-row" style="display:flex;gap:8px;align-items:center">
+                <button id="proxySaveBtn" class="send-btn">保存</button>
+                <button id="proxyTestBtn" class="ghost-btn small">保存并测试</button>
+              </span>
+            </div>
+            <p class="settings-note" id="proxyHint"></p>
+          </div><!-- /tab-net -->
+
+          <div class="settings-tab" id="tab-auto">
           <div class="settings-section">自动心跳</div>
           <div class="setting-row">
             <div>
@@ -510,6 +882,9 @@
             本地模型模式下完全不联网（联网搜索工具除外）。
           </p>
 
+          </div><!-- /tab-auto -->
+
+          <div class="settings-tab" id="tab-notify">
           <div class="settings-section">手机遥控</div>
           <p class="settings-note" style="margin-top:10px">
             在手机上指挥超能小助。中国推荐<b>企业微信</b>（合规免费）或<b>飞书</b>（体验顺）；
@@ -548,9 +923,35 @@
             <button id="tgStartBtn" class="send-btn">保存并启动</button>
           </div>
           <p class="settings-note" id="tgHint"></p>
+          </div><!-- /tab-notify -->
         </div>
       </section>
     </main>
+  </div>
+
+  <div class="end-dialog" id="endDialog" hidden>
+    <div class="end-dialog-card">
+      <div class="end-dialog-title">结束当前对话</div>
+      <div class="end-dialog-desc">这段对话要怎么处理？</div>
+      <div class="end-dialog-actions">
+        <button class="end-opt end-opt-primary" id="endOptRemember">
+          <span class="end-opt-main">🧠 结束并记住</span>
+          <span class="end-opt-sub">提炼要点进长期记忆，下次还记得 + 存为历史会话</span>
+        </button>
+        <button class="end-opt" id="endOptSave">
+          <span class="end-opt-main">💾 清空并保存</span>
+          <span class="end-opt-sub">存为历史会话（侧边栏能回查），但不提炼长期记忆</span>
+        </button>
+        <button class="end-opt" id="endOptSkill">
+          <span class="end-opt-main">🧩 提炼成技能</span>
+          <span class="end-opt-sub">解析这段对话做了什么、怎么操作的，总结成一个可复用技能，下次同类任务能照着做</span>
+        </button>
+        <button class="end-opt end-opt-cancel" id="endOptCancel">
+          <span class="end-opt-main">取消</span>
+        </button>
+      </div>
+      <div class="end-dialog-status" id="endDialogStatus"></div>
+    </div>
   </div>
 
   <script src="renderer.js"></script>

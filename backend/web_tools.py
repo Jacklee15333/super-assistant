@@ -14,7 +14,24 @@ import urllib.request
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
       "AppleWebKit/537.36 (KHTML, like Gecko) "
-      "Chrome/120.0 Safari/537.36")
+      "Chrome/131.0.0.0 Safari/537.36")
+
+# 更像真浏览器的请求头，能减少一部分站点的 403 反爬拦截。
+# 注意：故意不发 Accept-Encoding（不要 gzip），因为 urllib 不会自动解压。
+_BROWSER_HEADERS = {
+    "User-Agent": UA,
+    "Accept": ("text/html,application/xhtml+xml,application/xml;q=0.9,"
+               "image/avif,image/webp,image/apng,*/*;q=0.8"),
+    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "sec-ch-ua": '"Chromium";v="131", "Not_A Brand";v="24", "Google Chrome";v="131"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+}
 
 
 def _read_proxy():
@@ -48,11 +65,7 @@ def _opener(use_proxy=False):
 
 # ---------- 读网页正文 ----------
 def _fetch(url, timeout=20, use_proxy=False):
-    headers = {
-        "User-Agent": UA,
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-    }
+    headers = dict(_BROWSER_HEADERS)
     req = urllib.request.Request(url, headers=headers)
     opener, _ = _opener(use_proxy)
     with opener.open(req, timeout=timeout) as resp:
