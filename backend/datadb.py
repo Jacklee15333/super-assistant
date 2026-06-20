@@ -128,6 +128,47 @@ def _title_of(path):
     return path.stem[:70]
 
 
+def _tags_of(path):
+    """解析 md 文件里用户自定义的二级标签（'- 标签：金融、逻辑' 这一行）。
+    与成长库共用同一份文件里的标签，所以两边看到的标签一致。"""
+    try:
+        if path.suffix.lower() != ".md":
+            return []
+        txt = path.read_text(encoding="utf-8", errors="replace")
+        import re as _re
+        for line in txt.splitlines():
+            s = line.strip().lstrip("-").strip()
+            for key in ("标签：", "标签:"):
+                if s.startswith(key):
+                    raw = s[len(key):].strip()
+                    parts = _re.split(r"[、，,\s]+", raw)
+                    return [t.strip() for t in parts if t.strip()]
+    except Exception:
+        pass
+    return []
+
+
+def _preview_of(path):
+    """取正文前一小段做预览（跳过标题/标签/分隔等元数据行）。"""
+    try:
+        if path.suffix.lower() != ".md":
+            return ""
+        txt = path.read_text(encoding="utf-8", errors="replace")
+        body = []
+        for line in txt.splitlines():
+            s = line.strip()
+            if (not s or s.startswith("#") or s.startswith("-")
+                    or s.startswith("=") or s.startswith("---")
+                    or s.startswith("**") or s.startswith(">") or s.startswith("|")):
+                continue
+            body.append(s)
+            if sum(len(x) for x in body) > 80:
+                break
+        return (" ".join(body))[:100]
+    except Exception:
+        return ""
+
+
 def _list_items(g):
     """列出一个数据集下的所有条目（文件或目录）。"""
     items = []
@@ -148,12 +189,13 @@ def _list_items(g):
             paths = [p for p in paths if p.is_file()]
     except Exception:
         return items
+    is_content = g.get("safety") == "content"
     for p in paths:
         try:
             st = p.stat()
             is_dir = p.is_dir()
             size = _dir_size(p) if is_dir else st.st_size
-            items.append({
+            item = {
                 "name": p.name,
                 "title": (p.name if is_dir else _title_of(p)),
                 "is_dir": is_dir,
@@ -162,7 +204,15 @@ def _list_items(g):
                 "mtime": st.st_mtime,
                 "date": _fmt_time(st.st_mtime),
                 "ext": p.suffix.lower().lstrip("."),
-            })
+            }
+            # 内容类（成长库那些）：附上标签 + 预览，做成像成长库一样能读、有标签
+            if is_content and not is_dir and p.suffix.lower() == ".md":
+                item["tags"] = _tags_of(p)
+                item["preview"] = _preview_of(p)
+            else:
+                item["tags"] = []
+                item["preview"] = ""
+            items.append(item)
         except Exception:
             continue
     items.sort(key=lambda x: x.get("mtime", 0), reverse=True)
@@ -219,9 +269,20 @@ def list_category(key):
     if not g:
         return {"ok": False, "message": "未知类别"}
     items = _list_items(g)
+    # 汇总该类别下所有用过的标签（按频次降序），给标签过滤条用
+    counts = {}
+    for it in items:
+        for t in it.get("tags", []):
+            counts[t] = counts.get(t, 0) + 1
+    all_tags = [t for t, _ in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
+    # 还没打标签的篇数（用于「AI 一键补标签」提示）
+    untagged = sum(1 for it in items
+                   if not it.get("is_dir") and it.get("ext") == "md" and not it.get("tags"))
     return {
         "ok": True, "key": key, "label": g["label"], "icon": g["icon"],
         "safety": g["safety"], "items": items, "count": len(items),
+        "all_tags": all_tags, "untagged": untagged,
+        "taggable": (g["safety"] == "content"),   # 内容类才支持标签
     }
 
 
@@ -293,3 +354,53 @@ def delete_item(key, name, force=False):
         return {"ok": True}
     except Exception as e:
         return {"ok": False, "message": "删除失败：%s" % e}
+
+
+def set_tags(key, name, tags):
+    """给某个内容类文件设置二级标签（写进文件里的「- 标签：」行）。
+    与成长库共用同一份文件，所以两边标签实时一致。只允许 content 类、md 文件。"""
+    g = _group_by_key(key)
+    if not g:
+        return {"ok": False, "message": "未知类别"}
+    if g["safety"] != "content":
+        return {"ok": False, "message": "这个类别不支持标签"}
+    target = _safe_target(g, name)
+    if not target or not target.exists() or target.suffix.lower() != ".md":
+        return {"ok": False, "message": "找不到该文件或不是 md"}
+    # 清洗标签：去重、去空、限长
+    clean, seen = [], set()
+    for t in (tags or []):
+        t = str(t).strip()[:20]
+        if t and t not in seen:
+            seen.add(t)
+            clean.append(t)
+    clean = clean[:8]
+    try:
+        txt = target.read_text(encoding="utf-8", errors="replace")
+        nl = "\r\n" if "\r\n" in txt else "\n"
+        lines = txt.split(nl)
+        tag_line = ("- 标签：" + "、".join(clean)) if clean else None
+        idx = None
+        for i, ln in enumerate(lines):
+            s = ln.strip().lstrip("-").strip()
+            if s.startswith("标签：") or s.startswith("标签:"):
+                idx = i
+                break
+        if idx is not None:
+            if tag_line:
+                lines[idx] = tag_line
+            else:
+                lines.pop(idx)
+        elif tag_line:
+            # 插到元数据区（首个 ## 之前的最后一个「- 」行之后；否则插到标题后）
+            insert_at = 1
+            for i in range(1, len(lines)):
+                if lines[i].strip().startswith("-"):
+                    insert_at = i + 1
+                elif lines[i].strip().startswith("##"):
+                    break
+            lines.insert(insert_at, tag_line)
+        target.write_text(nl.join(lines), encoding="utf-8")
+        return {"ok": True, "tags": clean}
+    except Exception as e:
+        return {"ok": False, "message": "写标签失败：%s" % e}

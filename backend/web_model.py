@@ -73,7 +73,7 @@ def _default_config():
         "aiPassword": "",
         "headless": False,        # 默认显示浏览器，便于排错；设 True 后台跑
         "cardName": "",           # 想指定的卡名（留空＝任意可用卡，全都是 ChatGPT）
-        "enableSearch": False,    # 是否需要在对话页手动开「联网搜索」开关（ChatGPT 一般自动）
+        "enableSearch": True,     # 默认开联网搜索：软件要的就是最新信息，别让用户漏配
         "aiUrl": "https://sorryios.ai/",
     }
 
@@ -83,7 +83,13 @@ def load_config():
     if CONFIG_PATH.exists():
         try:
             c = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-            return {**_default_config(), **c}
+            merged = {**_default_config(), **c}
+            # 迁移：老配置里 enableSearch 可能是 False（早期默认），且用户从没手动设过。
+            # 软件目的就是拿最新信息，这里强制兜底为 True，省得用户不知道要去勾。
+            # 仅当用户显式写了 enableSearchUserSet=true 才尊重其 False 选择。
+            if not c.get("enableSearchUserSet") and merged.get("enableSearch") is not True:
+                merged["enableSearch"] = True
+            return merged
         except Exception:
             pass
     return _default_config()

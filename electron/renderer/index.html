@@ -25,14 +25,11 @@
         <button class="nav-item" data-view="study">📖 学习</button>
         <button class="nav-item" data-view="dashboard">📊 看板</button>
         <button class="nav-item" data-view="video">🎬 视频</button>
-        <button class="nav-item" data-view="datadb">🗄️ 数据库</button>
         <div class="nav-group-label">展示区 · 浏览与记忆</div>
-        <button class="nav-item" data-view="library">📂 成长库</button>
+        <button class="nav-item" data-view="datadb">🗄️ 数据库</button>
         <button class="nav-item" data-view="lumi">💗 懂你</button>
         <div class="nav-sub" id="lumiSubNav" style="display:none">
           <button class="nav-subitem active" data-lumi="profile">👤 你的画像</button>
-          <button class="nav-subitem" data-lumi="relations">🤝 关系网络</button>
-          <button class="nav-subitem" data-lumi="env">🖥️ 环境画像</button>
           <button class="nav-subitem" data-lumi="insight">🔍 洞察与研究</button>
           <button class="nav-subitem" data-lumi="evolution">🌱 人格演化</button>
         </div>
@@ -222,7 +219,6 @@
         <header class="topbar">
           <span>💗 懂你 · 小助越用越懂你</span>
           <span class="lumi-topbar-actions">
-            <button id="lumiEvolveBtn" class="lumi-btn2" title="读最近对话，总结你的说话风格/关注点">✨ 人格演化</button>
             <button id="lumiScanBtn" class="lumi-btn2" title="扫描本机软件、推断职业（只读、不上传）">🖥️ 扫描环境</button>
             <button id="crwRunBtn" class="crw-run-btn" title="立刻爬一遍成长库，交给 AI 分析" style="display:none"><span class="crw-run-dot"></span> 立即分析</button>
             <button id="lumiRefreshBtn" class="lumi-btn2" title="刷新">🔄 刷新</button>
@@ -235,21 +231,26 @@
               <span class="lumi-page-title">👤 你的画像</span>
               <span class="lumi-page-sub">小助从你历次对话里总结的「你」——说话风格、关注点、偏好</span>
             </div>
-            <div class="lumi-page-body" id="lumiProfile"><div class="lumi-empty">还没演化。点右上角「✨ 人格演化」，小助会从你的对话里总结出你的说话风格、关注点和偏好。</div></div>
-          </div>
-          <div class="lumi-page" id="lumiPageRelations" style="display:none">
-            <div class="lumi-page-head">
-              <span class="lumi-page-title">🤝 关系网络</span>
-              <span class="lumi-page-sub">聊天里提到的人，小助自动记下来（谁、什么关系、聊过什么）</span>
+            <div class="lumi-page-body" id="lumiProfile"><div class="lumi-empty">还没演化。去左边「🌱 人格演化」点「立即演化一次」，小助会从你的对话里总结出你的说话风格、关注点和偏好。</div></div>
+
+            <!-- 关系网络（并进画像页，作为一节）-->
+            <div class="lumi-section">
+              <div class="lumi-section-head">
+                <span class="lumi-section-title">🤝 关系网络</span>
+                <span class="lumi-section-sub">聊天里提到的人，小助自动记下来（谁、什么关系、聊过什么）</span>
+              </div>
+              <div class="lumi-page-body" id="lumiRelations"><div class="lumi-empty">还没记录到人。聊天时提到具体的人（同事、朋友、客户…），小助会自动记下来。</div></div>
             </div>
-            <div class="lumi-page-body" id="lumiRelations"><div class="lumi-empty">还没记录到人。聊天时提到具体的人（同事、朋友、客户…），小助会自动记下来。</div></div>
-          </div>
-          <div class="lumi-page" id="lumiPageEnv" style="display:none">
-            <div class="lumi-page-head">
-              <span class="lumi-page-title">🖥️ 环境画像</span>
-              <span class="lumi-page-sub">小助扫描本机得到的环境信息（已装软件、推断职业），只读、不上传</span>
+
+            <!-- 环境画像（并进画像页，作为一节）-->
+            <div class="lumi-section">
+              <div class="lumi-section-head">
+                <span class="lumi-section-title">🖥️ 环境画像</span>
+                <span class="lumi-section-sub">小助扫描本机得到的环境信息（已装软件、推断职业），只读、不上传</span>
+                <button id="lumiScanInline" class="lumi-section-btn" title="扫描本机软件、推断职业（只读、不上传）">🖥️ 扫描环境</button>
+              </div>
+              <div class="lumi-page-body" id="lumiEnv"><div class="lumi-empty">还没扫描。点上方「🖥️ 扫描环境」，小助会看你装了什么软件、推断你的职业方向。</div></div>
             </div>
-            <div class="lumi-page-body" id="lumiEnv"><div class="lumi-empty">还没扫描。点右上角「🖥️ 扫描环境」，小助会看你装了什么软件、推断你的职业方向。</div></div>
           </div>
           <div class="lumi-page" id="lumiPageInsight" style="display:none">
             <div class="lumi-page-head">

@@ -147,7 +147,20 @@ def _ev_step(prog, phase, step, text):
 def evolve_status():
     """给前端轮询：当前人格演化进度。"""
     prog = _read_evolve_progress()
-    prog["running"] = bool(_evolve_work.get("running"))
+    running = bool(_evolve_work.get("running"))
+    # 自愈：进度文件说「还在跑」，但本进程里其实没有演化线程
+    # （多半是上次演化中途关了软件，留下了孤儿状态）→ 标记为已结束，让前端解卡。
+    if prog.get("active") and not running:
+        prog["active"] = False
+        if prog.get("phase") not in ("done", "error"):
+            prog["phase"] = "error"
+            prog["ok"] = False
+            if not prog.get("message"):
+                prog["message"] = "上次演化被中断了（软件中途关闭）。可以重新点「立即演化一次」。"
+            _ev_log(prog, "⚠ 检测到上次演化未完成（软件中途关闭），已结束。")
+        prog["finished_at"] = prog.get("finished_at") or _now_str()
+        _write_evolve_progress(prog)
+    prog["running"] = running
     return {"ok": True, "progress": prog}
 
 

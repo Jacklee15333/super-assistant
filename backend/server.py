@@ -994,6 +994,9 @@ class Handler(BaseHTTPRequestHandler):
                 # 密码占位符 *** 表示不修改
                 if incoming.get("aiPassword") in ("***", None):
                     incoming.pop("aiPassword", None)
+                # 用户在设置里显式动过「联网搜索」开关 → 记一笔，尊重其选择（不再被默认兜底覆盖）
+                if "enableSearch" in incoming:
+                    incoming["enableSearchUserSet"] = True
                 cfg = web_model.save_config(incoming)
                 cfg["aiPassword"] = "***" if cfg.get("aiPassword") else ""
                 return self._send({"ok": True, "config": cfg})
@@ -1087,6 +1090,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(datadb.delete_item(
                     body.get("cat", ""), body.get("name", ""),
                     force=bool(body.get("force", False))))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+        if path == "/datadb/set_tags":
+            try:
+                import datadb
+                return self._send(datadb.set_tags(
+                    body.get("cat", ""), body.get("name", ""),
+                    body.get("tags") or []))
             except Exception as e:
                 return self._send({"ok": False, "message": str(e)}, 200)
         if path == "/env_check":

@@ -143,16 +143,21 @@
     body.innerHTML = html;
     bindEvolution();
 
-    // 进页面时若后台正在演化，恢复显示实时进度
+    // 进页面时若后台正在演化，恢复实时进度；若上次有结果/被中断，也显示出来（可折叠）
     try {
       const r = await fetch(BACKEND + "/lumi/evolve_status");
       const d = await r.json();
       const prog = (d && d.progress) || {};
       if (prog.active || prog.running) {
         renderEvoProgress(prog);
-        const btn = $("evoRunBtn");
-        if (btn) btn.disabled = true;
+        setEvoBtnState(true);
         startEvoPoll();
+      } else if (prog.phase === "done" || prog.phase === "error") {
+        // 上次的结果（含「被中断」）默认折叠显示，按钮恢复可用
+        _evoProgCollapsed = true;
+        renderEvoProgress(prog);
+        setEvoBtnState(false);
+        if (prog.phase === "error" && prog.message) setEvoStatus(prog.message, "warn");
       }
     } catch (e) {}
   }
@@ -287,6 +292,11 @@
     // 取内容
     const bodyEl = document.getElementById("evoFloatBody");
     try {
+      // 多文件来源（成长库原文 = 视频笔记+情报）：直接在悬浮窗里列出文件清单
+      if (link.view === "datadb" && (link.cat === "video" || link.cat === "briefing") && !link.name) {
+        await renderSourceFileList(bodyEl, link.cat);
+        return;
+      }
       const content = await fetchSourceContent(link);
       bodyEl.innerHTML = content
         ? '<div class="evo-float-md">' + md(content) + '</div>'
@@ -294,6 +304,55 @@
     } catch (e) {
       bodyEl.innerHTML = '<div class="evo-float-loading">读不出内容，点右上角「在对应板块打开」查看。</div>';
     }
+  }
+
+  // 在悬浮窗里渲染某个数据库类别的文件清单（成长库原文用），点某篇可就地展开内容
+  async function renderSourceFileList(bodyEl, cat) {
+    bodyEl.innerHTML = '<div class="evo-float-loading">读取文件列表…</div>';
+    let items = [];
+    // 成长库原文 = 视频笔记 + 情报简报，合并两类
+    const cats = cat === "video" ? ["video", "briefing"] : [cat];
+    for (const c of cats) {
+      try {
+        const r = await fetch(BACKEND + "/datadb/list?cat=" + encodeURIComponent(c));
+        const d = await r.json();
+        (d && d.items || []).forEach((it) => { it._cat = c; items.push(it); });
+      } catch (e) {}
+    }
+    if (!items.length) { bodyEl.innerHTML = '<div class="evo-float-loading">这个来源暂时没有文件。</div>'; return; }
+    items.sort((a, b) => (b.mtime || 0) - (a.mtime || 0));
+    let h = '<div class="evo-srclist-hint">本次参考的成长库原文（视频笔记 / 情报，共 ' + items.length + ' 篇，新→旧）。点任意一篇看内容：</div>' +
+      '<div class="evo-srclist">';
+    items.forEach((it, i) => {
+      h += '<div class="evo-srcitem">' +
+        '<div class="evo-srcitem-head" data-srcidx="' + i + '">' +
+          '<span class="evo-srcitem-title">📄 ' + esc(it.title || it.name) + '</span>' +
+          '<span class="evo-srcitem-meta">' + esc(it.date || "") + ' · ' + esc(it.size_h || "") + ' ▼</span>' +
+        '</div><div class="evo-srcitem-body" id="evoSrcBody' + i + '"></div></div>';
+    });
+    h += '</div>';
+    bodyEl.innerHTML = h;
+    bodyEl.querySelectorAll("[data-srcidx]").forEach((head) => {
+      head.addEventListener("click", async () => {
+        const idx = parseInt(head.dataset.srcidx, 10);
+        const it = items[idx];
+        const bodyDiv = document.getElementById("evoSrcBody" + idx);
+        if (!bodyDiv) return;
+        if (bodyDiv.dataset.open === "1") { bodyDiv.innerHTML = ""; bodyDiv.dataset.open = "0"; return; }
+        bodyDiv.innerHTML = '<div class="evo-float-loading">读取中…</div>';
+        try {
+          const r = await fetch(BACKEND + "/datadb/item?cat=" + encodeURIComponent(it._cat) +
+            "&name=" + encodeURIComponent(it.name));
+          const d = await r.json();
+          bodyDiv.innerHTML = (d && d.ok)
+            ? '<div class="evo-float-md">' + md(d.content || "（空）") + '</div>'
+            : '<div class="evo-float-loading">读不出内容。</div>';
+          bodyDiv.dataset.open = "1";
+        } catch (e) {
+          bodyDiv.innerHTML = '<div class="evo-float-loading">读取出错。</div>';
+        }
+      });
+    });
   }
 
   // 按 link 目标取该来源的文本内容（用于悬浮窗就地预览）
@@ -326,7 +385,7 @@
     return "";   // 多文件来源（如视频原文）→ 返回空，引导去板块看列表
   }
 
-  // 点资料源 → 跳到对应界面（数据库某类别 / 洞察研究详情）
+  // 点资料源 → 跳到对应界面（数据库某类别 / 洞察研究详情），并放一个「返回人格演化」浮钮
   function navigateToSource(link) {
     try {
       if (link.view === "datadb") {
@@ -344,7 +403,24 @@
           if (typeof window.insightOpenTab === "function") window.insightOpenTab(link.tab || "detail");
         }, 250);
       }
+      showBackToEvolution();
     } catch (e) { /* 静默 */ }
+  }
+
+  // 一个固定在右下角的「← 返回人格演化」按钮，点了回到演化页（看完资料能原路返回）
+  function showBackToEvolution() {
+    let btn = document.getElementById("backToEvoBtn");
+    if (btn) btn.remove();
+    btn = document.createElement("button");
+    btn.id = "backToEvoBtn";
+    btn.className = "back-to-evo";
+    btn.textContent = "← 返回人格演化";
+    btn.addEventListener("click", () => {
+      const sub = document.querySelector('#lumiSubNav .nav-subitem[data-lumi="evolution"]');
+      if (sub) sub.click();
+      btn.remove();
+    });
+    document.body.appendChild(btn);
   }
 
   async function pollEvoProgress() {

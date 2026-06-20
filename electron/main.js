@@ -118,15 +118,31 @@ function createWindow() {
   const iconPath = path.join(__dirname, "assets",
     process.platform === "win32" ? "icon.ico" : "icon.png");
   const appIcon = nativeImage.createFromPath(iconPath);
+
+  // 按当前屏幕「可用工作区」算窗口大小：不要超过屏幕高度，否则底部按钮会被挤到屏幕外。
+  // 取工作区的 ~92%，并限制在合理上限内，再居中。这样无论屏幕多大都能完整显示所有按钮。
+  let winW = 1280, winH = 860;
+  let winX, winY;
+  try {
+    const wa = screen.getPrimaryDisplay().workAreaSize;   // 已扣掉任务栏的可用区域
+    winW = Math.min(1440, Math.max(960, Math.round(wa.width * 0.92)));
+    winH = Math.min(1040, Math.max(640, Math.round(wa.height * 0.96)));
+    const waPos = screen.getPrimaryDisplay().workArea;     // 含左上角坐标，用于居中
+    winX = waPos.x + Math.round((waPos.width - winW) / 2);
+    winY = waPos.y + Math.round((waPos.height - winH) / 2);
+  } catch (e) { /* 拿不到屏幕信息就用默认 1280x860 */ }
+
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 860,
+    width: winW,
+    height: winH,
+    x: winX,
+    y: winY,
     minWidth: 800,
-    minHeight: 560,
+    minHeight: 520,
     title: "超能小助",
     icon: appIcon.isEmpty() ? undefined : appIcon,
     backgroundColor: "#10100e",
-    show: false,            // 先不显示，最大化后再显示，避免闪一下小窗
+    show: false,            // 先不显示，定好大小后再显示，避免闪一下
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -134,7 +150,7 @@ function createWindow() {
     },
   });
 
-  // 按默认窗口大小显示（不再自动最大化）
+  // 已按屏幕工作区算好大小并居中，直接显示
   mainWindow.show();
 
   mainWindow.loadFile(path.join(__dirname, "renderer", "index.html"));

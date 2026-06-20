@@ -502,6 +502,7 @@ def generate_sniff_report(use_local=False, model="web", verbose=False,
     sections = []
     todo = sources[:12]          # 控制时间，最多 12 个站
     n = len(todo)
+    offline_hits = 0             # 有多少个站点是「未能联网、用旧知识凑」的
     for i, src in enumerate(todo, 1):
         title = src.get("title") or src.get("url")
         url = src.get("url", "")
@@ -535,6 +536,10 @@ def generate_sniff_report(use_local=False, model="web", verbose=False,
         except Exception as e:
             summary = f"（这个站点生成出错：{e}）"
 
+        # 网页模型若回了「本次未能联网」，说明它其实没在浏览 → 这条是旧知识、时效不可信
+        if web and summary and ("未能联网" in summary or "无法联网" in summary):
+            offline_hits += 1
+
         block = [f"## 📡 {title}", "", summary or "（暂无可报内容）"]
         # 非网页模型这边软件帮忙附上站点原文链接（网页模型会自己带来源）
         if (not web) and url:
@@ -547,6 +552,17 @@ def generate_sniff_report(use_local=False, model="web", verbose=False,
     mode = "网页模型逐站搜集" if web else "软件抓取 + 模型提炼"
     header = (f"# 📡 AI 嗅探简报\n\n"
               f"> {ts.strftime('%Y-%m-%d %H:%M')} 生成 · {mode} · 共 {n} 个站点\n")
+    # 关键告警：网页模型没真正联网 → 内容是旧训练知识，时效不可信，醒目提示用户去修
+    if web and offline_hits:
+        header += (
+            f"\n> ⚠️ **注意：本次有 {offline_hits}/{n} 个站点未能真正联网**，"
+            f"这些内容来自模型的旧知识（可能停留在过去年份），**不是最新动态**。\n"
+            f"> 原因通常是网页模型没装好浏览器内核、或没开「联网搜索」开关。"
+            f"修复办法：① 确认已安装 playwright 浏览器内核；"
+            f"② 在「网页大模型」设置里**打开 enableSearch / 联网搜索**；"
+            f"③ 去设置点「测试网页模型」确认能正常联网后再嗅探。\n"
+            f"> 想立刻拿到真·最新信息，也可以把嗅探模型切到**软件抓取 + 本地模型**模式"
+            f"（软件会真去抓网页原文）。\n")
     report = header + "\n" + body
 
     # 存档一份，方便回看

@@ -3,6 +3,6 @@
   "aiPassword": "zzj12345",
   "headless": false,
   "cardName": "",
-  "enableSearch": false,
+  "enableSearch": true,
   "aiUrl": "https://sorryios.ai/"
 }

@@ -11,7 +11,12 @@
   let _ddbCat = null;      // 当前选中类别 key
   let _ddbList = null;     // 当前类别的条目列表
   let _ddbUnlockConfig = false;  // 是否解锁了「配置」类删除
-  let _ddbPreview = null;  // {name, content, ext, is_dir}
+  let _ddbPreview = null;  // {name, content, ext, is_dir}（旧的底部预览，保留给非内容类）
+  let _ddbTagFilter = "";  // 当前标签过滤（""=全部）
+  let _ddbTagsExpanded = false;  // 标签过滤条是否展开（默认折叠，省得挡内容）
+  let _ddbPage = 1;        // 当前页码
+  let _ddbPageSize = 20;   // 每页条数（用户可改）
+  let _ddbExpanded = {};   // name -> {loading, content, ext} 就地展开阅读的文章
 
   function $(id) { return document.getElementById(id); }
   function esc(s) {
@@ -49,6 +54,7 @@
   }
 
   async function loadCategory(key, refreshOverview) {
+    if (key !== _ddbCat) { _ddbTagFilter = ""; _ddbPage = 1; _ddbExpanded = {}; _ddbTagsExpanded = false; }
     _ddbCat = key;
     _ddbPreview = null;
     if (refreshOverview) {
@@ -73,8 +79,8 @@
     const cats = d.categories || [];
 
     let html = '<div class="ddb-overview">' +
-      '<div class="ddb-ov-title">软件产生的所有数据都在这里</div>' +
-      '<div class="ddb-ov-sub">视频笔记、情报、对话、画像记忆、配置……按类别归拢，可查看、导出、删除。' +
+      '<div class="ddb-ov-title">软件产生的所有数据都在这里（含成长库）</div>' +
+      '<div class="ddb-ov-sub">视频笔记、情报、对话、画像记忆、配置……按类别归拢。内容类可<b>阅读、打标签、按标签筛选</b>（和原成长库一样），还能导出、删除。' +
       '<b>配置类默认只读</b>，避免误删影响小助运行。</div>' +
       '<div class="ddb-ov-stats">' +
         '<span class="ddb-ov-stat"><b>' + (d.total_count || 0) + '</b> 个文件</span>' +
@@ -135,30 +141,118 @@
       return html;
     }
 
-    html += '<div class="ddb-table"><div class="ddb-tr ddb-th">' +
-      '<span class="ddb-c-name">名称</span>' +
-      '<span class="ddb-c-size">大小</span>' +
-      '<span class="ddb-c-date">修改时间</span>' +
-      '<span class="ddb-c-act">操作</span></div>';
+    const taggable = !!L.taggable;   // 内容类才有标签
+    const allTags = L.all_tags || [];
+
+    // 标签过滤条（默认折叠，省得挡内容；点「展开全部」才显示）
+    if (taggable && allTags.length) {
+      const FOLD_N = 8;   // 折叠时只露前 8 个
+      const showAll = _ddbTagsExpanded || allTags.length <= FOLD_N;
+      const visible = showAll ? allTags : allTags.slice(0, FOLD_N);
+      html += '<div class="ddb-tagwrap"><div class="ddb-tagbar">' +
+        '<button class="ddb-tagchip' + (_ddbTagFilter === "" ? " active" : "") + '" data-tagf="">全部</button>' +
+        visible.map((t) => '<button class="ddb-tagchip' + (_ddbTagFilter === t ? " active" : "") +
+          '" data-tagf="' + esc(t) + '">' + esc(t) + '</button>').join("");
+      if (allTags.length > FOLD_N) {
+        html += '<button class="ddb-tagtoggle" id="ddbTagToggle">' +
+          (showAll ? '收起 ▲' : '展开全部 ' + allTags.length + ' 个 ▼') + '</button>';
+      }
+      html += '</div></div>';
+    }
+
+    // 应用标签过滤
+    let shown = items;
+    if (taggable && _ddbTagFilter) {
+      shown = items.filter((it) => (it.tags || []).includes(_ddbTagFilter));
+    }
+    if (!shown.length) {
+      html += '<div class="ddb-empty">没有带「' + esc(_ddbTagFilter) + '」标签的内容。</div></div>';
+      return html;
+    }
+
+    // —— 分页 ——
+    const total = shown.length;
+    const pageSize = _ddbPageSize;
+    const pageCount = Math.max(1, Math.ceil(total / pageSize));
+    if (_ddbPage > pageCount) _ddbPage = pageCount;
+    const start = (_ddbPage - 1) * pageSize;
+    const pageItems = shown.slice(start, start + pageSize);
+
+    // 分页工具条（顶部）：每页条数选择 + 翻页
+    html += pagerHtml(total, pageCount, start, pageItems.length);
 
     const canDelete = (safety !== "config") || _ddbUnlockConfig;
-    items.forEach((it) => {
+    html += '<div class="ddb-cardlist">';
+    pageItems.forEach((it) => {
       const delAttr = canDelete ? '' : ' disabled title="配置类已锁定，打开上面的开关才能删"';
-      html += '<div class="ddb-tr">' +
-        '<span class="ddb-c-name" title="' + esc(it.name) + '">' +
-          (it.is_dir ? '📁 ' : '📄 ') + esc(it.title || it.name) +
-          '<span class="ddb-c-fname">' + esc(it.name) + '</span></span>' +
-        '<span class="ddb-c-size">' + esc(it.size_h) + '</span>' +
-        '<span class="ddb-c-date">' + esc(it.date) + '</span>' +
-        '<span class="ddb-c-act">' +
-          (it.is_dir ? '' : '<button class="ddb-icon-btn" data-act="view" data-name="' + esc(it.name) + '" title="预览">👁</button>') +
-          (it.is_dir ? '' : '<button class="ddb-icon-btn" data-act="export" data-name="' + esc(it.name) + '" title="导出/备份">⬇</button>') +
-          '<button class="ddb-icon-btn ddb-del" data-act="delete" data-name="' + esc(it.name) +
-            '" data-title="' + esc(it.title || it.name) + '"' + delAttr + '>🗑</button>' +
-        '</span></div>';
+      const tagsHtml = (taggable && (it.tags || []).length)
+        ? '<span class="ddb-card-tags">' + it.tags.map((t) =>
+            '<span class="ddb-tag">' + esc(t) + '</span>').join("") + '</span>'
+        : (taggable ? '<span class="ddb-card-tags ddb-notag">未打标签</span>' : '');
+      const exp = _ddbExpanded[it.name];
+      const isOpen = !!exp;
+      html += '<div class="ddb-card' + (isOpen ? ' open' : '') + '">' +
+        '<div class="ddb-card-row">' +
+          '<div class="ddb-card-main"' + (it.is_dir ? '' : ' data-toggle="' + esc(it.name) + '"') + '>' +
+            '<div class="ddb-card-title">' + (it.is_dir ? '📁 ' : (isOpen ? '📖 ' : '📄 ')) +
+              esc(it.title || it.name) +
+              (it.is_dir ? '' : '<span class="ddb-card-toggle">' + (isOpen ? '收起 ▲' : '阅读 ▼') + '</span>') +
+            '</div>' +
+            (isOpen ? '' : (it.preview ? '<div class="ddb-card-prev">' + esc(it.preview) + '</div>' : '')) +
+            '<div class="ddb-card-meta">' + tagsHtml +
+              '<span class="ddb-card-info">' + esc(it.date) + ' · ' + esc(it.size_h) + '</span></div>' +
+          '</div>' +
+          '<div class="ddb-card-acts">' +
+            (taggable && !it.is_dir ? '<button class="ddb-icon-btn" data-act="tag" data-name="' + esc(it.name) +
+              '" data-title="' + esc(it.title || it.name) + '" title="设置标签">🏷</button>' : '') +
+            (it.is_dir ? '' : '<button class="ddb-icon-btn" data-act="export" data-name="' + esc(it.name) + '" title="导出/备份">⬇</button>') +
+            '<button class="ddb-icon-btn ddb-del" data-act="delete" data-name="' + esc(it.name) +
+              '" data-title="' + esc(it.title || it.name) + '"' + delAttr + '>🗑</button>' +
+          '</div>' +
+        '</div>';
+      // 就地展开的正文（手风琴）
+      if (isOpen) {
+        let inner;
+        if (exp.loading) inner = '<div class="ddb-card-loading">读取中…</div>';
+        else if (exp.ext === "md") inner = '<div class="ddb-prev-md">' + md(exp.content || "（空）") + '</div>';
+        else inner = '<pre class="ddb-prev-pre">' + esc(exp.content || "") + '</pre>';
+        html += '<div class="ddb-card-read">' + inner + '</div>';
+      }
+      html += '</div>';
     });
-    html += '</div></div>';
+    html += '</div>';
+
+    // 分页工具条（底部，方便长列表翻页）
+    if (pageCount > 1) html += pagerHtml(total, pageCount, start, pageItems.length);
+
+    html += '</div>';
     return html;
+  }
+
+  // 分页工具条
+  function pagerHtml(total, pageCount, start, shownN) {
+    const sizes = [10, 20, 50, 100];
+    let opts = sizes.map((s) => '<option value="' + s + '"' +
+      (s === _ddbPageSize ? ' selected' : '') + '>' + s + ' 条/页</option>').join("");
+    let nums = '';
+    // 页码：最多显示当前页附近 + 首尾
+    const win = 2;
+    for (let p = 1; p <= pageCount; p++) {
+      if (p === 1 || p === pageCount || (p >= _ddbPage - win && p <= _ddbPage + win)) {
+        nums += '<button class="ddb-pagenum' + (p === _ddbPage ? ' active' : '') +
+          '" data-page="' + p + '">' + p + '</button>';
+      } else if (p === _ddbPage - win - 1 || p === _ddbPage + win + 1) {
+        nums += '<span class="ddb-page-ellip">…</span>';
+      }
+    }
+    return '<div class="ddb-pager">' +
+      '<span class="ddb-pager-info">共 ' + total + ' 篇 · 第 ' + (start + 1) + '–' + (start + shownN) + ' 篇</span>' +
+      '<div class="ddb-pager-ctrl">' +
+        '<select class="ddb-pagesize" id="ddbPageSize">' + opts + '</select>' +
+        '<button class="ddb-pagebtn" data-page="' + (_ddbPage - 1) + '"' + (_ddbPage <= 1 ? ' disabled' : '') + '>‹ 上一页</button>' +
+        '<span class="ddb-pagenums">' + nums + '</span>' +
+        '<button class="ddb-pagebtn" data-page="' + (_ddbPage + 1) + '"' + (_ddbPage >= pageCount ? ' disabled' : '') + '>下一页 ›</button>' +
+      '</div></div>';
   }
 
   function previewHtml() {
@@ -187,12 +281,64 @@
     const prevClose = $("ddbPrevClose");
     if (prevClose) prevClose.addEventListener("click", () => { _ddbPreview = null; render(); });
 
+    // 标签过滤条
+    document.querySelectorAll("#ddbBody [data-tagf]").forEach((b) => {
+      b.addEventListener("click", () => { _ddbTagFilter = b.dataset.tagf || ""; _ddbPage = 1; render(); });
+    });
+    // 标签展开/收起
+    const tagToggle = $("ddbTagToggle");
+    if (tagToggle) tagToggle.addEventListener("click", () => { _ddbTagsExpanded = !_ddbTagsExpanded; render(); });
+
+    // 就地展开阅读（点标题区）
+    document.querySelectorAll("#ddbBody .ddb-card-main[data-toggle]").forEach((b) => {
+      b.addEventListener("click", () => toggleRead(b.dataset.toggle));
+    });
+
+    // 分页：每页条数
+    const ps = $("ddbPageSize");
+    if (ps) ps.addEventListener("change", () => {
+      _ddbPageSize = parseInt(ps.value, 10) || 20; _ddbPage = 1; render();
+    });
+    // 分页：翻页按钮 + 页码
+    document.querySelectorAll("#ddbBody [data-page]").forEach((b) => {
+      if (b.disabled) return;
+      b.addEventListener("click", () => {
+        const p = parseInt(b.dataset.page, 10);
+        if (p >= 1) { _ddbPage = p; _ddbExpanded = {}; render();
+          const top = document.querySelector("#ddbBody .ddb-cardlist");
+          if (top) top.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      });
+    });
+
     document.querySelectorAll("#ddbBody [data-act]").forEach((b) => {
       const act = b.dataset.act;
-      if (act === "view") b.addEventListener("click", () => viewItem(b.dataset.name));
-      else if (act === "export") b.addEventListener("click", () => exportItem(b.dataset.name));
-      else if (act === "delete") b.addEventListener("click", () => deleteItem(b.dataset.name, b.dataset.title));
+      if (act === "view") b.addEventListener("click", (e) => { e.stopPropagation(); viewItem(b.dataset.name); });
+      else if (act === "export") b.addEventListener("click", (e) => { e.stopPropagation(); exportItem(b.dataset.name); });
+      else if (act === "delete") b.addEventListener("click", (e) => { e.stopPropagation(); deleteItem(b.dataset.name, b.dataset.title); });
+      else if (act === "tag") b.addEventListener("click", (e) => { e.stopPropagation(); openTagEditor(b.dataset.name, b.dataset.title); });
     });
+  }
+
+  // 就地展开/折叠阅读一篇文章（手风琴：同时只展开一篇，点开新的会自动折叠上一篇）
+  async function toggleRead(name) {
+    if (_ddbExpanded[name]) { _ddbExpanded = {}; render(); return; }
+    _ddbExpanded = { [name]: { loading: true } };   // 清掉其它已展开的，只留这一篇
+    render();
+    try {
+      const r = await fetch(BACKEND + "/datadb/item?cat=" + encodeURIComponent(_ddbCat) +
+        "&name=" + encodeURIComponent(name));
+      const d = await r.json();
+      // 只有当前仍是这篇在等待时才写入（避免用户快速点了别的篇导致错位）
+      if (_ddbExpanded[name] && _ddbExpanded[name].loading) {
+        if (d && d.ok) _ddbExpanded = { [name]: { loading: false, content: d.content || "（空）", ext: d.ext || "" } };
+        else { delete _ddbExpanded[name]; setStatus((d && d.message) || "读取失败", "warn"); }
+      }
+    } catch (e) {
+      if (_ddbExpanded[name]) delete _ddbExpanded[name];
+      setStatus("出错：" + e.message, "warn");
+    }
+    render();
   }
 
   async function viewItem(name) {
@@ -225,6 +371,76 @@
     } catch (e) {
       window.open(url, "_blank");
     }
+  }
+
+  // 设置标签弹窗（和成长库一样：已选标签可删、可输入新标签、可点常用标签）
+  function openTagEditor(name, title) {
+    const L = _ddbList || {};
+    const item = (L.items || []).find((x) => x.name === name) || {};
+    let chosen = (item.tags || []).slice();
+    const suggest = (L.all_tags || []).filter((t) => !chosen.includes(t));
+
+    const mask = document.createElement("div");
+    mask.className = "ddb-tag-modal-mask";
+    mask.innerHTML =
+      '<div class="ddb-tag-modal">' +
+        '<div class="ddb-tag-modal-title">设置标签</div>' +
+        '<div class="ddb-tag-modal-sub">' + esc(title || name) + '</div>' +
+        '<div class="ddb-tag-chosen" id="ddbTagChosen"></div>' +
+        '<div class="ddb-tag-inputrow">' +
+          '<input id="ddbTagInput" class="ddb-tag-input" placeholder="输入新标签，回车添加（如 金融 / 逻辑 / AI）" maxlength="20">' +
+        '</div>' +
+        (suggest.length ? '<div class="ddb-tag-suggest-title">常用标签（点击添加）</div>' +
+          '<div class="ddb-tag-suggest" id="ddbTagSuggest">' +
+          suggest.map((t) => '<button class="ddb-tag-sug" data-sug="' + esc(t) + '">' + esc(t) + '</button>').join("") +
+          '</div>' : '') +
+        '<div class="ddb-tag-modal-acts">' +
+          '<button class="ddb-tag-cancel" id="ddbTagCancel">取消</button>' +
+          '<button class="ddb-tag-save" id="ddbTagSave">保存</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(mask);
+
+    const renderChosen = () => {
+      const box = $("ddbTagChosen");
+      box.innerHTML = chosen.length
+        ? chosen.map((t) => '<span class="ddb-tag-pick" data-del="' + esc(t) + '">' + esc(t) + ' ✕</span>').join("")
+        : '<span class="ddb-tag-empty">还没有标签</span>';
+      box.querySelectorAll("[data-del]").forEach((s) =>
+        s.addEventListener("click", () => { chosen = chosen.filter((x) => x !== s.dataset.del); renderChosen(); }));
+    };
+    renderChosen();
+
+    const addTag = (t) => {
+      t = (t || "").trim().slice(0, 20);
+      if (t && !chosen.includes(t)) { chosen.push(t); renderChosen(); }
+    };
+    const input = $("ddbTagInput");
+    if (input) input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); addTag(input.value); input.value = ""; }
+    });
+    mask.querySelectorAll("[data-sug]").forEach((b) =>
+      b.addEventListener("click", () => { addTag(b.dataset.sug); b.remove(); }));
+    const close = () => mask.remove();
+    $("ddbTagCancel").onclick = close;
+    mask.addEventListener("click", (e) => { if (e.target === mask) close(); });
+    $("ddbTagSave").onclick = async () => {
+      // 把输入框里没回车的也算上
+      if (input && input.value.trim()) addTag(input.value);
+      setStatus("保存标签中…");
+      try {
+        const r = await fetch(BACKEND + "/datadb/set_tags", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cat: _ddbCat, name: name, tags: chosen }),
+        });
+        const d = await r.json();
+        if (d && d.ok) {
+          setStatus("标签已保存", "ok");
+          close();
+          await loadCategory(_ddbCat, false);   // 刷新列表（标签条会更新）
+        } else setStatus((d && d.message) || "保存失败", "warn");
+      } catch (e) { setStatus("出错：" + e.message, "warn"); }
+    };
   }
 
   async function deleteItem(name, title) {
