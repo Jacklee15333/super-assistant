@@ -383,5 +383,159 @@
     "category": "AI动态",
     "key": "223a9e9d76c4357a",
     "ts": "2026-06-19 14:50"
+  },
+  {
+    "kind": "发布",
+    "title": "Show HN: Talos – Open-source WASM interpreter for Lean",
+    "summary": "Talos是一个面向Lean编程语言的开源WASM解释器，属于编程语言与WebAssembly生态领域。该工具可能推动Lean在Web端的应用，为形式化验证与验证工具链的跨平台扩展提供新途径。",
+    "importance": "高",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "91033c8efc191361",
+    "ts": "2026-06-19 14:51"
+  },
+  {
+    "kind": "发布",
+    "title": "Launch HN: TesterArmy (YC P26) – Agents that test web and mobile apps",
+    "summary": "TesterArmy是Y Combinator孵化的自动化测试代理平台，属于软件测试与DevOps工具领域。其通过AI驱动的测试代理可能提升应用测试效率，对需要快速验证Web和移动端产品的团队具有参考价值。",
+    "importance": "中",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "a00d8d8a1b6e3657",
+    "ts": "2026-06-19 14:51"
+  },
+  {
+    "kind": "概念",
+    "title": "Noam Shazeer Joins OpenAI",
+    "summary": "谷歌前研究员Noam Shazeer加入OpenAI，属于人工智能人才动态领域。作为Transformer架构的重要贡献者，其变动可能影响大模型研发方向，对AI行业技术路线演进具有观察意义。",
+    "importance": "高",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "25f2484783d97e03",
+    "ts": "2026-06-19 14:51"
+  },
+  {
+    "kind": "功能",
+    "title": "FINAL-Bench Quantum: 量子计算方法的基准",
+    "summary": "这是一个面向量子计算领域的中立基准测试框架，旨在评估不同量子算法和硬件的性能。属于量子计算技术方向，为开发者提供标准化的评估工具，有助于推动量子算法研究和实际应用。",
+    "importance": "中",
+    "source_title": "Hugging Face 博客",
+    "link": "https://huggingface.co/blog",
+    "category": "AI动态",
+    "key": "7538c7fb8148e797",
+    "ts": "2026-06-20 10:42"
+  },
+  {
+    "kind": "功能",
+    "title": "olmo-eval: 模型开发流程评估工具",
+    "summary": "该工具为模型开发流程提供标准化的评估工作台，属于机器学习模型优化方向。通过系统化评估不同阶段的模型表现，帮助开发者识别训练中的关键瓶颈，提升模型迭代效率。",
+    "importance": "中",
+    "source_title": "Hugging Face 博客",
+    "link": "https://huggingface.co/blog",
+    "category": "AI动态",
+    "key": "79afd2177cd487ab",
+    "ts": "2026-06-20 10:42"
+  },
+  {
+    "kind": "发布",
+    "title": "NVIDIA Cosmos 3: 物理AI通用模型",
+    "summary": "NVIDIA推出的首个面向物理AI推理与行动的开放通用模型，属于多模态AI技术领域。该模型可能整合视觉、语言和动作控制能力，适用于机器人等需要物理交互的复杂场景。",
+    "importance": "高",
+    "source_title": "Hugging Face 博客",
+    "link": "https://huggingface.co/blog",
+    "category": "AI动态",
+    "key": "e92c14505476e588",
+    "ts": "2026-06-20 10:42"
+  },
+  {
+    "kind": "功能",
+    "title": "KV Caching：Transformer推理优化",
+    "summary": "介绍基于键值缓存的Transformer推理优化方法，属于自然语言处理中的模型加速技术。通过减少重复计算提升推理效率，对大模型部署和实时应用有重要意义。",
+    "importance": "中",
+    "source_title": "Hugging Face 博客",
+    "link": "https://huggingface.co/blog",
+    "category": "AI动态",
+    "key": "701cd1a25b723ed9",
+    "ts": "2026-06-20 10:42"
+  },
+  {
+    "kind": "概念",
+    "title": "Eyas：AI安防摄像头代理",
+    "summary": "提出AI驱动的安防摄像头代理概念，属于计算机视觉与边缘计算结合方向。这类智能代理可能具备自主监控、异常检测和事件响应能力，代表安防领域智能化趋势。",
+    "importance": "中",
+    "source_title": "Hugging Face 博客",
+    "link": "https://huggingface.co/blog",
+    "category": "AI动态",
+    "key": "fc24b3d58351d386",
+    "ts": "2026-06-20 10:42"
+  },
+  {
+    "kind": "发布",
+    "title": "XLibre XServer 25.2.0 发布",
+    "summary": "XLibre XServer 是一个开源的 X Window 系统服务器实现，此次版本更新可能包含性能优化或新特性，属于图形界面技术领域。该更新对依赖 X11 协议的开发者和用户而言，可能提供更稳定或功能更强的显示服务。",
+    "importance": "中",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "ce14c969bdba3d5f",
+    "ts": "2026-06-20 10:43"
+  },
+  {
+    "kind": "功能",
+    "title": "DuckDB Internals Part 1",
+    "summary": "DuckDB 是一个面向分析型数据库的嵌入式 OLAP 数据库系统，该文章深入解析其内部架构，可能揭示其在列式存储、查询优化等关键技术上的设计思路，对数据库研发者具有参考价值。",
+    "importance": "高",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "cf7f0765d9f3a8f9",
+    "ts": "2026-06-20 10:43"
+  },
+  {
+    "kind": "概念",
+    "title": "Egyptian Fractions",
+    "summary": "埃及分数是数学中将分数分解为不同单位分数之和的方法，该文章可能探讨其算法实现或历史背景，属于数学计算领域。这种分解方法在密码学、资源分配等实际问题中仍有应用价值。",
+    "importance": "中",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "46c647cf610d357e",
+    "ts": "2026-06-20 10:43"
+  },
+  {
+    "kind": "功能",
+    "title": "RhinoCollab：Rhino 3D 实时编辑插件",
+    "summary": "RhinoCollab 是为 Rhino 3D 建模软件开发的协作插件，支持多人实时编辑功能，属于 3D 建模和协同设计领域。该工具可能提升设计团队在建筑、工业设计等场景中的协作效率。",
+    "importance": "中",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "4a9ca8b2dbda6d02",
+    "ts": "2026-06-20 10:43"
+  },
+  {
+    "kind": "发布",
+    "title": "Metiq：实时 3D 全球数据可视化平台",
+    "summary": "Metiq 是一个基于 100 个公共数据集的实时 3D 地球可视化平台，属于地理信息系统和数据可视化领域。该产品的发布为环境监测、交通管理等领域的数据展示提供了新的技术手段。",
+    "importance": "高",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "74b37b7bd1baa6ab",
+    "ts": "2026-06-20 10:43"
+  },
+  {
+    "kind": "概念",
+    "title": "Project Valhalla 在 JDK 28 的落地",
+    "summary": "Project Valhalla 是 Java 的一项长期计划，旨在改进语言对值类型和泛型的支持，属于编程语言技术演进方向。其在 JDK 28 的实现可能显著影响 Java 未来的性能和开发方式。",
+    "importance": "高",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "99d3d1c954bb3448",
+    "ts": "2026-06-20 10:43"
   }
 ]

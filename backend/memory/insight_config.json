@@ -1,0 +1,22 @@
+{
+  "auto": true,
+  "mode": "interval",
+  "interval_hours": 1,
+  "daily_at": "03:00",
+  "scopes": {
+    "video": true,
+    "info": true,
+    "sniff": true,
+    "learning": true,
+    "conversations": true,
+    "notes": true,
+    "memory": true,
+    "research": true
+  },
+  "read_local": true,
+  "use_local": false,
+  "model": "web",
+  "apply_to_agent": true,
+  "auto_research": true,
+  "max_chars": 12000
+}

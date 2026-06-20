@@ -28,6 +28,7 @@ import os
 import re
 import json
 import datetime
+import threading
 from pathlib import Path
 
 import agent_core as core
@@ -38,6 +39,8 @@ OWNER_PROFILE = "OWNER_PROFILE.md"    # ① 人格演化产出：小助观察到
 EVOLUTION_LOG = "evolution_log.md"    # ① 每次演化的留痕
 RELATIONS = "relationships.md"        # ② 关系网络
 ENVIRONMENT = "ENVIRONMENT.md"        # ④ 环境画像 / 职业
+
+EVOLVE_PROGRESS = "evolve_progress.json"   # ① 人格演化的实时进度（让用户看见每一步）
 
 
 def _mem(name):
@@ -57,6 +60,95 @@ def _today():
 
 def _now_str():
     return datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+
+
+def _now_clock():
+    return datetime.datetime.now().strftime("%H:%M:%S")
+
+
+# ════════════════════════════════════════════════════════════════════
+#  人格演化进度（后台线程跑 + 落盘 + 前端轮询，让你看见每一步）
+# ════════════════════════════════════════════════════════════════════
+
+_evolve_work = {"thread": None, "running": False}
+
+
+def _model_label(use_local, model):
+    """把 use_local + model 翻译成人话，告诉用户这步用的哪个模型。"""
+    m = (model or "").strip()
+    if not m:
+        m = "qwen2.5"
+    if m == "web":
+        return "网页模型"
+    if m == "claude" or m.startswith("claude::"):
+        return "Claude 官方"
+    # 「懂你」这类轻量提炼默认走本地，_ask 里会把非本地/网页回退成本地 qwen2.5
+    try:
+        if use_local and not core.is_web_model(m):
+            return "本地 · " + m
+    except Exception:
+        pass
+    return "本地 · qwen2.5"
+
+
+def _default_evolve_progress():
+    return {
+        "active": False,
+        "phase": "idle",       # idle/collecting/distilling/synthesizing/writing/done/error
+        "step": 0,             # 当前第几步
+        "total_steps": 5,
+        "percent": 0,
+        "model": "",           # 这次用的模型（人话）
+        "activity": [],        # 实时活动日志（带时间戳）
+        "sources": [],         # 本次参考的资料源（带可点击跳转目标），见 _ev_sources
+        "started_at": "",
+        "finished_at": "",
+        "message": "",
+        "ok": None,
+    }
+
+
+def _read_evolve_progress():
+    try:
+        p = _mem(EVOLVE_PROGRESS)
+        if p.exists():
+            d = json.loads(p.read_text(encoding="utf-8"))
+            base = _default_evolve_progress()
+            base.update(d if isinstance(d, dict) else {})
+            return base
+    except Exception:
+        pass
+    return _default_evolve_progress()
+
+
+def _write_evolve_progress(prog):
+    try:
+        _mem(EVOLVE_PROGRESS).write_text(
+            json.dumps(prog, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _ev_log(prog, text):
+    prog.setdefault("activity", [])
+    prog["activity"].append("%s  %s" % (_now_clock(), text))
+    prog["activity"] = prog["activity"][-40:]
+
+
+def _ev_step(prog, phase, step, text):
+    prog["phase"] = phase
+    prog["step"] = step
+    prog["percent"] = int(round(step * 100.0 / max(1, prog.get("total_steps", 5))))
+    if text:
+        _ev_log(prog, text)
+    _write_evolve_progress(prog)
+
+
+def evolve_status():
+    """给前端轮询：当前人格演化进度。"""
+    prog = _read_evolve_progress()
+    prog["running"] = bool(_evolve_work.get("running"))
+    return {"ok": True, "progress": prog}
 
 
 def _local_client_and_model(use_local, model):
@@ -152,58 +244,187 @@ def _growth_library_corpus(limit_chars=2500, max_files=8):
 #  ① 人格演化
 # ════════════════════════════════════════════════════════════════════
 
-def evolve_personality(use_local=True, model="qwen2.5"):
+def _distill_person_clues(insight, growth, use_local, model, prog=None):
+    """第一层抽象：把「视频/文章的内容摘要」转成「关于主人这个人的线索」。
+    关键：输出的是对人的判断（关注什么、什么价值观、在学/在做什么），
+    而不是复述这些内容讲了啥。弱模型若直接看内容容易跑偏成读后感，故先做这步。"""
+    material = ""
+    if insight and insight.strip():
+        material += "=== 逐篇精读摘要 ===\n" + insight[:4000] + "\n\n"
+    if growth and growth.strip():
+        material += "=== 成长库内容片段 ===\n" + growth[:2000] + "\n\n"
+    if not material.strip():
+        if prog is not None:
+            _ev_log(prog, "（没有成长库材料可蒸馏，跳过这步）")
+        return ""
+    if prog is not None:
+        _ev_log(prog, "🧪 把 %d 字的内容材料蒸馏成「关于你这个人」的线索…" % len(material))
+        _write_evolve_progress(prog)
+    prompt = (
+        "下面是主人在软件里积累的视频笔记 / 情报 / 文章的内容摘要。\n"
+        "你的任务**不是**总结这些内容讲了什么，而是**透过这些内容，推断主人是个什么样的人**。\n\n"
+        "请只输出「关于主人这个人」的线索，每条一行，越具体越好：\n"
+        "- 他长期关注/感兴趣的领域或主题（从他反复看的内容推断）\n"
+        "- 他可能的价值观、立场倾向、思维偏好\n"
+        "- 他可能正在学习、研究或推进的事\n"
+        "- 他的知识水平 / 身份角色的线索（如果能看出）\n\n"
+        "严格要求：\n"
+        "① 主语必须是「主人」，是对人的判断，不是对内容的复述。\n"
+        "② 绝对不要出现「视频讲了」「作者指出」「本文认为」这类复述内容的句子。\n"
+        "③ 绝对不要照抄视频标题或章节标题。\n"
+        "④ 没把握的别编。\n\n"
+        "错误示例（这是复述内容，不要这样）：『认知误区的根源：现代框架对历史的误读』\n"
+        "正确示例（这是关于人的线索）：『主人对历史叙事与文明比较有浓厚兴趣，倾向批判西方中心主义视角』\n\n"
+        + material + "直接输出关于主人的线索（每行一条）：")
+    out = _ask(use_local, model, prompt, max_chars=2000)
+    if prog is not None:
+        if out and out.strip():
+            n = len([x for x in out.splitlines() if x.strip()])
+            _ev_log(prog, "✓ 蒸馏出 %d 条关于你的线索" % n)
+        else:
+            _ev_log(prog, "⚠ 这步没出结果（本地模型可能没启动），将仅凭对话演化")
+        _write_evolve_progress(prog)
+    return out
+
+
+def evolve_personality(use_local=True, model="qwen2.5", prog=None):
     """
-    读最近对话 → 让模型总结"你是个什么样的人、怎么说话、关注什么"
+    读最近对话 + 成长库线索 → 让模型总结"你是个什么样的人、怎么说话、关注什么"
     → 覆盖写 OWNER_PROFILE.md（注入系统提示）+ 在 evolution_log.md 记一笔。
 
+    两层抽象，避免画像跑偏成「视频读后感」：
+      ① 先把视频/文章摘要蒸馏成「关于主人这个人的线索」（_distill_person_clues）。
+      ② 再结合对话，写成关于人的画像（主语必须是「你/主人」）。
+
+    传入 prog（进度字典）时，会把每一步实时写进 evolve_progress.json，供前端轮询显示。
     返回 {"ok": bool, "profile": str, "message": str}。
     """
+    mlabel = _model_label(use_local, model)
+    if prog is not None:
+        prog["model"] = mlabel
+
+    # —— 第 1 步：收集材料 ——
+    if prog is not None:
+        _ev_step(prog, "collecting", 1, "📥 正在收集材料：读你的对话存档、长期记忆、成长库…")
     corpus = _recent_conversation_corpus()
-    # 也把已有的长期记忆带上，让画像更稳（不只看最近几段）
     long_term = _read("MEMORY.md")
-    # 成长库（视频笔记/情报简报）也是你关注什么的线索
     growth = _growth_library_corpus()
-    if not corpus and not long_term.strip() and not growth.strip():
-        return {"ok": False, "message": "还没有足够的对话/成长库内容，多聊几次或多积累点内容再来演化。"}
+    insight = ""
+    try:
+        import insight_crawler
+        insight = insight_crawler.digests_corpus(limit_chars=4500)
+    except Exception:
+        insight = ""
+
+    if prog is not None:
+        conv_n = (corpus or "").count("\n\n---\n\n") + (1 if corpus else 0)
+        _ev_log(prog, "· 对话存档：约 %d 段、%d 字" % (conv_n, len(corpus or "")))
+        _ev_log(prog, "· 长期记忆：%d 字" % len(long_term or ""))
+        _ev_log(prog, "· 成长库精读线索：%d 字" % len(insight or ""))
+        _ev_log(prog, "· 本次用模型：%s" % mlabel)
+        # 结构化的「参考资料源」，前端渲染成可点击跳转的链接
+        prog["sources"] = [
+            {"label": "对话存档", "detail": "约 %d 段 · %d 字" % (conv_n, len(corpus or "")),
+             "link": {"view": "datadb", "cat": "conversations"}},
+            {"label": "长期记忆", "detail": "%d 字 · MEMORY.md" % len(long_term or ""),
+             "link": {"view": "datadb", "cat": "memory", "name": "MEMORY.md"}},
+            {"label": "成长库精读线索", "detail": "%d 字 · 洞察「每篇理解」" % len(insight or ""),
+             "link": {"view": "insight", "tab": "detail"}},
+            {"label": "成长库原文", "detail": "%d 字 · 最近视频/情报" % len(growth or ""),
+             "link": {"view": "datadb", "cat": "video"}},
+        ]
+        _write_evolve_progress(prog)
+
+    if (not corpus and not long_term.strip() and not growth.strip()
+            and not insight.strip()):
+        msg = "还没有足够的对话/成长库内容，多聊几次或多积累点内容再来演化。"
+        if prog is not None:
+            _ev_step(prog, "error", 1, "✗ " + msg)
+        return {"ok": False, "message": msg}
+
+    # —— 第 2 步：蒸馏「关于人的线索」（关键防跑偏步骤）——
+    if prog is not None:
+        _ev_step(prog, "distilling", 2, "🧪 第一层抽象：从你看过的内容里推断「你是个什么样的人」…")
+    person_clues = ""
+    if insight.strip() or growth.strip():
+        try:
+            person_clues = _distill_person_clues(insight, growth, use_local, model, prog)
+        except Exception:
+            person_clues = ""
+    elif prog is not None:
+        _ev_log(prog, "（没有成长库材料，跳过蒸馏，直接看对话）")
+        _write_evolve_progress(prog)
 
     prev = _read(OWNER_PROFILE).strip()
+    # —— 第 3 步：写画像。强约束：主语是「你」，是对人的判断，不许复述内容 ——
+    if prog is not None:
+        base = "📝 第二层：结合对话，总结成「关于你这个人」的画像…"
+        if prev:
+            base += "（在上次画像基础上演化）"
+        _ev_step(prog, "synthesizing", 3, base)
     prompt = (
-        "你是一个善于观察的助理。下面是你和主人过往的对话记录 + 长期记忆。"
-        "请据此总结出一份**关于主人本人**的画像，用来帮助你今后更懂他、说话更对他的频道。\n\n"
-        "严格按下面结构输出 Markdown（每条都简短、具体，没把握的别编）：\n"
-        "## 说话风格\n用 2-4 句描述主人怎么说话：偏正式还是随意、直接还是委婉、"
-        "话多还是话少、有没有口头禅或常用词。\n\n"
-        "## 关注的事\n列 3-6 条主人最常聊、最在意的话题/领域（每条几个字）。\n\n"
-        "## 偏好与习惯\n列 3-6 条观察到的偏好：喜欢怎样的回答（简洁/详细）、"
-        "做事习惯、在意什么、讨厌什么。\n\n"
-        "## 怎么对他说话最好\n用 2-4 句给「今后的自己」的建议：用什么语气、"
-        "详略如何、避免什么，才最合主人的脾性。\n\n")
+        "你是一个善于观察的私人助理。你的任务是写一份**关于主人本人**的画像，"
+        "帮你今后更懂他、说话更对他的频道、并能主动为他找他会感兴趣的知识。\n\n"
+        "⚠️ 最重要的规则：画像写的是**主人这个人**，不是他看过的内容。\n"
+        "- 每一条的主语都应该是「你/主人」。\n"
+        "- 绝对不要复述视频/文章讲了什么，不要出现「视频指出」「作者认为」之类。\n"
+        "- 绝对不要把视频标题、章节标题当成画像内容。\n"
+        "- 要做的是：从他聊的话题、看的内容里，**推断他是个什么样的人**。\n\n"
+        "严格按下面结构输出 Markdown（每条简短、具体、是对人的判断，没把握的别编）：\n"
+        "## 你是个什么样的人\n用 3-5 句描述主人：大概的身份/角色、性格或思维特点、"
+        "处事风格。这是整份画像的核心。\n\n"
+        "## 说话风格\n2-4 句：偏正式还是随意、直接还是委婉、话多还是话少、"
+        "有没有口头禅或常用词。\n\n"
+        "## 关注的领域\n列 3-6 条主人长期关注/感兴趣的领域或主题（每条几个字，"
+        "是「他关注X」，不是某个视频的标题）。\n\n"
+        "## 偏好与习惯\n3-6 条：喜欢怎样的回答（简洁/详细）、做事习惯、在意什么、讨厌什么。\n\n"
+        "## 可以主动为他做什么\n2-4 条：基于以上，今后可以主动给他找哪类知识/资讯，"
+        "用什么语气和详略跟他相处最合适。\n\n")
     if prev:
-        prompt += ("下面是你上次总结的画像，请在其基础上**结合新对话修订/补充**"
-                   "（不要推翻重来，是演化不是重写）：\n=== 上次画像 ===\n"
-                   + prev[:2000] + "\n\n")
+        prompt += ("下面是上次的画像，请在其基础上**结合新信息修订/补充**"
+                   "（演化而非推翻重来）：\n=== 上次画像 ===\n" + prev[:2000] + "\n\n")
+    # 对话最能反映「人」，放在最前、权重最高
+    prompt += "=== 最近对话（最能反映主人这个人，重点参考）===\n" + (corpus or "（暂无）") + "\n\n"
     if long_term.strip():
         prompt += "=== 长期记忆 ===\n" + long_term[-2500:] + "\n\n"
-    if growth.strip():
-        prompt += ("=== 你成长库里的内容（看过的视频笔记/情报，反映你关注什么）===\n"
-                   + growth + "\n\n")
-    prompt += "=== 最近对话 ===\n" + (corpus or "（暂无）") + "\n\n直接输出画像："
+    # 用蒸馏后的「关于人的线索」，而不是原始视频内容，避免跑偏
+    if person_clues.strip():
+        prompt += ("=== 从主人看过的内容里推断出的「关于他这个人」的线索 ===\n"
+                   + person_clues + "\n\n")
+    elif insight.strip():
+        # 蒸馏失败的兜底：仍提供原料，但明确警告别复述
+        prompt += ("=== 主人看过的内容（仅供推断他关注什么，切勿复述其内容、"
+                   "切勿照抄标题）===\n" + insight[:2500] + "\n\n")
+    prompt += "直接输出画像（记住：写的是主人这个人，不是内容）："
 
     profile = _ask(use_local, model, prompt, max_chars=4000)
     if not profile or len(profile) < 20:
-        return {"ok": False, "message": "演化没成功（模型没给出有效画像），稍后再试。"}
+        msg = "演化没成功（模型没给出有效画像），稍后再试。"
+        if prog is not None:
+            _ev_step(prog, "error", 3, "✗ " + msg)
+        return {"ok": False, "message": msg}
+    if prog is not None:
+        _ev_log(prog, "✓ 画像已生成（%d 字）" % len(profile))
+        _write_evolve_progress(prog)
 
-    # 写画像（覆盖）+ 记一笔演化日志（追加）
+    # —— 第 4 步：写入画像文件 ——
+    if prog is not None:
+        _ev_step(prog, "writing", 4, "💾 把画像写入 OWNER_PROFILE.md 并注入小助…")
     header = (f"# 关于你（小助观察到的）\n\n"
-              f"> 这是超能小助从你历次对话里总结的「你的画像」，会注入到它的"
-              f"系统提示里，让它越来越懂你。你随时可以改这个文件，或在设置里"
-              f"重新演化。最近更新：{_now_str()}\n\n")
+              f"> 这是超能小助从你历次对话和看过的内容里总结的「你的画像」，会注入到它的"
+              f"系统提示里，让它越来越懂你、并能主动为你找你感兴趣的知识。你随时可以改这个"
+              f"文件，或在「懂你」里重新演化。最近更新：{_now_str()}\n\n")
     try:
         _mem(OWNER_PROFILE).write_text(header + profile + "\n", encoding="utf-8")
     except Exception as e:
-        return {"ok": False, "message": f"写画像文件失败：{e}"}
+        msg = f"写画像文件失败：{e}"
+        if prog is not None:
+            _ev_step(prog, "error", 4, "✗ " + msg)
+        return {"ok": False, "message": msg}
 
+    # —— 第 5 步：留一份演化快照 ——
+    if prog is not None:
+        _ev_step(prog, "writing", 5, "🕒 在演化时间线留一份快照…")
     try:
         logp = _mem(EVOLUTION_LOG)
         if not logp.exists():
@@ -214,8 +435,54 @@ def evolve_personality(use_local=True, model="qwen2.5"):
     except Exception:
         pass
 
+    if prog is not None:
+        _ev_step(prog, "done", 5, "🎉 演化完成，小助更懂你了。")
+
     return {"ok": True, "profile": profile,
             "message": "演化完成，小助更懂你了。可在「懂你」里查看画像。"}
+
+
+# —— 后台跑人格演化（立即返回，前端轮询 evolve_status 看进度）——
+
+def _evolve_worker(use_local, model):
+    prog = _default_evolve_progress()
+    prog.update({
+        "active": True, "phase": "collecting", "step": 0, "percent": 0,
+        "started_at": _now_str(), "model": _model_label(use_local, model),
+        "activity": [], "ok": None, "message": "",
+    })
+    _ev_log(prog, "🚀 开始人格演化")
+    _write_evolve_progress(prog)
+    try:
+        res = evolve_personality(use_local=use_local, model=model, prog=prog)
+        prog["ok"] = bool(res.get("ok"))
+        prog["message"] = res.get("message", "")
+        if res.get("ok"):
+            prog["phase"] = "done"
+            prog["percent"] = 100
+        elif prog.get("phase") != "error":
+            prog["phase"] = "error"
+    except Exception as e:
+        prog["phase"] = "error"
+        prog["ok"] = False
+        prog["message"] = "演化出错：%s" % e
+        _ev_log(prog, "✗ 出错：%s" % e)
+    finally:
+        prog["active"] = False
+        prog["finished_at"] = _now_str()
+        _write_evolve_progress(prog)
+        _evolve_work["running"] = False
+
+
+def start_evolve(use_local=True, model="qwen2.5"):
+    """启动后台人格演化。立即返回；前端轮询 evolve_status 看每一步。"""
+    if _evolve_work.get("running"):
+        return {"ok": True, "busy": True, "message": "正在演化中…"}
+    _evolve_work["running"] = True
+    t = threading.Thread(target=_evolve_worker, args=(use_local, model), daemon=True)
+    _evolve_work["thread"] = t
+    t.start()
+    return {"ok": True, "started": True, "message": "已开始演化，进度实时显示。"}
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -534,4 +801,12 @@ def build_context_block():
     if env:
         env = re.sub(r"^#.*?\n+(> .*?\n+)?", "", env, count=1, flags=re.S)
         blocks.append("=== 你的环境画像 (ENVIRONMENT.md) ===\n" + env[:1200])
+    # 「洞察」爬虫对成长库的分析理解（有才注入，失败安静跳过）
+    try:
+        import insight_crawler
+        ins = insight_crawler.build_context_block()
+        if ins and ins.strip():
+            blocks.append(ins)
+    except Exception:
+        pass
     return "\n\n".join(blocks)

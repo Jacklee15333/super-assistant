@@ -1,0 +1,186 @@
+{
+  "active": false,
+  "phase": "done",
+  "total": 146,
+  "done": 146,
+  "learned": 7,
+  "current": null,
+  "queue": [],
+  "activity": [
+    "11:58:47  🚀 开始逐篇精读：共 146 篇，其中 139 篇已学过、本轮要读 7 篇。",
+    "11:58:47  📂 爬取 视频内容库《20260620-114213-36岁精致女生卖糖葫芦创业一年狂赚30》（第 140/146 篇）",
+    "11:58:47  🤖 派给 AI 通读这篇…",
+    "11:58:52  ✓ 已学习：1. **视频质疑点明创业故事中的矛盾**：如“9点到工作室”却自称不上班的矛盾，强",
+    "11:58:52  📂 爬取 视频内容库《20260620-112916-Vibe_coding_的产品为我赚了_》（第 141/146 篇）",
+    "11:58:52  🤖 派给 AI 通读这篇…",
+    "11:58:54  ✓ 已学习：1. 通过开发并推出名为`pocketclaw`的应用程序，在三个月内获得了约14万",
+    "11:58:54  📂 爬取 视频内容库《20260620-112550-Vibe_coding_的产品为我赚了_》（第 142/146 篇）",
+    "11:58:54  🤖 派给 AI 通读这篇…",
+    "11:58:55  ✓ 已学习：1. 通过开发与热门话题（龙虾）相关的应用赚取了14万元。",
+    "11:58:55  📂 爬取 视频内容库《20260620-104524-一人公司做ai_45岁裸创一人撑起一家》（第 143/146 篇）",
+    "11:58:55  🤖 派给 AI 通读这篇…",
+    "11:58:57  ✓ 已学习：1. 45岁创业者通过自学AI技术成功创立一人公司。",
+    "11:58:57  📂 爬取 视频内容库《20260620-100909-异想天开_灵魂拷问_神回怼_胡律师》（第 144/146 篇）",
+    "11:58:57  🤖 派给 AI 通读这篇…",
+    "11:58:59  ✓ 已学习：1. 视频讨论国家是否将海外汉人认定为中华民族的一部分，质疑现行官方定义。",
+    "11:58:59  📂 爬取 情报简报《brief-20260620-1139》（第 145/146 篇）",
+    "11:58:59  🤖 派给 AI 通读这篇…",
+    "11:59:01  ✓ 已学习：1. AI治理与开源模型进展受到广泛关注，尤其是OpenAI、Anthropic及G",
+    "11:59:01  📂 爬取 情报简报《brief-20260620-1109》（第 146/146 篇）",
+    "11:59:01  🤖 派给 AI 通读这篇…",
+    "11:59:05  ✓ 已学习：1. **AI机器人技术突破与应用拓展**：文章详细介绍了AI机器人的技术创新、应用",
+    "11:59:05  🧩 读完了，正在把 146 篇的学习数据汇总成对你的理解…",
+    "11:59:45  🎉 分析完成，小助更懂你了。",
+    "11:59:45  🌐 开始根据你的画像主动上网搜相关内容…",
+    "12:00:32  🔍 正在研究：年中国生成式 AI 监管政策与大模型备案最新进展",
+    "12:00:38  ✓ 已存进成长库：年中国生成式 AI 监管政策与大模型备案最新进展（4 个来源）",
+    "12:00:38  🔍 正在研究：一人公司如何用 AI 做市场验证而不是只做产品原型",
+    "12:00:45  ✓ 已存进成长库：一人公司如何用 AI 做市场验证而不是只做产品原型（4 个来源）",
+    "12:00:45  🔍 正在研究：正当防卫最新司法案例 刑法第20条 实务认定标准",
+    "12:00:49  ✓ 已存进成长库：正当防卫最新司法案例 刑法第20条 实务认定标准（4 个来源）",
+    "12:00:49  🌐 主动研究完成，新增 3 篇进成长库（下次洞察会读到）。"
+  ],
+  "read_files": [
+    {
+      "name": "20260620-114213-36岁精致女生卖糖葫芦创业一年狂赚30",
+      "scope": "video",
+      "label": "视频内容库",
+      "chars": 6157,
+      "at": "11:58:52"
+    },
+    {
+      "name": "20260620-112916-Vibe_coding_的产品为我赚了_",
+      "scope": "video",
+      "label": "视频内容库",
+      "chars": 3970,
+      "at": "11:58:54"
+    },
+    {
+      "name": "20260620-112550-Vibe_coding_的产品为我赚了_",
+      "scope": "video",
+      "label": "视频内容库",
+      "chars": 3683,
+      "at": "11:58:55"
+    },
+    {
+      "name": "20260620-104524-一人公司做ai_45岁裸创一人撑起一家",
+      "scope": "video",
+      "label": "视频内容库",
+      "chars": 3612,
+      "at": "11:58:57"
+    },
+    {
+      "name": "20260620-100909-异想天开_灵魂拷问_神回怼_胡律师",
+      "scope": "video",
+      "label": "视频内容库",
+      "chars": 5402,
+      "at": "11:58:59"
+    },
+    {
+      "name": "brief-20260620-1139",
+      "scope": "info",
+      "label": "情报简报",
+      "chars": 30162,
+      "at": "11:59:01"
+    },
+    {
+      "name": "brief-20260620-1109",
+      "scope": "info",
+      "label": "情报简报",
+      "chars": 15423,
+      "at": "11:59:05"
+    }
+  ],
+  "skipped_files": [],
+  "research": [
+    {
+      "topic": "年中国生成式 AI 监管政策与大模型备案最新进展",
+      "status": "saved",
+      "sources": [
+        {
+          "title": "冯超等 | 生成式人工智能大模型管理政策与备案工作详解_要求_服务...",
+          "url": "http://www.baidu.com/link?url=a_WVOlgM_gcfb-SZHbSUH6AeFky0NoPuAF2oaLkTlDZjEdPjUI7sbtecLmdeNnU1CKB0CNTDrU3xdKLTMZluh_"
+        },
+        {
+          "title": "周末重点速递:首个生成式AI监管文件发布,AI应用有望加速落地,选股已...",
+          "url": "http://www.baidu.com/link?url=0QWqLIeTr6YYSO9MMO4JJ1Z_msOmdSt4r2n9FFpDMzq3EXCBmUvLCua8NPsPCAnB7zd-andYAJw-pAje1JL9va"
+        },
+        {
+          "title": "【AIIG观察第208期】国家知识产权局:公布人工智能等新领域的知识...",
+          "url": "http://www.baidu.com/link?url=2LJ1SUOv4dWZBjhlFQXOqlC5e-jcgPSDGTx7FVLCOIevnxHIQXq-9I3DwQY8zotSCAJ6KU2MOU1aIbaos786Yq"
+        },
+        {
+          "title": "国内首个生成式AI安全指导性文件明确31种风险,建语料数据黑名单...",
+          "url": "http://www.baidu.com/link?url=2LJ1SUOv4dWZBjhlFQXOqlC5e-jcgPSDGTx7FVLCOIevnxHIQXq-9I3DwQY8zotS26RHHNIoWj_u3lyoi7dCYK"
+        }
+      ],
+      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20260620-120038-年中国生成式_AI_监管政策与大模型备案最新进展.md",
+      "at": "12:00:32"
+    },
+    {
+      "topic": "一人公司如何用 AI 做市场验证而不是只做产品原型",
+      "status": "saved",
+      "sources": [
+        {
+          "title": "300 万粉丝创作者:我不会编程,却用 8 个 AI 工具带出 25 人团队...",
+          "url": "http://www.baidu.com/link?url=Olz924PXmA8JqWXpcxSHwVPI-hBnwrpe0yvrHGU9lA3d5IPGsfpl4sFz99VjbQmhM--VnogL9hb-r3Gg0O_9da"
+        },
+        {
+          "title": "爱立信中国大收缩:核心网业务全部退出中国,研发岗大面积裁员,官方回应...",
+          "url": "http://www.baidu.com/link?url=1qydsKeXCZdVI_5g4UJcC-U6iV5HWispDmlVpm-f_jmTqd7Nd_T9oCfgbjfVsjv-CQwDugewW0NO8rmMyXeJyq"
+        },
+        {
+          "title": "AI空间智能团队跨界做AI游戏,零买量跑出百万粉?_腾讯新闻",
+          "url": "http://www.baidu.com/link?url=3FbeFd8ZmWK6sswFjnuX5Ht4e5Ymvsksz9vXzpDmEcx6cvoRqDg-Oi03wpZURVKkAEHbx4wf_NiGTq8d1k4_YK"
+        },
+        {
+          "title": "我去年初AI编程做的「死了么」APP现在估值1千万了_腾讯新闻",
+          "url": "http://www.baidu.com/link?url=jEM0cjdteXc6fb-gwmcECfQiGTjhlJhLbLluWmQzK0qsCQPcTpamSLSQM223J63xX4gZySG65Q8vnpOLAV1WfK"
+        }
+      ],
+      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20260620-120045-一人公司如何用_AI_做市场验证而不是只做产品原型.md",
+      "at": "12:00:38"
+    },
+    {
+      "topic": "正当防卫最新司法案例 刑法第20条 实务认定标准",
+      "status": "saved",
+      "sources": [
+        {
+          "title": "正当防卫|指导案例+考点解析!吃透这个重要考点!",
+          "url": "http://www.baidu.com/link?url=wtpaf3A2xYSq3-kAPe_RTWibpgfweWWYYxfcNqRzh-aMtB2c9plmYuvnJiK_q5lo4ZOqbspij_6IG3EliCd5Ok6dDorXUwFeSSChJaB0NCfFDHAKsOkfLkockdM0wj3TxLfV8RQ76iqKVmf2042lHKoyp7MWFGMi6fVeMusWNlr0LH44EevVUiTYYYUJ8zDZwQ2gjv92A2miA9N9dx_6-V43Qs0SgqoG70DtGbcISVZB0ypaz4wyyJekq98BYjK4oKpTai1meSNeL_zF0gt5iq"
+        },
+        {
+          "title": "正当防卫认定之判断逻辑_中华人民共和国最高人民检察院",
+          "url": "http://www.baidu.com/link?url=180a7dOlf0NVhew2NbbB_juR5GnXVQNn-6GJIKugIh1qKCsJmOhs7LGeJkd29Hxa3SDkwvEaW6yh1ztVwqNsH0b73aWgYSWfr5Kh6HMKxly"
+        },
+        {
+          "title": "“正当防卫”,汇总两高指导性案例要点,一文全解",
+          "url": "http://www.baidu.com/link?url=wtpaf3A2xYSq3-kAPe_RTQn4UxZf5Sc5Tuy9c48cBxvD5oCIDbIzr80me-DTz3n9uWOmr_xPvX_O2j9rH-A2JnYvJR9K6rS2EGj2FAPh2ly"
+        },
+        {
+          "title": "正当防卫:在司法适用中昭示“法不能向不法让步”_中华人民共和国最高人民检察院",
+          "url": "http://www.baidu.com/link?url=180a7dOlf0NVhew2NbbB_juR5GnXVQNn-6GJIKugIh05gTD0k-UOzpdDzxjwXaj5arcKwqS0JUjm1tXzc6-Nsd1n9qbu6a8onYu-FzvQ2Va"
+        }
+      ],
+      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20260620-120049-正当防卫最新司法案例_刑法第20条_实务认定标准.md",
+      "at": "12:00:45"
+    }
+  ],
+  "started_at": "2026-06-20 11:58",
+  "finished_at": "2026-06-20 12:00",
+  "source": "manual",
+  "read_local": true,
+  "use_local": true,
+  "model": "qwen3:14b",
+  "auto_research": true,
+  "scopes": {
+    "video": true,
+    "info": true,
+    "sniff": true,
+    "learning": true,
+    "conversations": true,
+    "notes": true,
+    "memory": true,
+    "research": true
+  }
+}

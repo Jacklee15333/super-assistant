@@ -1303,19 +1303,66 @@ body {
 .end-dialog-status { font-size: 12.5px; color: var(--accent); margin-top: 12px;
                      min-height: 16px; text-align: center; }
 
-/* ===== 画像卡片化 ===== */
-.profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-                gap: 14px; margin-top: 8px; }
-.profile-card { background: var(--bg-elev); border: 1px solid var(--line);
-                border-radius: 12px; padding: 14px 16px; }
-.profile-card-head { display: flex; align-items: center; gap: 8px;
-                     font-size: 14.5px; font-weight: 600; color: var(--text);
-                     margin-bottom: 8px; }
-.profile-icon { font-size: 17px; }
-.profile-card-body { font-size: 13.5px; line-height: 1.7; color: var(--text); }
-.profile-card-body ul { padding-left: 20px; margin: 4px 0; }
-.profile-card-body li { margin: 3px 0; }
-.profile-card-body p { margin: 4px 0; }
+/* ===== 画像 Dashboard（左类目 / 右详情）===== */
+.profile-dash {
+  display: grid; grid-template-columns: 240px 1fr; gap: 16px;
+  margin-top: 8px; align-items: start;
+}
+@media (max-width: 760px) { .profile-dash { grid-template-columns: 1fr; } }
+
+/* 左侧目录 */
+.profile-dash-nav {
+  display: flex; flex-direction: column; gap: 6px;
+  position: sticky; top: 0;
+}
+.profile-dash-item {
+  display: flex; align-items: flex-start; gap: 10px; text-align: left;
+  background: var(--bg-elev); border: 1px solid var(--line); border-radius: 11px;
+  padding: 11px 13px; cursor: pointer; transition: all .12s; width: 100%;
+}
+.profile-dash-item:hover { border-color: var(--accent); }
+.profile-dash-item.active {
+  border-color: var(--accent); background: var(--accent-soft);
+}
+.profile-dash-icon { font-size: 17px; flex-shrink: 0; line-height: 1.3; }
+.profile-dash-texts { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.profile-dash-title { font-size: 13.5px; font-weight: 600; color: var(--text); line-height: 1.35; }
+.profile-dash-item.active .profile-dash-title { color: var(--accent); }
+.profile-dash-prev {
+  font-size: 11.5px; color: var(--text-dim); line-height: 1.4;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px;
+}
+
+/* 右侧详情 */
+.profile-dash-content { min-width: 0; }
+.profile-dash-pane { display: none; }
+.profile-dash-pane.active { display: block; }
+.profile-dash-pane-head {
+  font-size: 16px; font-weight: 700; color: var(--text);
+  margin-bottom: 12px; padding-bottom: 10px; border-bottom: 2px solid var(--accent-soft);
+}
+.profile-dash-pane-body { font-size: 14px; line-height: 1.8; color: var(--text); }
+.profile-dash-pane-body h1,
+.profile-dash-pane-body h2,
+.profile-dash-pane-body h3 { font-size: 14.5px; margin: 14px 0 6px; color: var(--text); }
+.profile-dash-pane-body ul,
+.profile-dash-pane-body ol { padding-left: 22px; margin: 6px 0; }
+.profile-dash-pane-body li { margin: 4px 0; }
+.profile-dash-pane-body p { margin: 7px 0; }
+.profile-dash-pane-body strong { color: var(--text); }
+.profile-dash-pane-body table {
+  border-collapse: collapse; margin: 10px 0; width: 100%; font-size: 13px;
+}
+.profile-dash-pane-body th,
+.profile-dash-pane-body td {
+  border: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top;
+}
+.profile-dash-pane-body th { background: var(--accent-soft); color: var(--text); font-weight: 600; }
+.profile-dash-pane-body blockquote {
+  border-left: 3px solid var(--line); margin: 8px 0; padding: 2px 12px;
+  color: var(--text-dim);
+}
+.profile-dash-plain { font-size: 14px; line-height: 1.8; color: var(--text); }
 
 /* ============================================================
    技能（Skills）· 工具区
@@ -1840,3 +1887,30 @@ body {
 @media (max-width: 720px) {
   .sniff-guide-cards { grid-template-columns: 1fr; }
 }
+
+/* ===== 视频：取消按钮 / 加入队列提示 / 按钮忙碌态 ===== */
+#videoGoBtn.busy { opacity: .7; cursor: not-allowed; }
+.vt-cancel {
+  margin-left: auto; background: transparent; border: 1px solid var(--line);
+  color: var(--text-dim); border-radius: 7px; padding: 2px 10px; font-size: 12px; cursor: pointer;
+}
+.vt-cancel:hover:not(:disabled) { border-color: #d9534f; color: #d9534f; }
+.vt-cancel:disabled { opacity: .5; cursor: not-allowed; }
+.vtask-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.video-queue-prompt {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--accent-soft); border: 1px solid var(--accent);
+  border-radius: 10px; padding: 9px 13px; margin: 8px 0;
+}
+.vqp-text { font-size: 12.5px; color: var(--text); flex: 1; min-width: 160px; }
+.vqp-add {
+  background: var(--accent); border: none; color: #fff; border-radius: 8px;
+  padding: 6px 14px; font-size: 12.5px; cursor: pointer; font-weight: 600;
+}
+.vqp-add:hover { filter: brightness(1.06); }
+.vqp-cancel {
+  background: transparent; border: 1px solid var(--line); color: var(--text-dim);
+  border-radius: 8px; padding: 6px 12px; font-size: 12.5px; cursor: pointer;
+}
+.vqp-cancel:hover { border-color: var(--text-dim); }

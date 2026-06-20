@@ -1,4 +1,13 @@
 {
-  "current": null,
+  "current": {
+    "url": "https://v.douyin.com/bUFLDrjJq-g/",
+    "level": "accurate",
+    "use_local": true,
+    "model": "qwen3:14b",
+    "screenshot": false,
+    "link": false,
+    "mode": "auto",
+    "id": "vj1781927752.3635073-0"
+  },
   "pending": []
 }

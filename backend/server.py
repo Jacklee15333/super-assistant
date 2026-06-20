@@ -54,6 +54,7 @@ _video_state = {"running": False, "stage": "", "detail": "", "elapsed": 0,
                 "queue_len": 0, "result": None, "result_id": 0, "current_url": "",
                 "current_label": "", "queue": []}
 _video_current = {"job": None}      # 当前正在处理的任务（崩溃恢复用）
+_video_cancel = {"all": False}      # 取消标记：worker 在阶段间检查，True 则放弃当前并清空队列
 
 
 def _video_queue_path():
@@ -347,6 +348,19 @@ def _video_worker():
                 _save_video_queue()          # 队列清空，写盘（之后重启不会再有残留任务）
                 return
             job = _video_q.pop(0)
+            # 取消标记：放弃这条 + 后面的都已被清空，直接收尾退出
+            if _video_cancel.get("all"):
+                _video_cancel["all"] = False
+                _video_worker_on["v"] = False
+                _video_state["running"] = False
+                _video_state["queue_len"] = 0
+                _video_state["queue"] = []
+                _video_state["current_label"] = ""
+                _video_state["stage"] = ""
+                _video_state["detail"] = ""
+                _video_current["job"] = None
+                _save_video_queue()
+                return
             _video_current["job"] = job      # 标记正在处理（崩溃/关闭后重启能续上这条）
             _save_video_queue()              # 持久化：current=这条，pending=剩下的
             _video_state["queue"] = [j["url"] for j in _video_q]
@@ -369,6 +383,23 @@ def _video_worker():
         def cb(stage, detail=""):
             _video_state["stage"] = stage
             _video_state["detail"] = detail
+
+        # 取消标记：开跑前再检查一次（用户可能在准备阶段点了取消）
+        if _video_cancel.get("all"):
+            tick["on"] = False
+            with _video_lock:
+                _video_cancel["all"] = False
+                _video_q.clear()
+                _video_state["running"] = False
+                _video_state["queue"] = []
+                _video_state["queue_len"] = 0
+                _video_state["current_label"] = ""
+                _video_state["stage"] = ""
+                _video_state["detail"] = ""
+                _video_current["job"] = None
+                _video_worker_on["v"] = False
+                _save_video_queue()
+            return
 
         # ★全局闸门：与对话里的视频提取共用，确保同一时间只有一个提取+总结任务在跑。
         if video_transcribe.extract_busy():
@@ -473,6 +504,7 @@ def _enqueue_video(job):
     if not job.get("id"):
         job["id"] = "vj" + str(_t.time()) + "-" + str(_t.monotonic_ns() % 100000)
     with _video_lock:
+        _video_cancel["all"] = False  # 新任务进来，清掉旧的取消标记
         _video_q.append(job)
         _save_video_queue()          # 入队即写盘：关掉软件也不会丢
         _video_state["queue"] = [j["url"] for j in _video_q]
@@ -483,6 +515,22 @@ def _enqueue_video(job):
             _video_worker_on["v"] = True
             _threading.Thread(target=_video_worker, daemon=True).start()
     return pos
+
+
+def _cancel_video_jobs():
+    """取消视频任务：清空待处理队列 + 给当前任务打取消标记（worker 在阶段间会停下）。
+    正在进行的那条会尽快停止（下载/听写子进程结束后不再继续后续步骤）。"""
+    with _video_lock:
+        _video_q.clear()
+        _video_cancel["all"] = True
+        _video_state["queue"] = []
+        _video_state["queue_len"] = 0
+        cur = _video_current.get("job")
+        try:
+            _save_video_queue()
+        except Exception:
+            pass
+    return {"ok": True, "cancelled_current": bool(cur)}
 
 
 def _restore_video_queue():
@@ -683,6 +731,14 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send({"ok": False, "error": str(e)}, 200)
 
+        if path == "/lumi/evolve_status":
+            # 人格演化实时进度（前端轮询，看到每一步在做什么、用哪个模型）
+            try:
+                import lumi_features as lf
+                return self._send(lf.evolve_status())
+            except Exception as e:
+                return self._send({"ok": False, "error": str(e)}, 200)
+
         if path == "/models":
             try:
                 import ollama_helper
@@ -792,8 +848,80 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send({"feed": [], "error": str(e)}, 200)
 
+        if path == "/insight/status":
+            # 「洞察」爬虫：返回配置 / 可分析篇数 / 运行日志 / 最近报告 / 调度状态
+            try:
+                import insight_crawler
+                return self._send(insight_crawler.status())
+            except Exception as e:
+                return self._send({"ok": False, "error": str(e)}, 200)
+
+        if path == "/insight/analyzable":
+            # 全部可分析文件的详细清单（已读/未读 + 每篇摘要），供数字点开看明细
+            try:
+                import insight_crawler
+                return self._send(insight_crawler.analyzable_list())
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/insight/research_item":
+            # 读一篇「主动研究」成果的正文（限定在 insight_research 目录内，安全）
+            try:
+                import insight_crawler
+                from pathlib import Path
+                name = qs.get("name", [""])[0]
+                rdir = insight_crawler.RESEARCH_DIR.resolve()
+                target = (rdir / (name + ".md")).resolve()
+                if str(target).startswith(str(rdir)) and target.exists():
+                    return self._send({"ok": True,
+                                       "content": target.read_text(
+                                           encoding="utf-8", errors="replace")})
+                return self._send({"ok": False, "message": "找不到该研究文档"}, 200)
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/datadb/overview":
+            try:
+                import datadb
+                return self._send(datadb.overview())
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+        if path == "/datadb/list":
+            try:
+                import datadb
+                return self._send(datadb.list_category(qs.get("cat", [""])[0]))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+        if path == "/datadb/item":
+            try:
+                import datadb
+                return self._send(datadb.read_item(qs.get("cat", [""])[0],
+                                                   qs.get("name", [""])[0]))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+        if path == "/datadb/export":
+            try:
+                import datadb
+                res = datadb.export_item(qs.get("cat", [""])[0], qs.get("name", [""])[0])
+                if not res:
+                    return self._send({"ok": False, "message": "无法导出该项"}, 200)
+                data, fname = res
+                self.send_response(200)
+                self.send_header("Content-Type", "application/octet-stream")
+                try:
+                    import urllib.parse as _up
+                    self.send_header("Content-Disposition",
+                                     "attachment; filename*=UTF-8''" + _up.quote(fname))
+                except Exception:
+                    self.send_header("Content-Disposition", "attachment")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                return
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
         if path == "/wecom/callback":
-            # 企业微信 URL 验证：返回解密后的 echostr（纯文本）
             try:
                 import wecom_bot
                 cfg = wecom_bot.load_config()
@@ -877,6 +1005,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_heartbeat(body)
         if path == "/video_transcribe":
             return self._handle_video_transcribe(body)
+        if path == "/video_cancel":
+            try:
+                return self._send(_cancel_video_jobs())
+            except Exception as e:
+                return self._send({"ok": False, "error": str(e)}, 200)
         if path == "/video_detect_subtitle":
             return self._handle_video_detect_subtitle(body)
         if path == "/video_install":
@@ -913,6 +1046,49 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_lumi_scan(body)
         if path == "/lumi/greeting":
             return self._handle_lumi_greeting(body)
+        if path == "/insight/config":
+            try:
+                import insight_crawler
+                return self._send({"ok": True,
+                                   "config": insight_crawler.save_config(body)})
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+        if path == "/insight/run":
+            try:
+                import insight_crawler
+                return self._send(insight_crawler.start_run(
+                    use_local=body.get("use_local"),
+                    model=body.get("model"),
+                    scopes=body.get("scopes"),
+                    source="manual"))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+        if path == "/insight/stop":
+            try:
+                import insight_crawler
+                return self._send(insight_crawler.stop_run())
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+        if path == "/insight/reset":
+            try:
+                import insight_crawler
+                return self._send(insight_crawler.reset_learned())
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+        if path == "/insight/clear_runs":
+            try:
+                import insight_crawler
+                return self._send(insight_crawler.clear_runs())
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+        if path == "/datadb/delete":
+            try:
+                import datadb
+                return self._send(datadb.delete_item(
+                    body.get("cat", ""), body.get("name", ""),
+                    force=bool(body.get("force", False))))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
         if path == "/env_check":
             use_local = body.get("use_local", True)
             model = body.get("model", "qwen2.5")
@@ -1239,12 +1415,12 @@ class Handler(BaseHTTPRequestHandler):
 
     # ────────────────── 「懂你」四件套（lumi_features）──────────────────
     def _handle_lumi_evolve(self, body):
-        """人格演化：读对话记忆 → 总结主人画像 → 写 OWNER_PROFILE.md。"""
+        """人格演化：后台跑（读对话→蒸馏→总结→写画像），立即返回，前端轮询进度。"""
         use_local = body.get("use_local", True)
         model = body.get("model", "qwen2.5")
         try:
             import lumi_features
-            return self._send(lumi_features.evolve_personality(
+            return self._send(lumi_features.start_evolve(
                 use_local=use_local, model=model))
         except Exception as e:
             return self._send({"ok": False, "message": f"演化出错：{e}"}, 200)
@@ -2089,6 +2265,7 @@ class Handler(BaseHTTPRequestHandler):
         return {
             "video":    [(MEM / "video_notes", "视频笔记")],
             "info":     [(MEM / "briefings", "情报简报")],
+            "sniff":    [(MEM / "sniff_reports", "嗅探简报")],
             "learning": [(BACKEND / "学生档案", "学习")],
         }
 
@@ -2132,7 +2309,7 @@ class Handler(BaseHTTPRequestHandler):
             return datetime.datetime.fromtimestamp(
                 p.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
 
-        out = {"video": [], "learning": [], "info": []}
+        out = {"video": [], "learning": [], "info": [], "sniff": []}
         try:
             for cat, dirs in self._lib_roots().items():
                 for d, source in dirs:
@@ -2178,7 +2355,7 @@ class Handler(BaseHTTPRequestHandler):
                     counts.items(), key=lambda kv: (-kv[1], kv[0]))]
             out["all_tags"] = all_tags
         except Exception as e:
-            return self._send({"video": [], "learning": [], "info": [], "error": str(e)})
+            return self._send({"video": [], "learning": [], "info": [], "sniff": [], "error": str(e)})
         return self._send(out)
 
     def _handle_library_item(self, cat, name):
@@ -2360,6 +2537,12 @@ def main():
         _restore_video_queue()
     except Exception as e:
         print("[video] 恢复队列失败：%s" % e)
+    # 启动时若开了「洞察」自动爬取，把定时线程拉起来
+    try:
+        import insight_crawler
+        insight_crawler.boot_scheduler()
+    except Exception as e:
+        print("[insight] 调度启动失败：%s" % e)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

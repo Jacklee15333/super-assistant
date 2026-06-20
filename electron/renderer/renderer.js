@@ -69,6 +69,7 @@ document.querySelectorAll(".nav-item").forEach((btn) => {
     if (btn.dataset.view === "memory") { loadMemoryTabs(); }
     if (btn.dataset.view === "dashboard") loadDashboard();
     if (btn.dataset.view === "video") { loadVideoNotes(); pollVideoProgress(); }
+    if (btn.dataset.view === "datadb") { if (typeof loadDataDb === "function") loadDataDb(); }
     if (btn.dataset.view === "library") loadLibrary();
     if (btn.dataset.view === "lumi") { loadLumi(); }
     if (btn.dataset.view === "skills") { loadSkills(); }
@@ -79,6 +80,17 @@ document.querySelectorAll(".nav-item").forEach((btn) => {
     // 懂你子菜单只在懂你视图下显示
     const subNav = document.getElementById("lumiSubNav");
     if (subNav) subNav.style.display = (btn.dataset.view === "lumi") ? "" : "none";
+    // 进懂你时，按当前选中的子项设置顶栏按钮（crawler/evolution 离开各自页时会把 active 复位到画像）
+    if (btn.dataset.view === "lumi") {
+      const act = document.querySelector("#lumiSubNav .nav-subitem.active");
+      const which = (act && act.dataset.lumi) || "profile";
+      if (typeof setLumiTopbarButtons === "function") setLumiTopbarButtons(which);
+    } else {
+      // 离开懂你：把这几个懂你专属按钮都藏起来，免得别的视图顶栏残留
+      ["lumiEvolveBtn", "lumiScanBtn", "crwRunBtn"].forEach((id) => {
+        const el = document.getElementById(id); if (el) el.style.display = "none";
+      });
+    }
   });
 });
 
@@ -1372,6 +1384,18 @@ document.getElementById("videoGoBtn")?.addEventListener("click", runVideoExtract
 document.getElementById("videoUrl")?.addEventListener("keydown", (e) => {
   if (e.key === "Enter") { e.preventDefault(); runVideoExtract(); }
 });
+// 分析进行中又粘进/输入了新链接 → 自动弹「加入队列」（不用等用户点按钮）
+document.getElementById("videoUrl")?.addEventListener("input", (e) => {
+  const v = (e.target.value || "").trim();
+  // 看起来像个链接，且当前正忙，且没在提交中
+  if (_videoBusyNow() && !_videoSubmitting && /https?:\/\/\S+/.test(v)) {
+    promptQueueNewLink(v);
+  } else if (!_videoBusyNow()) {
+    // 不忙了就把残留的排队提示条收掉
+    const bar = document.getElementById("videoQueuePrompt");
+    if (bar) bar.remove();
+  }
+});
 
 function setVideoStatus(text, kind) {
   const el = document.getElementById("videoStatus");
@@ -1380,11 +1404,73 @@ function setVideoStatus(text, kind) {
   el.className = "video-status" + (kind ? " " + kind : "");
 }
 
+let _videoSubmitting = false;   // 防止「提取并分析」被重复点 / 重复入队
+
+// 设置「提取并分析」按钮的外观：idle / submitting / running
+function setVideoBtnState(state) {
+  const btn = document.getElementById("videoGoBtn");
+  if (!btn) return;
+  if (!btn.dataset.label) btn.dataset.label = btn.textContent || "提取并分析";
+  if (state === "submitting") {
+    btn.disabled = true; btn.classList.add("busy");
+    btn.textContent = "提交中…";
+  } else if (state === "running") {
+    btn.disabled = true; btn.classList.add("busy");
+    btn.textContent = "⏳ 正在分析…";
+  } else {
+    btn.disabled = false; btn.classList.remove("busy");
+    btn.textContent = btn.dataset.label;
+  }
+}
+
 async function runVideoExtract() {
+  if (_videoSubmitting) return;   // 正在提交，忽略重复点击
   const url = (document.getElementById("videoUrl").value || "").trim();
   if (!url) { setVideoStatus("先粘贴一个视频链接（整段分享文案也行）。", "warn"); return; }
+  // 若当前已有任务在跑，不要直接再开一个，提示走「加入队列」
+  if (_videoBusyNow()) {
+    promptQueueNewLink(url);
+    return;
+  }
   const level = document.getElementById("videoLevel").value;
-  startVideoJob(url, level);
+  _videoSubmitting = true;
+  setVideoBtnState("submitting");
+  try {
+    await startVideoJob(url, level);
+  } finally {
+    _videoSubmitting = false;
+    // 提交完成后按钮状态交给轮询根据 running 决定（pollVideoProgress 会刷新）
+  }
+}
+
+// 当前是否有视频任务在跑（轮询会更新 _videoBusyFlag）
+let _videoBusyFlag = false;
+function _videoBusyNow() { return _videoBusyFlag; }
+
+// 检测到新链接、且当前正忙 → 弹一个「加入队列」确认
+function promptQueueNewLink(url) {
+  const box = document.getElementById("videoUrl");
+  setVideoStatus("当前有视频正在分析中。这个新链接要加入队列排队处理吗？", "warn");
+  const resultEl = document.getElementById("videoResult");
+  // 在状态区下方放一个临时操作条
+  let bar = document.getElementById("videoQueuePrompt");
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "videoQueuePrompt";
+    bar.className = "video-queue-prompt";
+    const statusEl = document.getElementById("videoStatus");
+    if (statusEl && statusEl.parentNode) statusEl.parentNode.insertBefore(bar, statusEl.nextSibling);
+  }
+  bar.innerHTML = '<span class="vqp-text">🔗 新链接：' + escapeHtml(shortLabel(url)) + '</span>' +
+    '<button class="vqp-add" id="vqpAdd">＋ 加入队列</button>' +
+    '<button class="vqp-cancel" id="vqpCancel">忽略</button>';
+  document.getElementById("vqpAdd").onclick = async () => {
+    bar.remove();
+    const level = document.getElementById("videoLevel").value;
+    await startVideoJob(url, level);   // 后端会自动排到队尾
+    if (box) box.value = "";
+  };
+  document.getElementById("vqpCancel").onclick = () => { bar.remove(); setVideoStatus(""); };
 }
 
 // 给悬浮按钮用：从剪贴板检测到的链接，填进输入框（不自动开始，等用户点提取）
@@ -1522,7 +1608,9 @@ function renderVideoTasks(p) {
     h += '<div class="vtask running">' +
       '<div class="vtask-top"><span class="vt-badge">生成中</span> ' +
       escapeHtml(stage + detail) +
-      ' <span class="vt-time">已用时 ' + (p.elapsed || 0) + ' 秒</span></div>' +
+      ' <span class="vt-time">已用时 ' + (p.elapsed || 0) + ' 秒</span>' +
+      '<button class="vt-cancel" id="vtCancelBtn" title="取消当前任务并清空队列">✕ 取消</button>' +
+      '</div>' +
       bar +
       '<div class="vt-url">' + escapeHtml(shortLabel(p.current_label)) + '</div></div>';
   }
@@ -1533,6 +1621,21 @@ function renderVideoTasks(p) {
       '<div class="vt-url">' + escapeHtml(shortLabel(u)) + '</div></div>';
   });
   el.innerHTML = h;
+  const cancelBtn = document.getElementById("vtCancelBtn");
+  if (cancelBtn) cancelBtn.addEventListener("click", cancelVideoJobs);
+}
+
+// 取消当前视频任务 + 清空队列
+async function cancelVideoJobs() {
+  const btn = document.getElementById("vtCancelBtn");
+  if (btn) { btn.disabled = true; btn.textContent = "取消中…"; }
+  try {
+    await fetch(BACKEND + "/video_cancel", { method: "POST",
+      headers: { "Content-Type": "application/json" }, body: "{}" });
+    setVideoStatus("已请求取消，正在停止当前任务…", "warn");
+  } catch (e) {
+    setVideoStatus("取消出错：" + e.message, "warn");
+  }
 }
 
 let _videoPollTimer = null;
@@ -1556,9 +1659,13 @@ function pollVideoProgress() {
       }
 
       if (p.running || p.queue_len > 0 || p.has_chat_tasks) {
+        _videoBusyFlag = true;
+        if (!_videoSubmitting) setVideoBtnState("running");
         setVideoStatus("");   // 状态都在下面的任务卡片里显示
       } else {
         // 全部处理完，停止轮询
+        _videoBusyFlag = false;
+        if (!_videoSubmitting) setVideoBtnState("idle");
         clearInterval(_videoPollTimer); _videoPollTimer = null;
         renderVideoTasks({ running: false, queue: [] });
         const res = p.result || {};
@@ -1893,7 +2000,7 @@ function parseVideoNote(md) {
 }
 
 // ---------- 成长库（汇总各工具产出，按类别归档）----------
-let _libData = { video: [], learning: [], info: [], all_tags: {} };
+let _libData = { video: [], learning: [], info: [], sniff: [], all_tags: {} };
 let _libCat = "video";
 let _libTagFilter = "";   // 当前选中的二级标签过滤；"" = 全部
 
@@ -1902,12 +2009,13 @@ async function loadLibrary() {
     const r = await fetch(BACKEND + "/library");
     _libData = await r.json();
   } catch (e) {
-    _libData = { video: [], learning: [], info: [], all_tags: {} };
+    _libData = { video: [], learning: [], info: [], sniff: [], all_tags: {} };
   }
   const setCount = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = n; };
   setCount("libCntVideo", (_libData.video || []).length);
   setCount("libCntLearning", (_libData.learning || []).length);
   setCount("libCntInfo", (_libData.info || []).length);
+  setCount("libCntSniff", (_libData.sniff || []).length);
   renderLibList(_libCat);
 }
 
@@ -1957,6 +2065,7 @@ function renderLibList(cat) {
       video: "还没有视频内容。去「视频」板块，或在对话里发个视频链接提取，结果会自动归到这里。",
       learning: "还没有学习内容。去「学习」板块用一用，生成的学习档案和每日任务会归到这里。",
       info: "还没有信息内容。点左下角「生成情报简报」，结果会自动归到这里。",
+      sniff: "还没有嗅探简报。去「嗅探」板块点「📄 深度嗅探」生成一份，结果会自动归到这里。",
     }[cat] || "这个类别还是空的。";
     body.innerHTML = actionBar + filterBar + '<div class="lib-empty">' + escapeHtml(tip) + "</div>";
     bindLibTagbar(body);
@@ -3774,43 +3883,93 @@ function renderRelationsRich(md) {
   return h;
 }
 
-// 把画像 OWNER_PROFILE.md 渲染成漂亮的分区卡片（带图标），比纯 markdown 好看
+// 把画像 OWNER_PROFILE.md 渲染成 dashboard：左边大类目录、右边显示选中那类的详情。
+// 长文（含表格、多级标题）也能顺读，不再是高低不齐的拼贴墙。
 function renderProfileRich(md) {
   // 去掉顶部 # 标题和说明引语
   let body = (md || "").replace(/^#\s+.*$/m, "").replace(/^>.*$/gm, "").trim();
   const iconFor = (title) => {
-    if (/风格|说话|语气/.test(title)) return "🗣️";
-    if (/关注|在意|话题|领域/.test(title)) return "🎯";
+    if (/风格|说话|语气|表达/.test(title)) return "🗣️";
+    if (/关注|在意|话题|领域|兴趣/.test(title)) return "🎯";
     if (/偏好|习惯/.test(title)) return "⭐";
-    if (/怎么|建议|对他/.test(title)) return "💡";
+    if (/怎么|建议|相处|对他|对你/.test(title)) return "💡";
+    if (/误区|误读|误植|批判|思考/.test(title)) return "🧠";
+    if (/对话|启示|当代/.test(title)) return "🌐";
+    if (/范式|框架|构建|类型/.test(title)) return "🧩";
+    if (/总结|结语|一句话/.test(title)) return "✅";
     return "📌";
   };
-  // 解析 ## 分区
+  // 解析 ##/### 分区
   const sections = [];
   let cur = null;
+  let preface = [];   // 第一个标题之前的内容（如有）
   body.split("\n").forEach((ln) => {
     const m = ln.match(/^#{2,3}\s+(.+)$/);
-    if (m) { if (cur) sections.push(cur); cur = { title: m[1].trim(), lines: [] }; }
-    else if (cur) cur.lines.push(ln);
-    else if (ln.trim()) { cur = { title: "", lines: [ln] }; }
+    if (m) {
+      if (cur) sections.push(cur);
+      cur = { title: m[1].replace(/\*+/g, "").trim(), lines: [] };
+    } else if (cur) {
+      cur.lines.push(ln);
+    } else if (ln.trim()) {
+      preface.push(ln);
+    }
   });
   if (cur) sections.push(cur);
-  if (!sections.length) return renderMarkdown(md);
+  // 把开头无标题内容并成一项「概述」
+  if (preface.join("").trim()) {
+    sections.unshift({ title: "概述", lines: preface });
+  }
+  if (!sections.length) return '<div class="profile-dash-plain">' + renderMarkdown(md) + "</div>";
 
-  let h = '<div class="profile-grid">';
-  sections.forEach((sec) => {
-    const inner = renderMarkdown(sec.lines.join("\n").trim());
-    h += '<div class="profile-card">' +
-      (sec.title ? '<div class="profile-card-head"><span class="profile-icon">' +
-        iconFor(sec.title) + '</span>' + escapeHtml(sec.title) + "</div>" : "") +
-      '<div class="profile-card-body">' + inner + "</div>" +
-      "</div>";
+  // 给每项算一段预览（取正文第一句，作为左侧副标题）
+  const preview = (lines) => {
+    const txt = lines.join(" ").replace(/[#*>\-•|]/g, " ").replace(/\s+/g, " ").trim();
+    return txt.slice(0, 32);
+  };
+
+  let nav = '<div class="profile-dash-nav">';
+  let panes = '<div class="profile-dash-content">';
+  sections.forEach((sec, i) => {
+    const active = i === 0 ? " active" : "";
+    nav += '<button class="profile-dash-item' + active + '" data-pidx="' + i + '">' +
+      '<span class="profile-dash-icon">' + iconFor(sec.title) + '</span>' +
+      '<span class="profile-dash-texts"><span class="profile-dash-title">' + escapeHtml(sec.title) + '</span>' +
+      '<span class="profile-dash-prev">' + escapeHtml(preview(sec.lines)) + '</span></span>' +
+      '</button>';
+    panes += '<div class="profile-dash-pane' + active + '" data-pidx="' + i + '">' +
+      '<div class="profile-dash-pane-head">' + iconFor(sec.title) + ' ' + escapeHtml(sec.title) + '</div>' +
+      '<div class="profile-dash-pane-body">' + renderMarkdown(sec.lines.join("\n").trim()) + '</div>' +
+      '</div>';
   });
-  h += "</div>";
-  return h;
+  nav += "</div>";
+  panes += "</div>";
+  return '<div class="profile-dash">' + nav + panes + "</div>";
 }
 
-// 懂你子菜单：切换画像/关系/环境三个子页
+// 画像 dashboard：左侧目录点击 → 右侧切换详情（事件委托，重渲染后依然有效）
+document.addEventListener("click", (e) => {
+  const item = e.target.closest && e.target.closest(".profile-dash-item");
+  if (!item) return;
+  const dash = item.closest(".profile-dash");
+  if (!dash) return;
+  const idx = item.dataset.pidx;
+  dash.querySelectorAll(".profile-dash-item").forEach((b) =>
+    b.classList.toggle("active", b.dataset.pidx === idx));
+  dash.querySelectorAll(".profile-dash-pane").forEach((p) =>
+    p.classList.toggle("active", p.dataset.pidx === idx));
+});
+
+// 懂你顶栏按钮：按当前子页只显示用得上的那个（+ 通用刷新一直在）
+function setLumiTopbarButtons(which) {
+  const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? "" : "none"; };
+  // 画像 / 人格演化 → 人格演化按钮；环境 → 扫描环境；洞察 → 立即分析；关系 → 无
+  show("lumiEvolveBtn", which === "profile" || which === "evolution");
+  show("lumiScanBtn", which === "env");
+  show("crwRunBtn", which === "insight");
+  show("lumiRefreshBtn", true);
+}
+
+// 懂你子菜单：切换各子页（renderer 只直接管画像/关系/环境；洞察/演化由各自模块补充显隐）
 function switchLumiSub(which) {
   const map = { profile: "lumiPageProfile", relations: "lumiPageRelations", env: "lumiPageEnv" };
   Object.entries(map).forEach(([k, id]) => {
@@ -3819,6 +3978,7 @@ function switchLumiSub(which) {
   });
   document.querySelectorAll("#lumiSubNav .nav-subitem").forEach((b) =>
     b.classList.toggle("active", b.dataset.lumi === which));
+  setLumiTopbarButtons(which);
 }
 document.querySelectorAll("#lumiSubNav .nav-subitem").forEach((b) => {
   b.addEventListener("click", () => {
@@ -3839,20 +3999,22 @@ function setLumiStatus(msg, kind) {
   el.className = "lumi-status" + (kind ? " " + kind : "");
 }
 
-document.getElementById("lumiEvolveBtn")?.addEventListener("click", async () => {
-  const btn = document.getElementById("lumiEvolveBtn");
-  const s = settings();
-  btn.disabled = true; setLumiStatus("正在读对话、总结你的画像…（可能要十几秒）");
-  try {
-    const r = await fetch(BACKEND + "/lumi/evolve", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ use_local: s.use_local, model: s.model }),
-    });
-    const d = await r.json();
-    setLumiStatus(d.message || (d.ok ? "演化完成" : "演化没成功"), d.ok ? "ok" : "warn");
-    if (d.ok) { loadLumi(); switchLumiSub("profile"); }
-  } catch (e) { setLumiStatus("出错：" + e.message, "warn"); }
-  finally { btn.disabled = false; }
+document.getElementById("lumiEvolveBtn")?.addEventListener("click", () => {
+  // 切到「人格演化」子页（那里有实时进度面板），再触发后台演化
+  document.querySelectorAll(".nav-item").forEach((x) => x.classList.remove("active"));
+  document.querySelector('.nav-item[data-view="lumi"]')?.classList.add("active");
+  document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
+  document.getElementById("view-lumi")?.classList.add("active");
+  const subNav = document.getElementById("lumiSubNav");
+  if (subNav) subNav.style.display = "";
+  // 子菜单各模块（crawler/evolution）自己监听 nav-subitem 点击来切页，这里手动触发演化项
+  const evoItem = document.querySelector('#lumiSubNav .nav-subitem[data-lumi="evolution"]');
+  if (evoItem) evoItem.click();   // 会显示演化页 + loadEvolution + 设置顶栏按钮
+  // 页面就绪后开跑（evolution.js 暴露的入口，带实时进度）
+  setTimeout(() => {
+    if (typeof window.runEvolveFromTopbar === "function") window.runEvolveFromTopbar();
+    else if (typeof window.loadEvolution === "function") window.loadEvolution();
+  }, 150);
 });
 
 document.getElementById("lumiScanBtn")?.addEventListener("click", async () => {
@@ -4451,12 +4613,13 @@ function renderSniffSources(srcs) {
       let host = "";
       try { host = new URL(s.url).hostname.replace(/^www\./, ""); } catch (e) { host = s.url; }
       return (
-        '<div class="sniff-source' + (s.enabled ? "" : " off") + '" data-id="' + escapeHtml(s.id) + '">' +
+        '<div class="sniff-source' + (s.enabled ? "" : " off") + '" data-id="' + escapeHtml(s.id) + '" data-cat="' + escapeHtml(s.category || "AI动态") + '">' +
           _sniffAvatar(s.title, s.url) +
           '<a class="sniff-src-main" href="' + escapeHtml(s.url) + '" target="_blank" title="' + escapeHtml(s.url) + '">' +
             '<span class="sniff-src-title">' + escapeHtml(s.title || host) + "</span>" +
             '<span class="sniff-src-url">' + escapeHtml(host) + "</span>" +
           "</a>" +
+          '<button class="sniff-src-cat" title="改类别 / 归类">🏷</button>' +
           '<label class="sniff-switch sniff-switch-sm" title="开启/暂停这个源">' +
             '<input type="checkbox" class="sniff-src-cb"' + (s.enabled ? " checked" : "") + " />" +
             '<span class="sniff-switch-track"></span></label>' +
@@ -4504,6 +4667,41 @@ function renderSniffSources(srcs) {
         body: JSON.stringify({ id }),
       });
       loadSniffSources();
+    });
+    // 改类别 / 归类：内联输入框，输已有类别或直接打个新名字＝新建类别
+    el.querySelector(".sniff-src-cat")?.addEventListener("click", () => {
+      box.querySelectorAll(".sniff-cat-edit").forEach((n) => n.remove());  // 同时只开一个
+      const cur = el.dataset.cat || "AI动态";
+      const bar = document.createElement("div");
+      bar.className = "sniff-cat-edit";
+      bar.innerHTML =
+        '<span class="sniff-cat-edit-tip">归到类别（打个新名字就是新建）</span>' +
+        '<div class="sniff-cat-edit-row">' +
+          '<input class="sniff-cat-edit-input sniff-input" list="sniffCatList" placeholder="如 AI动态 / 竞品 / 技术社区" />' +
+          '<button class="sniff-cat-edit-ok sniff-add-btn">确定</button>' +
+          '<button class="sniff-cat-edit-cancel sniff-mini-btn">取消</button>' +
+        "</div>";
+      el.after(bar);
+      const input = bar.querySelector(".sniff-cat-edit-input");
+      input.value = cur; input.focus(); input.select();
+      const close = () => bar.remove();
+      const submit = async () => {
+        const category = input.value.trim();
+        if (!category) { input.focus(); return; }
+        try {
+          await fetch(BACKEND + "/sniff/source/category", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id, category }),
+          });
+          loadSniffSources();
+        } catch (e) { alert("改类别出错：" + e.message); }
+      };
+      bar.querySelector(".sniff-cat-edit-ok").onclick = submit;
+      bar.querySelector(".sniff-cat-edit-cancel").onclick = close;
+      input.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") submit();
+        else if (ev.key === "Escape") close();
+      });
     });
   });
   box.querySelectorAll(".sniff-cat-cb").forEach((cb) => {

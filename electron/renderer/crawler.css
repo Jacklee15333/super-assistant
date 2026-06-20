@@ -1,0 +1,695 @@
+/* ============================================================
+   crawler.css —「🔍 洞察」爬虫工具 + 「🌱 人格演化」看板 的样式
+   全部复用软件已有的主题变量（--bg / --bg-elev / --accent / --line …），
+   深浅色自动跟随。类名用 crw- / evo- 前缀，避免和现有样式冲突。
+   ============================================================ */
+
+/* ---------- 洞察工具页 ---------- */
+.crw-pane { padding: 22px 26px; overflow-y: auto; height: 100%; }
+.crw-topbar-actions { display: flex; align-items: center; gap: 10px; }
+
+.crw-run-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--accent); color: #fff; border: none;
+  border-radius: 9px; padding: 7px 14px; font-size: 13px; cursor: pointer;
+}
+.crw-run-btn:hover { filter: brightness(1.08); }
+.crw-run-btn:disabled { opacity: .6; cursor: default; }
+.crw-run-dot { width: 7px; height: 7px; border-radius: 50%; background: #fff; opacity: .85; }
+.crw-run-btn.running .crw-run-dot { animation: crwpulse 1s infinite; }
+@keyframes crwpulse { 0%,100%{opacity:.3} 50%{opacity:1} }
+
+.crw-ghost-btn {
+  background: transparent; border: 1px solid var(--line); color: var(--text-dim);
+  border-radius: 9px; padding: 7px 12px; font-size: 13px; cursor: pointer;
+}
+.crw-ghost-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.crw-status { font-size: 12.5px; color: var(--text-dim); min-height: 16px; margin-bottom: 12px; }
+.crw-status.ok { color: #5fa463; }
+.crw-status.warn { color: var(--accent); }
+
+.crw-overview {
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+  background: var(--bg-elev); border: 1px solid var(--line); border-radius: 14px;
+  padding: 16px 20px; margin-bottom: 18px;
+}
+.crw-ov-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.crw-ov-sub { font-size: 12.5px; color: var(--text-dim); margin-top: 4px; line-height: 1.5; }
+.crw-ov-stats { display: flex; gap: 22px; flex-shrink: 0; }
+.crw-ov-stat { text-align: center; }
+.crw-ov-num { font-size: 22px; font-weight: 700; color: var(--accent); font-family: var(--mono); }
+.crw-ov-label { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+.crw-grid {
+  display: grid; grid-template-columns: minmax(320px, 1fr) minmax(320px, 1.1fr);
+  gap: 18px; align-items: start;
+}
+@media (max-width: 980px) { .crw-grid { grid-template-columns: 1fr; } }
+
+.crw-panel {
+  background: var(--bg-elev); border: 1px solid var(--line);
+  border-radius: 14px; padding: 18px 20px;
+}
+.crw-panel-head { display: flex; align-items: center; gap: 9px; margin-bottom: 6px; }
+.crw-panel-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.crw-panel-hint { font-size: 11.5px; color: var(--text-dim); line-height: 1.5; margin-bottom: 14px; }
+
+/* 设置项 */
+.crw-field { margin-bottom: 15px; }
+.crw-field-label { font-size: 12.5px; color: var(--text); font-weight: 600; margin-bottom: 7px; display: block; }
+.crw-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.crw-switch { display: inline-flex; align-items: center; gap: 9px; cursor: pointer; font-size: 13px; color: var(--text); }
+.crw-switch input { display: none; }
+.crw-switch-track {
+  width: 38px; height: 21px; border-radius: 21px; background: var(--line);
+  position: relative; transition: background .15s; flex-shrink: 0;
+}
+.crw-switch-track::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 17px; height: 17px;
+  border-radius: 50%; background: #fff; transition: transform .15s;
+}
+.crw-switch input:checked + .crw-switch-track { background: var(--accent); }
+.crw-switch input:checked + .crw-switch-track::after { transform: translateX(17px); }
+
+.crw-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.crw-seg button {
+  background: transparent; border: none; color: var(--text-dim);
+  padding: 6px 14px; font-size: 12.5px; cursor: pointer;
+}
+.crw-seg button.active { background: var(--accent-soft); color: var(--accent); }
+
+.crw-input, .crw-select {
+  background: var(--bg); border: 1px solid var(--line); color: var(--text);
+  border-radius: 8px; padding: 6px 10px; font-size: 13px; outline: none;
+}
+.crw-input:focus, .crw-select:focus { border-color: var(--accent); }
+.crw-input.num { width: 64px; text-align: center; }
+
+.crw-scopes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
+.crw-scope {
+  display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text); cursor: pointer;
+}
+.crw-scope input { accent-color: var(--accent); width: 15px; height: 15px; }
+.crw-scope .crw-scope-n { color: var(--text-dim); font-size: 11.5px; margin-left: auto; font-family: var(--mono); }
+
+.crw-save-row { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
+.crw-save-btn {
+  background: var(--accent); color: #fff; border: none; border-radius: 9px;
+  padding: 8px 18px; font-size: 13px; cursor: pointer;
+}
+.crw-save-btn:hover { filter: brightness(1.08); }
+.crw-save-hint { font-size: 12px; color: var(--text-dim); }
+
+/* 运行信息 */
+.crw-runmeta { display: flex; gap: 18px; margin-bottom: 14px; flex-wrap: wrap; }
+.crw-runmeta-item { font-size: 12.5px; color: var(--text-dim); }
+.crw-runmeta-item b { color: var(--text); font-weight: 600; }
+
+.crw-runs { display: flex; flex-direction: column; gap: 0; max-height: 320px; overflow-y: auto; }
+.crw-run {
+  display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 12.5px;
+}
+.crw-run:last-child { border-bottom: none; }
+.crw-run-badge {
+  flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; margin-top: 5px;
+  background: #5fa463;
+}
+.crw-run-badge.fail { background: var(--accent); }
+.crw-run-main { flex: 1; min-width: 0; }
+.crw-run-time { color: var(--text-dim); font-size: 11.5px; }
+.crw-run-time .crw-tag {
+  display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 6px;
+  background: var(--accent-soft); color: var(--accent); font-size: 10.5px;
+}
+.crw-run-sum { color: var(--text); margin-top: 2px; line-height: 1.5; }
+.crw-runs-empty { color: var(--text-dim); font-size: 13px; padding: 18px 0; text-align: center; }
+
+.crw-report {
+  margin-top: 18px; background: var(--bg-elev); border: 1px solid var(--line);
+  border-radius: 14px; padding: 18px 22px;
+}
+.crw-report-head { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
+.crw-report-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.crw-report-body { font-size: 13.5px; line-height: 1.75; color: var(--text); }
+.crw-report-body h2 { font-size: 15px; margin: 16px 0 7px; color: var(--text); }
+.crw-report-body h1 { font-size: 16px; margin: 6px 0 8px; }
+.crw-report-body ul { padding-left: 20px; margin: 4px 0; }
+.crw-report-body li { margin: 3px 0; }
+.crw-report-body blockquote {
+  border-left: 3px solid var(--line); margin: 8px 0; padding: 2px 12px;
+  color: var(--text-dim); font-size: 12.5px;
+}
+
+/* ---------- 人格演化看板（懂你子页）---------- */
+.evo-explain {
+  background: var(--bg-elev); border: 1px solid var(--line); border-radius: 14px;
+  padding: 16px 20px; margin-bottom: 18px;
+}
+.evo-explain-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+.evo-explain-body { font-size: 13px; color: var(--text-dim); line-height: 1.7; }
+.evo-explain-body b { color: var(--text); }
+.evo-flow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.evo-flow-step {
+  background: var(--accent-soft); color: var(--accent); border-radius: 8px;
+  padding: 6px 12px; font-size: 12px; white-space: nowrap;
+}
+.evo-flow-arrow { color: var(--text-dim); font-size: 13px; }
+
+.evo-stats { display: flex; gap: 26px; margin-bottom: 20px; flex-wrap: wrap; }
+.evo-stat-num { font-size: 24px; font-weight: 700; color: var(--accent); font-family: var(--mono); }
+.evo-stat-label { font-size: 11.5px; color: var(--text-dim); margin-top: 2px; }
+
+.evo-actions { margin-bottom: 18px; display: flex; gap: 10px; align-items: center; }
+.evo-status { font-size: 12.5px; color: var(--text-dim); }
+.evo-status.ok { color: #5fa463; }
+.evo-status.warn { color: var(--accent); }
+
+.evo-section-title {
+  font-size: 13px; font-weight: 600; color: var(--text); margin: 6px 0 12px;
+  display: flex; align-items: center; gap: 8px;
+}
+.evo-timeline { position: relative; padding-left: 26px; }
+.evo-timeline::before {
+  content: ""; position: absolute; left: 7px; top: 6px; bottom: 6px;
+  width: 2px; background: var(--line);
+}
+.evo-entry { position: relative; margin-bottom: 16px; }
+.evo-entry::before {
+  content: ""; position: absolute; left: -23px; top: 6px; width: 12px; height: 12px;
+  border-radius: 50%; background: var(--accent); border: 2px solid var(--bg);
+}
+.evo-entry.dim::before { background: var(--line); }
+.evo-entry-card {
+  background: var(--bg-elev); border: 1px solid var(--line); border-radius: 12px;
+  padding: 12px 16px;
+}
+.evo-entry-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  cursor: pointer;
+}
+.evo-entry-time { font-size: 13px; font-weight: 600; color: var(--text); }
+.evo-entry-time .evo-latest {
+  margin-left: 8px; font-size: 10.5px; padding: 1px 7px; border-radius: 6px;
+  background: var(--accent); color: #fff; font-weight: 500;
+}
+.evo-entry-toggle { color: var(--text-dim); font-size: 12px; flex-shrink: 0; }
+.evo-entry-body {
+  font-size: 13px; line-height: 1.7; color: var(--text); margin-top: 10px;
+  border-top: 1px solid var(--line); padding-top: 10px;
+}
+.evo-entry-body h2 { font-size: 13.5px; margin: 10px 0 4px; color: var(--accent); }
+.evo-entry-body ul { padding-left: 20px; margin: 3px 0; }
+.evo-entry-body li { margin: 2px 0; }
+.evo-entry-body p { margin: 3px 0; }
+.evo-entry.collapsed .evo-entry-body { display: none; }
+
+.evo-empty { color: var(--text-dim); line-height: 1.8; padding: 24px 0; font-size: 14px; }
+
+/* ---------- 进度面板（运行中 / 续跑）---------- */
+.crw-progress { margin-bottom: 18px; }
+.crw-bar {
+  height: 12px; border-radius: 8px; background: var(--accent-soft);
+  overflow: hidden; margin: 6px 0 8px;
+}
+.crw-bar-fill {
+  height: 100%; background: var(--accent); border-radius: 8px;
+  transition: width .4s ease;
+}
+.crw-bar-meta {
+  display: flex; gap: 18px; font-size: 12.5px; color: var(--text-dim); margin-bottom: 10px;
+}
+.crw-bar-meta b { color: var(--accent); font-family: var(--mono); }
+.crw-cur {
+  font-size: 13px; color: var(--text); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 9px; padding: 8px 12px; margin-bottom: 12px;
+}
+.crw-cur-scope {
+  display: inline-block; margin-left: 8px; padding: 0 7px; border-radius: 6px;
+  background: var(--accent-soft); color: var(--accent); font-size: 11px;
+}
+.crw-act-title { font-size: 12px; color: var(--text-dim); font-weight: 600; margin-bottom: 6px; }
+.crw-activity {
+  background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 12px; max-height: 220px; overflow-y: auto;
+  font-family: var(--mono); font-size: 12px; line-height: 1.7;
+}
+.crw-act-line { color: var(--text); white-space: pre-wrap; word-break: break-all; }
+.crw-act-line.dim { color: var(--text-dim); }
+
+/* 进度面板里的「用哪个模型」标签 */
+.crw-models { display: flex; gap: 10px; flex-wrap: wrap; margin: 4px 0 12px; }
+.crw-model-pill {
+  font-size: 12px; color: var(--text-dim);
+  background: var(--bg); border: 1px solid var(--line);
+  border-radius: 8px; padding: 4px 10px;
+}
+.crw-model-pill b { color: var(--accent); font-family: var(--mono); font-weight: 600; }
+
+/* ---------- 修复「懂你」面板内容过长时无法滚动（人格演化页等）---------- */
+/* 原 .lumi-pane 没有设高度/溢出，内容一长就溢出窗口看不到。
+   这里让它在「懂你」视图里占满剩余高度并可纵向滚动，对所有子页都生效。 */
+#view-lumi .lumi-pane {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ============================================================
+   洞察与研究 —— 合并进「懂你」子页后的新增样式
+   （标签切换 / 研究详情三张清单 / 每篇理解 / 主动研究成果）
+   仍复用主题变量，类名延用 crw- 前缀。
+   ============================================================ */
+
+/* 在「懂你」子页里时，crwBody 顶部留点呼吸 */
+#lumiPageInsight .lumi-page-body { padding-top: 4px; }
+
+/* —— 顶部标签：3 步流程（看懂你 → 研究详情 → 设置）—— */
+.crw-tabs {
+  display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 14px;
+  border-bottom: 1px solid var(--line); padding-bottom: 0;
+}
+.crw-tab {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: transparent; border: none; border-bottom: 2px solid transparent;
+  color: var(--text-dim); padding: 9px 14px; font-size: 13.5px; cursor: pointer;
+  border-radius: 8px 8px 0 0; position: relative;
+}
+.crw-tab:hover { color: var(--text); }
+.crw-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.crw-tab-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border-radius: 50%; font-size: 12px; font-weight: 700;
+  background: var(--line); color: var(--text-dim);
+}
+.crw-tab.active .crw-tab-num { background: var(--accent); color: #fff; }
+.crw-tab-dot {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent); margin-left: 3px; animation: crwpulse 1s infinite;
+}
+
+/* 每个 tab 顶部的一句话说明（消除「不知道这页干嘛」）*/
+.crw-tab-intro {
+  font-size: 12.5px; color: var(--text-dim); line-height: 1.7;
+  background: var(--accent-soft); border-radius: 10px; padding: 10px 14px; margin-bottom: 16px;
+}
+.crw-tab-intro b { color: var(--accent); }
+
+/* 看懂你页：正在跑的小提示条 */
+.crw-running-tip {
+  font-size: 12.5px; color: var(--accent); background: var(--accent-soft);
+  border-radius: 9px; padding: 8px 14px; margin-bottom: 14px;
+}
+
+/* 看懂你页：单独成块的报告（比内嵌版更大气）*/
+.crw-report-solo { margin-top: 0; }
+
+/* 看懂你页：还没有结果时的空状态 */
+.crw-empty-big { text-align: center; padding: 40px 20px; }
+.crw-empty-icon { font-size: 40px; margin-bottom: 12px; }
+.crw-empty-title { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+.crw-empty-sub { font-size: 13px; color: var(--text-dim); line-height: 1.7; max-width: 460px; margin: 0 auto; }
+
+/* —— 研究详情：本轮概况 meta 网格 —— */
+.crw-detail-meta {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px 18px; margin-bottom: 6px;
+}
+.crw-meta-item { display: flex; flex-direction: column; gap: 2px; }
+.crw-meta-label { font-size: 11px; color: var(--text-dim); }
+.crw-meta-val { font-size: 13.5px; color: var(--text); font-weight: 600; }
+.crw-detail-sub { font-size: 12.5px; color: var(--text-dim); margin-top: 10px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.crw-chip {
+  display: inline-block; background: var(--accent-soft); color: var(--accent);
+  border-radius: 7px; padding: 2px 9px; font-size: 11.5px;
+}
+.crw-detail-idle { font-size: 13px; color: var(--text-dim); padding: 6px 0; }
+
+/* 详情页里每个 panel 之间留间距 */
+#crwBody .crw-panel + .crw-panel { margin-top: 16px; }
+
+/* —— 三张文件清单 —— */
+.crw-lists {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+}
+@media (max-width: 900px) { .crw-lists { grid-template-columns: 1fr; } }
+.crw-list-col {
+  background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 12px; min-height: 60px; max-height: 360px; overflow-y: auto;
+}
+.crw-list-h { font-size: 12.5px; font-weight: 600; margin-bottom: 8px; position: sticky; top: -10px;
+  background: var(--bg); padding: 2px 0; }
+.crw-list-h-ok { color: #5fa463; }
+.crw-list-h-wait { color: var(--accent); }
+.crw-list-h-skip { color: var(--text-dim); }
+.crw-list-empty { font-size: 12px; color: var(--text-dim); padding: 8px 0; }
+.crw-file-row {
+  display: flex; flex-direction: column; gap: 1px; padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+.crw-file-row:last-child { border-bottom: none; }
+.crw-file-name { font-size: 12.5px; color: var(--text); word-break: break-all; line-height: 1.4; }
+.crw-file-meta { font-size: 11px; color: var(--text-dim); }
+
+/* —— 每篇理解（accordion）—— */
+.crw-digests { display: flex; flex-direction: column; gap: 10px; }
+.crw-digest {
+  background: var(--bg); border: 1px solid var(--line); border-radius: 11px;
+  overflow: hidden;
+}
+.crw-digest-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 11px 14px; cursor: pointer;
+}
+.crw-digest-head:hover { background: var(--accent-soft); }
+.crw-digest-title { font-size: 13px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.crw-digest-scope {
+  font-size: 10.5px; font-weight: 500; color: var(--accent);
+  background: var(--accent-soft); border-radius: 6px; padding: 1px 7px;
+}
+.crw-digest-toggle { font-size: 12px; color: var(--text-dim); flex-shrink: 0; }
+.crw-digest-body {
+  font-size: 13px; line-height: 1.7; color: var(--text);
+  padding: 0 14px 12px; border-top: 1px solid var(--line);
+}
+.crw-digest-body ul { padding-left: 20px; margin: 6px 0; }
+.crw-digest-body li { margin: 2px 0; }
+.crw-digest-body p { margin: 4px 0; }
+.crw-digest-at { font-size: 11px; color: var(--text-dim); margin-top: 8px; }
+.crw-digest.collapsed .crw-digest-body { display: none; }
+
+/* —— 主动研究：本轮列表 —— */
+.crw-research-list { display: flex; flex-direction: column; gap: 0; }
+.crw-research-row {
+  display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line);
+}
+.crw-research-row:last-child { border-bottom: none; }
+.crw-research-badge {
+  flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; margin-top: 5px;
+  background: var(--accent);
+}
+.crw-research-badge.ok { background: #5fa463; }
+.crw-research-badge.fail { background: var(--text-dim); }
+.crw-research-main { flex: 1; min-width: 0; }
+.crw-research-topic { font-size: 13px; color: var(--text); font-weight: 600; }
+.crw-research-st {
+  font-size: 10.5px; font-weight: 500; color: var(--text-dim);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 0 6px; margin-left: 4px;
+}
+.crw-research-srcs { font-size: 12px; color: var(--text-dim); margin-top: 3px; line-height: 1.6; word-break: break-all; }
+.crw-research-srcs a { color: var(--accent); text-decoration: none; }
+.crw-research-srcs a:hover { text-decoration: underline; }
+
+/* —— 主动研究：已落库文档（accordion）—— */
+.crw-research-docs { display: flex; flex-direction: column; gap: 10px; }
+.crw-rdoc {
+  background: var(--bg); border: 1px solid var(--line); border-radius: 11px; overflow: hidden;
+}
+.crw-rdoc-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 11px 14px; cursor: pointer;
+}
+.crw-rdoc-head:hover { background: var(--accent-soft); }
+.crw-rdoc-title { font-size: 13px; font-weight: 600; color: var(--text); word-break: break-all; }
+.crw-rdoc-meta { font-size: 11.5px; color: var(--text-dim); flex-shrink: 0; }
+.crw-rdoc-body {
+  font-size: 13px; line-height: 1.7; color: var(--text);
+  padding: 12px 14px; border-top: 1px solid var(--line);
+}
+.crw-rdoc-body h1 { font-size: 15px; margin: 4px 0 8px; }
+.crw-rdoc-body h2 { font-size: 14px; margin: 12px 0 6px; color: var(--accent); }
+.crw-rdoc-body ul { padding-left: 20px; margin: 4px 0; }
+.crw-rdoc-body a { color: var(--accent); text-decoration: none; word-break: break-all; }
+.crw-rdoc-body a:hover { text-decoration: underline; }
+.crw-rdoc-body blockquote {
+  border-left: 3px solid var(--line); margin: 8px 0; padding: 2px 12px;
+  color: var(--text-dim); font-size: 12.5px;
+}
+
+/* ============================================================
+   🗄️ 数据库管理（datadb）—— 文件管理器式：左类别 / 右表格 + 预览
+   复用主题变量，类名用 ddb- 前缀。
+   ============================================================ */
+.ddb-pane { padding: 22px 26px; overflow-y: auto; height: 100%; }
+.ddb-topbar-actions { display: flex; align-items: center; gap: 10px; }
+.ddb-status { font-size: 12.5px; color: var(--text-dim); min-height: 16px; margin-bottom: 12px; }
+.ddb-status.ok { color: #5fa463; }
+.ddb-status.warn { color: var(--accent); }
+.ddb-empty { color: var(--text-dim); font-size: 13.5px; padding: 26px 0; text-align: center; }
+
+.ddb-overview {
+  background: var(--bg-elev); border: 1px solid var(--line); border-radius: 14px;
+  padding: 16px 20px; margin-bottom: 18px;
+}
+.ddb-ov-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.ddb-ov-sub { font-size: 12.5px; color: var(--text-dim); margin-top: 4px; line-height: 1.6; }
+.ddb-ov-sub b { color: var(--accent); }
+.ddb-ov-stats { display: flex; gap: 20px; margin-top: 10px; }
+.ddb-ov-stat { font-size: 12.5px; color: var(--text-dim); }
+.ddb-ov-stat b { color: var(--text); font-family: var(--mono); font-size: 14px; }
+
+.ddb-main { display: grid; grid-template-columns: 230px 1fr; gap: 18px; align-items: start; }
+@media (max-width: 860px) { .ddb-main { grid-template-columns: 1fr; } }
+
+/* 左：类别 */
+.ddb-cats { display: flex; flex-direction: column; gap: 6px; }
+.ddb-cat {
+  display: flex; align-items: center; gap: 10px; text-align: left; width: 100%;
+  background: var(--bg-elev); border: 1px solid var(--line); border-radius: 11px;
+  padding: 10px 12px; cursor: pointer; transition: all .12s;
+}
+.ddb-cat:hover { border-color: var(--accent); }
+.ddb-cat.active { border-color: var(--accent); background: var(--accent-soft); }
+.ddb-cat-icon { font-size: 18px; flex-shrink: 0; }
+.ddb-cat-mid { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ddb-cat-label { font-size: 13.5px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 5px; }
+.ddb-cat.active .ddb-cat-label { color: var(--accent); }
+.ddb-cat-lock { font-size: 11px; }
+.ddb-cat-meta { font-size: 11px; color: var(--text-dim); font-family: var(--mono); }
+
+/* 右：面板 */
+.ddb-right { min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.ddb-panel { background: var(--bg-elev); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+.ddb-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.ddb-panel-title { font-size: 14px; font-weight: 600; color: var(--text); }
+
+.ddb-badge { font-size: 11px; padding: 2px 9px; border-radius: 7px; flex-shrink: 0; }
+.ddb-badge-content { background: var(--accent-soft); color: var(--accent); }
+.ddb-badge-memory { background: rgba(220,150,40,.15); color: #c8861f; }
+.ddb-badge-config { background: var(--line); color: var(--text-dim); }
+
+/* 配置类解锁 */
+.ddb-unlock { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 11px 13px; margin-bottom: 12px; }
+.ddb-unlock-hint { font-size: 11.5px; color: var(--text-dim); line-height: 1.6; margin-top: 7px; }
+
+/* 文件表格 */
+.ddb-table { display: flex; flex-direction: column; }
+.ddb-tr {
+  display: grid; grid-template-columns: 1fr 80px 130px 110px; gap: 10px;
+  align-items: center; padding: 9px 4px; border-bottom: 1px solid var(--line);
+}
+.ddb-tr:last-child { border-bottom: none; }
+.ddb-th { font-size: 11.5px; color: var(--text-dim); font-weight: 600; position: sticky; top: 0; }
+.ddb-c-name { font-size: 13px; color: var(--text); min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.ddb-c-name { overflow: hidden; }
+.ddb-c-fname { font-size: 10.5px; color: var(--text-dim); font-family: var(--mono);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ddb-c-size { font-size: 12px; color: var(--text-dim); font-family: var(--mono); }
+.ddb-c-date { font-size: 12px; color: var(--text-dim); font-family: var(--mono); }
+.ddb-c-act { display: flex; gap: 4px; justify-content: flex-end; }
+
+.ddb-icon-btn {
+  background: transparent; border: 1px solid var(--line); border-radius: 7px;
+  width: 30px; height: 28px; cursor: pointer; font-size: 14px; color: var(--text);
+  display: inline-flex; align-items: center; justify-content: center; padding: 0;
+}
+.ddb-icon-btn:hover { border-color: var(--accent); }
+.ddb-icon-btn:disabled { opacity: .35; cursor: not-allowed; }
+.ddb-del:hover:not(:disabled) { border-color: #d9534f; color: #d9534f; }
+
+/* 预览 */
+.ddb-preview { }
+.ddb-prev-md { font-size: 13px; line-height: 1.75; color: var(--text); max-height: 460px; overflow-y: auto; }
+.ddb-prev-md h1, .ddb-prev-md h2, .ddb-prev-md h3 { font-size: 14.5px; margin: 12px 0 6px; }
+.ddb-prev-md ul { padding-left: 20px; margin: 4px 0; }
+.ddb-prev-md table { border-collapse: collapse; margin: 8px 0; font-size: 12.5px; }
+.ddb-prev-md th, .ddb-prev-md td { border: 1px solid var(--line); padding: 6px 9px; }
+.ddb-prev-pre {
+  font-family: var(--mono); font-size: 12px; line-height: 1.6; color: var(--text);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 9px;
+  padding: 12px; max-height: 460px; overflow: auto; white-space: pre-wrap; word-break: break-all;
+}
+.ddb-prev-plain { font-size: 13px; color: var(--text-dim); padding: 8px 0; }
+
+/* ---------- 人格演化：实时进度面板 ---------- */
+.evo-prog {
+  background: var(--bg-elev); border: 1px solid var(--accent); border-radius: 14px;
+  padding: 16px 18px; margin-bottom: 18px;
+}
+.evo-prog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.evo-prog-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.evo-prog-model { font-size: 12px; color: var(--text-dim); }
+.evo-prog-model b { color: var(--accent); font-family: var(--mono); }
+.evo-prog-phase { font-size: 12.5px; color: var(--text-dim); margin-bottom: 8px; }
+.evo-prog-bar {
+  height: 10px; border-radius: 7px; background: var(--accent-soft); overflow: hidden; margin-bottom: 12px;
+}
+.evo-prog-fill { height: 100%; background: var(--accent); border-radius: 7px; transition: width .4s ease; }
+.evo-prog-actwrap { }
+.evo-prog-act {
+  background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 12px; max-height: 220px; overflow-y: auto;
+  font-family: var(--mono); font-size: 12px; line-height: 1.75;
+}
+.evo-prog-line { color: var(--text); white-space: pre-wrap; word-break: break-all; }
+.evo-prog-line.dim { color: var(--text-dim); }
+.evo-prog-msg {
+  margin-top: 12px; font-size: 12.5px; padding: 8px 12px; border-radius: 9px;
+}
+.evo-prog-msg.ok { background: rgba(95,164,99,.12); color: #5fa463; }
+.evo-prog-msg.warn { background: var(--accent-soft); color: var(--accent); }
+
+/* ---------- 概况数字可点击 + 详情浮层 ---------- */
+.crw-ov-clickable {
+  background: transparent; border: none; cursor: pointer; padding: 4px 8px;
+  border-radius: 10px; transition: background .12s; font: inherit;
+}
+.crw-ov-clickable:hover { background: var(--accent-soft); }
+.crw-ov-clickable .crw-ov-label { color: var(--accent); }
+.crw-ov-run-hint { display: inline-block; margin-top: 6px; font-size: 12px; color: var(--text-dim); }
+.crw-ov-run-hint b { color: var(--accent); }
+
+.ovd-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.4);
+  display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 24px;
+}
+.ovd-card {
+  background: var(--bg); border: 1px solid var(--line); border-radius: 16px;
+  width: min(760px, 96vw); max-height: 86vh; display: flex; flex-direction: column;
+  box-shadow: 0 18px 60px rgba(0,0,0,.3);
+}
+.ovd-card-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 16px 20px; border-bottom: 1px solid var(--line);
+}
+.ovd-card-title { font-size: 14.5px; font-weight: 600; color: var(--text); }
+.ovd-card-body { padding: 16px 20px; overflow-y: auto; }
+
+.ovd-summary { display: flex; gap: 18px; margin-bottom: 10px; flex-wrap: wrap; }
+.ovd-sum-item { font-size: 13px; color: var(--text-dim); }
+.ovd-sum-item b { color: var(--text); font-family: var(--mono); font-size: 15px; }
+.ovd-sum-item.ovd-read b { color: #5fa463; }
+.ovd-sum-item.ovd-unread b { color: var(--accent); }
+
+.ovd-scopes { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 12px; }
+.ovd-scope-chip {
+  font-size: 11.5px; color: var(--text-dim); background: var(--bg-elev);
+  border: 1px solid var(--line); border-radius: 7px; padding: 2px 9px; font-family: var(--mono);
+}
+
+.ovd-filters { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.ovd-fbtn {
+  background: transparent; border: 1px solid var(--line); color: var(--text-dim);
+  border-radius: 8px; padding: 5px 12px; font-size: 12.5px; cursor: pointer;
+}
+.ovd-fbtn:hover { border-color: var(--accent); color: var(--accent); }
+.ovd-fbtn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.ovd-list { display: flex; flex-direction: column; gap: 8px; }
+.ovd-row { background: var(--bg-elev); border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
+.ovd-row-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  padding: 11px 14px;
+}
+.ovd-row-head[data-ovrow] { cursor: pointer; }
+.ovd-row-head[data-ovrow]:hover { background: var(--accent-soft); }
+.ovd-row-title { font-size: 13px; color: var(--text); line-height: 1.4; min-width: 0; }
+.ovd-row-tags { display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+.ovd-scope-tag {
+  font-size: 10.5px; color: var(--accent); background: var(--accent-soft);
+  border-radius: 6px; padding: 1px 7px;
+}
+.ovd-flag { font-size: 10.5px; border-radius: 6px; padding: 1px 7px; white-space: nowrap; }
+.ovd-flag-read { background: rgba(95,164,99,.15); color: #5fa463; }
+.ovd-flag-unread { background: var(--line); color: var(--text-dim); }
+.ovd-flag-changed { background: var(--accent-soft); color: var(--accent); }
+.ovd-row-toggle { font-size: 11.5px; color: var(--text-dim); }
+.ovd-row-body {
+  font-size: 12.5px; line-height: 1.7; color: var(--text);
+  padding: 0 14px 12px; border-top: 1px solid var(--line);
+}
+.ovd-row-body ul { padding-left: 18px; margin: 4px 0; }
+.ovd-row-body li { margin: 2px 0; }
+.ovd-unread-hint { color: var(--text-dim); padding-top: 10px; }
+
+/* ---------- 人格演化：参考资料源（可点击跳转）---------- */
+.evo-prog-srcs-title { font-size: 12px; color: var(--text-dim); font-weight: 600; margin: 4px 0 8px; }
+.evo-prog-srcs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.evo-src-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
+  padding: 7px 11px; cursor: pointer; transition: all .12s; font: inherit; text-align: left;
+}
+.evo-src-chip:hover { border-color: var(--accent); background: var(--accent-soft); }
+.evo-src-label { font-size: 12.5px; font-weight: 600; color: var(--text); }
+.evo-src-chip:hover .evo-src-label { color: var(--accent); }
+.evo-src-detail { font-size: 11px; color: var(--text-dim); font-family: var(--mono); }
+.evo-src-go { font-size: 15px; color: var(--accent); font-weight: 700; line-height: 1; }
+
+/* ---------- 人格演化：完成后可折叠 + 参考资料 + 悬浮窗 ---------- */
+#evoRunBtn.busy { opacity: .75; cursor: not-allowed; }
+.evo-prog.done { border-color: var(--line); }
+.evo-prog-headright { display: flex; align-items: center; gap: 12px; }
+.evo-prog-toggle { font-size: 12px; color: var(--text-dim); }
+.evo-prog.collapsed .evo-prog-head { margin-bottom: 0; }
+
+/* 参考资料（底部） */
+.evo-ref { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+.evo-ref-title { font-size: 12.5px; font-weight: 600; color: var(--text-dim); margin-bottom: 9px; }
+.evo-ref-list { display: flex; flex-direction: column; gap: 7px; }
+.evo-ref-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
+  padding: 9px 12px; cursor: pointer; transition: all .12s; font: inherit;
+}
+.evo-ref-item:hover { border-color: var(--accent); background: var(--accent-soft); }
+.evo-ref-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.evo-ref-item:hover .evo-ref-name { color: var(--accent); }
+.evo-ref-detail { font-size: 11px; color: var(--text-dim); font-family: var(--mono); flex: 1; }
+.evo-ref-go { font-size: 12px; color: var(--accent); font-weight: 600; }
+
+/* 悬浮窗 */
+.evo-float-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.42); z-index: 1100;
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+}
+.evo-float-card {
+  background: var(--bg); border: 1px solid var(--line); border-radius: 16px;
+  width: min(720px, 96vw); max-height: 84vh; display: flex; flex-direction: column;
+  box-shadow: 0 18px 60px rgba(0,0,0,.3);
+}
+.evo-float-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  padding: 15px 18px; border-bottom: 1px solid var(--line);
+}
+.evo-float-title { font-size: 14.5px; font-weight: 600; color: var(--text); display: flex; flex-direction: column; gap: 2px; }
+.evo-float-sub { font-size: 11px; color: var(--text-dim); font-weight: 400; font-family: var(--mono); }
+.evo-float-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.evo-float-open {
+  background: transparent; border: 1px solid var(--line); color: var(--accent);
+  border-radius: 8px; padding: 5px 11px; font-size: 12px; cursor: pointer; white-space: nowrap;
+}
+.evo-float-open:hover { border-color: var(--accent); background: var(--accent-soft); }
+.evo-float-close {
+  background: transparent; border: 1px solid var(--line); color: var(--text-dim);
+  border-radius: 8px; width: 30px; height: 28px; cursor: pointer; font-size: 14px;
+}
+.evo-float-close:hover { border-color: var(--text); color: var(--text); }
+.evo-float-body { padding: 16px 18px; overflow-y: auto; }
+.evo-float-loading { color: var(--text-dim); font-size: 13px; text-align: center; padding: 30px 0; }
+.evo-float-md { font-size: 13px; line-height: 1.75; color: var(--text); }
+.evo-float-md h1, .evo-float-md h2, .evo-float-md h3 { font-size: 14px; margin: 12px 0 6px; }
+.evo-float-md ul { padding-left: 20px; margin: 5px 0; }
+.evo-float-md li { margin: 3px 0; }
+.evo-float-md p { margin: 6px 0; }
