@@ -1,230 +1,269 @@
 {
   "active": false,
   "phase": "done",
-  "total": 215,
-  "done": 215,
-  "learned": 10,
+  "total": 234,
+  "done": 234,
+  "learned": 19,
   "current": null,
   "queue": [],
   "activity": [
-    "13:11:29  ✓ 已学习：1. **AI可能被虚假内容污染**：大量虚假信息、软文和公关稿可以“投毒洗脑”，使",
-    "13:11:29  📂 爬取 视频内容库《20260624-122035-你每天用的AI正在被投毒_ai_》（第 208/215 篇）",
-    "13:11:29  🤖 派给 AI 通读这篇…",
-    "13:11:33  ✓ 已学习：1. **AI可能被虚假内容“投毒”，导致用户在投资、消费等场景中被误导**。",
-    "13:11:33  📂 爬取 视频内容库《20260624-121603-今天讲一下捧杀和虐杀就是在世界历史中不要》（第 209/215 篇）",
-    "13:11:33  🤖 派给 AI 通读这篇…",
-    "13:11:36  ✓ 已学习：1. 讲述者认为在历史和战争中男性往往最先被消灭，而在和平时期女性可能反而面临更多生",
-    "13:11:36  📂 爬取 视频内容库《20260624-120936-你一你一脸的是嘲讽嘲讽什么了我没说你嘲讽》（第 210/215 篇）",
-    "13:11:36  🤖 派给 AI 通读这篇…",
-    "13:11:45  🔁 软件重启，自动接着上次没读完的进度继续。",
-    "13:11:45  📂 爬取 视频内容库《20260624-120936-你一你一脸的是嘲讽嘲讽什么了我没说你嘲讽》（第 210/215 篇）",
-    "13:11:45  🤖 派给 AI 通读这篇…",
-    "13:11:50  ✓ 已学习：1. 强调不能将个别现象扩大化，反对用“全部”或“大部分”标签 entire gro",
-    "13:11:50  📂 爬取 视频内容库《20260624-105913-豆包和ClaudecodeCodex有》（第 211/215 篇）",
-    "13:11:50  🤖 派给 AI 通读这篇…",
-    "13:11:53  ✓ 已学习：1. **区分豆包与 Claude Code/Codex**：豆包主要解决“回答”，",
-    "13:11:53  📂 爬取 视频内容库《20260624-105200-无标题》（第 212/215 篇）",
-    "13:11:53  🤖 派给 AI 通读这篇…",
-    "13:11:55  ✓ 已学习：1. 婆媳矛盾背后往往是长期积累的情感问题。",
-    "13:11:55  📂 爬取 嗅探简报《sniff-report-20260624-110255》（第 213/215 篇）",
-    "13:11:55  🤖 派给 AI 通读这篇…",
-    "13:11:58  ✓ 已学习：1. **OpenAI进展**：GPT-5 Pro在科研辅助、网络安全、长周期项目管",
-    "13:11:58  📂 爬取 主动研究《research-20260624-101700-欧盟_AI_Act_2026_生成式AI内容标识_中小企业合》（第 214/215 篇）",
-    "13:11:58  🤖 派给 AI 通读这篇…",
-    "13:12:01  ✓ 已学习：1. 文章主要讨论了生成式引擎优化（GEO）在2026年的应用及评估标准，重点关注合",
-    "13:12:01  📂 爬取 主动研究《research-20260624-101624-AI_一人公司_两周市场验证_获客成本_交付自动化_复购率》（第 215/215 篇）",
-    "13:12:01  🤖 派给 AI 通读这篇…",
-    "13:12:03  ✓ 已学习：1. 研究重点在于软件开发公司的市场验证过程，尤其是AI一人公司在两周内的获客成本和",
-    "13:12:03  🧩 读完了，正在把 215 篇的学习数据汇总成对你的理解…",
-    "13:12:37  🎉 分析完成，小助更懂你了。",
-    "13:12:37  🌐 开始根据你的画像主动上网搜相关内容…",
-    "13:13:26  🔍 正在研究：女强人 职业发展与生育平衡 长期规划",
-    "13:13:32  ✓ 已存进成长库：女强人 职业发展与生育平衡 长期规划（4 个来源）",
-    "13:13:32  🔍 正在研究：家庭分工 性别角色 经济压力 男性养家责任现实",
-    "13:13:36  ✓ 已存进成长库：家庭分工 性别角色 经济压力 男性养家责任现实（4 个来源）",
-    "13:13:36  🔍 正在研究：婚前沟通 育儿分工 夫妻责任划分 规划清单",
-    "13:13:42  ✓ 已存进成长库：婚前沟通 育儿分工 夫妻责任划分 规划清单（4 个来源）",
-    "13:13:42  🔍 正在研究：育儿假 男性产假 托育支持政策 国际比较",
-    "13:13:48  ✓ 已存进成长库：育儿假 男性产假 托育支持政策 国际比较（4 个来源）",
-    "13:13:48  🌐 主动研究完成，新增 4 篇进成长库（下次洞察会读到）。"
+    "16:42:41  📂 爬取 视频内容库《20260624-141104-姑娘再扎实扎实自己_月老鳌烨》（第 225/234 篇）",
+    "16:42:41  🤖 派给 AI 通读这篇…",
+    "16:42:44  ✓ 已学习：1. 作者认为该女性在婚恋市场属于“地狱级难度”组合，多个不利标签叠加，如离异经历、",
+    "16:42:44  📂 爬取 视频内容库《20260624-140701-VibeCoding大赏_AI_用久了》（第 226/234 篇）",
+    "16:42:44  🤖 派给 AI 通读这篇…",
+    "16:42:46  ✓ 已学习：1. 长期使用AI进行项目时会出现“犯傻”和“失忆”的问题，需要通过构建长期记忆系统",
+    "16:42:46  📂 爬取 视频内容库《20260624-140107-AI收费模式思考AI或将成为精英的武》（第 227/234 篇）",
+    "16:42:46  🤖 派给 AI 通读这篇…",
+    "16:42:49  ✓ 已学习：1. AI 可能不会成为人人付费的“水电煤”，而是普通人免费使用基本能力，顶级云端模",
+    "16:42:49  📂 爬取 视频内容库《20260624-134730-Loop_EngineeringAgn》（第 228/234 篇）",
+    "16:42:49  🤖 派给 AI 通读这篇…",
+    "16:42:52  ✓ 已学习：1. **循环工程（Loop Engineering）**：介绍了一种新的AI设计思",
+    "16:42:52  📂 爬取 视频内容库《20260624-133110-出了国才知道人民币购买力有多强_人民》（第 229/234 篇）",
+    "16:42:52  🤖 派给 AI 通读这篇…",
+    "16:42:55  ✓ 已学习：1. 视频通过比较国内外物价差异，认为人民币实际购买力被低估，并将这一现象归因于中国",
+    "16:42:55  📂 爬取 视频内容库《20260624-132628-主播好我上来想问你几个问题你是如何过去并》（第 230/234 篇）",
+    "16:42:55  🤖 派给 AI 通读这篇…",
+    "16:42:59  ✓ 已学习：1. **争论核心在于“法律权利”与“灰色市场规则”的优先性**：连麦者主张劳动者即",
+    "16:42:59  📂 爬取 主动研究《research-20260624-131348-育儿假_男性产假_托育支持政策_国际比较》（第 231/234 篇）",
+    "16:42:59  🤖 派给 AI 通读这篇…",
+    "16:43:01  ✓ 已学习：1. 研究聚焦于育儿假、男性产假及托育支持政策的国际比较，旨在通过借鉴西方国家的经验",
+    "16:43:01  📂 爬取 主动研究《research-20260624-131342-婚前沟通_育儿分工_夫妻责任划分_规划清单》（第 232/234 篇）",
+    "16:43:01  🤖 派给 AI 通读这篇…",
+    "16:43:02  ✓ 已学习：1. 强调婚前沟通的重要性，涵盖育儿分工、夫妻责任划分等内容。",
+    "16:43:02  📂 爬取 主动研究《research-20260624-131336-家庭分工_性别角色_经济压力_男性养家责任现实》（第 233/234 篇）",
+    "16:43:02  🤖 派给 AI 通读这篇…",
+    "16:43:05  ✓ 已学习：1. 现代社会中，男性养家糊口的压力增大，反映出经济压力和时代变迁对传统性别角色的影",
+    "16:43:05  📂 爬取 主动研究《research-20260624-131332-女强人_职业发展与生育平衡_长期规划》（第 234/234 篇）",
+    "16:43:05  🤖 派给 AI 通读这篇…",
+    "16:43:08  ✓ 已学习：1. **全面放开生育趋势下的职场挑战**：在生育政策放宽背景下，女性面临职场压力增",
+    "16:43:08  🧩 读完了，正在把 234 篇的学习数据汇总成对你的理解…",
+    "16:43:43  🎉 分析完成，小助更懂你了。",
+    "16:43:43  🌐 开始根据你的画像主动上网搜相关内容…",
+    "16:44:10  🔍 正在研究：AI 一人公司两周市场验证：获客成本、自动化交付、复购率与失败案例复盘",
+    "16:44:17  ✓ 已存进成长库：AI 一人公司两周市场验证：获客成本、自动化交付、复购率与失败案例复盘（4 个来源）",
+    "16:44:17  🔍 正在研究：年 AI Agent 安全治理：VPS 沙箱、权限隔离、提示词注入与供应链投毒",
+    "16:44:22  ✓ 已存进成长库：年 AI Agent 安全治理：VPS 沙箱、权限隔离、提示词注入与供应链投毒（4 个来源）",
+    "16:44:22  🔍 正在研究：中国育儿假、男性陪产假与托育政策最新进展：国际比较及家庭分工影响",
+    "16:44:27  ✓ 已存进成长库：中国育儿假、男性陪产假与托育政策最新进展：国际比较及家庭分工影响（4 个来源）",
+    "16:44:27  🌐 主动研究完成，新增 3 篇进成长库（下次洞察会读到）。"
   ],
   "read_files": [
     {
-      "name": "20260624-125532-迪士尼不贩卖幻觉_上海迪士尼_优速通",
+      "name": "20260624-163628-耿同学知识分享内容太过真实",
       "scope": "video",
       "label": "视频内容库",
-      "chars": 10822,
-      "at": "13:11:26"
+      "chars": 14731,
+      "at": "16:42:17"
     },
     {
-      "name": "20260624-122435-大头鹰直播录屏_认知低还犟",
+      "name": "20260624-161737-看完_Karpathy终于会搭个人知识",
       "scope": "video",
       "label": "视频内容库",
-      "chars": 8863,
-      "at": "13:11:29"
+      "chars": 15632,
+      "at": "16:42:20"
     },
     {
-      "name": "20260624-122035-你每天用的AI正在被投毒_ai_",
+      "name": "20260624-160508-号称0成本月入百万的API中转站到底谁",
       "scope": "video",
       "label": "视频内容库",
-      "chars": 8620,
-      "at": "13:11:33"
+      "chars": 13257,
+      "at": "16:42:23"
     },
     {
-      "name": "20260624-121603-今天讲一下捧杀和虐杀就是在世界历史中不要",
+      "name": "20260624-155240-关于Harness工程你可能错过的一个",
       "scope": "video",
       "label": "视频内容库",
-      "chars": 9141,
-      "at": "13:11:36"
+      "chars": 4465,
+      "at": "16:42:25"
     },
     {
-      "name": "20260624-120936-你一你一脸的是嘲讽嘲讽什么了我没说你嘲讽",
+      "name": "20260624-153913-喂饭opc_cli开源剪口播特效字",
       "scope": "video",
       "label": "视频内容库",
-      "chars": 21320,
-      "at": "13:11:50"
+      "chars": 11782,
+      "at": "16:42:28"
     },
     {
-      "name": "20260624-105913-豆包和ClaudecodeCodex有",
+      "name": "20260624-151928-大头鹰直播录屏_阴阳怪气怪话连篇",
       "scope": "video",
       "label": "视频内容库",
-      "chars": 7980,
-      "at": "13:11:53"
+      "chars": 7596,
+      "at": "16:42:31"
     },
     {
-      "name": "20260624-105200-无标题",
+      "name": "20260624-150111-特朗普这次对中国的战略误判后果比大家想",
       "scope": "video",
       "label": "视频内容库",
-      "chars": 12325,
-      "at": "13:11:55"
+      "chars": 7865,
+      "at": "16:42:34"
     },
     {
-      "name": "sniff-report-20260624-110255",
-      "scope": "sniff",
-      "label": "嗅探简报",
-      "chars": 26046,
-      "at": "13:11:58"
+      "name": "20260624-143752-大家还记得去年在埃及失踪的年轻女孩吧失联",
+      "scope": "video",
+      "label": "视频内容库",
+      "chars": 8197,
+      "at": "16:42:37"
     },
     {
-      "name": "research-20260624-101700-欧盟_AI_Act_2026_生成式AI内容标识_中小企业合",
+      "name": "20260624-143200-你有没有发现",
+      "scope": "video",
+      "label": "视频内容库",
+      "chars": 18765,
+      "at": "16:42:41"
+    },
+    {
+      "name": "20260624-141104-姑娘再扎实扎实自己_月老鳌烨",
+      "scope": "video",
+      "label": "视频内容库",
+      "chars": 8377,
+      "at": "16:42:44"
+    },
+    {
+      "name": "20260624-140701-VibeCoding大赏_AI_用久了",
+      "scope": "video",
+      "label": "视频内容库",
+      "chars": 11777,
+      "at": "16:42:46"
+    },
+    {
+      "name": "20260624-140107-AI收费模式思考AI或将成为精英的武",
+      "scope": "video",
+      "label": "视频内容库",
+      "chars": 13589,
+      "at": "16:42:49"
+    },
+    {
+      "name": "20260624-134730-Loop_EngineeringAgn",
+      "scope": "video",
+      "label": "视频内容库",
+      "chars": 9137,
+      "at": "16:42:52"
+    },
+    {
+      "name": "20260624-133110-出了国才知道人民币购买力有多强_人民",
+      "scope": "video",
+      "label": "视频内容库",
+      "chars": 8197,
+      "at": "16:42:55"
+    },
+    {
+      "name": "20260624-132628-主播好我上来想问你几个问题你是如何过去并",
+      "scope": "video",
+      "label": "视频内容库",
+      "chars": 12349,
+      "at": "16:42:59"
+    },
+    {
+      "name": "research-20260624-131348-育儿假_男性产假_托育支持政策_国际比较",
       "scope": "research",
       "label": "主动研究",
-      "chars": 6834,
-      "at": "13:12:01"
+      "chars": 6666,
+      "at": "16:43:01"
     },
     {
-      "name": "research-20260624-101624-AI_一人公司_两周市场验证_获客成本_交付自动化_复购率",
+      "name": "research-20260624-131342-婚前沟通_育儿分工_夫妻责任划分_规划清单",
       "scope": "research",
       "label": "主动研究",
-      "chars": 6759,
-      "at": "13:12:03"
+      "chars": 1130,
+      "at": "16:43:02"
+    },
+    {
+      "name": "research-20260624-131336-家庭分工_性别角色_经济压力_男性养家责任现实",
+      "scope": "research",
+      "label": "主动研究",
+      "chars": 6573,
+      "at": "16:43:05"
+    },
+    {
+      "name": "research-20260624-131332-女强人_职业发展与生育平衡_长期规划",
+      "scope": "research",
+      "label": "主动研究",
+      "chars": 6739,
+      "at": "16:43:08"
     }
   ],
   "skipped_files": [],
   "research": [
     {
-      "topic": "女强人 职业发展与生育平衡 长期规划",
+      "topic": "AI 一人公司两周市场验证：获客成本、自动化交付、复购率与失败案例复盘",
       "status": "saved",
       "sources": [
         {
-          "title": "全面放开生育大趋势下,如何深挖、发挥女性的职场潜能?|职场女性|孕产...",
-          "url": "http://www.baidu.com/link?url=wwJNGuchKF0y0M1K70eMV4OiQAkUr107Vkg_H62E5zsuYql7c1VlDh7_r54nFya3r0J8qT3tE9p-b6Bqc3JSRq"
+          "title": "AI一人公司真相曝光!52.7%月入不足7千,别被“月入十万”神话骗了",
+          "url": "http://www.baidu.com/link?url=wD_U6yOK53DfFE-i84xfxSvkq4T-d7UXZ6s_v3WfhYxnoePl7-ZUZSBf8BFAb7EwYhBt2AnO3RMF0smOCTquTqWUHC6wTxY49M8vbNTWAHS"
         },
         {
-          "title": "女性职业发展如何与生育平衡? - 百度知道",
-          "url": "http://www.baidu.com/link?url=V2todl8f9ZR-HiRZb1hj07pFpsBArOXKRYm0jz6u_J8qlyQJn3SYKGvXxD7sCYNATornIuKGmfXdNQd6HYTlQhuzTUOi4Fz3AWs0NeOpo47"
+          "title": "判断AI一人公司是否可行,我只看三个数据:获客成本、交付效率...",
+          "url": "http://www.baidu.com/link?url=wD_U6yOK53DfFE-i84xfxR2dajYkPYUgSVgfGLORzKHd5GQZNIyK1qH1is8wMI7nANiy6QY1XhhKa323fZcIOFMtkOjo0nhK71X_qn3Z6DK3bet4zGXj94RsK35uHph6ZHIkdjvjFvJR8M7ewiLZMpy1EL7pdNUKPYFOM4ockfKHW8RVKycoeoTq2blS3vhHtldNv1_jiDhgBAqIV_FwQhzgPy5UdCRoKpQiPIsT1a3pLIu-gBvxMCg-9giOWLTEF2fw9Fp3YXvt2Jfaa4Wz4q"
         },
         {
-          "title": "职场男女如何平衡工作与生孩子的需求_即问即答_家庭医生在线",
-          "url": "http://www.baidu.com/link?url=XyT0KX0XdueLecE88tlBhsNZdjzp3Lm36jo2kP9Zcj2BJkCWbscfhyGfxLKdlzzPC9TiMLECZDqcqxA8QsqnJa"
+          "title": "AI“一人公司”到底赚不赚钱?4位老板的实操复盘,戳破风口与泡沫的...",
+          "url": "http://www.baidu.com/link?url=wD_U6yOK53DfFE-i84xfxSvkq4T-d7UXZ6s_v3WfhYuXkKKJ-URt-GLRT79muKfUdGN6KE6eZLpMlwGwlb-Zy1TnmIfE9Gl4Q43AiEcKDbi"
         },
         {
-          "title": "职场女性发展:生育与事业的艰难平衡",
-          "url": "http://www.baidu.com/link?url=3rEivn80MshHSaCPmxTV1feqGLjRklU1FDA5SLDDYgQKlZuSG0To-CfkuWqMT8J_LGAvgFU96jKe_Zab1eocqc1zifhGR_TOvzk7RojzqKO"
+          "title": "AI 一人公司热潮:红利、陷阱与生存法则_ai agent 一人公司 opc 数量...",
+          "url": "http://www.baidu.com/link?url=WDFI4bN64_Xo_rFJaKNvuSatRnQeIDjKQqTsizSm-GLb-lAaNuNUSP7nruqlKXHc66ok7hXHsdu1-8KWhfGjk33NTJV6F81tIK2DRruGuhW"
         }
       ],
-      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20260624-131332-女强人_职业发展与生育平衡_长期规划.md",
-      "at": "13:13:26"
+      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20260624-164417-AI_一人公司两周市场验证获客成本自动化交付复购率与失败案例.md",
+      "at": "16:44:10"
     },
     {
-      "topic": "家庭分工 性别角色 经济压力 男性养家责任现实",
+      "topic": "年 AI Agent 安全治理：VPS 沙箱、权限隔离、提示词注入与供应链投毒",
       "status": "saved",
       "sources": [
         {
-          "title": "中国男人养家压力凸显,时代变迁下的家庭负担新挑战|生活_网易订阅",
-          "url": "http://www.baidu.com/link?url=Yr-FbfBBWVnk0nMwurM9wC8AScNBHocFTWKU41E0RLkfkbEbkg_O8heB0wdlcM8AMDYWcAUgoiSliKgaKBuKwq"
+          "title": "间接提示词注入和供应链投毒,正在威胁你的 AI Agent",
+          "url": "http://www.baidu.com/link?url=TFVOKdbymMjtI1EvWRaq8I3roqjjfqeG3_g_GXIsCFjLuNizwcI-Tx6Vyanjk2UjLSZVUP2yWAUxqoH62XoXwDTUPuD5TbHUJTBdy6xsO3RKGDM2zBVyNlVf9TYRajuhT5PXhQ_ukPPER8h4x2Agk6hKpb9cdxO1vIPefMW5zLNbhRyzVxSUC6XlbbVbgz_0MyUrSuKtiqLwJqKlzlbi3BI9TmVxTYN19c6ir8IN6Ah0lb1Z3sRBjoLZlYRb8qc-YnLOL5FvDhNCbK-xVeaP7K"
         },
         {
-          "title": "男的必须挣钱养家吗",
-          "url": "http://www.baidu.com/link?url=xG2dYcVmz3Wzx8dpdLcZ2InC024xITvSKB3c0KZxViZZk6K1v2ZL-qmQ1bzeoPxbS52XsPPnAMlTu1tg_YHdJXthDDPsbjP-OrZf5dDw5yW"
+          "title": "腾讯iOA 终端 AI Agent 防护架构:阻断大模型越权与供应链投毒的...",
+          "url": "http://www.baidu.com/link?url=JBq69d3RGspRWATcikEDb4GneDjw6Cp3PrWF8By8vsmAyxQQTDQdSrfe77N9_OIq6bb9JyT5Vg3ee9xl5LpROa"
         },
         {
-          "title": "婚姻中男人该赚钱养家吗",
-          "url": "http://www.baidu.com/link?url=4DLS01tX9S9m5IuKEgdQpSo6YpCnU4-9fGVfjXti8xx9ff6_5iwxrZoX-filRuyWTD0ljVCEWiKxbStJIGaxhNFk4Vm1gsUAqM5sFZKMVBm"
+          "title": "AI Agent 安全元年:OpenClaw 投毒事件如何改变整个生态安全标准",
+          "url": "http://www.baidu.com/link?url=TFVOKdbymMjtI1EvWRaq8EeROh9mVrsR8n6dHY-HfZIkv-8VQIl1MWxNsv3ZXISc3shrD1Xq-v-KH4Ops5elLVGjq_wscQUQkZAM70MrS3i"
         },
         {
-          "title": "家庭不应该只依赖一个人的收入,男女应该平等分担责任",
-          "url": "http://www.baidu.com/link?url=xG2dYcVmz3Wzx8dpdLcZ20eTBbbqC5OAS_ydYMywIMLnKYguuCVgcpWgUsIorrkmrM319MdLGRlGVDATmxXfNRL7grszfko3GzU2M_QvPTW"
+          "title": "腾讯云 OpenClaw 安全解决方案:阻断智能体越权与供应链投毒的防御...",
+          "url": "http://www.baidu.com/link?url=JBq69d3RGspRWATcikEDb4GneDjw6Cp3PrWF8By8vsmAyxQQTDQdSrfe77N9_OIqRFWB1XnKU4L8Sz9_uzci-_"
         }
       ],
-      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20260624-131336-家庭分工_性别角色_经济压力_男性养家责任现实.md",
-      "at": "13:13:32"
+      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20260624-164422-年_AI_Agent_安全治理VPS_沙箱权限隔离提示词注入.md",
+      "at": "16:44:17"
     },
     {
-      "topic": "婚前沟通 育儿分工 夫妻责任划分 规划清单",
+      "topic": "中国育儿假、男性陪产假与托育政策最新进展：国际比较及家庭分工影响",
       "status": "saved",
       "sources": [
         {
-          "title": "婚前沟通 育儿分工 夫妻责任划分 规划清单 - 百度图片",
-          "url": "https://image.baidu.com/search/index?tn=baiduimage&ct=201326592&lm=-1&cl=2&ie=utf8&sa=vs_ala_img&fr=ala&ala=1&alatpl=normal&pos=3&dyTabStr=MCwzLDEsMiwxMyw3LDYsNSwxMiw5&word=%E5%A9%9A%E5%89%8D%E6%B2%9F%E9%80%9A%20%E8%82%B2%E5%84%BF%E5%88%86%E5%B7%A5%20%E5%A4%AB%E5%A6%BB%E8%B4%A3%E4%BB%BB%E5%88%92%E5%88%86%20%E8%A7%84%E5%88%92%E6%B8%85%E5%8D%95&lid=9543f27504155acf&topic=%E5%A9%9A%E5%89%8D%E6%B2%9F%E9%80%9A%20%E8%82%B2%E5%84%BF%E5%88%86%E5%B7%A5%20%E5%A4%AB%E5%A6%BB%E8%B4%A3%E4%BB%BB%E5%88%92%E5%88%86%20%E8%A7%84%E5%88%92%E6%B8%85%E5%8D%95"
+          "title": "最新!延长产假、设配偶陪产假、父母育儿假",
+          "url": "http://www.baidu.com/link?url=XyyYDqpdB_zr884w5L28h0m7eZCGvzN82oEm1KZZWPww3lj4q3cr6WcgKetcn3PkT-dXwtK3chqNcmjrQ3WJPVqFBNeXPrwVxGQWIsY54vrbMkF56uBRE1n0LaliKgJozSzLdVMpa3yrKZztu_MiVK"
         },
         {
-          "title": "婚前必聊的 10 个现实问题 - 简书",
-          "url": "http://www.baidu.com/link?url=FP7fQDzd0nG3ciiMRo8jqNvsUrEucT0376rebMoykvkgXY9qUDjSdaK4N825ww46"
+          "title": "2026年起,陪产假变了!",
+          "url": "http://www.baidu.com/link?url=gTIcBYQ15R6l_gEbuvakECgvi5sH95z1Q6odcVD_nOs5I1AsQXv6ul-3PQ410mvGRzoN6pXzRAOU1JB4GIkTXj9g-j7qLS8v5PI44WbTKGyVGQ6BwyyCg456VjiFeiaRy0MN91_dVPzMV-TvCq4VxQJaMOCJQ2RZ1AS9X5pS0efxTU14CnFy1TJDQdJVlIiH4aIJDo6PzO0b4HIJSVjZNkAi7gP_xTAJVHdvXYVbN28wGehX-dof3U5zkXy-4WjBzQE-vx-QX0OLTcaP3U3j7K"
         },
         {
-          "title": "婚前要确定的10件事-情感心理-博禾医生",
-          "url": "http://www.baidu.com/link?url=uNcAj6G6dvgqLQTBYlrUF02_jekgbNOQlhdZZo9YHCegdwJ_NkPPw_HQrUM0mPg1"
+          "title": "国务院办公厅印发《关于加快完善生育支持政策体系推动建设生育...",
+          "url": "http://www.baidu.com/link?url=UhvXxI6zMvpn-A5gsDrFM8GtFVncf6ME_ufuBOZTDUgTKcCD3qRK-Vsln4CHfBPkBBhC6DDXMrjfWJimu6LoTnL3bvZLQF2sQ244Qj6glhq"
         },
         {
-          "title": "婚前必聊清单:这些话题你们聊过吗",
-          "url": "http://www.baidu.com/link?url=-lyqDXGwsFWZqaC_QLhn1h6N8YjpNH347a7He-SS72mM-0I3bsB5uWJnbcPMhpEcW-YU98zfX7gara-A2URAnsSbZRE8MU51lI7HK42s_1BgVbTIh3CQNZZtpfXw5Mom"
+          "title": "当男性也休育儿假,女性职场歧视反而更隐蔽了?",
+          "url": "http://www.baidu.com/link?url=gTIcBYQ15R6l_gEbuvakEJhary8crBivX87rQ8vic0A3eK9tIOemz8hV8rAg9hkQLJGVZqJVRB7ONcowF79TS5mDQbub0T7UokKMgtvAbbC"
         }
       ],
-      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20260624-131342-婚前沟通_育儿分工_夫妻责任划分_规划清单.md",
-      "at": "13:13:36"
-    },
-    {
-      "topic": "育儿假 男性产假 托育支持政策 国际比较",
-      "status": "saved",
-      "sources": [
-        {
-          "title": "国内外良心育儿政策你知道多少?",
-          "url": "http://www.baidu.com/link?url=DHKt8XYmYipuMkeHEUxJMSd0e40Czg0ckABwcCkkQnMBVxOW-JZOzyvWq6NM2qfg"
-        },
-        {
-          "title": "意大利“超级奶爸”越来越多:陪产假申请近十年内增长38%|育儿...",
-          "url": "http://www.baidu.com/link?url=vCEzQZhu2FBZMFWJ27z7Kbi8-CX9P_9m2EgTrM25oAYdU99gaFnrRap8SihHE2OfPM_dpF20e7p7Ns73Mb1XEq"
-        },
-        {
-          "title": "育娲《中国托育报告2025》发布!_腾讯新闻",
-          "url": "http://www.baidu.com/link?url=fLDkKuAsE5SAVIPsJsBa6r7EGIUik12yeGPAftURpOTpMI2eM8H6ptJb33R4TmnxMSUWeGdwNgMZCrL0mnSWH_"
-        },
-        {
-          "title": "育娲《中国托育报告2025》发布!_腾讯新闻",
-          "url": "http://www.baidu.com/link?url=-Lo9FK1kSgLJfFGuCNo2b4b1jeY9TuzrWE4sRJpN-X5f5k8B_QRdvmFm2W1GBiIcWq1IC4RGwQ1EEbkqNecPAa"
-        }
-      ],
-      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20260624-131348-育儿假_男性产假_托育支持政策_国际比较.md",
-      "at": "13:13:42"
+      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20260624-164427-中国育儿假男性陪产假与托育政策最新进展国际比较及家庭分工影响.md",
+      "at": "16:44:22"
     }
   ],
-  "started_at": "2026-06-24 13:11",
-  "finished_at": "2026-06-24 13:13",
-  "source": "manual",
+  "started_at": "2026-06-24 16:42",
+  "finished_at": "2026-06-24 16:44",
+  "source": "auto",
   "read_local": true,
-  "use_local": true,
-  "model": "qwen3:14b",
+  "use_local": false,
+  "model": "web",
   "auto_research": true,
   "scopes": {
     "video": true,

@@ -13,6 +13,20 @@
       "base_url": "https://api.dakeai.cc",
       "model": "gpt-5.4-mini",
       "max_tokens": 4096
+    },
+    {
+      "name": "Claude",
+      "api_key": "",
+      "base_url": "",
+      "model": "",
+      "max_tokens": 4096
+    },
+    {
+      "name": "deepseek-v4-pro",
+      "api_key": "sk-08ec4475d05646a18423f04546bf9e11",
+      "base_url": "https://api.deepseek.com",
+      "model": "deepseek-v4-pro",
+      "max_tokens": 4096
     }
   ]
 }
