@@ -43,6 +43,75 @@ except Exception:
 HOST = "127.0.0.1"
 PORT = 8756  # 一个不常用的端口，避免和别的程序撞
 
+# ════════════════════ 控制台操作日志 ════════════════════
+# 之前控制台太安静（log_message 被置空、各处也很少 print），用户在界面上操作时
+# 看不到任何反馈，会以为软件卡死/没工作。这里加一个统一的日志函数：
+#   · 带时间戳 + 统一前缀，和现有的 [video]/[backend] 风格一致；
+#   · line_buffering 已开（见上面 reconfigure），flush=True 双保险，实时可见；
+#   · 出错绝不影响主流程（打印日志本身不该让请求失败）。
+import time as _time_log
+
+
+def _clog(tag, msg):
+    """往控制台打一行带时间戳的日志。tag 如 'video'/'chat'/'api'，msg 是人话描述。"""
+    try:
+        ts = _time_log.strftime("%H:%M:%S")
+        print("[%s] %s  %s" % (ts, tag, msg), flush=True)
+    except Exception:
+        pass
+
+
+# 这些接口是前端**定时高频轮询**或页面加载时被动拉取的（查状态/进度/列表/配置），
+# 一旦打印就会把控制台刷爆、淹没真正有用的操作日志，所以一律静音、不记。
+_LOG_QUIET_PATHS = {
+    "/ping", "/video_progress", "/video_health", "/video_notes",
+    "/chat_progress", "/heartbeat/status", "/lumi/status", "/lumi/evolve_status",
+    "/web_model/state", "/web_model/config", "/loop/status", "/insight/status",
+    "/insight/config", "/system_access", "/claude_config", "/harness/config",
+    "/sniff/config", "/skills/list", "/datadb/list", "/memory/list",
+}
+
+# 给少数关键路径配一句「人话」描述，让日志一眼能看懂用户在干嘛。
+# 没列到的路径会回退显示原始 path，也能看，只是不那么直白。
+_LOG_PATH_LABEL = {
+    "/video_transcribe": "发起视频提取",
+    "/video_cancel": "取消视频任务",
+    "/video_detect_subtitle": "检测视频字幕",
+    "/video_diag": "查看视频诊断",
+    "/video_install": "安装/更新视频依赖",
+    "/video_move_models": "迁移语音模型",
+    "/video_note_delete": "删除视频笔记",
+    "/video_shot": "抓取视频截图",
+    "/chat": "发送对话消息",
+    "/tts": "语音播报",
+    "/memory": "读写记忆文件",
+    "/heartbeat": "触发一次心跳",
+    "/heartbeat/start": "开启自动心跳",
+    "/heartbeat/stop": "关闭自动心跳",
+    "/briefing": "生成情报简报",
+    "/competitors": "检查竞品变化",
+    "/loop/start": "启动目标循环",
+    "/loop/stop": "停止目标循环",
+    "/insight/run": "运行洞察爬取",
+    "/insight/stop": "停止洞察爬取",
+    "/insight/research_item": "深入研究某条洞察",
+}
+
+
+def _log_request(method, path):
+    """记录一次「用户操作」到控制台。高频轮询路径自动跳过。"""
+    try:
+        if path in _LOG_QUIET_PATHS:
+            return
+        label = _LOG_PATH_LABEL.get(path)
+        if label:
+            _clog("操作", "%s （%s %s）" % (label, method, path))
+        else:
+            _clog("操作", "%s %s" % (method, path))
+    except Exception:
+        pass
+
+
 _tg_started = False  # Telegram bot 是否已启动（避免重复启动）
 
 # 视频提取：支持排队。前端轮询 /video_progress 看进度+队列。
@@ -79,7 +148,9 @@ def _save_video_queue():
 
 
 def _load_video_queue():
-    """读回持久化的队列。返回 [job, ...]：current（若有）排最前，再接 pending。"""
+    """读回持久化的队列。返回 [job, ...]：current（若有）排最前，再接 pending。
+    加载时顺手把每个 job 的 URL 规范化——历史持久化里可能存了 iesdouyin 分享页
+    长链（yt-dlp 报 Unsupported URL），在这里转成标准抖音链接，从源头根除。"""
     import json as _json
     try:
         p = _video_queue_path()
@@ -89,10 +160,14 @@ def _load_video_queue():
         jobs = []
         cur = data.get("current")
         if cur and cur.get("url"):
-            jobs.append(cur)
+            cur["url"] = _normalize_video_url(cur.get("url"))
+            if "iesdouyin.com/share" not in (cur.get("url") or ""):  # 规范化没成功的畸形链接直接丢
+                jobs.append(cur)
         for j in (data.get("pending") or []):
             if j and j.get("url"):
-                jobs.append(j)
+                j["url"] = _normalize_video_url(j.get("url"))
+                if "iesdouyin.com/share" not in (j.get("url") or ""):
+                    jobs.append(j)
         return jobs
     except Exception:
         return []
@@ -348,6 +423,14 @@ def _video_worker():
                 _save_video_queue()          # 队列清空，写盘（之后重启不会再有残留任务）
                 return
             job = _video_q.pop(0)
+            # 规范化 URL：历史持久化里可能存了 iesdouyin 分享页长链（yt-dlp 不认，
+            # 会报 Unsupported URL）。这里统一转回标准抖音链接，后续下载/爬标题都用它。
+            try:
+                _nu = _normalize_video_url(job.get("url") or "")
+                if _nu and _nu != job.get("url"):
+                    job["url"] = _nu
+            except Exception:
+                pass
             # 取消标记：放弃这条 + 后面的都已被清空，直接收尾退出
             if _video_cancel.get("all"):
                 _video_cancel["all"] = False
@@ -362,17 +445,86 @@ def _video_worker():
                 _save_video_queue()
                 return
             _video_current["job"] = job      # 标记正在处理（崩溃/关闭后重启能续上这条）
-            _save_video_queue()              # 持久化：current=这条，pending=剩下的
-            _video_state["queue"] = [j["url"] for j in _video_q]
+            # 失败计数 +1 并存盘：若这条任务反复失败/崩溃，计数会累加，
+            # 下次启动 _restore_video_queue 看到 fail_count>=2 就丢弃它，不再卡住后面。
+            # 任务成功结束时会整条删除（_video_current["job"]=None + 存盘），计数自然清零。
+            try:
+                job["fail_count"] = int(job.get("fail_count") or 0) + 1
+            except Exception:
+                job["fail_count"] = 1
+            _save_video_queue()              # 持久化：current=这条（含计数）, pending=剩下的
+            _video_state["queue"] = [{"url": j["url"], "title": j.get("title") or ""}
+                                     for j in _video_q]
             _video_state["queue_len"] = len(_video_q)
         _video_state["running"] = True
         _video_state["current_url"] = job["url"]
-        _video_state["current_label"] = job["url"]
+        # 任务开始：往控制台打一行，让用户知道「现在开始处理这条了」
+        _clog("视频", "▶ 开始处理：%s（队列还剩 %d 个）"
+              % ((job.get("title") or job["url"])[:40], len(_video_q)))
+        # 正在处理的任务：优先显示标题（入队时可能已爬到），否则先显示链接，
+        # 同时异步补爬一次标题，爬到就更新显示——让用户知道现在提取的是哪个视频。
+        _video_state["current_label"] = job.get("title") or job["url"]
+        if not job.get("title"):
+            def _fill_cur_title(_u=job["url"], _job=job):
+                try:
+                    t = _quick_title(_u)
+                    if t and _video_state.get("current_url") == _u:
+                        _job["title"] = t
+                        _video_state["current_label"] = t
+                except Exception:
+                    pass
+            _threading.Thread(target=_fill_cur_title, daemon=True).start()
+
+        # 后台预爬「所有排队任务」的标题并回填，让排队列表也显示视频名而非链接。
+        # 逐个爬（不并发，免得抢网络/被抖音限流），爬到就写进 _video_q 对应项 +
+        # 刷新 _video_state["queue"]，前端轮询即可看到标题。
+        def _prefetch_queue_titles():
+            try:
+                import time as _pt
+                with _video_lock:
+                    pending = list(_video_q)
+                for j in pending:
+                    if j.get("title"):
+                        continue
+                    u = (j.get("url") or "").strip()
+                    if not u:
+                        continue
+                    # 最多试 2 次，每次之间隔一下，降低抖音对密集请求的限流概率
+                    t = ""
+                    for attempt in range(2):
+                        t = _quick_title(u)
+                        if t:
+                            break
+                        _pt.sleep(2)
+                    if not t:
+                        continue
+                    with _video_lock:
+                        j["title"] = t
+                        _video_state["queue"] = [
+                            {"url": k["url"], "title": k.get("title") or ""}
+                            for k in _video_q]
+                        _save_video_queue()
+                    _pt.sleep(1)   # 相邻两个之间也歇一下，别太密
+            except Exception:
+                pass
+        _threading.Thread(target=_prefetch_queue_titles, daemon=True).start()
         _video_state["stage"] = "准备"
         _video_state["detail"] = ""
         _video_state["elapsed"] = 0
         start = _time.time()
         tick = {"on": True}
+
+        # ── 运行台记录：收集这条视频任务经历的每个阶段，结束时写进 harness 运行台 ──
+        run_steps = []          # [阶段名]，给运行台展示「每一步」
+        _last_stage = {"name": ""}
+        # 任务一开始就在运行台写一条「进行中」记录，让你立刻看到它在跑、走到哪步。
+        _run_id = ""
+        try:
+            import harness as _hn
+            _vtitle0 = "视频提取：" + (job.get("url") or "")[-40:]
+            _run_id = _hn.begin_run(kind="video", title=_vtitle0, tools=["准备"])
+        except Exception:
+            _run_id = ""
 
         def _ticker():
             while tick["on"]:
@@ -383,6 +535,18 @@ def _video_worker():
         def cb(stage, detail=""):
             _video_state["stage"] = stage
             _video_state["detail"] = detail
+            # 阶段名变化时，记一步，并实时更新运行台里这条「进行中」记录
+            try:
+                if stage and stage != _last_stage["name"]:
+                    _last_stage["name"] = stage
+                    run_steps.append(stage)
+                    # 阶段变化时往控制台打一行，让用户实时看到「软件在做哪一步」
+                    _clog("视频", "%s%s" % (stage, ("：" + detail) if detail else ""))
+                    if _run_id:
+                        import harness as _hn2
+                        _hn2.update_run(_run_id, tools=list(run_steps))
+            except Exception:
+                pass
 
         # 取消标记：开跑前再检查一次（用户可能在准备阶段点了取消）
         if _video_cancel.get("all"):
@@ -427,13 +591,21 @@ def _video_worker():
                     on_progress=lambda m: cb("AI 分析", m),
                     segments=segments,
                     do_screenshot=do_screenshot, do_link=do_link)
-                # ★让模型顺手总结 1-3 个二级标签，写进笔记（用户之后可在界面改）
+                # ★标签：优先用平台自带的话题标签（抖音 #话题，最准），不够再让 AI 补。
                 cb("AI 分析", "归纳标签…")
+                platform_tags = res.get("platform_tags") or []
                 try:
-                    tags = _cx_suggest_tag(title, analysis,
-                                           job["use_local"], job["model"])
+                    ai_tags = _cx_suggest_tag(title, analysis,
+                                              job["use_local"], job["model"])
                 except Exception:
-                    tags = []
+                    ai_tags = []
+                # 平台标签在前、AI 标签在后，去重，最多取 6 个
+                tags = []
+                for _t in list(platform_tags) + list(ai_tags):
+                    _t = (_t or "").strip().lstrip("#").strip()
+                    if _t and _t not in tags:
+                        tags.append(_t)
+                tags = tags[:6]
                 ts = datetime.datetime.now()
                 safe = "".join(c for c in title[:20]
                                if c.isalnum() or c in " 　-_") or "video"
@@ -491,6 +663,57 @@ def _video_worker():
                 video_transcribe.extract_gate.release()
             except (RuntimeError, ValueError):
                 pass
+            # ── 更新运行台记录：把开头那条「进行中」更新成最终结果（成败+步骤+耗时+标题）──
+            try:
+                import harness
+                _res = _video_state.get("result") or {}
+                _ok = bool(_res.get("ok"))
+                _vtitle = (_res.get("title") or "").strip()
+                if not _vtitle:
+                    _u = job.get("url") or ""
+                    _vtitle = "视频提取：" + (_u[-40:] if _u else "（未知链接）")
+                _stages = list(run_steps) or ["视频提取"]
+                # 叙述性完成提示：看队列里还有没有下一个，给运行台一句话说明任务流转
+                with _video_lock:
+                    _remain = len(_video_q)
+                if _ok:
+                    if _remain > 0:
+                        _note = "✅ 已完成《%s》，继续处理下一个（还剩 %d 个）" % (_vtitle[:20], _remain)
+                    else:
+                        _note = "✅ 已完成《%s》，队列已清空，等待新任务" % (_vtitle[:20])
+                else:
+                    if _remain > 0:
+                        _note = "⚠ 这条没成功，继续处理下一个（还剩 %d 个）" % _remain
+                    else:
+                        _note = "⚠ 这条没成功，队列已清空，等待新任务"
+                if _run_id:
+                    harness.finish_run(
+                        _run_id, tools=_stages,
+                        error=("" if _ok else (_res.get("error") or "提取未成功")),
+                        outcome=("done" if _ok else "stopped"),
+                        title=_vtitle, note=_note)
+                else:
+                    # begin_run 当时没拿到 id（极少见）→ 退化成补记一条完整记录，不丢
+                    harness.record_run(
+                        kind="video", title=_vtitle, tools=_stages,
+                        steps=len(_stages),
+                        error=("" if _ok else (_res.get("error") or "提取未成功")),
+                        outcome=("done" if _ok else "stopped"),
+                        seconds=int(_time.time() - start))
+            except Exception:
+                pass  # 运行台记录失败绝不影响主流程
+            # 往控制台也打一条明确的完成报告，让用户看日志就知道任务流转。
+            try:
+                _secs = int(_time.time() - start)
+                _msg = locals().get("_note") or "✅ 这条已处理完"
+                # 失败时把原因也带上，省得用户对着「没成功」一头雾水
+                if not _ok:
+                    _err = (_res.get("error") or "").strip() if isinstance(_res, dict) else ""
+                    if _err:
+                        _msg = _msg + "　原因：" + _err[:120]
+                _clog("视频", "%s（用时 %d 秒）" % (_msg, _secs))
+            except Exception:
+                pass
             # 这条处理完（成功或失败都算处理过），从持久化里移除，避免重启又跑一遍
             with _video_lock:
                 _video_current["job"] = None
@@ -498,22 +721,130 @@ def _video_worker():
         # 继续处理下一个
 
 
+def _normalize_video_url(url):
+    """规范化视频链接，避免把 yt-dlp 不认的地址喂给它。
+    典型问题：iesdouyin.com/share/video/{id}/?一堆参数 —— yt-dlp 报 Unsupported URL。
+    这里把它转成标准的 douyin.com/video/{id}（yt-dlp 认识），其它链接原样返回。"""
+    try:
+        u = (url or "").strip()
+        if "iesdouyin.com" in u.lower():
+            import re as _re
+            m = _re.search(r"/share/video/(\d{6,})", u)
+            if not m:
+                m = _re.search(r"/video/(\d{6,})", u)
+            if m:
+                return "https://www.douyin.com/video/%s" % m.group(1)
+        return u
+    except Exception:
+        return url
+
+
+def _quick_title(url, timeout=8):
+    """快速爬一个视频的标题（只为「正在处理 / 排队中」显示视频名用），带超时。
+    抖音优先走分享页元信息（几秒）；失败再用 yt-dlp 兜底取标题。
+    拿不到就返回空串——调用方退回显示链接，绝不阻塞主流程。"""
+    try:
+        import video_transcribe as _vt
+        if _vt._is_douyin(url):
+            # ① 先走抖音分享页解析（最稳，能拿到 desc 当标题）
+            try:
+                import douyin_resolver
+                meta = douyin_resolver.fetch_meta(url)
+                if meta.get("ok"):
+                    t = (meta.get("title") or "").strip()
+                    if t:
+                        return t
+            except Exception:
+                pass
+            # ② 抖音分享页没拿到 → 用 yt-dlp 兜底取标题（注意先规范化 URL，
+            #    否则 iesdouyin 长链会报 Unsupported URL）
+            # 继续往下走通用的 yt-dlp 探测
+        # 通用 / 抖音兜底：yt-dlp 只取 info（skip_download），放在线程里跑并设超时
+        import threading as _th
+        probe_url = _normalize_video_url(url)
+        box = {"t": ""}
+
+        def _probe():
+            try:
+                info = _vt._run_extract(probe_url, {
+                    "quiet": True, "no_warnings": True, "noplaylist": True,
+                    "skip_download": True, "nocheckcertificate": True},
+                    download=False)
+                box["t"] = (info.get("title") or info.get("description") or "").strip()
+            except Exception:
+                box["t"] = ""
+        th = _th.Thread(target=_probe, daemon=True)
+        th.start()
+        th.join(timeout)
+        return box["t"]
+    except Exception:
+        return ""
+
+
 def _enqueue_video(job):
-    """把一个视频任务加入队列，必要时启动后台 worker。返回它的排队位置。"""
+    """把一个视频任务加入队列，必要时启动后台 worker。返回它的排队位置。
+    会去重：同一个 url 如果正在处理、或已在待处理队列里，就不再重复入队，
+    直接返回它现有的位置——避免「悬浮按钮 / 加入队列 / 手动点击」多个入口
+    把同一个链接排进去两三遍。"""
     import time as _t
     if not job.get("id"):
         job["id"] = "vj" + str(_t.time()) + "-" + str(_t.monotonic_ns() % 100000)
+    # 入队即规范化 URL：iesdouyin 长链 → 标准抖音链接，从入口杜绝 Unsupported URL。
+    job["url"] = _normalize_video_url(job.get("url") or "")
+    url = (job.get("url") or "").strip()
     with _video_lock:
         _video_cancel["all"] = False  # 新任务进来，清掉旧的取消标记
+
+        # ── 去重 ──
+        # 1) 正在处理的就是这条 → 直接返回「第 1 个（正在处理）」
+        cur = _video_current.get("job")
+        running = _video_state["running"]
+        if running and cur and (cur.get("url") or "").strip() == url:
+            return 1
+        # 2) 待处理队列里已有这条 → 返回它现有位置，不重复 append
+        for idx, j in enumerate(_video_q):
+            if (j.get("url") or "").strip() == url:
+                return idx + 1 + (1 if running else 0)
+
+        # ── 没重复，正常入队 ──
         _video_q.append(job)
         _save_video_queue()          # 入队即写盘：关掉软件也不会丢
-        _video_state["queue"] = [j["url"] for j in _video_q]
+        # _video_state["queue"] 统一只放「待处理」任务（不含正在跑的那条），
+        # 和 worker 里的设值口径一致，避免前端「第 N 个」忽多忽少。
+        # 队列项现在带上标题（title 先用已有的，没有则为空，稍后异步爬好回填），
+        # 让前端能显示「排队中的是哪个视频」而不是光秃秃的链接。
+        _video_state["queue"] = [{"url": j["url"], "title": j.get("title") or ""}
+                                 for j in _video_q]
         _video_state["queue_len"] = len(_video_q)
-        running = _video_state["running"]
+        # 这条任务的排队位置 = 它在待处理队列里的序号 +（有任务在跑则再 +1）
         pos = len(_video_q) + (1 if running else 0)
+        _clog("视频", "＋ 已加入队列（第 %d 个）：%s" % (pos, (job.get("title") or url)[:50]))
         if not _video_worker_on["v"]:
             _video_worker_on["v"] = True
             _threading.Thread(target=_video_worker, daemon=True).start()
+
+    # 入队后异步爬一次标题（不阻塞入队返回），爬到就回填进 job 和队列显示，
+    # 这样排队中的任务也能显示视频名。失败/超时就保持显示链接，不影响处理。
+    def _fill_title():
+        try:
+            if job.get("title"):
+                return
+            t = _quick_title(url)
+            if not t:
+                return
+            with _video_lock:
+                job["title"] = t
+                # 回填到 _video_state["queue"] 里对应项（按 url 匹配）
+                for q in (_video_state.get("queue") or []):
+                    if isinstance(q, dict) and (q.get("url") or "") == url:
+                        q["title"] = t
+                _save_video_queue()
+        except Exception:
+            pass
+    try:
+        _threading.Thread(target=_fill_title, daemon=True).start()
+    except Exception:
+        pass
     return pos
 
 
@@ -534,16 +865,23 @@ def _cancel_video_jobs():
 
 
 def _restore_video_queue():
-    """软件启动时调用：把上次没跑完的视频任务读回来，自动继续处理。"""
+    """软件启动时调用：把上次没跑完的视频任务读回来，自动继续处理。
+    连续失败多次的任务（fail_count>=2）直接丢弃，不再恢复——避免一条始终失败的
+    坏任务（如失效链接）每次重启都卡在队列头部，导致软件像「无法工作」。"""
     jobs = _load_video_queue()
     if not jobs:
         return
+    dropped = 0
     with _video_lock:
         # 去重（按 url），避免 current 和 pending 里有重复
         seen = set()
         for j in jobs:
-            u = j.get("url")
+            u = (j.get("url") or "").strip()
             if not u or u in seen:
+                continue
+            # 连续失败太多次 → 放弃这条，不再无限重试卡住后面的任务
+            if int(j.get("fail_count") or 0) >= 2:
+                dropped += 1
                 continue
             seen.add(u)
             if not j.get("id"):
@@ -552,13 +890,16 @@ def _restore_video_queue():
             _video_q.append(j)
         if _video_q:
             _save_video_queue()
-            _video_state["queue"] = [j["url"] for j in _video_q[1:]]
-            _video_state["queue_len"] = max(0, len(_video_q) - 1)
+            _video_state["queue"] = []
+            _video_state["queue_len"] = 0
             if not _video_worker_on["v"]:
                 _video_worker_on["v"] = True
                 _threading.Thread(target=_video_worker, daemon=True).start()
     try:
-        print("[video] 恢复了 %d 个未完成的视频任务，继续处理…" % len(jobs))
+        msg = "[video] 恢复了 %d 个未完成的视频任务，继续处理…" % len(seen)
+        if dropped:
+            msg += "（丢弃了 %d 个总是失败的坏任务）" % dropped
+        print(msg)
     except Exception:
         pass
 
@@ -650,6 +991,7 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
         qs = urllib.parse.parse_qs(parsed.query)
+        _log_request("GET", path)
 
         if path == "/ping":
             return self._send({"ok": True})
@@ -684,6 +1026,19 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(self._video_progress_merged())
         if path == "/video_shot":
             return self._handle_video_shot(qs)
+        if path == "/video_health":
+            try:
+                import video_transcribe
+                return self._send(video_transcribe.health())
+            except Exception as e:
+                return self._send({"douyin": {"status": "error", "detail": str(e)},
+                                   "versions": {}, "ytdlp": {}, "diag": {}}, 200)
+        if path == "/video_diag":
+            try:
+                import video_transcribe
+                return self._send(video_transcribe.read_diag())
+            except Exception as e:
+                return self._send({"exists": False, "path": "", "error": str(e)}, 200)
 
         if path == "/library":
             return self._handle_library()
@@ -937,6 +1292,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = urllib.parse.urlparse(self.path).path
         qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        _log_request("POST", path)
 
         # 企业微信 / 飞书回调要原始 body，单独先处理
         if path == "/wecom/callback":
@@ -2105,12 +2461,13 @@ class Handler(BaseHTTPRequestHandler):
         else:
             extra_running = run_tasks if st.get("running") else []
 
-        # 组装排队列表：原队列 + 对话里等待/额外在跑但没占顶部卡片的
+        # 组装排队列表：原队列（已是 {url,title} 对象）+ 对话里等待/额外在跑的。
+        # 对话任务统一也包成 {url, title} 形式，保证前端拿到的队列项格式一致。
         queue = list(st.get("queue") or [])
         for t in wait_tasks:
-            queue.append((t.get("label") or "对话里的视频") + "（对话）")
+            queue.append({"url": "", "title": (t.get("label") or "对话里的视频") + "（对话）"})
         for t in extra_running:
-            queue.append((t.get("label") or "对话里的视频") + "（对话·处理中）")
+            queue.append({"url": "", "title": (t.get("label") or "对话里的视频") + "（对话·处理中）"})
         st["queue"] = queue
         st["queue_len"] = len(queue)
         # 只要有任何对话任务在，就保持前端继续轮询

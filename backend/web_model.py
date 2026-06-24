@@ -1046,14 +1046,32 @@ class _WebWorker:
                     res = self._finalize_if_done(
                         current, probe, idle_confirm, IDLE_CONFIRM_REPS,
                         expects_json, min_expected, required_markers,
-                        markers_min_hits, accept_stable, short_reply)
+                        markers_min_hits, accept_stable, short_reply,
+                        stable_secs=stable * POLL)
                     if res["done"]:
-                        self._log("内容稳定，长度=%d" % len(current))
+                        # 给出明确的完成报告：检查并说明发送按钮状态，让用户/开发者
+                        # 清楚知道「AI 已答完、识别完成」，而不是只看到一句模糊的"内容稳定"。
+                        gs = (probe or {}).get("genState", "unknown")
+                        if gs == "idle":
+                            self._log("✓ AI 已生成完毕：发送按钮已恢复『可发送』，"
+                                      "识别完成（共 %d 字），交付结果。" % len(current))
+                        else:
+                            self._log("✓ AI 已生成完毕：文本已稳定（共 %d 字），"
+                                      "识别完成，交付结果。" % len(current))
                         return current
                     # 防误判：继续等（带 holdCap 上限）
                     if not first_hold_at:
                         first_hold_at = time.time()
                     held_ms = (time.time() - first_hold_at) * 1000
+                    # ★逃生通道：按钮态识别可能因第三方站点的图标结构而失效（发送键被
+                    #   误判成停止键 → genState 永远 generating → 死等）。所以只要回复
+                    #   文本已经「持续稳定」足够久（默认 12 秒零增长），就判定 AI 答完，
+                    #   不再 100% 依赖那个脆弱的按钮信号。短回复模式阈值更短（8 秒）。
+                    escape_ms = 8000 if short_reply else 12000
+                    if held_ms > escape_ms:
+                        self._log("内容已持续稳定 %d 字 / %.0f 秒，按钮态未翻转，"
+                                  "按『文本稳定』判定答完" % (len(current), held_ms / 1000))
+                        return current
                     if held_ms > hold_cap_ms:
                         self._log("⚠ 防误判等待达上限，接受现有 %d 字返回" % len(current))
                         return current
@@ -1073,7 +1091,8 @@ class _WebWorker:
     @staticmethod
     def _finalize_if_done(current, probe, idle_confirm, idle_reps,
                           expects_json, min_expected, required_markers,
-                          markers_min_hits, accept_stable, short_reply=False):
+                          markers_min_hits, accept_stable, short_reply=False,
+                          stable_secs=0):
         import re
         has_json_fence = bool(re.search(r"```json[\s\S]*?```", current))
         first_b = current.find("{")
@@ -1412,8 +1431,27 @@ _PROBE_JS = r"""() => {
                 if (r.bottom < window.innerHeight * 0.45) continue;
                 if (r.right < window.innerWidth * 0.5) continue;
                 const hasRect = svg.querySelector('rect');
-                const hasOnlyRect = hasRect && svg.querySelectorAll('path, line, polyline, polygon').length === 0;
-                if (hasOnlyRect) { stopBtn = host; break; }
+                const hasOnlyRect = hasRect && svg.querySelectorAll('path, line, polyline, polygon, circle').length === 0;
+                // 加严：停止键的 ■ 是个接近正方形、居中的小方块。只有「整个 svg 仅含
+                // 一个近正方形 rect」才算停止键，避免把「圆形背景(rect 圆角) + 箭头(实为
+                // path)」或「rect 当背景的发送键」误判成停止键 —— 那会导致 AI 答完后
+                // genState 一直卡在 generating、完成判定死等。
+                let looksLikeStopSquare = false;
+                if (hasOnlyRect) {
+                    try {
+                        const rc = svg.querySelector('rect');
+                        const w = parseFloat(rc.getAttribute('width') || '0');
+                        const h = parseFloat(rc.getAttribute('height') || '0');
+                        // 近正方形（宽高比 0.7~1.4），且不是铺满整个 svg 的大背景块
+                        const ratio = (w && h) ? (w / h) : 0;
+                        const vb = (svg.getAttribute('viewBox') || '').split(/\s+/);
+                        const vbw = vb.length === 4 ? parseFloat(vb[2]) : 0;
+                        const fillsAll = vbw && w >= vbw * 0.9;   // 几乎铺满 → 更像背景，不是 ■
+                        looksLikeStopSquare = (ratio >= 0.7 && ratio <= 1.4 && !fillsAll);
+                        if (!w || !h) looksLikeStopSquare = true;  // 没标 width/height 的，保守仍当停止键
+                    } catch (e) { looksLikeStopSquare = true; }
+                }
+                if (looksLikeStopSquare) { stopBtn = host; break; }
             }
         }
         if (stopBtn) { genState = 'generating'; }

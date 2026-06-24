@@ -1,0 +1,670 @@
+[
+  {
+    "id": "video-1782279669858",
+    "ts": "06-24 13:41:09",
+    "kind": "video",
+    "title": "Loop Engineering+Agnes AI ，打造项目监控雷达#agnes#ai#智能体#Agnes免费API #AgnesAPl教程",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 6,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 380
+  },
+  {
+    "id": "video-1782280050145",
+    "ts": "06-24 13:47:30",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/2xdJQa0d3IU/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1
+    },
+    "steps": 4,
+    "error": "",
+    "outcome": "",
+    "status": "running",
+    "tokens_est": 0,
+    "seconds": 0,
+    "_start": 1782280050.14548
+  },
+  {
+    "id": "video-1782280417805",
+    "ts": "06-24 13:53:37",
+    "kind": "video",
+    "title": "AI收费模式思考，AI或将成为“精英的武器” AI的未来不是人人交月费的‘水电煤’，而是两极分化——普通人靠免费的本地端侧AI就足够，顶级云端模型则正在异化为少数精英公司互相碾压的‘秘密武器’。\n#人工智能 #AI时代 #水球泡 #视频播客",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "获取标题",
+      "加载语音模型",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "获取标题": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 7,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 449
+  },
+  {
+    "id": "video-1782280867766",
+    "ts": "06-24 14:01:07",
+    "kind": "video",
+    "title": "#VibeCoding大赏 AI 用久了就犯傻、失忆，开个新对话又得从头解释「我是谁、项目是干嘛的」？这条视频为你讲解 Claude Code 的长期项目记忆系统：三层记忆架构、为什么能记住庞大项目又不撑死、有哪些软肋，以及几条让它越用越聪",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 5,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 353
+  },
+  {
+    "id": "video-1782281221118",
+    "ts": "06-24 14:07:01",
+    "kind": "video",
+    "title": "姑娘再扎实扎实自己 #月老鳌烨",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 5,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 243
+  },
+  {
+    "id": "video-1782281554080",
+    "ts": "06-24 14:12:34",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/BGd3IE2oqdA/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1
+    },
+    "steps": 4,
+    "error": "",
+    "outcome": "",
+    "status": "running",
+    "tokens_est": 0,
+    "seconds": 0,
+    "_start": 1782281554.0802426
+  },
+  {
+    "id": "video-1782281988329",
+    "ts": "06-24 14:19:48",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/BGd3IE2oqdA/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "获取标题",
+      "加载语音模型",
+      "语音转文字"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "获取标题": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1
+    },
+    "steps": 6,
+    "error": "",
+    "outcome": "",
+    "status": "running",
+    "tokens_est": 0,
+    "seconds": 0,
+    "_start": 1782281988.3298333
+  },
+  {
+    "id": "video-1782282283583",
+    "ts": "06-24 14:24:43",
+    "kind": "video",
+    "title": "你有没有发现…",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "获取标题",
+      "加载语音模型",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "获取标题": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 7,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 436,
+    "note": "✅ 已完成《你有没有发现…》，继续处理下一个（还剩 3 个）"
+  },
+  {
+    "id": "video-1782282720017",
+    "ts": "06-24 14:32:00",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/Nx6Odmlv1As/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1
+    },
+    "steps": 4,
+    "error": "",
+    "outcome": "",
+    "status": "running",
+    "tokens_est": 0,
+    "seconds": 0,
+    "_start": 1782282720.018411
+  },
+  {
+    "id": "video-1782282910255",
+    "ts": "06-24 14:35:10",
+    "kind": "video",
+    "title": "大家还记得去年在埃及失踪的年轻女孩吧失联6天全网…",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "获取标题",
+      "加载语音模型",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "获取标题": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 7,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 162,
+    "note": "✅ 已完成《大家还记得去年在埃及失踪的年轻女孩吧失联》，继续处理下一个（还剩 2 个）"
+  },
+  {
+    "id": "video-1782283072435",
+    "ts": "06-24 14:37:52",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/uDMA67rZYvU/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1
+    },
+    "steps": 3,
+    "error": "提取失败：ERROR: Unsupported URL: https://www.iesdouyin.com/share/video/7654593739893099819/?region=CN&mid=7654593764840770313&u_code=15e488kf6&did=MS4wLjABAAAAk2oguDqweY95C6pM2jYEYsBJReFEjZz3T2jtyeEQLmK44byLi3TdgWYIKjqMRlxR&iid=MS4wLjABAAAANwkJuWIRFOzg5uCpDRpMj4OX-QryoDgn-yYlXQnRwQQ&with_sec_did=1&video",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 1,
+    "note": "⚠ 这条没成功，继续处理下一个（还剩 1 个）"
+  },
+  {
+    "id": "video-1782283073836",
+    "ts": "06-24 14:37:53",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/pXC2_P8HUIg/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1
+    },
+    "steps": 3,
+    "error": "提取失败：ERROR: Unsupported URL: https://www.iesdouyin.com/share/video/7653082970223398190/?region=CN&mid=7653083257369922342&u_code=15e488kf6&did=MS4wLjABAAAAk2oguDqweY95C6pM2jYEYsBJReFEjZz3T2jtyeEQLmK44byLi3TdgWYIKjqMRlxR&iid=MS4wLjABAAAANwkJuWIRFOzg5uCpDRpMj4OX-QryoDgn-yYlXQnRwQQ&with_sec_did=1&video",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 1,
+    "note": "⚠ 这条没成功，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1782283290179",
+    "ts": "06-24 14:41:30",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/DUsXdRr9KOM/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1
+    },
+    "steps": 3,
+    "error": "提取失败：ERROR: Unsupported URL: https://www.iesdouyin.com/share/video/7637528968758324707/?region=CN&mid=7637528943817394980&u_code=15e488kf6&did=MS4wLjABAAAAk2oguDqweY95C6pM2jYEYsBJReFEjZz3T2jtyeEQLmK44byLi3TdgWYIKjqMRlxR&iid=MS4wLjABAAAANwkJuWIRFOzg5uCpDRpMj4OX-QryoDgn-yYlXQnRwQQ&with_sec_did=1&video",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 2,
+    "note": "⚠ 这条没成功，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1782283595541",
+    "ts": "06-24 14:46:35",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/axZcKthQMvo/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1
+    },
+    "steps": 3,
+    "error": "提取失败：ERROR: [Douyin] 7632140069431790884: Fresh cookies (not necessarily logged in) are needed\n\n提示：本软件已先尝试「抖音分享页直链解析」、再用 yt-dlp 兜底，仍未成功。通常是这条视频被限制、链接已过期，或抖音又改了分享页结构。可以：\n  1) 回抖音客户端重新「分享 → 复制链接」，拿一条最新短链再试；\n  2) 在「视频」板块点一次「安装/更新依赖」把 yt-dlp 升到最新；\n  3) 换一条抖音视频试试，确认是不是这条本身的问题。",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 2,
+    "note": "⚠ 这条没成功，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1782283708315",
+    "ts": "06-24 14:48:28",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/axZcKthQMvo/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1
+    },
+    "steps": 3,
+    "error": "提取失败：ERROR: Unsupported URL: https://www.iesdouyin.com/share/video/7632140069431790884/?region=CN&mid=7632140553387952959&u_code=15e488kf6&did=MS4wLjABAAAAk2oguDqweY95C6pM2jYEYsBJReFEjZz3T2jtyeEQLmK44byLi3TdgWYIKjqMRlxR&iid=MS4wLjABAAAANwkJuWIRFOzg5uCpDRpMj4OX-QryoDgn-yYlXQnRwQQ&with_sec_did=1&video",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 2,
+    "note": "⚠ 这条没成功，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1782284144918",
+    "ts": "06-24 14:55:44",
+    "kind": "video",
+    "title": "特朗普这次对中国的战略误判，后果比大家想象中的更严重 #全球创作者计划   #零基础看懂全球",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 6,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 326,
+    "note": "✅ 已完成《特朗普这次对中国的战略误判，后果比大家想》，继续处理下一个（还剩 1 个）"
+  },
+  {
+    "id": "video-1782284471688",
+    "ts": "06-24 15:01:11",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/WUom0jw-BrA/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1
+    },
+    "steps": 3,
+    "error": "提取失败：ERROR: Unsupported URL: https://www.iesdouyin.com/share/video/7654417845505346866/?region=CN&mid=7654417920268749619&u_code=15e488kf6&did=MS4wLjABAAAAk2oguDqweY95C6pM2jYEYsBJReFEjZz3T2jtyeEQLmK44byLi3TdgWYIKjqMRlxR&iid=MS4wLjABAAAANwkJuWIRFOzg5uCpDRpMj4OX-QryoDgn-yYlXQnRwQQ&with_sec_did=1&video",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 1,
+    "note": "⚠ 这条没成功，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1782284635955",
+    "ts": "06-24 15:03:55",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/amDtaH0wyHc/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1
+    },
+    "steps": 3,
+    "error": "提取失败：ERROR: Unsupported URL: https://www.iesdouyin.com/share/video/7649770772222874097/?region=CN&mid=7649770793807022875&u_code=15e488kf6&did=MS4wLjABAAAAk2oguDqweY95C6pM2jYEYsBJReFEjZz3T2jtyeEQLmK44byLi3TdgWYIKjqMRlxR&iid=MS4wLjABAAAANwkJuWIRFOzg5uCpDRpMj4OX-QryoDgn-yYlXQnRwQQ&with_sec_did=1&video",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 3,
+    "note": "⚠ 这条没成功，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1782284965257",
+    "ts": "06-24 15:09:25",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/bNIVQ081Alk/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1
+    },
+    "steps": 3,
+    "error": "提取失败：ERROR: [Douyin] 7653218021091101971: Fresh cookies (not necessarily logged in) are needed; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U\n\n提示：本软件已先尝试「抖音分享页直链解析」、再用 yt-dl",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 182,
+    "note": "⚠ 这条没成功，继续处理下一个（还剩 1 个）"
+  },
+  {
+    "id": "video-1782285148170",
+    "ts": "06-24 15:12:28",
+    "kind": "video",
+    "title": "#大头鹰直播录屏 #阴阳怪气，怪话连篇",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 6,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 419,
+    "note": "✅ 已完成《#大头鹰直播录屏 #阴阳怪气，怪话连篇》，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1782285697825",
+    "ts": "06-24 15:21:37",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/bNIVQ081Alk/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1
+    },
+    "steps": 3,
+    "error": "提取失败：ERROR: [Douyin] 7653218021091101971: Fresh cookies (not necessarily logged in) are needed; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U\n\n提示：本软件已先尝试「抖音分享页直链解析」、再用 yt-dl",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 183,
+    "note": "⚠ 这条没成功，继续处理下一个（还剩 1 个）"
+  },
+  {
+    "id": "video-1782285880852",
+    "ts": "06-24 15:24:40",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/OH9U884VOIU/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1
+    },
+    "steps": 3,
+    "error": "提取失败：ERROR: [Douyin] 7630284871268584746: Fresh cookies (not necessarily logged in) are needed; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U\n\n提示：本软件已先尝试「抖音分享页直链解析」、再用 yt-dl",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "⚠ 这条没成功，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1782286174931",
+    "ts": "06-24 15:29:34",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/yZJeNiTbO2Y/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型",
+      "语音转文字"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1
+    },
+    "steps": 5,
+    "error": "",
+    "outcome": "",
+    "status": "running",
+    "tokens_est": 0,
+    "seconds": 0,
+    "_start": 1782286174.931354
+  },
+  {
+    "id": "video-1782286598735",
+    "ts": "06-24 15:36:38",
+    "kind": "video",
+    "title": "喂饭，opc cli开源，剪口播、特效字幕、语音合成持续更新 开源了一个opc cli技能包\n这是整个各种本地多模态模型能力的技能包\n也是我常用的组合\n能不能赚到钱看个人能力\n但省钱是肯定了\n并且借着语音类技能\n我聊聊TTS,ASR中的商业",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "获取标题",
+      "加载语音模型",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "获取标题": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 7,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 155,
+    "note": "✅ 已完成《喂饭，opc cli开源，剪口播、特效字》，继续处理下一个（还剩 3 个）"
+  },
+  {
+    "id": "video-1782286753962",
+    "ts": "06-24 15:39:13",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/8_Neh4Lw4gE/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1
+    },
+    "steps": 3,
+    "error": "",
+    "outcome": "",
+    "status": "running",
+    "tokens_est": 0,
+    "seconds": 0,
+    "_start": 1782286753.962667
+  },
+  {
+    "id": "video-1782286931694",
+    "ts": "06-24 15:42:11",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/8_Neh4Lw4gE/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1
+    },
+    "steps": 3,
+    "error": "",
+    "outcome": "",
+    "status": "running",
+    "tokens_est": 0,
+    "seconds": 0,
+    "_start": 1782286931.6945906
+  }
+]

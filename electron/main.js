@@ -141,7 +141,7 @@ function createWindow() {
     minHeight: 520,
     title: "超能小助",
     icon: appIcon.isEmpty() ? undefined : appIcon,
-    backgroundColor: "#10100e",
+    backgroundColor: "#f3f3f3",
     show: false,            // 先不显示，定好大小后再显示，避免闪一下
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),

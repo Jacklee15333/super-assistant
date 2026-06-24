@@ -6,6 +6,113 @@
   <title>超能小助</title>
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="crawler.css" />
+  <!-- 视频页：把同类功能分区框起来的卡片样式（自包含，深浅色自适应） -->
+  <style>
+    /* 每个功能区是一张卡片；标题骑在上边框线上 → 用 padding-top 给标题让位，
+       卡片本身 position:relative，标题绝对定位压在边框线上。 */
+    .v-card{
+      position:relative;
+      border:1px solid var(--border,#e2e2e6);
+      border-radius:12px;
+      background:var(--bg-card,var(--card-bg,rgba(127,127,127,.04)));
+      padding:20px 16px 14px;
+      margin-bottom:16px;
+    }
+    /* 骑在边框线上的标题：绝对定位到卡片左上，背景盖住边框线形成「穿插」效果 */
+    .v-card-head{
+      position:absolute;
+      top:-11px;            /* 约等于半个标题高度，让它压在上边框线中间 */
+      left:14px;
+      display:flex;
+      align-items:center;
+      gap:6px;
+      padding:0 8px;
+      background:var(--bg,var(--app-bg,#fff));  /* 盖住下面的边框线 */
+      line-height:1;
+    }
+    .v-card-title{
+      font-size:14px;
+      font-weight:600;
+      color:var(--text,#1b1b1f);
+      display:flex;align-items:center;gap:5px;
+      white-space:nowrap;
+    }
+    /* 小小的 ⓘ 信息按钮：放标题右上角，点了弹说明 */
+    .v-info-btn{
+      width:15px;height:15px;line-height:15px;
+      font-size:11px;text-align:center;
+      border-radius:50%;
+      border:1px solid var(--border,#c9c9d0);
+      color:var(--text-dim,#8a8a93);
+      background:transparent;
+      cursor:pointer;padding:0;
+      display:inline-flex;align-items:center;justify-content:center;
+      flex:0 0 auto;
+      transform:translateY(-5px);   /* 微微上提，贴近「右上角」 */
+    }
+    .v-info-btn:hover{
+      color:var(--text,#1b1b1f);
+      border-color:var(--text-dim,#8a8a93);
+    }
+    /* ⓘ 点开后的说明气泡 */
+    .v-info-pop{
+      display:none;
+      position:absolute;top:14px;left:14px;z-index:20;
+      max-width:340px;
+      padding:8px 11px;
+      font-size:12px;font-weight:400;line-height:1.6;
+      color:var(--text,#333);
+      background:var(--bg,#fff);
+      border:1px solid var(--border,#d8d8de);
+      border-radius:8px;
+      box-shadow:0 4px 16px rgba(0,0,0,.12);
+    }
+    .v-info-pop.show{display:block}
+
+    /* 处理进度区在没有任何任务时整张收起，不占地方 */
+    .v-card.is-empty{display:none}
+    .v-card .video-input-row,
+    .v-card .video-opts,
+    .v-card .video-mode-row{margin-top:0}
+
+    /* ── 高级选项折叠区（插图 / 跳转原片 / 字幕模式）──
+       外观和「维护工具」保持一致：一条可点的标题行 + 展开体。 */
+    .v-adv{
+      margin-top:12px;
+      border:0.5px solid var(--border,#3a3a3a);
+      border-radius:8px;overflow:hidden;
+    }
+    .v-adv-head{
+      display:flex;align-items:center;gap:6px;
+      padding:8px 10px;cursor:pointer;
+      font-size:13px;color:var(--text-dim,#9aa);
+    }
+    .v-adv-body{display:none;padding:4px 10px 10px;border-top:0.5px solid var(--border,#3a3a3a)}
+    /* 每个高级选项一行：勾选/标签 + ⓘ + 检测按钮 + 检测结果徽章 */
+    .v-opt-row{
+      display:flex;align-items:center;flex-wrap:wrap;gap:8px;
+      padding:8px 0;
+      border-bottom:0.5px dashed var(--border,#e5e5e9);
+    }
+    .v-opt-row:last-child{border-bottom:0}
+    .v-opt-main{display:flex;align-items:center;gap:6px;min-width:0}
+    .v-test-btn{
+      font-size:12px;padding:3px 10px;
+      border:0.5px solid var(--border,#c9c9d0);
+      border-radius:6px;background:transparent;
+      color:var(--text-dim,#8a8a93);cursor:pointer;
+    }
+    .v-test-btn:hover{color:var(--text,#1b1b1f);border-color:var(--text-dim,#8a8a93)}
+    .v-badge{
+      font-size:12px;padding:2px 8px;border-radius:10px;
+      display:none;align-items:center;gap:4px;
+    }
+    .v-badge.show{display:inline-flex}
+    .v-badge.ok{background:rgba(46,160,90,.12);color:#2ea05a}
+    .v-badge.no{background:rgba(200,60,60,.12);color:#c83c3c}
+    .v-badge.maybe{background:rgba(200,150,30,.14);color:#b0851e}
+    .v-badge.testing{background:rgba(120,120,130,.12);color:var(--text-dim,#8a8a93)}
+  </style>
 </head>
 <body>
   <div class="app">
@@ -20,21 +127,23 @@
       </div>
 
       <nav class="nav">
-        <div class="nav-group-label">功能区 · 产生内容</div>
+        <div class="nav-group-label">功能</div>
         <button class="nav-item active" data-view="chat">💬 对话</button>
-        <button class="nav-item" data-view="study">📖 学习</button>
-        <button class="nav-item" data-view="dashboard">📊 看板</button>
         <button class="nav-item" data-view="video">🎬 视频</button>
-        <div class="nav-group-label">展示区 · 浏览与记忆</div>
+        <div class="nav-group-label">展示</div>
         <button class="nav-item" data-view="datadb">🗄️ 数据库</button>
-        <button class="nav-item" data-view="lumi">💗 懂你</button>
-        <div class="nav-sub" id="lumiSubNav" style="display:none">
-          <button class="nav-subitem active" data-lumi="profile">👤 你的画像</button>
-          <button class="nav-subitem" data-lumi="insight">🔍 洞察与研究</button>
-          <button class="nav-subitem" data-lumi="evolution">🌱 人格演化</button>
-        </div>
+        <div class="nav-group-label">懂你</div>
+        <button class="nav-item" data-view="lumi" data-lumi-sub="profile">👤 画像</button>
+        <button class="nav-item" data-view="lumi" data-lumi-sub="insight">🔍 洞察</button>
+        <button class="nav-item" data-view="lumi" data-lumi-sub="evolution">🌱 人格</button>
         <button class="nav-item" data-view="memory">🧠 记忆</button>
-        <div class="nav-group-label">工具区 · 能力与扩展</div>
+        <!-- 隐藏的旧子菜单：仅供 crawler.js / evolution.js 的切页逻辑复用，不显示给用户 -->
+        <div class="nav-sub nav-sub-hidden" id="lumiSubNav">
+          <button class="nav-subitem active" data-lumi="profile">画像</button>
+          <button class="nav-subitem" data-lumi="insight">洞察</button>
+          <button class="nav-subitem" data-lumi="evolution">人格</button>
+        </div>
+        <div class="nav-group-label">工具</div>
         <button class="nav-item" data-view="skills">🧩 技能</button>
         <button class="nav-item" data-view="loop">🔁 目标循环</button>
         <button class="nav-item" data-view="harness">🛠️ 运行台</button>
@@ -160,42 +269,127 @@
             <br>💡 复制视频链接后，屏幕光标右上方会弹出超能小助的小按钮，点一下会把链接填进来，再点「提取并分析」即可。
             可以连续点多个视频，会<b>自动排队</b>逐个处理。模型的下载位置和搬运，在「设置」里管理。
           </div>
-          <div class="video-input-row">
-            <input type="text" id="videoUrl" class="text-input"
-              placeholder="粘贴视频链接或整段分享文案，如 https://v.douyin.com/xxxx/" />
-            <select id="videoLevel" class="text-input" style="width:130px">
-              <option value="speed">快速（糙）</option>
-              <option value="balanced">均衡（推荐）</option>
-              <option value="accurate" selected>精准（慢）</option>
-            </select>
-            <button id="videoGoBtn" class="send-btn">提取并分析</button>
-          </div>
-          <div class="video-opts">
-            <label class="video-opt" title="勾选后会下载视频画面，让 AI 在合适的地方插入截图。会比只听写慢一些、占点流量。">
-              <input type="checkbox" id="videoShot" /> 🖼️ 插图（自动截取关键画面）
-            </label>
-            <label class="video-opt" title="勾选后笔记里的小标题会带「跳转原片」链接，点一下跳到原视频对应时间。支持 B站 / YouTube / 抖音。">
-              <input type="checkbox" id="videoLink" /> 🔗 跳转原片（点标题回看对应片段）
-            </label>
-          </div>
-          <div class="video-mode-row">
-            <span class="video-mode-label">📝 字幕模式</span>
-            <select id="videoSubMode" class="video-mode-sel">
-              <option value="auto" selected>自动（推荐）</option>
-              <option value="subtitle_only">只用字幕（最快）</option>
-              <option value="transcribe">字幕+视频听写（更准更全）</option>
-            </select>
-            <span class="video-mode-tip">有字幕的视频（B站/YouTube）才有区别；抖音等用听写。</span>
-          </div>
-          <div id="videoSubHint" class="video-sub-hint" style="display:none"></div>
-          <div class="video-hint">💡 可以随时再粘贴新链接点「提取并分析」，会自动排到队尾，不用等当前这个跑完。</div>
-          <div id="videoStatus" class="video-status"></div>
-          <div id="videoTasks" class="video-tasks"></div>
-          <div id="videoResult" class="dash-content video-result"></div>
 
-          <div class="video-saved">
-            <div class="video-saved-head">📚 已存的视频笔记</div>
-            <div id="videoNotesList" class="video-notes-list"></div>
+          <!-- ① 开始提取：所有「发起一个新任务」要填的东西都在这张卡片里 -->
+          <div class="v-card v-card-extract">
+            <div class="v-card-head">
+              <span class="v-card-title">🎬 开始提取</span>
+              <button type="button" class="v-info-btn" data-info="info-extract" title="说明">ⓘ</button>
+            </div>
+            <div class="v-info-pop" id="info-extract">粘贴链接、选好质量和模式，点「提取并分析」。可以连续粘多个链接，会自动排队逐个处理，不用等当前这个跑完。</div>
+
+            <div class="video-input-row">
+              <input type="text" id="videoUrl" class="text-input"
+                placeholder="粘贴视频链接或整段分享文案，如 https://v.douyin.com/xxxx/" />
+              <select id="videoLevel" class="text-input" style="width:130px">
+                <option value="speed">快速（糙）</option>
+                <option value="balanced">均衡（推荐）</option>
+                <option value="accurate" selected>精准（慢）</option>
+              </select>
+              <button id="videoGoBtn" class="send-btn">提取并分析</button>
+            </div>
+
+            <!-- ── 高级选项（默认收起）：插图 / 跳转原片 / 字幕模式，各带说明 + 检测 ── -->
+            <div class="v-adv" id="advBox">
+              <div class="v-adv-head" id="advHead" role="button" tabindex="0">
+                <span id="advCaret">▸</span>
+                <span>⚙ 高级选项</span>
+                <span style="color:var(--text-dim,#9aa);font-weight:400">（插图 · 跳转原片 · 字幕模式，可先「测一下」看能不能用）</span>
+              </div>
+              <div class="v-adv-body" id="advBody">
+
+                <!-- 插图 -->
+                <div class="v-opt-row">
+                  <span class="v-opt-main">
+                    <label class="video-opt" style="margin:0">
+                      <input type="checkbox" id="videoShot" /> 🖼️ 插图（自动截取关键画面）
+                    </label>
+                    <button type="button" class="v-info-btn" data-info="info-shot" title="说明">ⓘ</button>
+                  </span>
+                  <button type="button" class="v-test-btn" data-test="shot">测一下</button>
+                  <span class="v-badge" id="badge-shot"></span>
+                  <div class="v-info-pop" id="info-shot" style="position:static;display:none;max-width:none;margin-top:6px;box-shadow:none">勾选后会额外下载视频画面，让 AI 在合适的地方插入截图。会比只听写稍慢、占点流量。能不能成要真正下载才知道，所以「测一下」只给适配性预估。</div>
+                </div>
+
+                <!-- 跳转原片 -->
+                <div class="v-opt-row">
+                  <span class="v-opt-main">
+                    <label class="video-opt" style="margin:0">
+                      <input type="checkbox" id="videoLink" /> 🔗 跳转原片（点标题回看对应片段）
+                    </label>
+                    <button type="button" class="v-info-btn" data-info="info-link" title="说明">ⓘ</button>
+                  </span>
+                  <button type="button" class="v-test-btn" data-test="link">测一下</button>
+                  <span class="v-badge" id="badge-link"></span>
+                  <div class="v-info-pop" id="info-link" style="position:static;display:none;max-width:none;margin-top:6px;box-shadow:none">勾选后笔记里的小标题会带「跳转原片」链接，点一下跳到原视频对应时间点。支持 B站 / YouTube / 抖音。需要提取出带时间戳的分段才有效，所以「测一下」按平台给预估。</div>
+                </div>
+
+                <!-- 字幕模式（这个能真检测）-->
+                <div class="v-opt-row">
+                  <span class="v-opt-main">
+                    <span class="video-mode-label" style="font-size:13px">📝 字幕模式</span>
+                    <select id="videoSubMode" class="video-mode-sel">
+                      <option value="auto" selected>自动（推荐）</option>
+                      <option value="subtitle_only">只用字幕（最快）</option>
+                      <option value="transcribe">字幕+视频听写（更准更全）</option>
+                    </select>
+                    <button type="button" class="v-info-btn" data-info="info-sub" title="说明">ⓘ</button>
+                  </span>
+                  <button type="button" class="v-test-btn" data-test="sub">测一下</button>
+                  <span class="v-badge" id="badge-sub"></span>
+                  <div class="v-info-pop" id="info-sub" style="position:static;display:none;max-width:none;margin-top:6px;box-shadow:none">有字幕的视频（B站/YouTube）能直接用现成字幕，又快又准；抖音等没字幕的会自动听写。「自动」最省心；「只用字幕」最快但没字幕时回退听写；「字幕+视频听写」最准最全。粘好链接点「测一下」可真实探测这个视频有没有字幕。</div>
+                </div>
+
+              </div>
+            </div>
+            <div id="videoSubHint" class="video-sub-hint" style="display:none"></div>
+
+            <!-- 出问题时才出现的细提示条（不自动展开抽屉，给个链接让用户自己点开） -->
+            <div id="videoNotice" class="video-notice" style="display:none;margin-top:8px;padding:7px 10px;border-radius:8px;font-size:13px;line-height:1.5"></div>
+
+            <!-- 维护工具：默认收起，点标题行展开/收起 -->
+            <div class="video-tools" style="margin-top:10px;border:0.5px solid var(--border,#3a3a3a);border-radius:8px;overflow:hidden">
+              <div id="videoToolsHead" class="video-tools-head" role="button" tabindex="0"
+                   style="display:flex;align-items:center;gap:6px;padding:7px 10px;cursor:pointer;font-size:13px;color:var(--text-dim,#9aa)">
+                <span id="videoToolsCaret">▸</span>
+                <span>🛠 维护工具</span>
+                <span style="color:var(--text-dim,#9aa);font-weight:400">（依赖安装 · 抖音自检 · 诊断）</span>
+              </div>
+              <div id="videoToolsBody" style="display:none;padding:10px;border-top:0.5px solid var(--border,#3a3a3a)">
+                <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px">
+                  <button id="videoDepBtn" class="send-btn" style="font-size:13px;padding:6px 12px">🔧 安装/更新依赖</button>
+                  <button id="videoHealthBtn" class="send-btn" style="font-size:13px;padding:6px 12px">🩺 检测抖音是否正常</button>
+                  <button id="videoDiagCopyBtn2" class="send-btn" style="font-size:13px;padding:6px 12px">📋 复制诊断信息</button>
+                </div>
+                <div class="video-mode-tip" style="margin-top:6px">首次使用、或抖音提取一直失败时用：联网安装/升级 yt-dlp、faster-whisper、curl_cffi（约一两分钟）。</div>
+                <div class="video-install-log" id="videoDepLog" style="margin-top:6px"></div>
+                <div id="videoHealthBanner" class="video-health-banner" style="display:none;margin-top:8px;padding:8px 10px;border-radius:8px;font-size:13px;line-height:1.5"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ② 处理进度：任务跑起来后的状态、队列与结果。没有任务时整张卡片自动收起。 -->
+          <div class="v-card v-card-progress" id="videoProgressCard">
+            <div class="v-card-head">
+              <span class="v-card-title">⏳ 处理进度</span>
+              <button type="button" class="v-info-btn" data-info="info-progress" title="说明">ⓘ</button>
+            </div>
+            <div class="v-info-pop" id="info-progress">当前任务的状态、排队情况与提取结果。没有任务在跑时这块会自动收起。</div>
+            <div id="videoStatus" class="video-status"></div>
+            <div id="videoTasks" class="video-tasks"></div>
+            <div id="videoResult" class="dash-content video-result"></div>
+          </div>
+
+          <!-- ③ 已存笔记：历史记录 -->
+          <div class="v-card v-card-saved">
+            <div class="v-card-head">
+              <span class="v-card-title">📚 已存的视频笔记</span>
+              <button type="button" class="v-info-btn" data-info="info-saved" title="说明">ⓘ</button>
+            </div>
+            <div class="v-info-pop" id="info-saved">提取过的视频都自动存这里，随时点开看。</div>
+            <div class="video-saved">
+              <div id="videoNotesList" class="video-notes-list"></div>
+            </div>
           </div>
         </div>
       </section>
@@ -269,13 +463,13 @@
             </div>
             <div class="lumi-page-body" id="lumiEvolutionBody"><div class="lumi-empty">加载中…</div></div>
           </div>
-          <div class="lumi-foot">这些内容都存在本地 memory 文件夹里（OWNER_PROFILE.md / relationships.md / ENVIRONMENT.md），你随时能在「记忆」里编辑或删除。</div>
+          <div class="lumi-foot">这些内容都存在本地 memory 文件夹里（OWNER_PROFILE.md / relationships.md / ENVIRONMENT.md），你随时能在「记忆文件」里编辑或删除。</div>
         </div>
       </section>
 
       <!-- 记忆视图 -->
       <section class="view view-memory" id="view-memory">
-        <header class="topbar"><span>设置与记忆</span></header>
+        <header class="topbar"><span>🧠 记忆 · AI 对你的理解</span></header>
         <div class="memory-pane">
           <div class="memory-tabs" id="memoryTabs"></div>
           <div class="memory-desc" id="memoryDesc"></div>
@@ -647,6 +841,7 @@
             <button class="settings-tab-btn" data-tab="tab-pc">电脑 · 语音</button>
             <button class="settings-tab-btn" data-tab="tab-auto">自动化</button>
             <button class="settings-tab-btn" data-tab="tab-notify">通知</button>
+            <button class="settings-tab-btn" data-tab="tab-config">配置</button>
           </div>
 
           <div class="settings-tab active" id="tab-general">
@@ -657,8 +852,8 @@
               <div class="setting-desc">深色护眼，浅色清爽，按喜好切换</div>
             </div>
             <select id="themeSelect" class="text-input" style="width:140px">
-              <option value="dark">深色</option>
-              <option value="light">浅色</option>
+              <option value="light">浅色（清爽）</option>
+              <option value="dark">深色（护眼）</option>
             </select>
           </div>
           <div class="setting-row">
@@ -987,8 +1182,8 @@
           <div class="settings-section">手机遥控</div>
           <p class="settings-note" style="margin-top:10px">
             在手机上指挥超能小助。中国推荐<b>企业微信</b>（合规免费）或<b>飞书</b>（体验顺）；
-            <b>Server酱</b>只能单向给你的微信发提醒、最简单。各渠道的密钥到「记忆」里
-            分别编辑 wecom.md / feishu.md / push.md 保存。
+            <b>Server酱</b>只能单向给你的微信发提醒、最简单。各渠道的密钥到本页右侧的
+            <b>「配置」</b>标签里分别编辑 wecom.md / feishu.md / push.md 保存。
             企业微信和飞书需要公网回调，本机请配合内网穿透（见 README）。
           </p>
 
@@ -1023,6 +1218,23 @@
           </div>
           <p class="settings-note" id="tgHint"></p>
           </div><!-- /tab-notify -->
+
+          <div class="settings-tab" id="tab-config">
+            <div class="settings-section">配置 · 推送 / 代理 / 任务</div>
+            <p class="settings-note" style="margin-top:8px">
+              这些是功能配置：情报关键词、竞品网址、定时提醒、各推送渠道密钥、联网代理。
+              选上面的项编辑，改完点「保存」。
+            </p>
+            <div class="memory-tabs" id="setMemTabs" style="margin-top:12px"></div>
+            <div class="memory-desc" id="setMemDesc" style="margin-top:10px"></div>
+            <div class="memory-mode-bar" id="setMemModeBar" style="display:none"></div>
+            <div class="memory-body" id="setMemBody" style="margin-top:12px"></div>
+            <textarea id="setMemEditor" class="memory-editor" style="display:none"></textarea>
+            <div class="memory-actions" style="margin-top:14px">
+              <span class="save-hint" id="setMemSaveHint"></span>
+              <button id="setMemSaveBtn" class="send-btn">保存</button>
+            </div>
+          </div><!-- /tab-config -->
         </div>
       </section>
     </main>
@@ -1057,5 +1269,177 @@
   <script src="crawler.js"></script>
   <script src="evolution.js"></script>
   <script src="datadb.js"></script>
+  <!-- 视频页「处理进度」卡片：内部三个容器都空时整张收起，不占地方；
+       一旦有任务/结果/状态文字就自动显示。独立运行，不依赖 renderer.js。 -->
+  <script>
+    (function () {
+      function syncProgressCard() {
+        var card = document.getElementById("videoProgressCard");
+        if (!card) return;
+        var ids = ["videoStatus", "videoTasks", "videoResult"];
+        var hasContent = ids.some(function (id) {
+          var el = document.getElementById(id);
+          if (!el) return false;
+          // 有文字、或有子元素（任务条/结果卡）都算「有内容」
+          return (el.textContent || "").trim().length > 0 || el.children.length > 0;
+        });
+        card.classList.toggle("is-empty", !hasContent);
+      }
+      function start() {
+        syncProgressCard();
+        // 观察三个容器的内容变化，变了就重算显隐
+        var targets = ["videoStatus", "videoTasks", "videoResult"]
+          .map(function (id) { return document.getElementById(id); })
+          .filter(Boolean);
+        if (!targets.length) return;
+        var mo = new MutationObserver(syncProgressCard);
+        targets.forEach(function (t) {
+          mo.observe(t, { childList: true, characterData: true, subtree: true });
+        });
+        // 兜底：低频轮询，防止个别更新方式漏掉
+        setInterval(syncProgressCard, 1200);
+      }
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", start);
+      } else {
+        start();
+      }
+    })();
+  </script>
+  <!-- 视频页：ⓘ 信息按钮弹窗 + 高级选项折叠 + 插图/跳转/字幕「测一下」检测 -->
+  <script>
+    (function () {
+      function backend() {
+        // 复用 renderer.js 里的全局 BACKEND；它在 window 上不一定可见，兜底用默认地址
+        try { if (typeof BACKEND === "string" && BACKEND) return BACKEND; } catch (e) {}
+        return "http://127.0.0.1:8756";
+      }
+      function getUrl() {
+        var el = document.getElementById("videoUrl");
+        return (el && el.value || "").trim();
+      }
+      function platformOf(url) {
+        var u = (url || "").toLowerCase();
+        if (/douyin\.com|iesdouyin|v\.douyin/.test(u)) return "douyin";
+        if (/bilibili\.com|b23\.tv|bili/.test(u)) return "bilibili";
+        if (/youtube\.com|youtu\.be/.test(u)) return "youtube";
+        if (u) return "other";
+        return "";
+      }
+      function setBadge(key, cls, text) {
+        var b = document.getElementById("badge-" + key);
+        if (!b) return;
+        b.className = "v-badge show " + cls;
+        b.textContent = text;
+      }
+
+      function start() {
+        // —— ⓘ 信息按钮：点一下切换对应说明气泡 ——
+        document.addEventListener("click", function (e) {
+          var btn = e.target.closest && e.target.closest(".v-info-btn");
+          if (btn) {
+            var id = btn.getAttribute("data-info");
+            var pop = document.getElementById(id);
+            if (pop) {
+              var showing = pop.classList.contains("show") || pop.style.display === "block";
+              // 先收起同卡片里其它浮层式气泡（绝对定位那种），静态的只切自己
+              if (pop.style.position !== "static") {
+                document.querySelectorAll(".v-info-pop.show").forEach(function (p) {
+                  if (p !== pop) p.classList.remove("show");
+                });
+                pop.classList.toggle("show", !showing);
+              } else {
+                pop.style.display = showing ? "none" : "block";
+              }
+            }
+            e.stopPropagation();
+            return;
+          }
+          // 点空白处收起浮层式气泡
+          if (!(e.target.closest && e.target.closest(".v-info-pop"))) {
+            document.querySelectorAll(".v-info-pop.show").forEach(function (p) {
+              p.classList.remove("show");
+            });
+          }
+        });
+
+        // —— 高级选项折叠 ——
+        var advHead = document.getElementById("advHead");
+        if (advHead) {
+          var toggle = function () {
+            var body = document.getElementById("advBody");
+            var caret = document.getElementById("advCaret");
+            if (!body) return;
+            var open = body.style.display === "block";
+            body.style.display = open ? "none" : "block";
+            if (caret) caret.textContent = open ? "▸" : "▾";
+          };
+          advHead.addEventListener("click", toggle);
+          advHead.addEventListener("keydown", function (e) {
+            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
+          });
+        }
+
+        // —— 三个「测一下」检测 ——
+        document.addEventListener("click", function (e) {
+          var t = e.target.closest && e.target.closest(".v-test-btn");
+          if (!t) return;
+          var kind = t.getAttribute("data-test");
+          var url = getUrl();
+          var plat = platformOf(url);
+          if (!url) {
+            setBadge(kind, "no", "先粘个链接");
+            return;
+          }
+
+          if (kind === "sub") {
+            // 字幕：真检测，调后端 /video_detect_subtitle
+            setBadge("sub", "testing", "检测中…");
+            fetch(backend() + "/video_detect_subtitle", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ url: url }),
+            }).then(function (r) { return r.json(); }).then(function (d) {
+              if (d && d.has) {
+                var src = d.source === "bilibili_subtitle" ? "B站字幕"
+                  : (d.source === "youtube_subtitle" ? "YouTube字幕" : "字幕");
+                setBadge("sub", "ok", "✓ 有" + src + "，可秒取");
+              } else {
+                setBadge("sub", "maybe", "无字幕，将自动听写");
+              }
+            }).catch(function () {
+              setBadge("sub", "maybe", "测不了，提取时会自动判断");
+            });
+            return;
+          }
+
+          // 插图 / 跳转：事前测不准，按平台给「预估」
+          if (kind === "shot") {
+            if (plat === "bilibili" || plat === "youtube" || plat === "douyin") {
+              setBadge("shot", "maybe", "预估可用（需真正下载才确定）");
+            } else if (plat === "other") {
+              setBadge("shot", "maybe", "预估：看平台支持，试了才知");
+            }
+            return;
+          }
+          if (kind === "link") {
+            if (plat === "bilibili" || plat === "youtube") {
+              setBadge("link", "ok", "✓ 该平台支持跳转");
+            } else if (plat === "douyin") {
+              setBadge("link", "maybe", "抖音多数支持，按时间戳跳转");
+            } else if (plat === "other") {
+              setBadge("link", "maybe", "看是否有时间戳，提取后确定");
+            }
+            return;
+          }
+        });
+      }
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", start);
+      } else {
+        start();
+      }
+    })();
+  </script>
 </body>
 </html>

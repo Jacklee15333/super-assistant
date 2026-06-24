@@ -139,6 +139,101 @@ def list_runs(limit=30):
     return list(reversed(runs[-limit:]))  # 最新在前
 
 
+# ====================== 进行中任务（实时记录） ======================
+# 让运行台在任务「正在跑」时就能看到，而不是等结束。做法：begin_run 先写一条
+# status=running 的占位记录并返回 run_id；任务每进一步可 update_run 更新步骤；
+# 结束时 finish_run 按 id 把它更新成最终结果（达标/已停 + 耗时 + 错误）。
+import time as _time_mod
+
+
+def begin_run(kind, title="", tools=None):
+    """写一条「进行中」记录，返回 run_id（失败返回 ""，调用方据此决定要不要 finish）。"""
+    try:
+        if not keep_log():
+            return ""
+        rid = "%s-%d" % (kind, int(_time_mod.time() * 1000))
+        tools = list(tools or [])
+        tool_count = {}
+        for t in tools:
+            tool_count[t] = tool_count.get(t, 0) + 1
+        rec = {
+            "id": rid,
+            "ts": datetime.datetime.now().strftime("%m-%d %H:%M:%S"),
+            "kind": kind,
+            "title": (title or "")[:120],
+            "tools": tools,
+            "tool_count": tool_count,
+            "steps": len(tools),
+            "error": "",
+            "outcome": "",
+            "status": "running",      # ← 运行台据此显示「⏳ 进行中」
+            "tokens_est": 0,
+            "seconds": 0,
+            "_start": _time_mod.time(),
+        }
+        runs = _load_runs()
+        runs.append(rec)
+        _save_runs(runs)
+        return rid
+    except Exception:
+        return ""
+
+
+def update_run(run_id, tools=None, title=None):
+    """更新一条进行中记录的步骤/标题（任务每进一步时调，可选）。"""
+    try:
+        if not run_id:
+            return
+        runs = _load_runs()
+        for rec in runs:
+            if rec.get("id") == run_id:
+                if tools is not None:
+                    rec["tools"] = list(tools)
+                    tc = {}
+                    for t in rec["tools"]:
+                        tc[t] = tc.get(t, 0) + 1
+                    rec["tool_count"] = tc
+                    rec["steps"] = len(rec["tools"])
+                if title is not None:
+                    rec["title"] = (title or "")[:120]
+                _save_runs(runs)
+                return
+    except Exception:
+        pass
+
+
+def finish_run(run_id, tools=None, error="", outcome="", title=None, note=""):
+    """把进行中记录更新成最终结果。run_id 为空则退化成普通 record_run（不丢记录）。
+    note：一句叙述性的完成提示（如「已完成《X》，继续下一个」），运行台会显示。"""
+    try:
+        if not run_id:
+            return
+        runs = _load_runs()
+        for rec in runs:
+            if rec.get("id") == run_id:
+                if tools is not None:
+                    rec["tools"] = list(tools)
+                    tc = {}
+                    for t in rec["tools"]:
+                        tc[t] = tc.get(t, 0) + 1
+                    rec["tool_count"] = tc
+                    rec["steps"] = len(rec["tools"])
+                if title is not None:
+                    rec["title"] = (title or "")[:120]
+                rec["error"] = (error or "")[:300]
+                rec["outcome"] = outcome
+                rec["status"] = "done"
+                if note:
+                    rec["note"] = note[:200]
+                start = rec.pop("_start", None)
+                if start:
+                    rec["seconds"] = int(_time_mod.time() - start)
+                _save_runs(runs)
+                return
+    except Exception:
+        pass
+
+
 def clear_runs():
     _save_runs([])
     return True

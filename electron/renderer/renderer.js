@@ -1,6 +1,24 @@
 // renderer.js — 前端交互逻辑
 // 通过本地 HTTP 和 Python 后端通信。
 
+// 注入「正在处理 / 排队中」视频名的折叠/展开样式：默认截断，悬停展开全部，移开折叠；
+// 也可点击切换（点击逻辑在 renderVideoTasks 里）。
+(function injectVtNameStyle() {
+  try {
+    if (document.getElementById("vt-name-style")) return;
+    const s = document.createElement("style");
+    s.id = "vt-name-style";
+    s.textContent =
+      ".vt-namewrap{font-size:13px;color:var(--text-dim,#8a8a93);margin-top:4px;" +
+      "word-break:break-all;line-height:1.5}" +
+      ".vt-name{cursor:pointer;border-bottom:1px dashed var(--border,#c9c9d0);" +
+      "color:var(--text,#444);transition:color .15s}" +
+      ".vt-name:hover{color:var(--accent,#2f6fed)}" +
+      ".vt-name.expanded{border-bottom-style:solid}";
+    (document.head || document.documentElement).appendChild(s);
+  } catch (e) {}
+})();
+
 let BACKEND = "http://127.0.0.1:8756";
 let messages = [];          // 喂给模型的完整历史
 let busy = false;
@@ -60,21 +78,8 @@ async function maybeGreetOnce() {
 }
 
 // ---------- 视图切换 ----------
-let _lumiSubCollapsed = false;   // 懂你子菜单是否被手动折叠
 document.querySelectorAll(".nav-item").forEach((btn) => {
   btn.addEventListener("click", () => {
-    // 懂你：再次点击可折叠/展开子菜单（已经在懂你视图且子菜单展开 → 折叠）
-    if (btn.dataset.view === "lumi") {
-      const subNav = document.getElementById("lumiSubNav");
-      const alreadyHere = btn.classList.contains("active");
-      if (alreadyHere && subNav && subNav.style.display !== "none") {
-        // 当前就在懂你且子菜单开着 → 折叠子菜单
-        subNav.style.display = "none";
-        _lumiSubCollapsed = true;
-        return;
-      }
-      _lumiSubCollapsed = false;   // 否则展开
-    }
     document.querySelectorAll(".nav-item").forEach((b) => b.classList.remove("active"));
     document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
     btn.classList.add("active");
@@ -90,14 +95,12 @@ document.querySelectorAll(".nav-item").forEach((btn) => {
     if (btn.dataset.view === "harness") { loadHarness(); }
     if (btn.dataset.view === "sniff") { loadSniff(); }
     if (btn.dataset.view === "settings") { refreshHeartbeatStatus(); loadModelsInfo(); loadWebModelConfig(); loadTaskModels(); loadProxySetting(); }
-    // 懂你子菜单只在懂你视图下显示（且没被手动折叠）
-    const subNav = document.getElementById("lumiSubNav");
-    if (subNav) subNav.style.display = (btn.dataset.view === "lumi" && !_lumiSubCollapsed) ? "" : "none";
-    // 进懂你时，按当前选中的子项设置顶栏按钮（crawler/evolution 离开各自页时会把 active 复位到画像）
+    // 懂你的三个子项（画像/洞察/人格）：切到 lumi 视图后，触发对应的隐藏子菜单项，
+    // 复用 crawler.js / evolution.js 已有的切页逻辑。
     if (btn.dataset.view === "lumi") {
-      const act = document.querySelector("#lumiSubNav .nav-subitem.active");
-      const which = (act && act.dataset.lumi) || "profile";
-      if (typeof setLumiTopbarButtons === "function") setLumiTopbarButtons(which);
+      const sub = btn.dataset.lumiSub || "profile";
+      const hidden = document.querySelector('#lumiSubNav .nav-subitem[data-lumi="' + sub + '"]');
+      if (hidden) hidden.click();   // 驱动各模块的显隐 + setLumiTopbarButtons
     } else {
       // 离开懂你：把这几个懂你专属按钮都藏起来，免得别的视图顶栏残留
       ["lumiScanBtn", "crwRunBtn"].forEach((id) => {
@@ -707,6 +710,15 @@ function renderConvoList() {
   const list = document.getElementById("convoList");
   list.innerHTML = "";
   conversations.forEach((c) => {
+    // 跳过「还没说过话的空白新会话」——上方已有 ＋ 号，不必再占一行。
+    // 一旦它有了消息（或被自动命名/手动改名），就正常显示。
+    const isEmptyPlaceholder = (!c.messages || c.messages.length === 0)
+      && (!c.title || c.title === "新会话");
+    if (isEmptyPlaceholder) return;
+    // 跳过功能任务产生的固定会话（心跳/竞品监控/情报简报等）——它们是任务输出，
+    // 不是真正的聊天，列在「会话」里反而让人困惑。点对应按钮时仍会显示其内容。
+    if (c.fixedTitle) return;
+
     const item = document.createElement("div");
     item.className = "convo-item" + (c.id === activeConvoId ? " active" : "");
 
@@ -1227,35 +1239,35 @@ function addLiveProgress(chatId) {
 // ---------- 记忆编辑 ----------
 // 每个记忆/配置文件：友好中文名 + 编辑方式（list 列表 / config 表单 / text 自由文本）
 const MEMORY_META = {
-  "SOUL.md":      { label: "🦞 性格设定", type: "text",
+  "SOUL.md":      { label: "🦞 性格设定", type: "text", group: "memory",
                     desc: "改这里能改变超能小助的说话风格和性格。" },
-  "AGENTS.md":    { label: "📋 行为准则", type: "text",
+  "AGENTS.md":    { label: "📋 行为准则", type: "text", group: "memory",
                     desc: "它做事的规则。一般不用动，进阶用户可微调。" },
-  "USER.md":      { label: "👤 关于你", type: "text",
+  "USER.md":      { label: "👤 关于你", type: "text", group: "memory",
                     desc: "记录你的情况和偏好，它会参考这些来更懂你。" },
-  "MEMORY.md":    { label: "🧠 长期记忆", type: "text",
+  "MEMORY.md":    { label: "🧠 长期记忆", type: "text", group: "memory",
                     desc: "它从历次对话里提炼的要点，跨对话还记得你。" },
-  "heartbeat.md": { label: "💓 心跳待办", type: "text",
+  "heartbeat.md": { label: "💓 心跳待办", type: "text", group: "memory",
                     desc: "心跳醒来时会看这里有没有要做的事。" },
-  "watchlist.md": { label: "📊 情报关键词", type: "list",
+  "watchlist.md": { label: "📊 情报关键词", type: "list", group: "config",
                     itemLabel: "关键词", placeholder: "如：预制菜 行业趋势",
                     desc: "情报简报会按这些关键词联网搜集、提炼。一行一个。" },
-  "competitors.md": { label: "🔍 竞品网址", type: "list", hasNote: true,
+  "competitors.md": { label: "🔍 竞品网址", type: "list", hasNote: true, group: "config",
                     itemLabel: "网址", placeholder: "https://竞品官网/products",
                     notePlaceholder: "备注（如：竞品A 产品页）",
                     desc: "竞品监控会定时抓这些公开页面，有变化就提醒。" },
-  "reminders.md": { label: "⏰ 定时提醒", type: "list", hasNote: true,
+  "reminders.md": { label: "⏰ 定时提醒", type: "list", hasNote: true, group: "config",
                     itemLabel: "时间", placeholder: "如：每天 09:00",
                     notePlaceholder: "提醒内容（如：交日报）",
                     sep: "|", bullet: "- [ ] ",
                     desc: "心跳到点会提醒你。时间写「每天 09:00」或「2026-06-20 14:00」。" },
-  "push.md":      { label: "📱 Server酱推送", type: "config",
+  "push.md":      { label: "📱 Server酱推送", type: "config", group: "config",
                     desc: "配好后，心跳干完活能把消息推到你的微信（单向）。",
                     fields: [
                       { key: "serverchan_key", label: "SendKey",
                         help: "去 sct.ftqq.com 微信扫码登录，复制 SendKey（形如 SCTxxxx）" },
                     ] },
-  "wecom.md":     { label: "💬 企业微信", type: "config",
+  "wecom.md":     { label: "💬 企业微信", type: "config", group: "config",
                     desc: "在企业微信 App 里和它双向聊天（合规免费，需公网回调）。",
                     fields: [
                       { key: "corp_id", label: "企业 CorpID", help: "「我的企业」里能看到" },
@@ -1264,7 +1276,7 @@ const MEMORY_META = {
                       { key: "token", label: "Token", help: "接收消息设置里，点随机生成" },
                       { key: "aes_key", label: "EncodingAESKey", help: "接收消息设置里，点随机生成" },
                     ] },
-  "feishu.md":    { label: "🐦 飞书", type: "config",
+  "feishu.md":    { label: "🐦 飞书", type: "config", group: "config",
                     desc: "在飞书里和它双向聊天（体验顺，需公网回调）。",
                     fields: [
                       { key: "app_id", label: "App ID", help: "企业自建应用页面" },
@@ -1272,14 +1284,14 @@ const MEMORY_META = {
                       { key: "verification_token", label: "Verification Token",
                         help: "事件订阅页面" },
                     ] },
-  "telegram.md":  { label: "✈️ Telegram", type: "config",
+  "telegram.md":  { label: "✈️ Telegram", type: "config", group: "config",
                     desc: "海外可用。找 @BotFather 拿 token，@userinfobot 拿你的 chat id。",
                     fields: [
                       { key: "token", label: "Bot Token", help: "找 @BotFather 用 /newbot 获取" },
                       { key: "allowed_chat_id", label: "你的 Chat ID",
                         help: "找 @userinfobot 获取，只服务你一人" },
                     ] },
-  "proxy.md":     { label: "🌐 联网与代理", type: "config",
+  "proxy.md":     { label: "🌐 联网与代理", type: "config", group: "config",
                     desc: "国内直接搜 Bing；要搜国外源（DuckDuckGo/Google）需填代理。不填只搜国内。",
                     fields: [
                       { key: "proxy", label: "代理地址",
@@ -1287,6 +1299,9 @@ const MEMORY_META = {
                     ] },
 };
 const MEMORY_FILES = Object.keys(MEMORY_META);
+// 记忆文件页只显示「AI对你的记忆/性格」这一类；配置类挪到设置里
+const MEMORY_FILES_MEM = MEMORY_FILES.filter((f) => MEMORY_META[f].group === "memory");
+const MEMORY_FILES_CFG = MEMORY_FILES.filter((f) => MEMORY_META[f].group === "config");
 let currentMemoryFile = "SOUL.md";
 let _rawHeader = "";   // 保存文件顶部的说明行（# 和 > 开头），保存时原样写回
 
@@ -1410,11 +1425,30 @@ document.getElementById("videoUrl")?.addEventListener("input", (e) => {
   }
 });
 
-function setVideoStatus(text, kind) {
+let _statusLockUntil = 0;   // 在此时间戳前，低优先级状态更新（如轮询）不覆盖横幅
+function setVideoStatus(text, kind, opts) {
+  opts = opts || {};
+  const now = Date.now();
+  // 高优先级提示（如"链接已填好"）会锁定横幅一段时间，期间轮询的普通状态不覆盖它
+  if (opts.priority) {
+    _statusLockUntil = now + (opts.holdMs || 5000);
+  } else if (now < _statusLockUntil) {
+    return;  // 横幅被锁定中，跳过这次低优先级更新
+  }
   const el = document.getElementById("videoStatus");
   if (!el) return;
   el.textContent = text || "";
   el.className = "video-status" + (kind ? " " + kind : "");
+  if (!text) {
+    el.style.cssText = "";
+    return;
+  }
+  let bg = "rgba(120,120,130,.12)", fg = "var(--text,#333)";
+  if (kind === "ok") { bg = "rgba(46,160,90,.14)"; fg = "#2ea05a"; }
+  else if (kind === "warn") { bg = "rgba(210,120,30,.14)"; fg = "#c8781e"; }
+  el.style.cssText =
+    "display:block;margin:0 0 12px;padding:9px 13px;border-radius:9px;" +
+    "font-size:13px;font-weight:500;line-height:1.5;background:" + bg + ";color:" + fg + ";";
 }
 
 let _videoSubmitting = false;   // 防止「提取并分析」被重复点 / 重复入队
@@ -1502,10 +1536,44 @@ function promptQueueNewLink(url) {
 window.startVideoFromFloat = function (url) {
   document.querySelector('.nav-item[data-view="video"]').click();
   const box = document.getElementById("videoUrl");
-  if (box) box.value = url;
-  setVideoStatus("已把链接填好，点右边的「提取并分析」就开始。");
+  if (box) {
+    box.value = url;
+    // 滚动到可见、聚焦、并加一圈醒目高亮动画
+    try { box.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) {}
+    box.focus();
+    box.style.transition = "box-shadow .2s, border-color .2s";
+    let flashes = 0;
+    const flash = () => {
+      const on = flashes % 2 === 0;
+      box.style.boxShadow = on ? "0 0 0 3px rgba(47,111,237,.45)" : "0 0 0 3px rgba(47,111,237,0)";
+      box.style.borderColor = on ? "#2f6fed" : "";
+      flashes++;
+      if (flashes < 6) setTimeout(flash, 350);
+      else { box.style.boxShadow = ""; box.style.borderColor = ""; }
+    };
+    flash();
+  }
+  // 醒目状态横幅：明确告诉用户链接已到、下一步该点哪
+  const busy = _videoBusyNow();
+  const btnText = busy ? "＋ 加入队列" : "提取并分析";
+  setVideoStatus("🔗 链接已填好！点右上方蓝色「" + btnText + "」按钮即可" +
+    (busy ? "排队处理。" : "开始提取。"), "ok", { priority: true, holdMs: 6000 });
+  // 按钮强脉冲（不依赖 styles.css，直接内联动画）
   const btn = document.getElementById("videoGoBtn");
-  if (btn) { btn.classList.add("pulse"); setTimeout(() => btn.classList.remove("pulse"), 2400); }
+  if (btn) {
+    btn.classList.add("pulse");
+    btn.style.transition = "transform .25s, box-shadow .25s";
+    let p = 0;
+    const pulse = () => {
+      const big = p % 2 === 0;
+      btn.style.transform = big ? "scale(1.08)" : "scale(1)";
+      btn.style.boxShadow = big ? "0 0 0 4px rgba(47,111,237,.35)" : "0 0 0 4px rgba(47,111,237,0)";
+      p++;
+      if (p < 8) setTimeout(pulse, 300);
+      else { btn.style.transform = ""; btn.style.boxShadow = ""; btn.classList.remove("pulse"); }
+    };
+    pulse();
+  }
 };
 
 // 把没有分段的整块文字，按标点/逗号/长度切成段落（老笔记也能变好看）
@@ -1619,9 +1687,44 @@ function shortLabel(u) {
   return u.length > 48 ? u.slice(0, 46) + "…" : u;
 }
 
+// 可展开的「视频名」标签：默认截断显示一部分，鼠标悬停或点击展开全部，移开/再点折叠。
+// full=完整文本（标题或链接），limit=折叠时显示多少字。
+function expandableLabel(full, limit) {
+  full = (full || "").trim();
+  if (!full) return '<span class="vt-url">（未知）</span>';
+  limit = limit || 32;
+  const isLong = full.length > limit;
+  const shortText = isLong ? full.slice(0, limit) + "…" : full;
+  const safeFull = escapeHtml(full);
+  const safeShort = escapeHtml(shortText);
+  if (!isLong) {
+    return '<span class="vt-url" title="' + safeFull + '">' + safeShort + "</span>";
+  }
+  // data-full 存完整文本；CSS class vt-name 控制展开/折叠；点击切换 expanded
+  return '<span class="vt-name" data-full="' + safeFull + '" data-short="' + safeShort +
+    '" title="点击展开/折叠完整名称，或鼠标悬停查看">' + safeShort + "</span>";
+}
+
 function renderVideoTasks(p) {
   const el = document.getElementById("videoTasks");
   if (!el) return;
+  // 内容指纹：任务状态/进度/队列没变化时跳过重渲染，避免每 1.2 秒重建 DOM、
+  // 把用户正在悬停或点开的视频名重置掉。注意：不含 elapsed（它每秒变），
+  // 已用时秒数改为单独更新那个 span，不重建整块。
+  try {
+    const sig = JSON.stringify({
+      r: !!p.running, s: p.stage, d: p.detail,
+      c: p.current_label || p.current_url,
+      q: (p.queue || []).map((x) => (x && typeof x === "object") ? (x.title || x.url) : x),
+    });
+    if (el.dataset.sig === sig) {
+      // 内容没变，只刷新「已用时」秒数（不重建 DOM，不打断展开/悬停）
+      const tEl = el.querySelector(".vt-time");
+      if (tEl && p.running) tEl.textContent = "已用时 " + (p.elapsed || 0) + " 秒";
+      return;
+    }
+    el.dataset.sig = sig;
+  } catch (e) {}
   let h = "";
   if (p.running) {
     const pct = parseVideoPercent(p.detail);
@@ -1630,6 +1733,8 @@ function renderVideoTasks(p) {
     const bar = pct != null
       ? '<div class="vbar"><div class="vbar-fill" style="width:' + pct + '%"></div></div>'
       : '<div class="vbar"><div class="vbar-fill indet"></div></div>';
+    // 正在处理：current_label 可能是标题（爬到了）或链接（还没爬到）
+    const curName = p.current_label || p.current_url || "";
     h += '<div class="vtask running">' +
       '<div class="vtask-top"><span class="vt-badge">生成中</span> ' +
       escapeHtml(stage + detail) +
@@ -1637,17 +1742,47 @@ function renderVideoTasks(p) {
       '<button class="vt-cancel" id="vtCancelBtn" title="取消当前任务并清空队列">✕ 取消</button>' +
       '</div>' +
       bar +
-      '<div class="vt-url">' + escapeHtml(shortLabel(p.current_label)) + '</div></div>';
+      '<div class="vt-namewrap">🎬 ' + expandableLabel(curName, 40) + '</div></div>';
   }
-  (p.queue || []).forEach((u, i) => {
+  (p.queue || []).forEach((item, i) => {
+    // 队列项现在是 {url, title} 对象；兼容老格式（纯字符串）
+    let name = "", hasTitle = false;
+    if (item && typeof item === "object") {
+      hasTitle = !!item.title;
+      name = item.title || item.url || "";
+    } else {
+      name = item || "";
+    }
+    // 还没爬到标题（只有链接）时，给个「获取名称中…」的小提示，让用户知道在努力，
+    // 而不是以为坏了。爬到后下次轮询就会换成真标题。
+    const tip = (!hasTitle && name)
+      ? '<span style="color:var(--text-dim,#9aa);font-size:12px;margin-left:6px">（获取名称中…）</span>'
+      : "";
     h += '<div class="vtask queued">' +
       '<div class="vtask-top"><span class="vt-badge q">排队中</span> 第 ' + (i + 1) + ' 个</div>' +
       '<div class="vbar"><div class="vbar-fill q"></div></div>' +
-      '<div class="vt-url">' + escapeHtml(shortLabel(u)) + '</div></div>';
+      '<div class="vt-namewrap">🎬 ' + expandableLabel(name, 36) + tip + '</div></div>';
   });
   el.innerHTML = h;
   const cancelBtn = document.getElementById("vtCancelBtn");
   if (cancelBtn) cancelBtn.addEventListener("click", cancelVideoJobs);
+  // 给可展开的视频名绑定交互：
+  //  · 点击 = 锁定展开/折叠（再点取消锁定）
+  //  · 悬停 = 临时展开；移开 = 折叠回去（但若已点击锁定展开，则保持）
+  el.querySelectorAll(".vt-name").forEach((sp) => {
+    sp.addEventListener("click", () => {
+      const locked = sp.classList.toggle("expanded");
+      sp.dataset.locked = locked ? "1" : "";
+      sp.textContent = locked ? sp.dataset.full : sp.dataset.short;
+    });
+    sp.addEventListener("mouseenter", () => {
+      sp.textContent = sp.dataset.full;
+    });
+    sp.addEventListener("mouseleave", () => {
+      // 没被点击锁定才折叠回去
+      if (sp.dataset.locked !== "1") sp.textContent = sp.dataset.short;
+    });
+  });
 }
 
 // 取消当前视频任务 + 清空队列
@@ -1665,6 +1800,8 @@ async function cancelVideoJobs() {
 
 let _videoPollTimer = null;
 let _lastVideoResultId = 0;
+let _lastDoneTitle = "";        // 最近一个完成并存档的标题，用于状态横幅
+let _lastRunningUrl = "";       // 上一轮正在处理的链接，用于检测「切到下一个」
 function pollVideoProgress() {
   if (_videoPollTimer) return;  // 已经在轮询了
   const tick = async () => {
@@ -1673,31 +1810,58 @@ function pollVideoProgress() {
       const p = await r.json();
       renderVideoTasks(p);
 
-      // 有新完成的结果就渲染出来
+      // 有新完成的结果就渲染出来，并记下它的标题用于状态横幅
       if (p.result_id && p.result_id > _lastVideoResultId && p.result) {
         _lastVideoResultId = p.result_id;
         const res = p.result;
         if (res.ok) {
           mountVideoResult(res);
           loadVideoNotes();
+          _lastDoneTitle = (res.title || "").trim();
+        } else if (res.error) {
+          // 失败的也要让用户知道，而不是悄无声息
+          _lastDoneTitle = "";
+          setVideoStatus("⚠ 有一个没成功：" + res.error, "warn");
         }
       }
 
       if (p.running || p.queue_len > 0 || p.has_chat_tasks) {
         _videoBusyFlag = true;
         if (!_videoSubmitting) setVideoBtnState("running");
-        setVideoStatus("");   // 状态都在下面的任务卡片里显示
+        // ── 关键：始终给出清晰的状态报告，而不是清空 ──
+        // 队列里还有多少（含正在跑的这一个）
+        const qlen = p.queue_len || 0;
+        const curUrl = p.current_url || p.current_label || "";
+        // 检测「切到下一个任务」：正在处理的链接变了
+        if (curUrl && curUrl !== _lastRunningUrl) {
+          _lastRunningUrl = curUrl;
+        }
+        let banner = "";
+        if (p.running) {
+          // 有正在跑的任务：报告「正在处理第几个 / 共几个」+ 上一个是否已存档
+          const totalLeft = qlen + 1;  // 正在跑的 + 排队的
+          const pos = totalLeft > 1 ? `（还剩 ${totalLeft} 个）` : "";
+          banner = `⏳ 正在处理${pos}…`;
+          if (_lastDoneTitle) {
+            banner = `✅ 上一个已完成并存档：《${_lastDoneTitle.slice(0, 24)}》　|　` + banner;
+          }
+        } else if (qlen > 0) {
+          banner = `⏳ 排队中，还有 ${qlen} 个待处理…`;
+        }
+        setVideoStatus(banner, "ok");
       } else {
         // 全部处理完，停止轮询
         _videoBusyFlag = false;
         if (!_videoSubmitting) setVideoBtnState("idle");
         clearInterval(_videoPollTimer); _videoPollTimer = null;
         renderVideoTasks({ running: false, queue: [] });
+        _lastRunningUrl = "";
         const res = p.result || {};
-        if (res.ok) {
-          setVideoStatus("✓ 全部完成，已自动存档", "ok");
+        if (res.ok || _lastDoneTitle) {
+          const t = _lastDoneTitle ? `：《${_lastDoneTitle.slice(0, 24)}》` : "";
+          setVideoStatus(`🎉 全部完成，已自动存档${t}`, "ok");
         } else if (res.error) {
-          setVideoStatus("最后一个没成功：" + res.error, "warn");
+          setVideoStatus("⚠ 最后一个没成功：" + res.error, "warn");
         } else {
           setVideoStatus("");
         }
@@ -1733,11 +1897,202 @@ async function runVideoInstall() {
   }
 }
 
+// 工具栏上「常驻」的安装/更新依赖按钮（不像上面那个只在缺依赖时才冒出来）。
+// 用途：依赖明明"装过"但实际缺 curl_cffi / 或 yt-dlp 太旧导致抖音提取失败时，
+//   随时点一下把 yt-dlp、faster-whisper、curl_cffi 一并升级/补齐。
+async function runVideoDepInstall() {
+  const btn = document.getElementById("videoDepBtn");
+  const log = document.getElementById("videoDepLog");
+  const orig = (btn && btn.textContent) || "🔧 安装/更新依赖";
+  if (btn) { btn.disabled = true; btn.textContent = "安装中…（请稍候，别关软件）"; }
+  if (log) {
+    log.style.display = "";
+    log.textContent = "正在联网下载并安装/升级 yt-dlp、faster-whisper、curl_cffi，约一两分钟…";
+  }
+  try {
+    const resp = await fetch(BACKEND + "/video_install", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    const data = await resp.json();
+    if (log) {
+      let t = data.message || (data.ok ? "依赖已就绪。" : "安装未完成。");
+      // 失败时把日志末尾贴出来，方便排查
+      if (!data.ok && data.log) t += "\n\n" + String(data.log).slice(-1200);
+      log.textContent = t;
+    }
+    if (data.ok) {
+      setVideoStatus("依赖装好/更新好了，回到上面再点一次「提取并分析」即可。", "ok");
+      if (btn) btn.textContent = "已安装/更新 ✓";
+      setTimeout(() => {
+        if (btn) { btn.disabled = false; btn.textContent = orig; }
+      }, 4000);
+    } else if (btn) {
+      btn.disabled = false; btn.textContent = "重试安装";
+    }
+  } catch (e) {
+    if (log) { log.style.display = ""; log.textContent = "安装出错：" + e.message; }
+    if (btn) { btn.disabled = false; btn.textContent = "重试安装"; }
+  }
+}
+document.getElementById("videoDepBtn")?.addEventListener("click", runVideoDepInstall);
+
+// ────────── 维护工具抽屉 + 抖音自检 / 诊断 / yt-dlp 新版 ──────────
+
+// 维护工具抽屉：默认收起，点标题行展开/收起
+function setVideoToolsOpen(open) {
+  const body = document.getElementById("videoToolsBody");
+  const caret = document.getElementById("videoToolsCaret");
+  if (!body) return;
+  body.style.display = open ? "" : "none";
+  if (caret) caret.textContent = open ? "▾" : "▸";
+}
+function toggleVideoTools() {
+  const body = document.getElementById("videoToolsBody");
+  if (body) setVideoToolsOpen(body.style.display === "none");
+}
+function openVideoTools() {
+  setVideoToolsOpen(true);
+  // 展开后顺手把详细结果填进抽屉里的横幅
+  try { runVideoHealthCheck(true); } catch (_) {}
+}
+document.getElementById("videoToolsHead")?.addEventListener("click", toggleVideoTools);
+document.getElementById("videoToolsHead")?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleVideoTools(); }
+});
+
+// 主区上的「细提示条」：出问题时才显示，带一个「打开维护工具」链接（不自动展开抽屉）
+function _setNotice(html, kind) {
+  const el = document.getElementById("videoNotice");
+  if (!el) return;
+  const palette = {
+    warn: { bg: "rgba(255,170,0,.12)", bd: "rgba(255,170,0,.55)" },
+    bad:  { bg: "rgba(220,53,69,.12)", bd: "rgba(220,53,69,.55)" },
+  }[kind] || { bg: "rgba(127,127,127,.12)", bd: "rgba(127,127,127,.5)" };
+  el.style.display = "";
+  el.style.background = palette.bg;
+  el.style.border = "1px solid " + palette.bd;
+  el.innerHTML = html +
+    ' <a href="#" id="videoNoticeOpen" style="margin-left:6px;white-space:nowrap">打开维护工具 ›</a>';
+  const a = document.getElementById("videoNoticeOpen");
+  if (a) a.addEventListener("click", (e) => { e.preventDefault(); openVideoTools(); });
+}
+function _hideNotice() {
+  const el = document.getElementById("videoNotice");
+  if (el) el.style.display = "none";
+}
+
+function _setHealthBanner(html, kind) {
+  const el = document.getElementById("videoHealthBanner");
+  if (!el) return;
+  const palette = {
+    ok:   { bg: "rgba(40,167,69,.12)",  bd: "rgba(40,167,69,.5)" },
+    warn: { bg: "rgba(255,170,0,.12)",  bd: "rgba(255,170,0,.55)" },
+    bad:  { bg: "rgba(220,53,69,.12)",  bd: "rgba(220,53,69,.55)" },
+  }[kind] || { bg: "rgba(127,127,127,.12)", bd: "rgba(127,127,127,.5)" };
+  el.style.display = "";
+  el.style.background = palette.bg;
+  el.style.border = "1px solid " + palette.bd;
+  el.innerHTML = html;
+  const copyBtn = document.getElementById("videoDiagCopyBtn");
+  if (copyBtn) copyBtn.addEventListener("click", copyVideoDiag);
+}
+
+async function copyVideoDiag() {
+  try {
+    const r = await fetch(BACKEND + "/video_diag");
+    const d = await r.json();
+    if (d && d.text) {
+      await navigator.clipboard.writeText(d.text);
+      ["videoDiagCopyBtn", "videoDiagCopyBtn2"].forEach((id) => {
+        const b = document.getElementById(id);
+        if (b) { const t = b.textContent; b.textContent = "已复制 ✓";
+                 setTimeout(() => { b.textContent = t; }, 2500); }
+      });
+    } else {
+      alert("还没有诊断文件。等下次提取失败后会自动生成。" + (d && d.path ? "\n位置：" + d.path : ""));
+    }
+  } catch (e) { alert("复制诊断出错：" + e.message); }
+}
+document.getElementById("videoDiagCopyBtn2")?.addEventListener("click", copyVideoDiag);
+
+// manual=true：手动点（抽屉已展开），正常也把结果写进抽屉横幅。
+// manual=false：启动悄悄查，只在「真出问题」时弹主区细提示条，不自动展开抽屉。
+async function runVideoHealthCheck(manual) {
+  const btn = document.getElementById("videoHealthBtn");
+  const orig = (btn && btn.textContent) || "🩺 检测抖音是否正常";
+  if (manual && btn) { btn.disabled = true; btn.textContent = "检测中…（约几秒）"; }
+  if (manual) _setHealthBanner("正在用一条测试视频跑一遍解析，请稍候…", "warn");
+  try {
+    const r = await fetch(BACKEND + "/video_health");
+    const d = await r.json();
+    const dy = (d && d.douyin) || {};
+    const yt = (d && d.ytdlp) || {};
+    const diag = (d && d.diag) || {};
+
+    let ytLine = "";
+    if (yt.update_available) {
+      ytLine = '<br>🆕 yt-dlp 有新版（当前 ' + (yt.current || "?") +
+               '，最新 ' + (yt.latest || "?") +
+               '）。可点「安装/更新依赖」升级——抖音的问题有时升级后就好了。';
+    }
+    const diagBtn = diag && diag.exists
+      ? ' <button id="videoDiagCopyBtn" class="send-btn" style="font-size:12px;padding:3px 8px;margin-left:6px">复制诊断信息</button>'
+      : "";
+
+    // —— 抽屉里的详细横幅（手动时一定写；自动时也写好，等用户点开能看到）——
+    if (dy.status === "ok") {
+      _setHealthBanner("✅ 抖音提取功能正常。" + ytLine, ytLine ? "warn" : "ok");
+    } else if (dy.status === "dep_missing") {
+      _setHealthBanner("⚠ " + escapeHtml(dy.detail || "缺少 curl_cffi") +
+        "<br>点「安装/更新依赖」装上即可。" + ytLine, "warn");
+    } else if (dy.status === "network_fail") {
+      _setHealthBanner("⚠ 这次没连上抖音（多半是网络/临时波动，也可能是测试视频被删），" +
+        "不一定是软件坏了。真要确认，直接拿一条你的抖音链接去提取最准。<br>" +
+        escapeHtml(dy.detail || "") + ytLine, "warn");
+    } else if (dy.status === "structure_changed" || dy.status === "blocked_or_changed") {
+      _setHealthBanner("⚠ 自检的测试视频没解析成功。可能是抖音改版/拦截，也可能只是这条测试视频被删了。<br>" +
+        "以你自己的抖音链接能不能提取为准；若也失败，软件会自动留诊断信息，发给开发者即可修。" +
+        diagBtn + ytLine, "warn");
+    } else {
+      _setHealthBanner("⚠ 自检结果：" + escapeHtml(dy.detail || dy.status || "未知") + ytLine, "warn");
+    }
+
+    // —— 主区细提示条：只在「真出问题」时弹（缺依赖 / 真发生过提取失败）——
+    // 像"测试视频被删/网络波动"这种自检自身的问题，不再误报。
+    if (!manual) {
+      if (dy.status === "dep_missing") {
+        _setNotice("⚠ 视频功能缺少组件（curl_cffi），抖音可能用不了。", "warn");
+      } else if (diag && diag.exists) {
+        _setNotice("⚠ 上次有视频没提取成功，已生成诊断信息。", "bad");
+      } else {
+        _hideNotice();  // 没真问题就不打扰
+      }
+    }
+  } catch (e) {
+    if (manual) _setHealthBanner("检测出错：" + escapeHtml(e.message), "warn");
+  } finally {
+    if (manual && btn) { btn.disabled = false; btn.textContent = orig; }
+  }
+}
+document.getElementById("videoHealthBtn")?.addEventListener("click", () => runVideoHealthCheck(true));
+
+// 启动后悄悄自检一次（延迟几秒，不抢占启动；只有真出问题才弹主区细提示条）
+setTimeout(() => { try { runVideoHealthCheck(false); } catch (_) {} }, 4000);
+
 let _currentVideo = null;  // 当前展示的视频数据（用于复制/导出）
 
 function mountVideoResult(data, target) {
   const resultEl = target || document.getElementById("videoResult");
   if (!target) _currentVideo = data;  // 只有视频标签页才更新全局当前视频
+  // 只有在「视频面板进度卡」里展示完成结果时（target 为空）才加这条完成标头；
+  // 在成长库点开历史笔记（target 不为空）不需要，避免重复。
+  const doneBadge = !target
+    ? '<div style="display:flex;align-items:center;gap:8px;margin:0 0 10px;' +
+      'padding:7px 12px;border-radius:9px;background:rgba(46,160,90,.12);' +
+      'color:#2ea05a;font-size:13px;font-weight:500;">' +
+      '<span>✅ 这条已提取完成并自动存档</span>' +
+      '<span style="color:var(--text-dim,#8a8a93);font-weight:400">' +
+      '（下面是结果，新任务的进度看上方进度条）</span></div>'
+    : "";
   const head =
     (data.title ? "<h2>" + escapeHtml(data.title) + "</h2>" : "") +
     (data.uploader ? "<p style='color:var(--text-dim);margin-top:-6px'>作者：" +
@@ -1746,6 +2101,7 @@ function mountVideoResult(data, target) {
   const canEditTags = !!(data._noteName && data._noteCat === "video");
   const tagRowHtml = '<div class="vtag-row" id="vTagRow"></div>';
   resultEl.innerHTML =
+    doneBadge +
     '<div class="video-toolbar">' +
       '<button class="vtab active" data-tab="analysis">🤖 AI 分析</button>' +
       '<button class="vtab" data-tab="transcript">📝 完整原文</button>' +
@@ -1757,6 +2113,7 @@ function mountVideoResult(data, target) {
       '<button class="vbtn vbtn-speak" id="vSpeakBtn">🔊 朗读</button>' +
       '<button class="vbtn" id="vCopyBtn">复制本页</button>' +
       '<button class="vbtn" id="vExportBtn">导出 Markdown</button>' +
+      '<button class="vbtn" id="vCollapseBtn" title="折叠正文，方便看下面的内容">▾ 折叠</button>' +
     '</div>' +
     head +
     tagRowHtml +
@@ -1811,11 +2168,13 @@ function mountVideoResult(data, target) {
     renderAnalysis();
   }));
 
+  let _collapsed = false;  // 折叠状态：供下方折叠按钮与标签切换共用
   const tabs = resultEl.querySelectorAll(".vtab");
   tabs.forEach((t) => t.addEventListener("click", () => {
     tabs.forEach((x) => x.classList.remove("active"));
     t.classList.add("active");
     const which = t.dataset.tab;
+    if (_collapsed) return;  // 折叠状态下只切换高亮，不展开正文
     $("#vAnalysis").style.display = which === "analysis" ? "" : "none";
     $("#vTranscript").style.display = which === "transcript" ? "" : "none";
     detailToggle.style.display = which === "analysis" ? "" : "none";  // 只在 AI 分析时显示开关
@@ -1830,6 +2189,34 @@ function mountVideoResult(data, target) {
     b.textContent = "已复制 ✓"; setTimeout(() => (b.textContent = "复制本页"), 1500);
   });
   $("#vExportBtn").addEventListener("click", () => exportVideoMd(data));
+
+  // 折叠 / 展开：把标题以下的正文（标签 + AI分析/原文 + 详细简洁开关）整块收起，
+  // 方便往下看「已存的视频笔记」等内容。只折叠正文，标题和工具条保留可见。
+  const collapseBtn = $("#vCollapseBtn");
+  if (collapseBtn) {
+    collapseBtn.addEventListener("click", () => {
+      _collapsed = !_collapsed;
+      const tagRow = $("#vTagRow");
+      const ana = $("#vAnalysis");
+      const tr = $("#vTranscript");
+      const dt = $("#vDetailToggle");
+      // 折叠时全部隐藏；展开时按当前所在标签恢复（原文/分析二选一）
+      if (tagRow) tagRow.style.display = _collapsed ? "none" : "";
+      if (dt) dt.style.display = _collapsed ? "none" : "";
+      if (_collapsed) {
+        if (ana) ana.style.display = "none";
+        if (tr) tr.style.display = "none";
+      } else {
+        const activeTab = resultEl.querySelector(".vtab.active");
+        const which = activeTab ? activeTab.dataset.tab : "analysis";
+        if (ana) ana.style.display = which === "analysis" ? "" : "none";
+        if (tr) tr.style.display = which === "transcript" ? "" : "none";
+        if (dt) dt.style.display = which === "analysis" ? "" : "none";
+      }
+      collapseBtn.textContent = _collapsed ? "▸ 展开" : "▾ 折叠";
+      collapseBtn.title = _collapsed ? "展开正文" : "折叠正文，方便看下面的内容";
+    });
+  }
   $("#vSpeakBtn").addEventListener("click", () => {
     const active = resultEl.querySelector(".vtab.active").dataset.tab;
     const text = active === "transcript"
@@ -2388,9 +2775,12 @@ function renderDashboard(d) {
 document.getElementById("refreshDashBtn").addEventListener("click", loadDashboard);
 
 function loadMemoryTabs() {
+  _memScope = "mem";
   const tabs = document.getElementById("memoryTabs");
   tabs.innerHTML = "";
-  MEMORY_FILES.forEach((f) => {
+  // 记忆页只显示「AI 对你的理解」这一类；配置类已挪到「设置 → 配置」
+  if (!MEMORY_FILES_MEM.includes(currentMemoryFile)) currentMemoryFile = MEMORY_FILES_MEM[0];
+  MEMORY_FILES_MEM.forEach((f) => {
     const t = document.createElement("button");
     t.className = "memory-tab" + (f === currentMemoryFile ? " active" : "");
     t.textContent = (MEMORY_META[f] && MEMORY_META[f].label) || f;
@@ -2400,10 +2790,45 @@ function loadMemoryTabs() {
   loadMemoryContent(currentMemoryFile);
 }
 
+// 设置 → 配置 tab：用同一套编辑器，但宿主是 setMemXxx 容器
+let _cfgCurrentFile = null;
+function loadConfigTabs() {
+  _memScope = "set";
+  const tabs = document.getElementById("setMemTabs");
+  if (!tabs) return;
+  tabs.innerHTML = "";
+  if (!_cfgCurrentFile || !MEMORY_FILES_CFG.includes(_cfgCurrentFile)) _cfgCurrentFile = MEMORY_FILES_CFG[0];
+  currentMemoryFile = _cfgCurrentFile;
+  MEMORY_FILES_CFG.forEach((f) => {
+    const t = document.createElement("button");
+    t.className = "memory-tab" + (f === _cfgCurrentFile ? " active" : "");
+    t.textContent = (MEMORY_META[f] && MEMORY_META[f].label) || f;
+    t.addEventListener("click", () => { _cfgCurrentFile = f; loadConfigTabs(); });
+    tabs.appendChild(t);
+  });
+  currentMemoryFile = _cfgCurrentFile;
+  loadMemoryContent(_cfgCurrentFile);
+}
+
+// 记忆编辑器的「宿主作用域」：记忆视图用 memXxx，设置·配置 tab 用 setMemXxx。
+// 这样同一套编辑器既能在「记忆」页用，也能在「设置→配置」里用，互不打架。
+let _memScope = "mem";   // "mem" | "set"
+function mEl(suffix) {
+  const prefix = _memScope === "set" ? "setMem" : "memory";
+  // memory 视图的 id：memoryBody/memoryDesc/memoryEditor/memoryModeBar/memoryTabs
+  // 设置配置 tab 的 id：setMemBody/setMemDesc/setMemEditor/setMemModeBar/setMemTabs
+  const map = _memScope === "set"
+    ? { Body: "setMemBody", Desc: "setMemDesc", Editor: "setMemEditor",
+        ModeBar: "setMemModeBar", Tabs: "setMemTabs" }
+    : { Body: "memoryBody", Desc: "memoryDesc", Editor: "memoryEditor",
+        ModeBar: "memoryModeBar", Tabs: "memoryTabs" };
+  return document.getElementById(map[suffix]);
+}
+
 async function loadMemoryContent(name) {
-  const body = document.getElementById("memoryBody");
-  const descEl = document.getElementById("memoryDesc");
-  const editor = document.getElementById("memoryEditor");
+  const body = mEl("Body");
+  const descEl = mEl("Desc");
+  const editor = mEl("Editor");
   const meta = MEMORY_META[name] || { type: "text" };
   descEl.textContent = meta.desc || "";
   // 每次切文件，文本型默认回到「结构化」模式
@@ -2425,7 +2850,7 @@ async function loadMemoryContent(name) {
     return;
   }
 
-  const modeBar = document.getElementById("memoryModeBar");
+  const modeBar = mEl("ModeBar");
   if (meta.type === "text") {
     // 自由文本（SOUL/USER/MEMORY…）：默认结构化分区编辑，可切原始文本
     if (modeBar) modeBar.style.display = "";
@@ -2470,7 +2895,7 @@ function parseTextSections(content) {
 }
 
 function renderTextEditor(body, name, content, meta) {
-  const editor = document.getElementById("memoryEditor");
+  const editor = mEl("Editor");
   if (_memTextMode === "raw") {
     // 原始文本模式：用常驻 textarea
     body.style.display = "none";
@@ -2704,10 +3129,10 @@ function collectMemoryContent() {
   const meta = MEMORY_META[name] || { type: "text" };
   if (meta.type === "text") {
     if (_memTextMode === "raw") {
-      return document.getElementById("memoryEditor").value;
+      return mEl("Editor").value;
     }
     // 结构化模式：把各分区块拼回 markdown
-    const body = document.getElementById("memoryBody");
+    const body = mEl("Body");
     const blocks = body.querySelectorAll(".mem-section");
     if (!blocks.length) return _memTextRaw;   // 没解析出分区，原样返回
     const out = [];
@@ -2728,7 +3153,7 @@ function collectMemoryContent() {
   if (meta.type === "list") {
     const bullet = meta.bullet || "- ";
     const sep = meta.sep || "|";
-    const rows = document.querySelectorAll("#memoryBody .kv-row");
+    const rows = mEl("Body").querySelectorAll(".kv-row");
     const lines = [];
     rows.forEach((r) => {
       const val = r.querySelector(".kv-val").value.trim();
@@ -2744,7 +3169,7 @@ function collectMemoryContent() {
   }
   if (meta.type === "config") {
     const lines = [];
-    document.querySelectorAll("#memoryBody .cfg-input").forEach((inp) => {
+    mEl("Body").querySelectorAll(".cfg-input").forEach((inp) => {
       lines.push(`${inp.dataset.key}: ${inp.value.trim()}`);
     });
     return head + lines.join("\n") + "\n";
@@ -2766,15 +3191,15 @@ function setMemMode(mode) {
     ? "高级模式：直接编辑原始 .md 文本"
     : "按小标题分区编辑，更清晰";
   const meta = MEMORY_META[currentMemoryFile] || { type: "text" };
-  const body = document.getElementById("memoryBody");
+  const body = mEl("Body");
   renderTextEditor(body, currentMemoryFile, cur, meta);
 }
 document.getElementById("memModeStruct")?.addEventListener("click", () => setMemMode("struct"));
 document.getElementById("memModeRaw")?.addEventListener("click", () => setMemMode("raw"));
 
-document.getElementById("saveMemoryBtn").addEventListener("click", async () => {
+async function saveMemoryFile(hintId) {
   const content = collectMemoryContent();
-  const hint = document.getElementById("saveHint");
+  const hint = document.getElementById(hintId || "saveHint");
   try {
     const resp = await fetch(BACKEND + "/memory", {
       method: "POST",
@@ -2782,12 +3207,14 @@ document.getElementById("saveMemoryBtn").addEventListener("click", async () => {
       body: JSON.stringify({ name: currentMemoryFile, content }),
     });
     const data = await resp.json();
-    hint.textContent = data.ok ? "已保存 ✓" : ("保存失败：" + data.message);
-    setTimeout(() => (hint.textContent = ""), 2500);
+    if (hint) hint.textContent = data.ok ? "已保存 ✓" : ("保存失败：" + data.message);
+    if (hint) setTimeout(() => (hint.textContent = ""), 2500);
   } catch (e) {
-    hint.textContent = "保存出错：" + e.message;
+    if (hint) hint.textContent = "保存出错：" + e.message;
   }
-});
+}
+document.getElementById("saveMemoryBtn")?.addEventListener("click", () => saveMemoryFile("saveHint"));
+document.getElementById("setMemSaveBtn")?.addEventListener("click", () => saveMemoryFile("setMemSaveHint"));
 
 // ---------- 结束并记住（长期记忆） ----------
 // 作用：把当前这段对话里"值得长期记住"的要点（你的偏好/背景/结论等）提炼出来，
@@ -2873,23 +3300,26 @@ document.getElementById("tgStartBtn")?.addEventListener("click", async () => {
   }
 });
 
-// ---------- 皮肤（深色/浅色）----------
+// ---------- 皮肤（浅色/深色）----------
+// 新方案：浅色为默认（不加 class），深色加 body.dark
 function applyTheme(theme) {
-  const t = theme === "light" ? "light" : "dark";
-  document.body.classList.toggle("light", t === "light");
-  try { localStorage.setItem("cx_theme", t); } catch (_) {}
+  const t = theme === "dark" ? "dark" : "light";
+  document.body.classList.toggle("dark", t === "dark");
+  document.body.classList.remove("light");   // 兼容旧 class，清掉
+  try { localStorage.setItem("cx_theme_v2", t); } catch (_) {}
   const sel = document.getElementById("themeSelect");
   if (sel) sel.value = t;
 }
 // 给顶部菜单"切换皮肤"用
 window.toggleTheme = function () {
-  const now = document.body.classList.contains("light") ? "light" : "dark";
-  applyTheme(now === "light" ? "dark" : "light");
+  const now = document.body.classList.contains("dark") ? "dark" : "light";
+  applyTheme(now === "dark" ? "light" : "dark");
 };
-// 启动时读取上次的选择（默认深色）
+// 启动时读取上次的选择（默认浅色，Win11 风格）
+// 用新 key（v2）：旧用户存的 "dark" 不再生效，一律先给清爽的浅色
 (function initTheme() {
-  let saved = "dark";
-  try { saved = localStorage.getItem("cx_theme") || "dark"; } catch (_) {}
+  let saved = "light";
+  try { saved = localStorage.getItem("cx_theme_v2") || "light"; } catch (_) {}
   applyTheme(saved);
 })();
 document.getElementById("themeSelect")?.addEventListener("change", (e) => {
@@ -4000,9 +4430,10 @@ function switchLumiSub(which) {
 }
 document.querySelectorAll("#lumiSubNav .nav-subitem").forEach((b) => {
   b.addEventListener("click", () => {
-    // 点子菜单时确保主视图切到懂你
+    // 点（隐藏的）子菜单时：切到懂你视图，并高亮对应的那个一级懂你项（画像/洞察/人格）
     document.querySelectorAll(".nav-item").forEach((x) => x.classList.remove("active"));
-    document.querySelector('.nav-item[data-view="lumi"]')?.classList.add("active");
+    const flat = document.querySelector('.nav-item[data-lumi-sub="' + b.dataset.lumi + '"]');
+    if (flat) flat.classList.add("active");
     document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
     document.getElementById("view-lumi")?.classList.add("active");
     switchLumiSub(b.dataset.lumi);
@@ -4436,9 +4867,19 @@ function renderLoop(st) {
 // ============================================================
 // 运行台（Harness）—— 工具区
 // ============================================================
+let _harnessTimer = null;
 function loadHarness() {
   loadHarnessConfig();
   loadHarnessRuns();
+  // 启动轮询：每 3 秒刷新一次运行记录，让「进行中」的任务步骤实时更新。
+  if (_harnessTimer) clearInterval(_harnessTimer);
+  _harnessTimer = setInterval(() => {
+    // 只在运行台可见时刷新，离开页面就停，省资源
+    const view = document.getElementById("view-harness");
+    const visible = view && view.offsetParent !== null;
+    if (!visible) { clearInterval(_harnessTimer); _harnessTimer = null; return; }
+    loadHarnessRuns();
+  }, 3000);
 }
 
 async function loadHarnessConfig() {
@@ -4499,7 +4940,7 @@ function renderHarnessMetrics(m) {
   const box = document.getElementById("hMetrics");
   if (!box) return;
   if (!m || !m.count) {
-    box.innerHTML = '<div class="harness-empty">还没有运行记录。去「目标循环」跑一个任务，这里就会出数据。</div>';
+    box.innerHTML = '<div class="harness-empty">还没有运行记录。去跑一个视频提取、目标循环或洞察任务，这里就会出数据。</div>';
     return;
   }
   const card = (label, val, sub) =>
@@ -4524,19 +4965,28 @@ function renderHarnessRuns(runs) {
   const box = document.getElementById("hRuns");
   if (!box) return;
   if (!runs.length) {
-    box.innerHTML = '<div class="harness-empty">暂无记录。目前记录「目标循环」的运行。</div>';
+    box.innerHTML = '<div class="harness-empty">暂无记录。现在会记录视频提取、目标循环、洞察等任务的运行。</div>';
     return;
   }
   box.innerHTML = runs.map((r) => {
-    const kindTag = r.kind === "loop" ? "🔁 循环" : "💬 对话";
-    const out = r.outcome === "done" ? '<span class="harness-out done">达标</span>'
+    const kindMap = {
+      loop: "🔁 循环", chat: "💬 对话", video: "🎬 视频",
+      insight: "🔍 洞察", sniff: "📡 嗅探",
+    };
+    const kindTag = kindMap[r.kind] || ("⚙ " + (r.kind || "任务"));
+    const running = r.status === "running";
+    const out = running ? '<span class="harness-out warn">⏳ 进行中</span>'
+      : r.outcome === "done" ? '<span class="harness-out done">达标</span>'
       : r.outcome === "stopped" ? '<span class="harness-out">已停</span>'
       : r.outcome === "maxed" ? '<span class="harness-out warn">未达标</span>' : "";
     const tools = (r.tools && r.tools.length)
-      ? '<div class="harness-run-tools">工具：' +
-        Object.entries(r.tool_count || {}).map(([k, v]) => escapeHtml(k) + "×" + v).join("、") + "</div>"
+      ? '<div class="harness-run-tools">步骤：' +
+        Object.entries(r.tool_count || {}).map(([k, v]) => escapeHtml(k) + (v > 1 ? "×" + v : "")).join(" → ") +
+        (running ? " …" : "") + "</div>"
       : '<div class="harness-run-tools">没调工具</div>';
     const err = r.error ? '<div class="harness-run-err">⚠ ' + escapeHtml(r.error) + "</div>" : "";
+    const note = r.note ? '<div class="harness-run-note" style="margin-top:4px;font-size:12px;' +
+      'color:var(--text-dim,#8a8a93)">' + escapeHtml(r.note) + "</div>" : "";
     const secs = r.seconds ? " · " + r.seconds + "s" : "";
     return (
       '<div class="harness-run">' +
@@ -4545,7 +4995,7 @@ function renderHarnessRuns(runs) {
           '<span class="harness-run-ts">' + escapeHtml(r.ts || "") + secs + "</span>" +
         "</div>" +
         '<div class="harness-run-title">' + escapeHtml(r.title || "（无标题）") + "</div>" +
-        tools + err +
+        tools + note + err +
       "</div>"
     );
   }).join("");
@@ -4973,6 +5423,8 @@ document.getElementById("settingsTabs")?.addEventListener("click", (e) => {
   const tab = btn.dataset.tab;
   document.querySelectorAll("#settingsTabs .settings-tab-btn").forEach((b) => b.classList.toggle("active", b === btn));
   document.querySelectorAll("#view-settings .settings-tab").forEach((p) => p.classList.toggle("active", p.id === tab));
+  // 打开「配置」tab 时，加载配置类编辑器（情报关键词/竞品/提醒/推送/代理）
+  if (tab === "tab-config" && typeof loadConfigTabs === "function") loadConfigTabs();
 });
 
 async function loadProxySetting() {

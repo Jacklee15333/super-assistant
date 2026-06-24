@@ -1,5 +1,257 @@
 [
   {
+    "time": "2026-06-24 13:12",
+    "ok": true,
+    "source": "manual",
+    "files": 215,
+    "learned": 10,
+    "model": "qwen3:14b",
+    "summary": "关于“女强人人设”的讨论，视频中提出了多个值得关注的观点，以下从不同角度梳理核心内容：\n\n### 1. **反对单一归因"
+  },
+  {
+    "time": "2026-06-24 10:15",
+    "ok": true,
+    "source": "auto",
+    "files": 205,
+    "learned": 3,
+    "model": "web",
+    "summary": "你是在搭建 AI 驱动的个人商业与知识系统、同时用证据和因果链审视技术、监管与社会叙事的人；你要的不是信息堆积，而是可验证、可复用、可落地的判断。"
+  },
+  {
+    "time": "2026-06-23 10:33",
+    "ok": true,
+    "source": "auto",
+    "files": 202,
+    "learned": 0,
+    "model": "web",
+    "summary": "主人正在把个人知识、操作经验、AI 自动化和行业经营判断整合成一套能持续获客、稳定交付、控制风险并沉淀复利的个人生产系统。"
+  },
+  {
+    "time": "2026-06-23 09:33",
+    "ok": true,
+    "source": "auto",
+    "files": 202,
+    "learned": 1,
+    "model": "web",
+    "summary": "主人正在把个人知识、操作经验、AI 自动化和行业经营判断整合成一套能持续获客、稳定交付、控制风险并沉淀复利的个人生产系统。"
+  },
+  {
+    "time": "2026-06-23 08:33",
+    "ok": true,
+    "source": "auto",
+    "files": 201,
+    "learned": 0,
+    "model": "web",
+    "summary": "主人正在把个人经验、知识资产、AI 自动化和经营判断整合成一套能持续获客、稳定交付、可验证复利且保留控制权的个人工作系统。"
+  },
+  {
+    "time": "2026-06-23 07:33",
+    "ok": true,
+    "source": "auto",
+    "files": 201,
+    "learned": 0,
+    "model": "web",
+    "summary": "主人正在把个人经验、知识资产、AI 自动化和经营判断整合成一套可持续获客、稳定交付、可验证复利且保留控制权的个人工作系统。"
+  },
+  {
+    "time": "2026-06-23 06:33",
+    "ok": true,
+    "source": "auto",
+    "files": 201,
+    "learned": 0,
+    "model": "web",
+    "summary": "主人正在把个人经验、知识资产、AI 自动化和经营判断连接成一套能持续获客、稳定交付、可验证复利且不失控制权的个人工作系统。"
+  },
+  {
+    "time": "2026-06-23 05:33",
+    "ok": true,
+    "source": "auto",
+    "files": 201,
+    "learned": 0,
+    "model": "web",
+    "summary": "主人正在把个人经验、知识资产、AI 自动化和经营判断连接成一套能持续获客、稳定交付、可验证复利且不失控制权的个人工作系统。"
+  },
+  {
+    "time": "2026-06-23 04:33",
+    "ok": true,
+    "source": "auto",
+    "files": 201,
+    "learned": 1,
+    "model": "web",
+    "summary": "主人正在把个人知识、工作经验、AI 自动化和经营判断组合成一套能持续获客、稳定交付、沉淀复利且保留人工控制权的个人生产系统。"
+  },
+  {
+    "time": "2026-06-23 03:33",
+    "ok": true,
+    "source": "auto",
+    "files": 200,
+    "learned": 0,
+    "model": "web",
+    "summary": "主人正在把个人知识、工作经验、AI 自动化和经营判断组合成一套低成本启动、持续复利、但始终保留人工控制权的个人生产系统。"
+  },
+  {
+    "time": "2026-06-23 02:33",
+    "ok": true,
+    "source": "auto",
+    "files": 200,
+    "learned": 0,
+    "model": "web",
+    "summary": "主人正在把个人知识、工作经验、AI 自动化和经营判断组合成一套低成本启动、持续复利、但始终保留人工控制权的个人生产系统。"
+  },
+  {
+    "time": "2026-06-23 01:33",
+    "ok": true,
+    "source": "auto",
+    "files": 200,
+    "learned": 1,
+    "model": "web",
+    "summary": "主人正在把个人知识、工作经验、AI 自动化和商业判断组合成一套能低成本启动、持续复利且保持人工控制权的个人生产系统。"
+  },
+  {
+    "time": "2026-06-23 00:35",
+    "ok": true,
+    "source": "auto",
+    "files": 199,
+    "learned": 1,
+    "model": "web",
+    "summary": "Something went wrong while generating the response. If this "
+  },
+  {
+    "time": "2026-06-22 23:33",
+    "ok": true,
+    "source": "auto",
+    "files": 198,
+    "learned": 1,
+    "model": "web",
+    "summary": "主人正在把知识、经验、AI Agent 和商业判断整合成一套可持续积累、可控执行、能经得起现实检验的个人生产系统。"
+  },
+  {
+    "time": "2026-06-22 22:33",
+    "ok": true,
+    "source": "auto",
+    "files": 197,
+    "learned": 0,
+    "model": "web",
+    "summary": "主人正在把知识资产、AI Agent、商业判断和风险控制整合成一套可持续积累、可验证、可维护且不轻易失控的个人生产系统。"
+  },
+  {
+    "time": "2026-06-22 21:33",
+    "ok": true,
+    "source": "auto",
+    "files": 197,
+    "learned": 0,
+    "model": "web",
+    "summary": "主人正在把知识资产、AI Agent、商业判断和风险控制组合成一套可持续积累、可验证、可维护且不轻易失控的个人生产系统。"
+  },
+  {
+    "time": "2026-06-22 20:33",
+    "ok": true,
+    "source": "auto",
+    "files": 197,
+    "learned": 0,
+    "model": "web",
+    "summary": "主人正在把知识资产、AI Agent、商业判断和风险控制整合成一个能持续复利、可验证且不失控的个人生产系统。"
+  },
+  {
+    "time": "2026-06-22 19:33",
+    "ok": true,
+    "source": "auto",
+    "files": 197,
+    "learned": 0,
+    "model": "web",
+    "summary": "主人正在构建一套由知识资产、AI Agent 和商业判断共同驱动的个人系统，并要求它既能持续增值，也必须可控、可验证、可回退。"
+  },
+  {
+    "time": "2026-06-22 18:33",
+    "ok": true,
+    "source": "auto",
+    "files": 197,
+    "learned": 0,
+    "model": "web",
+    "summary": "主人正在把个人经验、知识资产、AI Agent 和商业判断整合成一套可复用、可验证、可控风险、能长期迭代的个人生产系统。"
+  },
+  {
+    "time": "2026-06-22 17:33",
+    "ok": true,
+    "source": "auto",
+    "files": 197,
+    "learned": 0,
+    "model": "web",
+    "summary": "主人正在把个人经验、知识资产、AI Agent 和商业判断整合为一套可复用、可验证、可控风险、能长期迭代的个人生产系统。"
+  },
+  {
+    "time": "2026-06-22 16:33",
+    "ok": true,
+    "source": "auto",
+    "files": 197,
+    "learned": 3,
+    "model": "web",
+    "summary": "主人正在把个人知识、AI Agent、商业机会和公共判断整合成一套可持续迭代的系统，并持续追问：信息是否可靠、流程能否复用、风险由谁承担、成果能否长期积累。"
+  },
+  {
+    "time": "2026-06-22 15:33",
+    "ok": true,
+    "source": "auto",
+    "files": 194,
+    "learned": 2,
+    "model": "web",
+    "summary": "主人正在把 AI 当成可控的生产系统来搭建，同时用“责任是否真实、流程能否验证、风险谁来承担、长期是否成立”审视商业、技术和社会叙事。"
+  },
+  {
+    "time": "2026-06-22 14:33",
+    "ok": true,
+    "source": "auto",
+    "files": 192,
+    "learned": 5,
+    "model": "web",
+    "summary": "主人正在把 AI 从“信息工具”升级为“可控执行系统”，并用同一套标准审视技术、商业和公共叙事：流程能否复现、成本由谁承担、风险能否隔离、结论是否经得起验证。"
+  },
+  {
+    "time": "2026-06-22 13:33",
+    "ok": true,
+    "source": "auto",
+    "files": 187,
+    "learned": 6,
+    "model": "web",
+    "summary": "主人在把 AI、产业链、商业机会、组织治理和公共叙事统一放进一套“能否落地、谁付代价、风险怎么控、长期能否成立”的现实判断框架里。"
+  },
+  {
+    "time": "2026-06-22 12:33",
+    "ok": true,
+    "source": "auto",
+    "files": 181,
+    "learned": 4,
+    "model": "web",
+    "summary": "主人正在把 AI、商业机会、组织治理和公共叙事放进同一套“能否落地、谁承担成本、证据是否成立、风险如何控制”的判断体系里。"
+  },
+  {
+    "time": "2026-06-22 11:33",
+    "ok": true,
+    "source": "auto",
+    "files": 177,
+    "learned": 7,
+    "model": "web",
+    "summary": "你是一个把 AI、商业机会、公共规则和社会叙事放进同一套“证据—利益—风险—执行”框架里反复验证的人，想要的不是热闹观点，而是能帮助你判断现实、抓住机会并避免被"
+  },
+  {
+    "time": "2026-06-20 15:37",
+    "ok": true,
+    "source": "manual",
+    "files": 170,
+    "learned": 5,
+    "model": "qwen3:14b",
+    "summary": "### **AI行业动态总览（2026年6月16日-6月19日）**  \n以下信息按时间顺序整理，按主题分类，涵盖AI技"
+  },
+  {
+    "time": "2026-06-20 15:30",
+    "ok": true,
+    "source": "manual",
+    "files": 165,
+    "learned": 19,
+    "model": "qwen3:14b",
+    "summary": "以下是关于当前全球AI发展、监管政策及技术趋势的综合分析：\n\n---\n\n### **一、核心技术突破与挑战**\n1. *"
+  },
+  {
     "time": "2026-06-20 11:59",
     "ok": true,
     "source": "manual",
