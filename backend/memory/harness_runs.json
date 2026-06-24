@@ -1,58 +1,5 @@
 [
   {
-    "id": "video-1782279669858",
-    "ts": "06-24 13:41:09",
-    "kind": "video",
-    "title": "Loop Engineering+Agnes AI ，打造项目监控雷达#agnes#ai#智能体#Agnes免费API #AgnesAPl教程",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "加载语音模型",
-      "语音转文字",
-      "AI 分析"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "AI 分析": 1
-    },
-    "steps": 6,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 380
-  },
-  {
-    "id": "video-1782280050145",
-    "ts": "06-24 13:47:30",
-    "kind": "video",
-    "title": "视频提取：https://v.douyin.com/2xdJQa0d3IU/",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1
-    },
-    "steps": 4,
-    "error": "",
-    "outcome": "",
-    "status": "running",
-    "tokens_est": 0,
-    "seconds": 0,
-    "_start": 1782280050.14548
-  },
-  {
     "id": "video-1782280417805",
     "ts": "06-24 13:53:37",
     "kind": "video",
@@ -996,5 +943,385 @@
     "tokens_est": 0,
     "seconds": 394,
     "note": "✅ 已完成《做投资和做企业的人，今天这期不要错过。\n》，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1782295742376",
+    "ts": "06-24 18:09:02",
+    "kind": "video",
+    "title": "AI崛起第一剑，先斩“互联网地主”！ #热点零距离#零距离看懂财经#平台经济",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 5,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 486,
+    "note": "✅ 已完成《AI崛起第一剑，先斩“互联网地主”！ #》，继续处理下一个（还剩 1 个）"
+  },
+  {
+    "id": "video-1782296228732",
+    "ts": "06-24 18:17:08",
+    "kind": "video",
+    "title": "视频提取：youtu.be/zjkBMFhNj_g?si=fH7wXIyyIH1mlRb5",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1
+    },
+    "steps": 3,
+    "error": "提取失败：ERROR: [youtube] zjkBMFhNj_g: Unable to download API page: (<HTTPSConnection(host='www.youtube.com', port=443) at 0x1f19aff9710>, 'Connection to www.youtube.com timed out. (connect timeout=30.0)') (caused by TransportError(\"(<HTTPSConnection(host='www.youtube.com', port=443) at 0x1f19aff9710>, ",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 336,
+    "note": "⚠ 这条没成功，继续处理下一个（还剩 1 个）"
+  },
+  {
+    "id": "video-1782296565639",
+    "ts": "06-24 18:22:45",
+    "kind": "video",
+    "title": "立陶宛当了婊子还要立牌坊",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "获取标题",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "获取标题": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 6,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 274,
+    "note": "✅ 已完成《立陶宛当了婊子还要立牌坊》，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1782297921846",
+    "ts": "06-24 18:45:21",
+    "kind": "video",
+    "title": "这也能开源？！乌克兰发布”TrophyLab”开源共享平台。",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "获取标题",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "获取标题": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 6,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 168,
+    "note": "✅ 已完成《这也能开源？！乌克兰发布”TrophyL》，继续处理下一个（还剩 1 个）"
+  },
+  {
+    "id": "video-1782298090632",
+    "ts": "06-24 18:48:10",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/wI-z3sPSziM/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1
+    },
+    "steps": 3,
+    "error": "提取失败：ERROR: Unsupported URL: https://www.iesdouyin.com/share/video/7654632704771656995/?region=CN&mid=7654632861265333028&u_code=15e488kf6&did=MS4wLjABAAAAk2oguDqweY95C6pM2jYEYsBJReFEjZz3T2jtyeEQLmK44byLi3TdgWYIKjqMRlxR&iid=MS4wLjABAAAANwkJuWIRFOzg5uCpDRpMj4OX-QryoDgn-yYlXQnRwQQ&with_sec_did=1&video",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 2,
+    "note": "⚠ 这条没成功，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1782300291088",
+    "ts": "06-24 19:24:51",
+    "kind": "video",
+    "title": "五月社零首度转负 低婚育重塑市场格局 #财经 #社零数据 #生育率",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 6,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 264,
+    "note": "✅ 已完成《五月社零首度转负 低婚育重塑市场格局 #》，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1782300809730",
+    "ts": "06-24 19:33:29",
+    "kind": "video",
+    "title": "手把手教你免费使用Claude Code！ 无限制使用AI编程、AI生成图片和视频！  #vibecoding大赏 #agnes #agent #agnesai使用教程 #claudecode",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 5,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 378,
+    "note": "✅ 已完成《手把手教你免费使用Claude Code》，继续处理下一个（还剩 1 个）"
+  },
+  {
+    "id": "video-1782301188654",
+    "ts": "06-24 19:39:48",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/5SqK9fhL9CE/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1
+    },
+    "steps": 4,
+    "error": "",
+    "outcome": "",
+    "status": "running",
+    "tokens_est": 0,
+    "seconds": 0,
+    "_start": 1782301188.654917
+  },
+  {
+    "id": "video-1782301330592",
+    "ts": "06-24 19:42:10",
+    "kind": "video",
+    "title": "Cluade 6月15镰刀挥下，阶跃开源砸出逃生通道 阶跃开源Step 3.7 Flash，海光信息“Day0适配”成新常态！#海光信息  #国产算力  #Token",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "获取标题",
+      "加载语音模型",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "获取标题": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 7,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 267,
+    "note": "✅ 已完成《Cluade 6月15镰刀挥下，阶跃开源》，继续处理下一个（还剩 4 个）"
+  },
+  {
+    "id": "video-1782301598338",
+    "ts": "06-24 19:46:38",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/6CeBeT_DEio/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 5,
+    "error": "",
+    "outcome": "",
+    "status": "running",
+    "tokens_est": 0,
+    "seconds": 0,
+    "_start": 1782301598.338692
+  },
+  {
+    "id": "video-1782301927230",
+    "ts": "06-24 19:52:07",
+    "kind": "video",
+    "title": "带你聊透Agent脱离不了的4个概念。 Function Calling、Tool、MCP、Skill 到底有什么区别?#AI #大模型 #gpt #gemini #AI新星计划",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 6,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 402,
+    "note": "✅ 已完成《带你聊透Agent脱离不了的4个概念。 》，继续处理下一个（还剩 3 个）"
+  },
+  {
+    "id": "video-1782302329684",
+    "ts": "06-24 19:58:49",
+    "kind": "video",
+    "title": "征婚拆解 #现在相亲都这么现实吗 #现在婚恋市场的真实现状 #当今社会找对象的现状 #婚恋市场的奇怪现象 #玩法合伙人计划",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 5,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 283,
+    "note": "✅ 已完成《征婚拆解 #现在相亲都这么现实吗 #现在》，继续处理下一个（还剩 3 个）"
+  },
+  {
+    "id": "video-1782302613485",
+    "ts": "06-24 20:03:33",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/UJ7AtICGgzA/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 5,
+    "error": "",
+    "outcome": "",
+    "status": "running",
+    "tokens_est": 0,
+    "seconds": 0,
+    "_start": 1782302613.4851027
+  },
+  {
+    "id": "video-1782302856621",
+    "ts": "06-24 20:07:36",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/UJ7AtICGgzA/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型",
+      "语音转文字"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1
+    },
+    "steps": 5,
+    "error": "",
+    "outcome": "",
+    "status": "running",
+    "tokens_est": 0,
+    "seconds": 0,
+    "_start": 1782302856.6219053
   }
 ]

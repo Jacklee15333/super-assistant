@@ -680,122 +680,277 @@
         </div>
       </section>
 
-      <!-- 嗅探（AI 雷达）视图（工具区）-->
+      <!-- 嗅探视图（工具区）：① 博主视频更新监控 ② 网站动态嗅探 两个并列标签 -->
       <section class="view view-sniff" id="view-sniff">
-        <header class="topbar">
-          <span>📡 嗅探</span>
-          <span class="sniff-topbar-actions">
-            <button id="sniffRunBtn" class="sniff-run-btn" title="① 快速盯梢：扫一遍所有网站，把新变化列到右边时间线（很快）">
-              <span class="sniff-run-dot"></span> 快速嗅探
-            </button>
-            <button id="sniffBriefBtn" class="sniff-ghost-btn" title="② 深度调研：让网页模型 AI 逐站搜+读+总结，生成一份带来源的报告（较慢）">📄 深度嗅探</button>
-            <button id="sniffRefreshBtn" class="sniff-ghost-btn" title="刷新右边的「新动向」时间线">刷新</button>
-          </span>
-        </header>
+        <header class="topbar"><span>📡 嗅探</span></header>
         <div class="sniff-pane">
-          <!-- 概览条 -->
-          <div class="sniff-overview">
-            <div class="sniff-ov-text">
-              <div class="sniff-ov-title">盯着 AI 圈，有新东西第一时间告诉你</div>
-              <div class="sniff-ov-sub">抓取你关心的网站 · 和上次对比 · 只把新的「发布 / 功能 / 概念」提炼给你，已报过的不重复</div>
-            </div>
-            <div class="sniff-ov-stats" id="sniffStats"></div>
+          <style>
+            /* ===== 嗅探页重构样式（scoped 到 .view-sniff，不影响别处）===== */
+            .view-sniff .sniff-pane{max-width:1180px;margin:0 auto;padding:18px 22px 48px}
+            .view-sniff .sn-tabs{display:inline-flex;background:#f1f3f5;border-radius:12px;padding:4px;gap:4px;margin-bottom:18px}
+            .view-sniff .sn-tab{border:0;background:transparent;padding:9px 20px;border-radius:9px;font-size:14px;font-weight:600;color:#6b7178;cursor:pointer;transition:all .15s}
+            .view-sniff .sn-tab:hover{color:#1f2329}
+            .view-sniff .sn-tab.active{background:#fff;color:#111;box-shadow:0 1px 3px rgba(16,24,40,.10)}
+            .view-sniff .sn-grid{display:grid;grid-template-columns:minmax(300px,400px) 1fr;gap:18px;align-items:start}
+            @media (max-width:920px){.view-sniff .sn-grid{grid-template-columns:1fr}}
+            .view-sniff .sn-card{background:#fff;border:1px solid #ececf0;border-radius:14px;padding:16px 18px;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+            .view-sniff .sn-card + .sn-card{margin-top:16px}
+            .view-sniff .sn-card-head{display:flex;align-items:center;gap:10px;margin-bottom:2px;flex-wrap:wrap}
+            .view-sniff .sn-card-title{font-size:16px;font-weight:700;color:#15181c}
+            .view-sniff .sn-pill{background:#eef2ff;color:#3b5bdb;border-radius:20px;padding:1px 10px;font-size:12px;font-weight:700}
+            .view-sniff .sn-hint{font-size:12px;color:#8a8f98;line-height:1.65;margin:6px 0 14px}
+            .view-sniff .sn-hint b{color:#5a6068}
+            .view-sniff .sn-spacer{flex:1}
+            .view-sniff .sn-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+            .view-sniff .sn-btn{border:1px solid #d7dae0;background:#fff;color:#333;border-radius:9px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap}
+            .view-sniff .sn-btn:hover{background:#f6f7f9;border-color:#c2c6cd}
+            .view-sniff .sn-btn.primary{background:#3b5bdb;border-color:#3b5bdb;color:#fff}
+            .view-sniff .sn-btn.primary:hover{background:#3250c4}
+            .view-sniff .sn-btn.sm{padding:5px 11px;font-size:12px;border-radius:8px}
+            .view-sniff .sn-btn:disabled{opacity:.5;cursor:default}
+            .view-sniff .sn-input{border:1px solid #d7dae0;border-radius:9px;padding:8px 11px;font-size:13px;background:#fff;color:#222;font-family:inherit}
+            .view-sniff .sn-input:focus{outline:none;border-color:#3b5bdb;box-shadow:0 0 0 3px rgba(59,91,219,.12)}
+            .view-sniff .sn-num{width:60px;text-align:center}
+            .view-sniff .sn-field{display:flex;align-items:center;gap:6px;font-size:13px;color:#5a6068}
+            /* 博主行 */
+            .view-sniff .cw-creator{display:flex;align-items:center;gap:11px;padding:10px 12px;border:1px solid #eef0f3;border-radius:11px;margin-bottom:8px;background:#fbfbfc;transition:border-color .15s}
+            .view-sniff .cw-creator:hover{border-color:#cfd3da}
+            .view-sniff .cw-creator.off{opacity:.5}
+            .view-sniff .cw-creator.sel{border-color:#3b5bdb;background:#f5f7ff}
+            .view-sniff .cw-ava{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;background:#eef2ff;flex:0 0 auto}
+            .view-sniff .cw-c-main{flex:1;min-width:0;cursor:pointer}
+            .view-sniff .cw-c-title{font-weight:600;font-size:13.5px;color:#1a1d21;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+            .view-sniff .cw-c-sub{font-size:11.5px;color:#9aa0a8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+            .view-sniff .cw-c-err{font-size:11px;color:#e03131;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+            .view-sniff .cw-iconbtn{border:0;background:transparent;cursor:pointer;font-size:14px;color:#9aa0a8;padding:5px;border-radius:7px;line-height:1}
+            .view-sniff .cw-iconbtn:hover{background:#eef0f3;color:#333}
+            /* 视频清单 */
+            .view-sniff .cw-toolbar{display:flex;gap:7px;flex-wrap:wrap;align-items:center;padding-bottom:12px;border-bottom:1px dashed #ececf0;margin-bottom:12px}
+            .view-sniff .cw-video{display:flex;align-items:flex-start;gap:11px;padding:10px 11px;border:1px solid #eef0f3;border-radius:10px;margin-bottom:8px;background:#fff}
+            .view-sniff .cw-video:hover{background:#fafbff;border-color:#dfe3ea}
+            .view-sniff .cw-video input[type=checkbox]{margin-top:3px;flex:0 0 auto;width:15px;height:15px}
+            .view-sniff .cw-v-main{flex:1;min-width:0}
+            .view-sniff .cw-v-title{font-size:13px;color:#1a1d21;line-height:1.45}
+            .view-sniff .cw-v-meta{font-size:11px;color:#9aa0a8;margin-top:4px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+            .view-sniff .cw-v-zh{font-size:12px;color:#3b5bdb;margin-top:3px;line-height:1.4}
+            .view-sniff .cw-date{background:#f1f3f5;border-radius:5px;padding:0 7px;color:#6b7178}
+            .view-sniff .cw-vlink{color:#9aa0a8;text-decoration:none}
+            .view-sniff .cw-vlink:hover{color:#3b5bdb}
+            .view-sniff .cw-tag{display:inline-block;font-size:10.5px;border-radius:5px;padding:1px 7px;background:#eef2ff;color:#3b5bdb}
+            .view-sniff .cw-empty{color:#aeb3bb;font-size:12.5px;padding:22px 8px;text-align:center}
+            .view-sniff .cw-back{display:inline-flex;align-items:center;gap:5px;cursor:pointer;color:#3b5bdb;font-weight:600;font-size:13px;border:0;background:transparent;padding:0}
+            .view-sniff .cw-state{font-size:12px;color:#8a8f98}
+            .view-sniff .cw-scroll{max-height:560px;overflow:auto;padding-right:4px}
+            .view-sniff .sn-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+          </style>
+
+          <!-- 顶部并列标签：博主更新 / 网站动态 -->
+          <div class="sn-tabs" id="snTabs">
+            <button class="sn-tab active" data-sntab="creators">🎯 博主更新</button>
+            <button class="sn-tab" data-sntab="web">📡 网站动态</button>
           </div>
 
-          <!-- 怎么用：两种玩法 -->
-          <div class="sniff-guide">
-            <div class="sniff-guide-cards">
-              <div class="sniff-guide-card">
-                <div class="sniff-guide-icon">🔍</div>
-                <div class="sniff-guide-body">
-                  <div class="sniff-guide-title">① 快速嗅探 · 快速盯梢</div>
-                  <div class="sniff-guide-desc">软件飞快扫一遍你清单里的网站，和上次对比，把<b>新变化</b>列到右边「新动向」时间线里。每天看一眼有什么新东西。
-                    <span class="sniff-guide-tip">⚠ 第一次只记快照、不出内容；<b>第二次起</b>才会报新增。</span></div>
+          <!-- ══════════ 标签①：关注的博主（视频更新监控）══════════ -->
+          <div class="sn-tabpane" data-pane="creators">
+            <div class="sn-grid">
+              <!-- 左：我关注的博主 -->
+              <div>
+                <div class="sn-card">
+                  <div class="sn-card-head">
+                    <span class="sn-card-title">🎯 我关注的博主</span>
+                    <span class="sn-pill" id="cwCount">0</span>
+                    <span class="sn-spacer"></span>
+                    <button class="sn-btn sm primary" id="cwScanAll">扫描全部</button>
+                  </div>
+                  <div class="cw-state" id="cwScanState"></div>
+                  <div class="sn-hint">
+                    加你常看的抖音 / B站 / YouTube 博主主页，点某个博主可<b>列出他的视频</b>挑着提取；开「每天自动扫」后软件会把<b>新发的视频</b>攒到右侧「本次新增」。
+                    YouTube 需先在「设置→联网与代理」连上代理；抖音作品列表可能受签名限制取不到。
+                  </div>
+                  <div class="sn-row" style="margin-bottom:10px">
+                    <select id="cwAddPlatform" class="sn-input" style="flex:0 0 auto">
+                      <option value="auto">自动识别</option>
+                      <option value="douyin">抖音</option>
+                      <option value="bilibili">B站</option>
+                      <option value="youtube">YouTube</option>
+                    </select>
+                    <input type="text" id="cwAddUrl" class="sn-input" style="flex:1;min-width:150px" placeholder="博主主页链接" />
+                  </div>
+                  <div class="sn-row" style="margin-bottom:12px">
+                    <input type="text" id="cwAddTitle" class="sn-input" style="flex:1;min-width:120px" placeholder="备注名（可留空）" />
+                    <button class="sn-btn primary" id="cwAddBtn">添加博主</button>
+                  </div>
+                  <div class="sn-row" style="gap:14px;padding:10px 0;border-top:1px solid #f1f3f5;border-bottom:1px solid #f1f3f5;margin-bottom:12px">
+                    <label class="sniff-switch"><input type="checkbox" id="cwAuto" /><span class="sniff-switch-track"></span><span class="sniff-switch-label">每天自动扫</span></label>
+                    <span class="sn-field">每天 <input type="number" id="cwHour" class="sn-input sn-num" value="9" min="0" max="23" /> 点</span>
+                    <span class="sn-field">每次最多 <input type="number" id="cwPerScan" class="sn-input sn-num" value="15" min="1" max="50" /> 条</span>
+                    <button class="sn-btn sm" id="cwCfgSave">保存</button>
+                  </div>
+                  <div id="cwList" class="cw-scroll"><div class="cw-empty">还没有博主。上面填主页链接，点「添加博主」。</div></div>
                 </div>
               </div>
-              <div class="sniff-guide-card">
-                <div class="sniff-guide-icon">📄</div>
-                <div class="sniff-guide-body">
-                  <div class="sniff-guide-title">② 深度嗅探 · 深度调研</div>
-                  <div class="sniff-guide-desc">让<b>网页模型 AI</b> 一个个站点自己去搜索、读取、总结，出一份<b>带原文链接的中文报告</b>（和「生成情报简报」同一套）。慢一点，适合要一份能存、能发的报告。</div>
+
+              <!-- 右：工作区（默认显示「本次新增」；点某个博主切到「他的视频清单」）-->
+              <div>
+                <div class="sn-card">
+                  <!-- 默认：本次新增（自动扫攒下的新视频）-->
+                  <div id="cwDigestView">
+                    <div class="sn-card-head">
+                      <span class="sn-card-title">🆕 本次新增</span>
+                      <span class="sn-pill" id="cwFindCount">0</span>
+                      <span class="sn-spacer"></span>
+                      <span class="cw-state">每天自动扫到的新视频会出现在这里</span>
+                    </div>
+                    <div class="sn-hint">⚠ 第一次添加某个博主只记录现状、<b>不报新增</b>；第二次起才报新视频。勾选后「提取选中」批量送进队列。</div>
+                    <div class="sn-toolbar">
+                      <label class="sniff-switch sniff-switch-sm" title="全选/全不选"><input type="checkbox" id="cwSelAll" /><span class="sniff-switch-track"></span><span class="sniff-switch-label">全选</span></label>
+                      <button class="sn-btn sm primary" id="cwExtractBtn">提取选中</button>
+                      <button class="sn-btn sm" id="cwDismissBtn">忽略选中</button>
+                      <span class="sn-spacer"></span>
+                      <button class="sn-btn sm" id="cwClearBtn">清空</button>
+                    </div>
+                    <div id="cwFindings" class="cw-scroll"><div class="cw-empty">暂无新视频。点左边某个博主「查看视频」，或点「扫描全部」。</div></div>
+                  </div>
+
+                  <!-- 切换：单个博主的视频清单 -->
+                  <div id="cwVideoView" hidden>
+                    <div class="sn-card-head">
+                      <button class="cw-back" id="cwBack">← 返回本次新增</button>
+                      <span class="sn-spacer"></span>
+                      <button class="sn-btn sm" id="cwVideoRefresh">刷新</button>
+                    </div>
+                    <div class="sn-card-title" id="cwVideoTitle" style="margin:8px 0 2px;font-size:15px">视频清单</div>
+                    <div class="cw-state" id="cwVideoState"></div>
+                    <div class="cw-toolbar">
+                      <span class="sn-field">显示
+                        <input type="text" id="cwVideoLimit" class="sn-input sn-num" placeholder="全部" style="width:64px" /> 条
+                        <span style="color:#aeb3bb;font-size:11px">（留空=全部，改完点「刷新」）</span>
+                      </span>
+                      <span class="sn-spacer"></span>
+                      <button class="sn-btn sm" id="cwSelAllV">全选</button>
+                      <button class="sn-btn sm" id="cwPick7">最近7天</button>
+                      <button class="sn-btn sm" id="cwPick30">最近30天</button>
+                      <button class="sn-btn sm" id="cwClearSelV">清空勾选</button>
+                    </div>
+                    <div id="cwVideos" class="cw-scroll"><div class="cw-empty">加载中…</div></div>
+                    <div class="sn-row" style="margin-top:12px;padding-top:12px;border-top:1px solid #f1f3f5">
+                      <button class="sn-btn primary" id="cwExtractV">提取选中（0）</button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
-            <div class="sniff-guide-note">两种用法<b>互相独立</b>，不用先点谁：想快速看变化点右上角「快速嗅探」；想要成文报告点「深度嗅探」。</div>
           </div>
 
-          <!-- 实时嗅探进度（运行时显示，逐个网站报状态）-->
-          <div class="sniff-progress" id="sniffProgress" hidden>
-            <div class="sniff-prog-head">
-              <span class="sniff-prog-spin"></span>
-              <span class="sniff-prog-stage" id="sniffProgStage">正在嗅探…</span>
-              <span class="sniff-prog-count" id="sniffProgCount"></span>
-            </div>
-            <div class="sniff-prog-list" id="sniffProgList"></div>
-          </div>
-
-          <div class="sniff-cols">
-            <!-- 左：嗅探源管理 -->
-            <div class="sniff-col sniff-sources-col">
-              <div class="sniff-panel">
-                <div class="sniff-panel-head">
-                  <span class="sniff-panel-title">嗅探源</span>
-                  <span class="sniff-count-pill" id="sniffSrcCount">·</span>
-                </div>
-                <div class="sniff-panel-hint">你想盯哪些网站，在这里加/删/开关。下面两种用法都用这份清单。</div>
-                <div class="sniff-add">
-                  <input type="text" id="sniffAddTitle" class="sniff-input" placeholder="名称，如 OpenAI 新闻" />
-                  <div class="sniff-add-row">
-                    <input type="text" id="sniffAddUrl" class="sniff-input" placeholder="https://…" />
-                    <button class="sniff-add-btn" id="sniffAddBtn" title="添加到清单">添加</button>
-                  </div>
-                  <div class="sniff-add-cat">
-                    <span class="sniff-add-cat-label">归到类别</span>
-                    <input type="text" id="sniffAddCat" class="sniff-input" list="sniffCatList" value="AI动态" placeholder="如 AI动态 / 竞品" />
-                    <datalist id="sniffCatList"></datalist>
-                  </div>
-                </div>
-                <div class="sniff-engine">
-                  <span class="sniff-engine-label">「快速嗅探」用哪个模型</span>
-                  <select id="sniffEngine" class="sniff-input">
-                    <option value="follow">跟随对话模型（快）</option>
-                    <option value="web">网页模型（更强·更慢）</option>
-                    <option value="claude">Claude（若已配·更强）</option>
-                  </select>
-                </div>
-                <div class="sniff-engine-hint">只影响①「快速嗅探」时间线的总结质量；②「深度嗅探」固定用网页模型。改完点下面「保存」生效。</div>
-                <div class="sniff-auto">
-                  <label class="sniff-switch">
-                    <input type="checkbox" id="sniffAuto" />
-                    <span class="sniff-switch-track"></span>
-                    <span class="sniff-switch-label">自动嗅探</span>
-                  </label>
-                  <span class="sniff-auto-every">每
-                    <input type="number" id="sniffEvery" class="sniff-num" value="6" min="1" max="100" />
-                    次心跳</span>
-                  <button class="sniff-mini-btn" id="sniffAutoSave">保存</button>
-                </div>
-                <div class="sniff-sources" id="sniffSources"><div class="sniff-empty">加载中…</div></div>
+          <!-- ══════════ 标签②：网站动态嗅探（原 AI 雷达）══════════ -->
+          <div class="sn-tabpane" data-pane="web" hidden>
+            <!-- 概览条 -->
+            <div class="sniff-overview">
+              <div class="sniff-ov-text">
+                <div class="sniff-ov-title">盯着 AI 圈，有新东西第一时间告诉你</div>
+                <div class="sniff-ov-sub">抓取你关心的网站 · 和上次对比 · 只把新的「发布 / 功能 / 概念」提炼给你，已报过的不重复</div>
               </div>
+              <div class="sniff-ov-stats" id="sniffStats"></div>
             </div>
 
-            <!-- 右：dashboard（类别概览 + 动向）-->
-            <div class="sniff-col sniff-feed-col">
-              <div class="sniff-cat-tiles" id="sniffCatTiles"></div>
-              <div class="sniff-panel">
-                <div class="sniff-panel-head">
-                  <span class="sniff-panel-title">新动向</span>
-                  <span class="sniff-cat-active" id="sniffCatActive"></span>
-                  <div class="sniff-filters" id="sniffFilters">
-                    <button class="sniff-chip active" data-k="all">全部</button>
-                    <button class="sniff-chip" data-k="发布">🆕 发布</button>
-                    <button class="sniff-chip" data-k="功能">🧩 功能</button>
-                    <button class="sniff-chip" data-k="概念">💡 概念</button>
+            <!-- 操作条：快速嗅探 / 深度嗅探 / 刷新 -->
+            <div class="sn-toolbar">
+              <button id="sniffRunBtn" class="sn-btn primary" title="① 快速盯梢：扫一遍所有网站，把新变化列到时间线（很快）">⚡ 快速嗅探</button>
+              <button id="sniffBriefBtn" class="sn-btn" title="② 深度调研：让网页模型 AI 逐站搜+读+总结，生成一份带来源的报告（较慢）">📄 深度嗅探</button>
+              <span class="sn-spacer"></span>
+              <button id="sniffRefreshBtn" class="sn-btn sm" title="刷新时间线">刷新</button>
+            </div>
+
+            <!-- 怎么用：两种玩法 -->
+            <div class="sniff-guide">
+              <div class="sniff-guide-cards">
+                <div class="sniff-guide-card">
+                  <div class="sniff-guide-icon">🔍</div>
+                  <div class="sniff-guide-body">
+                    <div class="sniff-guide-title">① 快速嗅探 · 快速盯梢</div>
+                    <div class="sniff-guide-desc">软件飞快扫一遍你清单里的网站，和上次对比，把<b>新变化</b>列到下面「新动向」时间线里。每天看一眼有什么新东西。
+                      <span class="sniff-guide-tip">⚠ 第一次只记快照、不出内容；<b>第二次起</b>才会报新增。</span></div>
                   </div>
-                  <button class="sniff-mini-btn sniff-clear" id="sniffClearBtn" title="清空时间线">清空</button>
                 </div>
-                <div class="sniff-panel-hint">这条时间线来自①「快速嗅探」。点上面的类别卡或下面的标签可筛选。</div>
-                <div class="sniff-feed" id="sniffFeed"></div>
+                <div class="sniff-guide-card">
+                  <div class="sniff-guide-icon">📄</div>
+                  <div class="sniff-guide-body">
+                    <div class="sniff-guide-title">② 深度嗅探 · 深度调研</div>
+                    <div class="sniff-guide-desc">让<b>网页模型 AI</b> 一个个站点自己去搜索、读取、总结，出一份<b>带原文链接的中文报告</b>（和「生成情报简报」同一套）。慢一点，适合要一份能存、能发的报告。</div>
+                  </div>
+                </div>
+              </div>
+              <div class="sniff-guide-note">两种用法<b>互相独立</b>，不用先点谁：想快速看变化点「快速嗅探」；想要成文报告点「深度嗅探」。</div>
+            </div>
+
+            <!-- 实时嗅探进度（运行时显示）-->
+            <div class="sniff-progress" id="sniffProgress" hidden>
+              <div class="sniff-prog-head">
+                <span class="sniff-prog-spin"></span>
+                <span class="sniff-prog-stage" id="sniffProgStage">正在嗅探…</span>
+                <span class="sniff-prog-count" id="sniffProgCount"></span>
+              </div>
+              <div class="sniff-prog-list" id="sniffProgList"></div>
+            </div>
+
+            <div class="sn-grid">
+              <!-- 左：嗅探源管理 -->
+              <div>
+                <div class="sn-card">
+                  <div class="sn-card-head">
+                    <span class="sn-card-title">📋 嗅探源</span>
+                    <span class="sn-pill" id="sniffSrcCount">·</span>
+                  </div>
+                  <div class="sn-hint">你想盯哪些网站，在这里加/删/开关。上面两种用法都用这份清单。</div>
+                  <div class="sniff-add">
+                    <input type="text" id="sniffAddTitle" class="sn-input" style="width:100%;margin-bottom:8px" placeholder="名称，如 OpenAI 新闻" />
+                    <div class="sn-row" style="margin-bottom:8px">
+                      <input type="text" id="sniffAddUrl" class="sn-input" style="flex:1;min-width:140px" placeholder="https://…" />
+                      <button class="sn-btn primary" id="sniffAddBtn" title="添加到清单">添加</button>
+                    </div>
+                    <div class="sn-field" style="margin-bottom:10px">
+                      <span style="white-space:nowrap">归到类别</span>
+                      <input type="text" id="sniffAddCat" class="sn-input" style="flex:1" list="sniffCatList" value="AI动态" placeholder="如 AI动态 / 竞品" />
+                      <datalist id="sniffCatList"></datalist>
+                    </div>
+                  </div>
+                  <div class="sn-field" style="margin-bottom:6px">
+                    <span style="white-space:nowrap">快速嗅探模型</span>
+                    <select id="sniffEngine" class="sn-input" style="flex:1">
+                      <option value="follow">跟随对话模型（快）</option>
+                      <option value="web">网页模型（更强·更慢）</option>
+                      <option value="claude">Claude（若已配·更强）</option>
+                    </select>
+                  </div>
+                  <div class="sn-hint" style="margin:0 0 10px">只影响①「快速嗅探」的总结质量；②「深度嗅探」固定用网页模型。改完点「保存」生效。</div>
+                  <div class="sn-row" style="gap:12px;padding:10px 0;border-top:1px solid #f1f3f5;margin-bottom:12px">
+                    <label class="sniff-switch"><input type="checkbox" id="sniffAuto" /><span class="sniff-switch-track"></span><span class="sniff-switch-label">自动嗅探</span></label>
+                    <span class="sn-field">每 <input type="number" id="sniffEvery" class="sn-input sn-num" value="6" min="1" max="100" /> 次心跳</span>
+                    <button class="sn-btn sm" id="sniffAutoSave">保存</button>
+                  </div>
+                  <div class="sniff-sources cw-scroll" id="sniffSources"><div class="sniff-empty">加载中…</div></div>
+                </div>
+              </div>
+
+              <!-- 右：dashboard（类别概览 + 动向）-->
+              <div>
+                <div class="sniff-cat-tiles" id="sniffCatTiles"></div>
+                <div class="sn-card">
+                  <div class="sn-card-head">
+                    <span class="sn-card-title">📰 新动向</span>
+                    <span class="sniff-cat-active" id="sniffCatActive"></span>
+                    <span class="sn-spacer"></span>
+                    <div class="sniff-filters" id="sniffFilters">
+                      <button class="sniff-chip active" data-k="all">全部</button>
+                      <button class="sniff-chip" data-k="发布">🆕 发布</button>
+                      <button class="sniff-chip" data-k="功能">🧩 功能</button>
+                      <button class="sniff-chip" data-k="概念">💡 概念</button>
+                    </div>
+                    <button class="sn-btn sm" id="sniffClearBtn" title="清空时间线">清空</button>
+                  </div>
+                  <div class="sn-hint">这条时间线来自①「快速嗅探」。点上面的类别卡或上面的标签可筛选。</div>
+                  <div class="sniff-feed cw-scroll" id="sniffFeed"></div>
+                </div>
               </div>
             </div>
           </div>

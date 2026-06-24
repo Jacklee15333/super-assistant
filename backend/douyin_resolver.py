@@ -452,15 +452,18 @@ def fetch_meta(url):
         title = (info.get("title") or "").strip()
         uploader = (info.get("uploader") or "").strip()
         tags = info.get("tags") or []
+        # display_title：只用真实信息合成（话题标签 / 「作者 的视频」），不含裸 ID。
         display = _compose_display_title(title, tags, uploader)
-        if display:
-            return {"ok": True, "title": title, "display_title": display,
-                    "uploader": uploader, "tags": tags}
-        return {"ok": False, "title": "", "display_title": "",
-                "uploader": "", "tags": []}
+        # fallback_title：连标题/标签/作者都没有时的最后占位，单独放一个字段，
+        # 绝不让它冒充真实标题去抢在 yt-dlp 兜底之前（否则真实标题会被占位符截断）。
+        aid = (info.get("aweme_id") or "").strip() or (_resolve_id(url) or "")
+        fallback = ("抖音视频 …%s" % aid[-6:]) if aid else ""
+        ok = bool(title or display or fallback)
+        return {"ok": ok, "title": title, "display_title": display,
+                "uploader": uploader, "tags": tags, "fallback_title": fallback}
     except Exception as e:
         return {"ok": False, "title": "", "display_title": "",
-                "uploader": "", "tags": [], "error": str(e)}
+                "uploader": "", "tags": [], "fallback_title": "", "error": str(e)}
 
 
 

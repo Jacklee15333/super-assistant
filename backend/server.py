@@ -69,6 +69,7 @@ _LOG_QUIET_PATHS = {
     "/web_model/state", "/web_model/config", "/loop/status", "/insight/status",
     "/insight/config", "/system_access", "/claude_config", "/harness/config",
     "/sniff/config", "/skills/list", "/datadb/list", "/memory/list",
+    "/creator/list", "/creator/findings",
 }
 
 # 给少数关键路径配一句「人话」描述，让日志一眼能看懂用户在干嘛。
@@ -259,6 +260,10 @@ def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None
         "请帮我做一份**尽量详细、有深度、信息密度高、排版清晰**的中文笔记——宁可写长一点、"
         "写透一点，也不要简略带过。把视频里讲到的具体事例、数字、人名/品牌名、原话、因果逻辑"
         "都尽量保留下来。\n\n"
+        "【语言要求】不论原视频是中文还是英文/其它语言，这份笔记一律用**简体中文**输出。"
+        "若原文是英文等外语，请把内容**准确翻译、用流畅的中文**讲清楚，不要整段照抄外语原文；"
+        "但**专有名词、人名、产品/公司/项目名、关键技术术语**，以及「金句摘录」里引用的原话，"
+        "请保留原文并在括号里附上中文（中英对照），方便对照查证。\n\n"
         "【排版要求】用 Markdown，层次分明、重点突出：每个大块用 `## 小标题`；"
         "「核心观点」「值得记住的点 / 行动建议」里的每一条，用 `### 序号. 小标题` 起头（序号连续），"
         "下面再写详细的正文段落；善用分段，让人一眼看到重点。\n\n"
@@ -271,7 +276,7 @@ def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None
         "## 关键事实与数据\n把视频里出现的**具体事实、数字、名称、案例**单独分条罗列，"
         "比如金额、比例、时间、涉及的公司/品牌/人物、提到的类似事件等，方便日后查证和引用。\n\n"
         "## 金句摘录\n从文字稿里挑 4-6 句最有价值或最有意思的原话，照原话摘出来（用引号），"
-        "可稍微顺一下口语里明显的错别字。\n\n"
+        "可稍微顺一下口语里明显的错别字；若原话是英文等外语，引用原话后**紧跟一行中文翻译**。\n\n"
         "## 值得记住的点 / 行动建议\n用 `### 序号. 小标题` + 详细正文，分条写作者给的具体建议、"
         "可操作的做法或最有用的信息，越具体、越能落地越好。\n\n"
         "## 我的点评\n用 4-6 句客观点评：这些观点有没有道理、哪里值得认同、"
@@ -333,6 +338,54 @@ def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None
                 (resp.choices[0].message.content or "").strip()) or f"（分析出错：{e}）"
         except Exception as e2:
             return f"（分析出错：{e2}）"
+
+
+def _translate_lines(texts, use_local=True, model="qwen2.5"):
+    """把多行短文本（如视频标题）批量翻译成简体中文。返回与输入等长的列表，
+    翻不动的那条回退为空串（前端就保持原文）。一次模型调用搞定，带编号防错位。"""
+    items = [(t or "").replace("\n", " ").strip() for t in (texts or [])]
+    if not any(items):
+        return ["" for _ in items]
+    # 防御性上限：一次最多翻 80 条，超出的保持空（前端通常已先行截断）
+    n_all = len(items)
+    capped = items[:80]
+    numbered = "\n".join("%d. %s" % (i + 1, t) for i, t in enumerate(capped))
+    # 翻译是纯文本小任务：绝不用「网页模型」（它会对每条标题去联网搜索，又慢又怪），
+    # 用本地模型最稳最快；若指定的是网页模型就强制回退本地。
+    try:
+        if (not use_local) and core.is_web_model(model):
+            use_local, model = True, "qwen2.5"
+    except Exception:
+        use_local, model = True, "qwen2.5"
+    prompt = (
+        "你是翻译助手。把下面每一行视频标题翻译成**简洁、自然的简体中文**。\n"
+        "要求：① 每行只输出「编号. 中文译文」，编号和原文一一对应；"
+        "② 不要解释、不要输出原文、不要加多余的行；"
+        "③ 人名、产品名、专有名词可保留英文。\n\n"
+        "标题列表：\n" + numbered + "\n")
+    out_map = {}
+
+    def _run(_use_local, _model):
+        client = core.make_client_for(_model, _use_local) if not _use_local else core.make_client(True)
+        resp = client.chat.completions.create(
+            model=_model, messages=[{"role": "user", "content": prompt}])
+        return (resp.choices[0].message.content or "").strip()
+
+    raw = ""
+    try:
+        raw = _run(use_local, model)
+    except Exception:
+        try:
+            raw = _run(True, "qwen2.5")   # 回退本地
+        except Exception:
+            raw = ""
+    for line in (raw or "").splitlines():
+        m = re.match(r"^\s*(\d+)[\.\)、:：]\s*(.+)$", line.strip())
+        if m:
+            idx = int(m.group(1)) - 1
+            if 0 <= idx < len(capped):
+                out_map[idx] = m.group(2).strip()
+    return [out_map.get(i, "") for i in range(n_all)]
 
 
 def _clean_ai_tags(raw):
@@ -745,21 +798,24 @@ def _quick_title(url, timeout=8):
     拿不到就返回空串——调用方退回显示链接，绝不阻塞主流程。"""
     try:
         import video_transcribe as _vt
+        _dy_composed = ""   # 抖音：话题标签 /「作者 的视频」合成名（次选）
+        _dy_fallback = ""   # 抖音：「抖音视频 …ID」占位（最后兜底，避免一直「获取名称中…」）
         if _vt._is_douyin(url):
-            # ① 先走抖音分享页解析（最稳，能拿到 desc 当标题）
+            # ① 先走抖音分享页/接口解析，拿「真实文案 desc」当标题（最佳）
             try:
                 import douyin_resolver
-                meta = douyin_resolver.fetch_meta(url)
-                if meta.get("ok"):
-                    t = (meta.get("title") or "").strip()
-                    if t:
-                        return t
+                meta = douyin_resolver.fetch_meta(url) or {}
+                t = (meta.get("title") or "").strip()   # 真实 desc
+                if t:
+                    return t
+                # 暂存次选/占位，等 yt-dlp 兜底失败后才用
+                _dy_composed = (meta.get("display_title") or "").strip()
+                _dy_fallback = (meta.get("fallback_title") or "").strip()
             except Exception:
                 pass
-            # ② 抖音分享页没拿到 → 用 yt-dlp 兜底取标题（注意先规范化 URL，
-            #    否则 iesdouyin 长链会报 Unsupported URL）
-            # 继续往下走通用的 yt-dlp 探测
-        # 通用 / 抖音兜底：yt-dlp 只取 info（skip_download），放在线程里跑并设超时
+            # ② 没拿到真实文案 → 继续往下走 yt-dlp 兜底取真实标题。
+            #    关键修复：以前占位符会在这里直接 return，把能拿到真实标题的 yt-dlp 这步截断了。
+        # 通用 / 抖音兜底：yt-dlp 只取 info（skip_download），放线程里跑并设超时
         import threading as _th
         probe_url = _normalize_video_url(url)
         box = {"t": ""}
@@ -776,6 +832,13 @@ def _quick_title(url, timeout=8):
         th = _th.Thread(target=_probe, daemon=True)
         th.start()
         th.join(timeout)
+        if box["t"]:
+            return box["t"]
+        # yt-dlp 也没拿到 → 抖音退到「标签/作者」合成名，再退到「抖音视频…ID」占位
+        if _dy_composed:
+            return _dy_composed
+        if _dy_fallback:
+            return _dy_fallback
         return box["t"]
     except Exception:
         return ""
@@ -1203,6 +1266,26 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send({"feed": [], "error": str(e)}, 200)
 
+        if path == "/creator/list":
+            # 博主监控：清单 + 配置（每天几点自动扫等）
+            try:
+                import creator_watch
+                return self._send({"ok": True,
+                                   "creators": creator_watch.list_creators(),
+                                   "config": creator_watch.get_config()})
+            except Exception as e:
+                return self._send({"ok": False, "creators": [], "error": str(e)}, 200)
+
+        if path == "/creator/findings":
+            # 博主监控：「本次新增」待办清单 + 扫描运行状态
+            try:
+                import creator_watch
+                return self._send({"ok": True,
+                                   "findings": creator_watch.get_findings(),
+                                   "scan": creator_watch.get_scan_state()})
+            except Exception as e:
+                return self._send({"ok": False, "findings": [], "error": str(e)}, 200)
+
         if path == "/insight/status":
             # 「洞察」爬虫：返回配置 / 可分析篇数 / 运行日志 / 最近报告 / 调度状态
             try:
@@ -1587,6 +1670,120 @@ class Handler(BaseHTTPRequestHandler):
                 import sniffer
                 sniffer.clear_feed()
                 return self._send({"ok": True})
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        # ───────────── 博主监控（关注的博主主页 → 列新视频 → 勾选批量提取）─────────────
+        if path == "/creator/add":
+            try:
+                import creator_watch
+                return self._send(creator_watch.add_creator(
+                    body.get("url", ""),
+                    platform=body.get("platform", "auto"),
+                    title=body.get("title", "")))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/creator/delete":
+            try:
+                import creator_watch
+                return self._send(creator_watch.delete_creator(body.get("id", "")))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/creator/toggle":
+            try:
+                import creator_watch
+                return self._send(creator_watch.toggle_creator(
+                    body.get("id", ""), body.get("enabled", True)))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/creator/rename":
+            try:
+                import creator_watch
+                return self._send(creator_watch.rename_creator(
+                    body.get("id", ""), body.get("title", "")))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/creator/translate":
+            # 把若干视频标题批量翻译成中文（前端列视频后调用，给英文标题配中文）
+            try:
+                titles = body.get("titles") or []
+                zh = _translate_lines(titles,
+                                      use_local=body.get("use_local", True),
+                                      model=body.get("model", "qwen2.5"))
+                return self._send({"ok": True, "translations": zh})
+            except Exception as e:
+                return self._send({"ok": False, "translations": [], "message": str(e)}, 200)
+
+        if path == "/creator/videos":
+            # 列出某博主主页最近的视频（只读，不动快照），给界面挑选/批量提取用
+            try:
+                import creator_watch
+                data = creator_watch.list_videos(body.get("id", ""), body.get("limit", 30))
+                return self._send({"ok": True, **data})
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/creator/scan":
+            # 带 id：同步扫这一个（前端等结果）；不带 id：后台扫全部（前端轮询状态）
+            try:
+                import creator_watch
+                cid = (body.get("id") or "").strip()
+                if cid:
+                    return self._send({"ok": True, "result": creator_watch.scan_one(cid)})
+                return self._send(creator_watch.scan_all_async())
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/creator/extract":
+            # 把勾选的视频灌进视频提取队列，并从待办里移除。
+            try:
+                import creator_watch
+                items = body.get("items") or []
+                level = body.get("level", "balanced")
+                use_local = body.get("use_local", True)
+                model = body.get("model", "qwen2.5")
+                mode = body.get("mode") or "auto"
+                if mode not in ("auto", "subtitle_only", "transcribe"):
+                    mode = "auto"
+                queued, done_keys = 0, []
+                for it in items:
+                    u = (it.get("url") or "").strip()
+                    if not u:
+                        continue
+                    _enqueue_video({"url": u, "level": level, "use_local": use_local,
+                                    "model": model, "screenshot": False, "link": False,
+                                    "mode": mode})
+                    queued += 1
+                    done_keys.append({"creator_id": it.get("creator_id"),
+                                      "vid": it.get("vid"), "url": u})
+                if done_keys:
+                    creator_watch.remove_findings(done_keys)
+                return self._send({"ok": True, "queued": queued})
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/creator/dismiss":
+            try:
+                import creator_watch
+                return self._send(creator_watch.remove_findings(body.get("items") or []))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/creator/clear":
+            try:
+                import creator_watch
+                return self._send(creator_watch.clear_findings())
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/creator/config":
+            try:
+                import creator_watch
+                return self._send({"ok": True, "config": creator_watch.save_config(body)})
             except Exception as e:
                 return self._send({"ok": False, "message": str(e)}, 200)
 
@@ -2521,6 +2718,16 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:
             return self._send({"ok": False, "error": f"模块加载失败：{e}"})
 
+        # ★境外视频（YouTube 等）预检：先看代理通不通、上不上得了外网。
+        #   不通就早早给一句清楚的提示，而不是让用户干等三五十秒超时。
+        #   国内平台（抖音/B站/快手…）不受影响，不会被拦。
+        try:
+            ok_reach, reach_msg = video_transcribe.check_foreign_reachable(url)
+            if not ok_reach:
+                return self._send({"ok": False, "error": reach_msg})
+        except Exception:
+            pass  # 预检本身出错就不拦，照常往下走
+
         missing = video_transcribe.check_deps()
         if missing:
             # 依赖没装齐，但如果这个链接能直接拿到平台字幕、且用户没强制要听写，
@@ -2911,6 +3118,12 @@ def main():
         insight_crawler.boot_scheduler()
     except Exception as e:
         print("[insight] 调度启动失败：%s" % e)
+    # 博主监控：拉起每日定时扫描线程（不依赖心跳进程，打包后也能跑）
+    try:
+        import creator_watch
+        creator_watch.boot_scheduler()
+    except Exception as e:
+        print("[creator] 调度启动失败：%s" % e)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

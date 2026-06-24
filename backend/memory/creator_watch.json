@@ -1,0 +1,39 @@
+{
+  "config": {
+    "auto": false,
+    "hour": 9,
+    "per_scan": 15
+  },
+  "last_scan_date": "",
+  "creators": [
+    {
+      "id": "cw1782300547610680",
+      "platform": "youtube",
+      "title": "Dwarkesh Patel",
+      "url": "https://www.youtube.com/@DwarkeshPatel",
+      "enabled": true,
+      "added": "2026-06-24 19:29",
+      "last_checked": "2026-06-24 20:08",
+      "last_count": 15,
+      "known_ids": [
+        "myP8UjAM1pk",
+        "oIk3R-sMX5o",
+        "4pG3SJQPAwk",
+        "Jj-kBHzUohs",
+        "U1FrhkLQnCI",
+        "xmkSf5IS-zw",
+        "OS1NZLgKM2c",
+        "sRKBGVFVYAw",
+        "Q8Fkpi18QXU",
+        "PAIhVfGbREA",
+        "n1E9IZfvGMA",
+        "mDG_Hx3BSUE",
+        "Hrbq66XqtCo",
+        "X_ZVSPcZhtw",
+        "KBPOTklFTiU"
+      ],
+      "last_error": ""
+    }
+  ],
+  "findings": []
+}

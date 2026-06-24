@@ -275,6 +275,27 @@ def _yt_parse_vtt(raw_text):
     return segments
 
 
+def _yt_proxy_opts():
+    """YouTube 字幕也要走代理（国内直连 youtube.com 会超时）。读「设置→联网与代理」。
+    顺带挂一个哑日志器，免得 yt-dlp 往控制台刷错误。"""
+    o = {}
+    try:
+        import web_tools
+        p = web_tools._read_proxy()
+        if p:
+            o["proxy"] = p
+    except Exception:
+        pass
+
+    class _SL:
+        def debug(self, m): pass
+        def info(self, m): pass
+        def warning(self, m): pass
+        def error(self, m): pass
+    o["logger"] = _SL()
+    return o
+
+
 def fetch_youtube(url):
     """YouTube 字幕总入口（用 yt-dlp 取轨，不下载视频）。拿不到返回 None。"""
     try:
@@ -295,6 +316,7 @@ def fetch_youtube(url):
         "nocheckcertificate": True,
         "socket_timeout": 30,
     }
+    opts.update(_yt_proxy_opts())   # YouTube 走代理
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -437,6 +459,7 @@ def detect_subtitle(url, bili_cookie=""):
             opts = {"quiet": True, "no_warnings": True, "noplaylist": True,
                     "skip_download": True, "nocheckcertificate": True,
                     "socket_timeout": 30}
+            opts.update(_yt_proxy_opts())   # YouTube 走代理，否则国内直连超时
             try:
                 with yt_dlp.YoutubeDL(opts) as ydl:
                     info = ydl.extract_info(url, download=False)

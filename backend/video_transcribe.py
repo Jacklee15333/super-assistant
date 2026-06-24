@@ -277,6 +277,85 @@ def _is_douyin(url):
         "douyin.com", "iesdouyin.com", "v.douyin", "tiktok.com"))
 
 
+# ════════════════════ 代理 / 境外可达性（YouTube 等需要） ════════════════════
+# 背景：用户在国内，YouTube 直连会「Connection timed out」。软件设置里已有代理
+#   （设置→联网与代理），但视频这条 yt-dlp 链路之前没把代理传进去，所以一直超时。
+#   这里统一：① 给 yt-dlp 配代理（仅境外平台，抖音/B站等国内站保持直连）；
+#   ② 提取 YouTube 前先探一下代理通不通，不通就早早给用户一句清楚的提示，
+#      而不是干等三五十秒超时。
+
+class _SilentLogger:
+    """喂给 yt-dlp 的哑日志器：吞掉它往控制台刷的 ERROR/WARNING（比如抖音的
+    『Unsupported URL』），避免刷屏。真正成败我们靠异常/文件判断，不靠它打印。"""
+    def debug(self, msg): pass
+    def info(self, msg): pass
+    def warning(self, msg): pass
+    def error(self, msg): pass
+
+
+def _read_proxy():
+    """读用户在「设置→联网与代理」里填的代理地址。没配返回空串。"""
+    try:
+        import web_tools
+        return web_tools._read_proxy() or ""
+    except Exception:
+        return ""
+
+
+def _is_youtube(url):
+    u = (url or "").lower()
+    return ("youtube.com" in u) or ("youtu.be" in u)
+
+
+def _needs_proxy(url):
+    """这个平台是不是境外站、需要走代理才能访问。抖音/B站/快手等国内站返回 False。"""
+    u = (url or "").lower()
+    return any(k in u for k in ("youtube.com", "youtu.be", "tiktok.com",
+                                "vimeo.com"))
+
+
+def _proxy_opts(url):
+    """给 yt-dlp 的代理参数：境外站且配了代理才加 {'proxy': ...}；否则空字典（直连）。
+    抖音/B站等国内站永远直连，不受代理影响。"""
+    if not _needs_proxy(url):
+        return {}
+    p = _read_proxy()
+    return {"proxy": p} if p else {}
+
+
+def check_foreign_reachable(url, timeout=12):
+    """提取境外视频（YouTube 等）前的预检。返回 (ok, message)。
+    · 没配代理 → ok=False，提示去设置填代理；
+    · 配了代理但连不上境外站 → ok=False，提示连上加速器/检查端口；
+    · 能连上 → ok=True。
+    只对境外平台做预检；国内平台一律 ok=True，不拦。"""
+    if not _needs_proxy(url):
+        return True, ""
+    p = _read_proxy()
+    if not p:
+        return (False,
+                "提取 YouTube 需要走代理。请先到「设置 → 联网与代理」填上你的加速器"
+                "本地地址（如 http://127.0.0.1:7897），连上后再试。")
+    # 用配置的代理探一下 YouTube 首页能不能打开
+    try:
+        import web_tools
+        page = web_tools._fetch("https://www.youtube.com/", timeout=timeout, use_proxy=True)
+        if (page or "").strip():
+            return True, ""
+        return (False,
+                "代理连上了但没读到 YouTube 内容，换个端口或在加速器里切个节点再试。")
+    except Exception as e:
+        reason = str(e)
+        try:
+            import sniffer
+            reason = sniffer._humanize_err(e)
+        except Exception:
+            pass
+        return (False,
+                "检测不到可用代理 / 上不了外网（%s）。请确认你的加速器（如小麦加速）已连接，"
+                "且本地端口和「设置→联网与代理」里填的一致（你的是 7897）。" % reason)
+
+
 def _write_netscape_cookies(cookies, path):
     """把 {名:值} 写成 yt-dlp 能读的 Netscape cookie 文件。成功返回 True。"""
     try:
@@ -443,6 +522,9 @@ def _douyin_attempts(url, base_opts):
     def mk(**extra):
         o = dict(base_opts)
         o["http_headers"] = dict(base_hdrs)
+        # 哑日志：抖音 yt-dlp 兜底失败时本会刷一屏「Unsupported URL」，这里吞掉，
+        # 真正成败靠返回值/异常判断。
+        o.setdefault("logger", _SilentLogger())
         o.update(extra)
         return o
 
@@ -481,6 +563,9 @@ def _run_extract(url, base_opts, download):
     if not _is_douyin(url):
         # 非抖音：保持原行为（_apply_douyin_opts 对非抖音是原样返回，等于没动）
         opts = _apply_douyin_opts(url, dict(base_opts))
+        # 境外站（YouTube 等）走代理；国内站直连。哑日志避免刷屏。
+        opts.update(_proxy_opts(url))
+        opts.setdefault("logger", _SilentLogger())
         with yt_dlp.YoutubeDL(opts) as ydl:
             return ydl.extract_info(url, download=download)
 
@@ -501,13 +586,30 @@ def _run_extract(url, base_opts, download):
 
 
 def _normalize_ytdlp_url(url):
-    """把 yt-dlp 不认的抖音分享页长链转成标准链接。其它链接原样返回。"""
+    """把 yt-dlp 不认的抖音分享页长链/短链转成标准 douyin.com/video/{id}。其它链接原样返回。
+    关键修复：v.douyin.com/xxx 短链在字符串里看不出 iesdouyin，但 yt-dlp 跟随跳转后会落到
+    iesdouyin.com/share/video/{id} → 报 Unsupported URL。所以这里对短链也先用 resolver 解析出
+    aweme_id，提前改写成 yt-dlp 认识的标准链接，从源头避免那串刷屏的错误。"""
     try:
         u = (url or "").strip()
+        if not u:
+            return url
+        # ① 长链里直接含 id 的，先抠出来
         if "iesdouyin.com" in u.lower():
             m = re.search(r"/share/video/(\d{6,})", u) or re.search(r"/video/(\d{6,})", u)
             if m:
                 return "https://www.douyin.com/video/%s" % m.group(1)
+        # ② 抖音短链 / 其它抖音链接：交给 resolver 跟随跳转拿 aweme_id（best-effort）
+        low = u.lower()
+        if ("v.douyin" in low or "iesdouyin" in low) or \
+           ("douyin.com" in low and "/video/" not in low):
+            try:
+                import douyin_resolver
+                aid = douyin_resolver._resolve_id(u)
+                if aid:
+                    return "https://www.douyin.com/video/%s" % aid
+            except Exception:
+                pass
         return u
     except Exception:
         return url
