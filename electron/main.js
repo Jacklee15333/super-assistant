@@ -295,13 +295,19 @@ app.whenReady().then(async () => {
   }
   buildChineseMenu();        // 把英文菜单换成中文
   startBackend();
-  const ok = await waitForBackend();
+  // 先把窗口建出来（秒开，不再等后端 /ping 跑完 30 次重试），
+  // 后端就绪状态在后台轮询，等通了再推给前端——避免「控制台早好了、界面要等很久」。
   createWindow();
   registerHotkeys();         // 注册全局唤起热键
   startClipboardWatch();     // 监听剪贴板，复制视频链接时弹悬浮按钮
-  // 把后端是否就绪告诉前端
-  mainWindow.webContents.once("did-finish-load", () => {
-    mainWindow.webContents.send("backend-status", ok);
+  // 后台等待后端就绪，再把状态告诉前端（不阻塞窗口显示）
+  waitForBackend().then((ok) => {
+    const send = () => { try { mainWindow.webContents.send("backend-status", ok); } catch (e) {} };
+    if (mainWindow.webContents.isLoading()) {
+      mainWindow.webContents.once("did-finish-load", send);
+    } else {
+      send();
+    }
   });
 
   app.on("activate", () => {

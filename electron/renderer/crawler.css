@@ -824,3 +824,17 @@
   max-height: 520px; overflow-y: auto;
 }
 .ddb-card-loading { color: var(--text-dim); font-size: 13px; padding: 16px 0; text-align: center; }
+
+/* 数据库里展开「视频笔记」时，用卡片视图（含思维导图）。去掉手风琴的高度限制，
+   让卡片和思维导图（70vh / 全屏）能完整展开，由卡片自身处理滚动与全屏。 */
+.ddb-card-read:has(.ddb-video-host) {
+  max-height: none;
+  overflow: visible;
+  padding-top: 8px;
+}
+.ddb-video-host {
+  /* mountVideoResult 会往里塞 .video-toolbar + 色块标题 + 标签 + 三个面板 */
+  width: 100%;
+}
+/* 兜底：老内核不支持 :has() 时，至少给视频宿主一个较大可视高度 */
+.ddb-video-host { min-height: 120px; }

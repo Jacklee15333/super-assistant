@@ -109,6 +109,29 @@
 
     $("ddbBody").innerHTML = html;
     bind();
+    mountVideoCards();   // 把展开的视频笔记挂成卡片视图（含思维导图）
+  }
+
+  // 把当前展开的「视频笔记」用 mountVideoResult 渲染成卡片视图（标题色块 + AI分析/思维导图/原文 标签）。
+  // 占位容器是 .ddb-video-host[data-vname]，内容取自 _ddbExpanded[name].content。
+  function mountVideoCards() {
+    if (_ddbCat !== "video") return;
+    if (typeof mountVideoResult !== "function" || typeof parseVideoNote !== "function") return;
+    document.querySelectorAll("#ddbBody .ddb-video-host").forEach((host) => {
+      const name = host.getAttribute("data-vname");
+      const exp = _ddbExpanded[name];
+      if (!exp || exp.loading || !exp.content) return;
+      if (host.getAttribute("data-mounted") === "1") return;  // 防重复挂载
+      try {
+        const parsed = parseVideoNote(exp.content);
+        // 注意：故意不设 _noteName/_noteCat —— 数据库这边每行已经有自己的 🏷 标签按钮，
+        // 不让卡片内再出现「管理标签」（它走的是成长库接口，和数据库的标签接口不是一套）。
+        mountVideoResult(parsed, host);
+        host.setAttribute("data-mounted", "1");
+      } catch (e) {
+        host.innerHTML = '<div class="ddb-prev-md">' + md(exp.content || "（空）") + '</div>';
+      }
+    });
   }
 
   function safetyBadge(safety) {
@@ -213,9 +236,19 @@
       // 就地展开的正文（手风琴）
       if (isOpen) {
         let inner;
-        if (exp.loading) inner = '<div class="ddb-card-loading">读取中…</div>';
-        else if (exp.ext === "md") inner = '<div class="ddb-prev-md">' + md(exp.content || "（空）") + '</div>';
-        else inner = '<pre class="ddb-prev-pre">' + esc(exp.content || "") + '</pre>';
+        if (exp.loading) {
+          inner = '<div class="ddb-card-loading">读取中…</div>';
+        } else if (_ddbCat === "video" && exp.ext === "md"
+                   && typeof mountVideoResult === "function"
+                   && typeof parseVideoNote === "function") {
+          // 视频笔记：用和「视频」板块完全一样的卡片视图（含 🧠 思维导图标签）。
+          // 这里先放一个占位容器，render() 之后再把内容挂进去（mountVideoResult 需要真实 DOM 节点）。
+          inner = '<div class="ddb-video-host" data-vname="' + esc(it.name) + '"></div>';
+        } else if (exp.ext === "md") {
+          inner = '<div class="ddb-prev-md">' + md(exp.content || "（空）") + '</div>';
+        } else {
+          inner = '<pre class="ddb-prev-pre">' + esc(exp.content || "") + '</pre>';
+        }
         html += '<div class="ddb-card-read">' + inner + '</div>';
       }
       html += '</div>';

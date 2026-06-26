@@ -69,7 +69,7 @@ _LOG_QUIET_PATHS = {
     "/web_model/state", "/web_model/config", "/loop/status", "/insight/status",
     "/insight/config", "/system_access", "/claude_config", "/harness/config",
     "/sniff/config", "/skills/list", "/datadb/list", "/memory/list",
-    "/creator/list", "/creator/findings",
+    "/creator/list", "/creator/findings", "/creator/videos_cached",
 }
 
 # 给少数关键路径配一句「人话」描述，让日志一眼能看懂用户在干嘛。
@@ -260,6 +260,9 @@ def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None
         "请帮我做一份**尽量详细、有深度、信息密度高、排版清晰**的中文笔记——宁可写长一点、"
         "写透一点，也不要简略带过。把视频里讲到的具体事例、数字、人名/品牌名、原话、因果逻辑"
         "都尽量保留下来。\n\n"
+        "【第一步 · 翻译标题】在笔记最开头，**单独输出一行**，把这个视频标题翻译成自然、简洁的"
+        "简体中文，格式严格为：`中文标题：<译文>`。如果标题本身已经是中文，就原样照抄；"
+        "人名、产品名、公司名、专有名词可保留英文。这一行之后再开始正式笔记。\n\n"
         "【语言要求】不论原视频是中文还是英文/其它语言，这份笔记一律用**简体中文**输出。"
         "若原文是英文等外语，请把内容**准确翻译、用流畅的中文**讲清楚，不要整段照抄外语原文；"
         "但**专有名词、人名、产品/公司/项目名、关键技术术语**，以及「金句摘录」里引用的原话，"
@@ -267,7 +270,7 @@ def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None
         "【排版要求】用 Markdown，层次分明、重点突出：每个大块用 `## 小标题`；"
         "「核心观点」「值得记住的点 / 行动建议」里的每一条，用 `### 序号. 小标题` 起头（序号连续），"
         "下面再写详细的正文段落；善用分段，让人一眼看到重点。\n\n"
-        "请按下面结构输出：\n"
+        "请按下面结构输出（注意：先输出上面的「中文标题：」那一行，然后才是下面这些）：\n"
         "## 一句话概括\n用一句话说清楚这个视频到底在讲什么。\n\n"
         "## 背景与主题\n用 3-5 句把事件/话题的来龙去脉讲清楚：是什么事、涉及谁、作者站在什么角度讲。\n\n"
         "## 核心观点\n列 6-10 条主要观点，**每一条都展开成一段详细说明（4-6 句）**："
@@ -340,52 +343,332 @@ def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None
             return f"（分析出错：{e2}）"
 
 
+def _split_title_from_analysis(text):
+    """从分析正文里抽出开头那行「中文标题：xxx」，返回 (中文标题, 去掉该行后的正文)。
+    模型可能写成「中文标题：」「中文标题:」，前面也可能带 # 或 **。找不到就返回 ("", 原文)。
+    只在正文最前面的若干行里找，避免误伤后文。"""
+    if not text:
+        return "", text
+    lines = text.split("\n")
+    title = ""
+    hit_idx = -1
+    # 只在前 6 行里找（标题应该在最前面）
+    for i in range(min(6, len(lines))):
+        ln = lines[i].strip()
+        if not ln:
+            continue
+        # 去掉可能的 markdown 前缀：#、**、-、>
+        bare = re.sub(r"^[#>\-\*\s]+", "", ln).strip()
+        m = re.match(r"^中文标题\s*[:：]\s*(.+)$", bare)
+        if m:
+            cand = m.group(1).strip().strip("：:").strip()
+            # 去掉可能包裹的 ** 或引号
+            cand = re.sub(r"^\*+|\*+$", "", cand).strip()
+            cand = cand.strip('"').strip("“”").strip()
+            if cand:
+                title = cand
+                hit_idx = i
+            break
+        # 第一行非空又不是标题行，就别再往下找了（防误伤）
+        if i == 0 and not bare.startswith("中文标题"):
+            # 允许标题不在第 0 行（前面可能有空行/代码块），继续找几行
+            continue
+    if hit_idx >= 0:
+        # 删掉标题行，并把它前面残留的空行也清掉
+        del lines[hit_idx]
+        while lines and not lines[0].strip():
+            lines.pop(0)
+        return title, "\n".join(lines)
+    return "", text
+
+
+def _mm_extract_json(raw):
+    """从模型返回里抠出思维导图 JSON（树或数组）。
+    兼容三种常见情况：① 直接是 JSON；② 包了 ```json ... ``` 代码块；
+    ③ 前后有多余说明文字。再不行就从第一个 { 或 [ 截到最后一个 } 或 ]。
+    解析失败抛异常，交给上层兜底。"""
+    import json as _json
+    s = str(raw or "").strip()
+    if not s:
+        raise ValueError("空回复")
+    # 去掉 ```json / ``` 围栏
+    if s.startswith("```"):
+        s = re.sub(r"^```[a-zA-Z]*\s*", "", s)
+        s = re.sub(r"\s*```$", "", s).strip()
+    # 先直接试
+    try:
+        return _json.loads(s)
+    except Exception:
+        pass
+    # 再从首个 { 或 [ 截到末个 } 或 ]
+    starts = [i for i in (s.find("{"), s.find("[")) if i >= 0]
+    ends = [i for i in (s.rfind("}"), s.rfind("]")) if i >= 0]
+    if starts and ends:
+        seg = s[min(starts):max(ends) + 1]
+        return _json.loads(seg)
+    raise ValueError("无法从回复中解析出 JSON")
+
+
+def _mm_normalize(node, depth=0):
+    """把模型给的结构规整成 simple-mind-map 风格的节点：
+    { "data": {"text": "...", "note": "...", "color": "..."}, "children": [...] }
+    兼容模型可能输出的简写（直接 {text, children} 或字符串）。深度限制 6 层防失控。"""
+    if depth > 6:
+        return None
+    if node is None:
+        return None
+    # 字符串 → 叶子节点
+    if isinstance(node, str):
+        t = node.strip()
+        return {"data": {"text": t}, "children": []} if t else None
+    if not isinstance(node, dict):
+        return None
+
+    data_in = node.get("data")
+    if isinstance(data_in, dict):
+        text = data_in.get("text") or data_in.get("title") or data_in.get("name") or ""
+        note = data_in.get("note") or data_in.get("desc") or ""
+        color = data_in.get("color") or ""
+    else:
+        # 简写形态：{text:..., children:[...]}
+        text = node.get("text") or node.get("title") or node.get("name") or ""
+        note = node.get("note") or node.get("desc") or ""
+        color = node.get("color") or ""
+
+    text = str(text).strip()
+    data_out = {"text": text or "·"}
+    if note:
+        data_out["note"] = str(note).strip()
+    if color and isinstance(color, str) and color.strip().startswith("#"):
+        data_out["color"] = color.strip()
+
+    kids_in = node.get("children")
+    kids_out = []
+    if isinstance(kids_in, list):
+        for k in kids_in:
+            nk = _mm_normalize(k, depth + 1)
+            if nk:
+                kids_out.append(nk)
+    return {"data": data_out, "children": kids_out}
+
+
+def _cx_mindmap_from_text(analysis, title, use_local, model, on_progress=None):
+    """让「网页模型」把一篇详细笔记(analysis) 归纳成思维导图结构(JSON 树)。
+    返回 simple-mind-map 风格的根节点：{data:{text}, children:[...]}。
+    设计与视频总结一致：默认交给网页模型；失败回退本地小模型。"""
+    body_text = (analysis or "").strip()
+    if not body_text:
+        raise ValueError("没有可用于生成思维导图的内容")
+    body_text = body_text[:12000]
+
+    root_text = (title or "思维导图").strip()[:40]
+
+    prompt = (
+        "下面是一篇关于某个视频的中文笔记。请你把它的内容**提炼、归纳成一张思维导图的结构**，"
+        "并以**严格的 JSON** 输出，方便程序渲染。\n\n"
+        "【输出格式】只输出一个 JSON 对象（不要任何解释文字、不要 Markdown、不要代码块围栏），"
+        "结构如下（节点可递归嵌套）：\n"
+        "{\n"
+        '  "data": { "text": "中心主题（一句话，6-16字）", "note": "可选，简短说明" },\n'
+        '  "children": [\n'
+        '    { "data": { "text": "分支主题", "note": "这个分支的简短说明", "color": "#8B0A50" },\n'
+        '      "children": [\n'
+        '        { "data": { "text": "更细的要点" }, "children": [] }\n'
+        "      ]\n"
+        "    }\n"
+        "  ]\n"
+        "}\n\n"
+        "【内容要求】\n"
+        "- 中心主题用这篇笔记的核心，最好结合标题。\n"
+        "- 第一层分支 4-7 个，对应笔记里的几大块（如：背景、核心观点、关键事实、金句、建议、点评等，"
+        "按实际内容来，不要硬凑）。\n"
+        "- 每个一级分支下再展开 2-5 个子要点；重要的子要点可以再往下分一层。整体控制在 2-4 层。\n"
+        '- "text" 要精炼（一般 4-20 字），是概括而不是照抄整句。\n'
+        '- "note" 可选，用一句话补充，便于鼠标悬停查看；不需要就省略。\n'
+        '- "color" 只在一级分支上给，用深色十六进制（每个 RGB 分量 < 200，避免浅色），不同分支颜色不同；'
+        "子节点不用给颜色。\n"
+        "- 不要输出空文本节点；不要把 JSON 包在 ```里。\n\n"
+        f"【中心主题参考】{root_text}\n\n"
+        f"=== 笔记正文 ===\n{body_text}\n"
+    )
+
+    def _ask(_client, _model):
+        resp = _client.chat.completions.create(
+            model=_model, messages=[{"role": "user", "content": prompt}])
+        return (resp.choices[0].message.content or "").strip()
+
+    # 与 video_summary 相同的模型解析逻辑：默认网页模型
+    try:
+        s_use_local, s_model = core.resolve_model(
+            "video_summary", fallback_use_local=use_local, fallback_model=model)
+    except Exception:
+        s_use_local, s_model = use_local, model
+    _is_claude_m = (s_model == "claude") or str(s_model).startswith("claude::")
+    if (not s_use_local) and (not core.is_web_model(s_model)) and (not _is_claude_m) \
+            and not os.environ.get("OPENAI_API_KEY") \
+            and not os.environ.get("OPENAI_ADMIN_KEY"):
+        s_use_local, s_model = False, "web"
+
+    raw = None
+    try:
+        client = core.make_client_for(s_model, s_use_local, on_progress=on_progress)
+        raw = _ask(client, s_model)
+        tree = _mm_extract_json(raw)
+    except Exception as e:
+        # 回退本地小模型再试一次
+        try:
+            if on_progress:
+                try: on_progress("思维导图模型不可用，回退本地…")
+                except Exception: pass
+            client = core.make_client(True)
+            raw = _ask(client, "qwen2.5")
+            tree = _mm_extract_json(raw)
+        except Exception as e2:
+            raise RuntimeError(f"生成思维导图失败：{e2}") from e2
+
+    # 规整：模型可能直接返回数组（多个一级分支），这时自动包一个中心节点
+    if isinstance(tree, list):
+        children = []
+        for k in tree:
+            nk = _mm_normalize(k, 1)
+            if nk:
+                children.append(nk)
+        root = {"data": {"text": root_text or "思维导图"}, "children": children}
+    else:
+        root = _mm_normalize(tree, 0)
+        if not root:
+            raise RuntimeError("思维导图结构为空")
+        # 中心节点文本兜底
+        if not (root.get("data", {}).get("text") or "").strip():
+            root["data"]["text"] = root_text or "思维导图"
+
+    if not root.get("children"):
+        raise RuntimeError("思维导图没有任何分支，请重试")
+    return root
+
+
+def _strip_think(raw):
+    """去掉「思考型」本地模型（如 qwen3）输出里的 <think>…</think> 推理段，
+    避免它把后面的「编号. 译文」逐行解析搅乱。
+    处理三种常见形态：成对 <think></think>、被截断的未闭合 <think>、
+    以及个别模型用的全角 ◁think▷…◁/think▷。"""
+    if not raw:
+        return ""
+    s = str(raw)
+    s = re.sub(r"<think>.*?</think>", "", s, flags=re.S | re.I)   # 成对
+    s = re.sub(r"◁think▷.*?◁/think▷", "", s, flags=re.S | re.I)  # 个别模型的变体
+    s = re.sub(r"<think>.*$", "", s, flags=re.S | re.I)          # 未闭合（被截断）
+    return s.strip()
+
+
+def _looks_english(s):
+    """判断一段标题是不是「英文/非中文」内容（用来决定要不要把标题也翻成中文）。
+    规则：含中文字符 → 视为中文，不翻；否则只要有英文字母就视为英文，翻。
+    （纯数字 / 纯符号既无中文也无字母，返回 False，不去折腾。）"""
+    s = (s or "").strip()
+    if not s:
+        return False
+    if re.search(r"[\u4e00-\u9fff]", s):   # 已含中文 → 不翻
+        return False
+    return bool(re.search(r"[A-Za-z]", s))  # 有英文字母才翻
+
+
 def _translate_lines(texts, use_local=True, model="qwen2.5"):
-    """把多行短文本（如视频标题）批量翻译成简体中文。返回与输入等长的列表，
-    翻不动的那条回退为空串（前端就保持原文）。一次模型调用搞定，带编号防错位。"""
+    """把多行短文本（如视频标题）批量翻译成简体中文。
+    返回 (译文列表, 提示语)：列表与输入等长，翻不动的那条回退为空串（前端保持原文）；
+    提示语为空表示一切正常，非空时前端可给个轻状态。
+
+    策略（**严格用对话框里选的那个模型**，绝不背着用户偷偷改用网页模型）：
+      · 用户选「本地模型」(如 qwen3:14b) → 只用这个本地模型；它没翻出来时，
+        最多再用本地 qwen2.5 兜一次（仍是本地）。任何情况都不会去开网页浏览器。
+      · 用户选「网页模型」(web) → 用网页模型一次性批量翻。
+      · 用户选「Claude」 → 用 Claude 翻。
+      · 思考型模型(qwen3)会先吐 <think> 推理，这里统一剥掉再解析，避免「解析为空 → 误判失败」。
+      · 最终仍翻不出，返回空串 + 提示语，由前端提示用户（标题保持原文，不弹网页）。
+    """
     items = [(t or "").replace("\n", " ").strip() for t in (texts or [])]
     if not any(items):
-        return ["" for _ in items]
+        return ["" for _ in items], ""
     # 防御性上限：一次最多翻 80 条，超出的保持空（前端通常已先行截断）
     n_all = len(items)
     capped = items[:80]
     numbered = "\n".join("%d. %s" % (i + 1, t) for i, t in enumerate(capped))
-    # 翻译是纯文本小任务：绝不用「网页模型」（它会对每条标题去联网搜索，又慢又怪），
-    # 用本地模型最稳最快；若指定的是网页模型就强制回退本地。
-    try:
-        if (not use_local) and core.is_web_model(model):
-            use_local, model = True, "qwen2.5"
-    except Exception:
-        use_local, model = True, "qwen2.5"
     prompt = (
         "你是翻译助手。把下面每一行视频标题翻译成**简洁、自然的简体中文**。\n"
         "要求：① 每行只输出「编号. 中文译文」，编号和原文一一对应；"
         "② 不要解释、不要输出原文、不要加多余的行；"
         "③ 人名、产品名、专有名词可保留英文。\n\n"
         "标题列表：\n" + numbered + "\n")
-    out_map = {}
 
     def _run(_use_local, _model):
         client = core.make_client_for(_model, _use_local) if not _use_local else core.make_client(True)
         resp = client.chat.completions.create(
             model=_model, messages=[{"role": "user", "content": prompt}])
-        return (resp.choices[0].message.content or "").strip()
+        raw = (resp.choices[0].message.content or "").strip()
+        return _strip_think(raw)   # 先剥掉思考段，再交给 _parse
 
-    raw = ""
+    def _parse(raw):
+        """把「编号. 译文」逐行解析成 {idx: 译文}；解析不到算空。"""
+        m_out = {}
+        for line in (raw or "").splitlines():
+            m = re.match(r"^\s*(\d+)[\.\)、:：]\s*(.+)$", line.strip())
+            if m:
+                idx = int(m.group(1)) - 1
+                if 0 <= idx < len(capped):
+                    m_out[idx] = m.group(2).strip()
+        return m_out
+
+    # —— 判断用户在对话框里选的是哪一类模型 ——
+    m = (model or "").strip()
+    is_claude = (m == "claude" or m.startswith("claude::"))
     try:
-        raw = _run(use_local, model)
+        is_web = core.is_web_model(m)
     except Exception:
+        is_web = (m == "web")
+    want_web = is_web and (not use_local)
+    want_claude = is_claude and (not use_local)
+    # 本地用哪个名字：空 / 误传成网页或 claude 时，本地兜底用 qwen2.5
+    local_model = m if (m and not is_web and not is_claude) else "qwen2.5"
+
+    out_map = {}
+    note = ""
+
+    if want_web:
+        # 用户明确选了网页模型 → 用网页模型翻
         try:
-            raw = _run(True, "qwen2.5")   # 回退本地
+            out_map = _parse(_run(False, m))
         except Exception:
-            raw = ""
-    for line in (raw or "").splitlines():
-        m = re.match(r"^\s*(\d+)[\.\)、:：]\s*(.+)$", line.strip())
-        if m:
-            idx = int(m.group(1)) - 1
-            if 0 <= idx < len(capped):
-                out_map[idx] = m.group(2).strip()
-    return [out_map.get(i, "") for i in range(n_all)]
+            out_map = {}
+    elif want_claude:
+        # 用户选了 Claude → 用 Claude 翻
+        try:
+            out_map = _parse(_run(False, m))
+        except Exception:
+            out_map = {}
+    else:
+        # 本地：就用用户在对话框里选的那个本地模型（如 qwen3:14b）
+        try:
+            out_map = _parse(_run(True, local_model))
+        except Exception:
+            out_map = {}
+        # 选的本地模型没翻出来、且不是 qwen2.5 → 用本地 qwen2.5 再兜一次（仍是本地，绝不开网页）
+        if not out_map and local_model != "qwen2.5":
+            try:
+                out_map = _parse(_run(True, "qwen2.5"))
+            except Exception:
+                out_map = {}
+
+    # 最终仍空：给个提示语（绝不背着用户改用网页模型）
+    if not out_map:
+        if want_web:
+            note = "翻译没成功：网页模型这次没返回可用结果，稍后重试。"
+        elif want_claude:
+            note = "翻译没成功：Claude 这次没返回可用结果，检查 Claude 配置后重试。"
+        else:
+            note = ("翻译没成功：本地模型（%s）没返回可用结果。"
+                    "请确认已启动 Ollama 且该模型已安装可用。" % (local_model,))
+
+    return [out_map.get(i, "") for i in range(n_all)], note
 
 
 def _clean_ai_tags(raw):
@@ -644,6 +927,9 @@ def _video_worker():
                     on_progress=lambda m: cb("AI 分析", m),
                     segments=segments,
                     do_screenshot=do_screenshot, do_link=do_link)
+                # ★标题翻译（随分析一起完成）：分析模型已被要求在开头输出「中文标题：xxx」，
+                #   这里把它抽出来当中文标题，并从正文里删掉这行（避免笔记里重复出现）。
+                title_from_ai, analysis = _split_title_from_analysis(analysis)
                 # ★标签：优先用平台自带的话题标签（抖音 #话题，最准），不够再让 AI 补。
                 cb("AI 分析", "归纳标签…")
                 platform_tags = res.get("platform_tags") or []
@@ -693,10 +979,28 @@ def _video_worker():
                     pass
 
                 tag_line = ("- 标签：" + "、".join(tags) + "\n") if tags else ""
-                doc = (f"# {title}\n\n"
+                # ★中文标题：优先用分析模型随手翻好的「中文标题：xxx」（最可靠，和正文同一次调用）；
+                #   万一分析里没给（模型没照格式输出），且原标题是英文，再退回单独翻一次。
+                title_zh = ""
+                if title_from_ai and title_from_ai.strip() and title_from_ai.strip() != title.strip():
+                    title_zh = title_from_ai.strip()
+                elif _looks_english(title):
+                    try:
+                        cb("AI 分析", "翻译标题…")
+                        _zh_list, _ = _translate_lines(
+                            [title], use_local=job["use_local"], model=job["model"])
+                        _cand = (_zh_list[0] if _zh_list else "").strip()
+                        if _cand and _cand != title:
+                            title_zh = _cand
+                    except Exception:
+                        title_zh = ""
+                display_title = title_zh or title
+                orig_line = (f"- 原标题：{title}\n" if title_zh else "")
+                doc = (f"# {display_title}\n\n"
                        f"- 来源链接：{clean_url}\n"
                        f"- 作者：{uploader}\n"
                        f"- 提取时间：{ts.strftime('%Y-%m-%d %H:%M')}\n"
+                       f"{orig_line}"
                        f"{tag_line}\n"
                        f"## 🤖 AI 分析\n\n{analysis}\n\n"
                        f"---\n\n## 📝 完整文字稿\n\n{transcript}\n")
@@ -706,6 +1010,9 @@ def _video_worker():
                     pass
                 res["analysis"] = analysis
                 res["saved_as"] = fname
+                # 让「提取完成」的结果卡 / 视频列表也直接显示中文标题（原标题另存一份备查）
+                res["title_original"] = title
+                res["title"] = display_title
             _video_state["result"] = res
         except Exception as e:
             _video_state["result"] = {"ok": False, "error": str(e)}
@@ -1464,6 +1771,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_library_autotag(body)
         if path == "/summarize_title":
             return self._handle_summarize_title(body)
+        if path == "/video_mindmap":
+            return self._handle_video_mindmap(body)
         if path == "/video_move_models":
             return self._handle_video_move_models(body)
         if path == "/heartbeat/start":
@@ -1711,18 +2020,49 @@ class Handler(BaseHTTPRequestHandler):
             # 把若干视频标题批量翻译成中文（前端列视频后调用，给英文标题配中文）
             try:
                 titles = body.get("titles") or []
-                zh = _translate_lines(titles,
-                                      use_local=body.get("use_local", True),
-                                      model=body.get("model", "qwen2.5"))
-                return self._send({"ok": True, "translations": zh})
+                zh, note = _translate_lines(titles,
+                                            use_local=body.get("use_local", True),
+                                            model=body.get("model", "qwen2.5"))
+                # 翻译成功的，回存到全局译文表，下次直接显示中文、不再重翻
+                try:
+                    import creator_watch
+                    pairs = []
+                    for t, z in zip(titles, zh):
+                        if t and z and z.strip():
+                            pairs.append({"title": t, "zh": z})
+                    if pairs:
+                        creator_watch.save_translations(pairs)
+                except Exception:
+                    pass
+                return self._send({"ok": True, "translations": zh, "note": note})
             except Exception as e:
                 return self._send({"ok": False, "translations": [], "message": str(e)}, 200)
+
+        if path == "/creator/save_translations":
+            # 前端把已翻好的「原文→中文」回存（持久化，跨重启复用）
+            try:
+                import creator_watch
+                return self._send(creator_watch.save_translations(body.get("pairs") or []))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/creator/videos_cached":
+            # 改动4（秒开）：只读「上次列到的视频」持久缓存，不联网，立刻返回。
+            # 前端点开博主时先调它把缓存秒显示，再调 /creator/videos 后台刷新。
+            try:
+                import creator_watch
+                data = creator_watch.get_cached_videos(body.get("id", ""))
+                if data is None:
+                    return self._send({"ok": False, "cached": False}, 200)
+                return self._send({"ok": True, **data})
+            except Exception as e:
+                return self._send({"ok": False, "cached": False, "message": str(e)}, 200)
 
         if path == "/creator/videos":
             # 列出某博主主页最近的视频（只读，不动快照），给界面挑选/批量提取用
             try:
                 import creator_watch
-                data = creator_watch.list_videos(body.get("id", ""), body.get("limit", 30))
+                data = creator_watch.list_videos(body.get("id", ""), body.get("limit", 0))
                 return self._send({"ok": True, **data})
             except Exception as e:
                 return self._send({"ok": False, "message": str(e)}, 200)
@@ -1786,6 +2126,22 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send({"ok": True, "config": creator_watch.save_config(body)})
             except Exception as e:
                 return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/creator/gather":
+            # 新版块：把所有关注博主近 N 天的视频汇总到一起，给「这几天大家发了啥」总览用。
+            # body: {days:7, refresh:false}
+            try:
+                import creator_watch
+                days = body.get("days", 7)
+                refresh = bool(body.get("refresh", False))
+                backfill = bool(body.get("backfill", False))
+                per_timeout = body.get("per_timeout", 30)
+                data = creator_watch.gather_recent(
+                    days=days, refresh=refresh,
+                    backfill=backfill, per_timeout=per_timeout)
+                return self._send(data)
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e), "items": []}, 200)
 
         if path == "/proxy/test":
             try:
@@ -2013,6 +2369,23 @@ class Handler(BaseHTTPRequestHandler):
 
 
     # ────────────────── 会话智能起标题 ──────────────────
+    def _handle_video_mindmap(self, body):
+        """根据一篇详细笔记(analysis) 生成思维导图结构(JSON 树)，交给前端渲染。
+        入参: { analysis: str, title?: str, use_local?: bool, model?: str }
+        出参: { ok: True, root: {data:{text,note,color}, children:[...]} }
+              失败 { ok: False, error: str }"""
+        analysis = (body.get("analysis") or "").strip()
+        title = (body.get("title") or "").strip()
+        use_local = body.get("use_local", True)
+        model = body.get("model", "qwen2.5")
+        if not analysis:
+            return self._send({"ok": False, "error": "没有可用于生成思维导图的内容"})
+        try:
+            root = _cx_mindmap_from_text(analysis, title, use_local, model)
+            return self._send({"ok": True, "root": root})
+        except Exception as e:
+            return self._send({"ok": False, "error": str(e)}, 200)
+
     def _handle_summarize_title(self, body):
         """根据会话前几条消息，用模型总结一个简短中文标题（4-12字）。
         失败时返回 ok:False，前端用兜底逻辑。"""
@@ -3104,7 +3477,30 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    server = ThreadingHTTPServer((HOST, PORT), Handler)
+    try:
+        server = ThreadingHTTPServer((HOST, PORT), Handler)
+    except OSError as e:
+        # 最常见：端口 8756 被上一次没退干净的 python server.py 占用 → bind 失败。
+        # 原来这里没 try，会直接抛异常退出、控制台一闪而过、前端永远「后端未连接」。
+        # 这里给一条看得懂的提示，方便排查（Windows: netstat -ano | findstr :8756 然后 taskkill）。
+        print("=" * 60)
+        print("[backend] 启动失败：无法绑定 127.0.0.1:%d" % PORT)
+        print("[backend] 原因：%s" % e)
+        print("[backend] 多半是上一次的后端没退干净，端口还被占着。")
+        print("[backend] Windows 处理：在新终端跑")
+        print("[backend]   netstat -ano | findstr :%d" % PORT)
+        print("[backend]   taskkill /PID <最后一列的数字> /F")
+        print("[backend] 然后重新打开软件。")
+        print("=" * 60)
+        import sys
+        sys.stdout.flush()
+        # 多停一会，别让控制台窗口瞬间关掉，留时间看清提示
+        try:
+            import time as _t_wait
+            _t_wait.sleep(30)
+        except Exception:
+            pass
+        return
     print(f"[backend] running at http://{HOST}:{PORT} (local only)")
     print("[backend] close this window or press Ctrl+C to stop.")
     # 启动时恢复上次没跑完的视频任务，自动接着处理

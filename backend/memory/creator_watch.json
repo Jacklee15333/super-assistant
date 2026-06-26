@@ -1,10 +1,10 @@
 {
   "config": {
-    "auto": false,
-    "hour": 9,
+    "auto": true,
+    "hour": 10,
     "per_scan": 15
   },
-  "last_scan_date": "",
+  "last_scan_date": "2026-06-25",
   "creators": [
     {
       "id": "cw1782300547610680",
@@ -13,27 +13,1375 @@
       "url": "https://www.youtube.com/@DwarkeshPatel",
       "enabled": true,
       "added": "2026-06-24 19:29",
-      "last_checked": "2026-06-24 20:08",
+      "last_checked": "2026-06-26 08:46",
       "last_count": 15,
       "known_ids": [
         "myP8UjAM1pk",
-        "oIk3R-sMX5o",
         "4pG3SJQPAwk",
-        "Jj-kBHzUohs",
-        "U1FrhkLQnCI",
         "xmkSf5IS-zw",
-        "OS1NZLgKM2c",
-        "sRKBGVFVYAw",
+        "X_ZVSPcZhtw",
+        "Hrbq66XqtCo",
+        "oIk3R-sMX5o",
+        "KBPOTklFTiU",
         "Q8Fkpi18QXU",
         "PAIhVfGbREA",
-        "n1E9IZfvGMA",
         "mDG_Hx3BSUE",
-        "Hrbq66XqtCo",
-        "X_ZVSPcZhtw",
-        "KBPOTklFTiU"
+        "Jj-kBHzUohs",
+        "n1E9IZfvGMA",
+        "U1FrhkLQnCI",
+        "sRKBGVFVYAw",
+        "OS1NZLgKM2c"
+      ],
+      "last_error": ""
+    },
+    {
+      "id": "cw1782303239603268",
+      "platform": "youtube",
+      "title": "Karpathy",
+      "url": "https://www.youtube.com/results?search_query=Karpathy",
+      "enabled": true,
+      "added": "2026-06-24 20:13",
+      "last_checked": "2026-06-26 08:46",
+      "last_count": 15,
+      "known_ids": [
+        "zduSFxRajkE",
+        "96jN2OCOfLs",
+        "lXUZvyajciY",
+        "cdiD-9MMpb0",
+        "hzQie4EucY0",
+        "7zZy1QTvokM",
+        "kCc8FmEb1nY",
+        "kwSVtQ7dziU",
+        "zjkBMFhNj_g",
+        "xnG8h3UnNFI",
+        "I2ZK3ngNvvI",
+        "PLAqhIrjkxbuWI23v9cThsA9GvCAUhRvKZ",
+        "UCXUPKJO5MZQN11PqgIvyuvQ",
+        "iXd0t60YmMw",
+        "EWvNQjAaOHw",
+        "LCEmiRjPEtQ",
+        "7xTGNNLPyMI",
+        "l8pRSuU81PU",
+        "P6sfmUTpUmc",
+        "qh0FkdgieS8",
+        "d8BGxfW3Vj4",
+        "VMj-3S1tku0",
+        "brB-hSiV2iU",
+        "tOC2N0B9lio"
+      ],
+      "last_error": ""
+    },
+    {
+      "id": "cw1782303278333268",
+      "platform": "youtube",
+      "title": "李沐",
+      "url": "https://www.youtube.com/results?search_query=%E6%9D%8E%E6%B2%90",
+      "enabled": true,
+      "added": "2026-06-24 20:14",
+      "last_checked": "2026-06-26 08:46",
+      "last_count": 15,
+      "known_ids": [
+        "CzZ9B0Sr2Gc",
+        "bW2Ef5WPJ-E",
+        "YTL-yXjeFto",
+        "1RAI66Me0wg",
+        "I4hUoj1E4OU",
+        "zpoMuvDZPi0",
+        "UC8WCW6C3BWLKSZ5cMzD8Gyw",
+        "i45lJYc2Idg",
+        "qNjfVZjyWn8",
+        "VBqrdaz5mMg",
+        "IQC6NX7yd1s",
+        "UCf1ThDpuOacPqS52uwXw9Xg",
+        "11Sa2m4m9xU",
+        "UCPMqbkR35zZV1ysWGXJPW-w",
+        "c7epTB9bu5E",
+        "rRocC2dttOc",
+        "jBNgRtk6XBA",
+        "4rHIDMun-qI",
+        "8RxKesRWR6Y",
+        "PpEAFcwjmiA",
+        "BGW-BlbcdF4",
+        "3tJNO4TLzJI",
+        "HvvN3_t9o4U",
+        "E-e4vLZDGSU",
+        "eoPyVty7L6c",
+        "Vl2El2RSYPk",
+        "hJPtfQqGpQk",
+        "qnqSe2SeE-Y",
+        "o2zMiwoW5kU",
+        "nzqlFIcCSWQ",
+        "KRk_QW2vnlo",
+        "RI4K_o4okHk",
+        "laUDqV8ugKU"
+      ],
+      "last_error": ""
+    },
+    {
+      "id": "cw1782303444343476",
+      "platform": "youtube",
+      "title": "Hung-yi Lee",
+      "url": "https://www.youtube.com/@HungyiLeeNTU",
+      "enabled": true,
+      "added": "2026-06-24 20:17",
+      "last_checked": "2026-06-26 08:46",
+      "last_count": 15,
+      "known_ids": [
+        "R6fZR_9kmIw",
+        "vXb2QYOUzl4",
+        "m3i2mk5hs8U",
+        "EnWz5XuOnIQ",
+        "urwDLyNa9FU",
+        "VqB8zMujdjM",
+        "2rcJdFuNbZQ",
+        "ccqCDD9LqCA",
+        "Ll-wk8x3G_g",
+        "s06mSAGN4gM",
+        "cQLKVzbwN7I",
+        "CbIPjrOj2Tc",
+        "mmPmNezjCi0",
+        "fDQaadKysSA",
+        "YJoegm7kiUM"
+      ],
+      "last_error": ""
+    },
+    {
+      "id": "cw1782303524056476",
+      "platform": "youtube",
+      "title": "Y Combinator",
+      "url": "https://www.youtube.com/@ycombinator",
+      "enabled": true,
+      "added": "2026-06-24 20:18",
+      "last_checked": "2026-06-26 08:46",
+      "last_count": 15,
+      "known_ids": [
+        "8OOuCnZB-4o",
+        "gSNFJbgoaHI",
+        "yyXCQHX55N4",
+        "B246K_G7mHU",
+        "49L8lVe_PVo",
+        "wE1ZgJdt4uM",
+        "2Ap1dnv-GXA",
+        "mPAHvz8kW24",
+        "R56RJFZBasQ",
+        "7VKliOQXQ9M",
+        "ObBAxL2dFzw",
+        "mjmswQurIU4",
+        "3rWSvrFahIY",
+        "fQmlML9Lay4",
+        "_FBivfgOvuE",
+        "oHwUD9b9_pg"
+      ],
+      "last_error": ""
+    },
+    {
+      "id": "cw1782303553561476",
+      "platform": "youtube",
+      "title": "Lenny's Podcast",
+      "url": "https://www.youtube.com/@LennysPodcast",
+      "enabled": true,
+      "added": "2026-06-24 20:19",
+      "last_checked": "2026-06-26 08:46",
+      "last_count": 15,
+      "known_ids": [
+        "DIa0MYJzM5I",
+        "PoJ1vTdHpks",
+        "k-H4nsOTuxU",
+        "PplmzlgE0kg",
+        "4D3hDmGhFhA",
+        "G5WTgB87rYQ",
+        "-7Yol5vX5xw",
+        "wc8FBhQtdsA",
+        "Ybrl4FYM57c",
+        "7eh9C3TUotc",
+        "RJjl1TwyfWM",
+        "BD3vLtWhT5A",
+        "xCd9ykretlg",
+        "yUohoaC8_Hs",
+        "mCO-D3pkviM"
+      ],
+      "last_error": ""
+    },
+    {
+      "id": "cw1782303591400476",
+      "platform": "youtube",
+      "title": "The AI Daily Brief: Artificial Intelligence News",
+      "url": "https://www.youtube.com/@AIDailyBrief",
+      "enabled": true,
+      "added": "2026-06-24 20:19",
+      "last_checked": "2026-06-26 08:46",
+      "last_count": 15,
+      "known_ids": [
+        "sKrr_ckIt4s",
+        "5-CGzLrA4fg",
+        "it7VUqfVorw",
+        "4hvA6aCwf6E",
+        "RKpEI37RnfI",
+        "EpxZEvvOTL8",
+        "pnxRfJRAh5A",
+        "yTPGY13ym5s",
+        "HkVpSoaIKsc",
+        "RO7Ly_wu9dQ",
+        "L2ZJ5HITV48",
+        "LNXDoKPe06I",
+        "VK56IPRsA-s",
+        "45UGHbqq2fQ",
+        "05VE_9rI954",
+        "v3jwNZ94GLo",
+        "VICrf_yV0co"
       ],
       "last_error": ""
     }
   ],
-  "findings": []
+  "findings": [
+    {
+      "creator_id": "cw1782303239603268",
+      "creator_title": "Karpathy",
+      "platform": "youtube",
+      "vid": "PLAqhIrjkxbuWI23v9cThsA9GvCAUhRvKZ",
+      "url": "https://www.youtube.com/playlist?list=PLAqhIrjkxbuWI23v9cThsA9GvCAUhRvKZ",
+      "title": "Neural Networks: Zero to Hero",
+      "when": "",
+      "found_at": "2026-06-24 20:14"
+    },
+    {
+      "creator_id": "cw1782303239603268",
+      "creator_title": "Karpathy",
+      "platform": "youtube",
+      "vid": "P6sfmUTpUmc",
+      "url": "https://www.youtube.com/watch?v=P6sfmUTpUmc",
+      "title": "Building makemore Part 3: Activations & Gradients, BatchNorm",
+      "when": "",
+      "found_at": "2026-06-24 20:14"
+    },
+    {
+      "creator_id": "cw1782303239603268",
+      "creator_title": "Karpathy",
+      "platform": "youtube",
+      "vid": "d8BGxfW3Vj4",
+      "url": "https://www.youtube.com/watch?v=d8BGxfW3Vj4",
+      "title": "The Karpathy CLAUDE.md File That 43,000 Developers Installed in 1 Week (Full Breakdown)",
+      "when": "",
+      "found_at": "2026-06-24 20:36"
+    },
+    {
+      "creator_id": "cw1782303278333268",
+      "creator_title": "李沐",
+      "platform": "youtube",
+      "vid": "PpEAFcwjmiA",
+      "url": "https://www.youtube.com/watch?v=PpEAFcwjmiA",
+      "title": "【如果我不曾見過太陽】曾敬驊自爆\"我是M\"被吐槽:沒人問你！ 告白李沐喊太大聲遭要求\"含蓄一點\"｜完全娛樂",
+      "when": "",
+      "found_at": "2026-06-24 20:36"
+    },
+    {
+      "creator_id": "cw1782303278333268",
+      "creator_title": "李沐",
+      "platform": "youtube",
+      "vid": "jBNgRtk6XBA",
+      "url": "https://www.youtube.com/watch?v=jBNgRtk6XBA",
+      "title": "【全字幕完整版】曾敬驊史上最慘！李沐懼看被輪姦畫面　兇手石知田收「屎亡」威脅@videolandnews",
+      "when": "",
+      "found_at": "2026-06-24 20:36"
+    },
+    {
+      "creator_id": "cw1782303278333268",
+      "creator_title": "李沐",
+      "platform": "youtube",
+      "vid": "bW2Ef5WPJ-E",
+      "url": "https://www.youtube.com/watch?v=bW2Ef5WPJ-E",
+      "title": "【婁峻碩】衝康曹佑寧有夠壞  李沐被害到哀號！三人大跳健康操",
+      "when": "",
+      "found_at": "2026-06-24 20:36"
+    },
+    {
+      "creator_id": "cw1782303278333268",
+      "creator_title": "李沐",
+      "platform": "youtube",
+      "vid": "I4hUoj1E4OU",
+      "url": "https://www.youtube.com/watch?v=I4hUoj1E4OU",
+      "title": "【CHAT GTV】愚人節計中計！張孝全現場爆氣李沐委屈落淚？最後到底是誰整誰？ | 娛樂百分百2025.04.01完整版 | feat.黃偉晉、陳零九、賴晏駒、張孝全、李沐",
+      "when": "",
+      "found_at": "2026-06-24 22:03"
+    },
+    {
+      "creator_id": "cw1782303278333268",
+      "creator_title": "李沐",
+      "platform": "youtube",
+      "vid": "RI4K_o4okHk",
+      "url": "https://www.youtube.com/watch?v=RI4K_o4okHk",
+      "title": "李沐被經紀人挖掘 誤認對方是詐騙｜36題愛上你第二季｜精華｜公視+追全集｜金馬獎 青春弒戀",
+      "when": "",
+      "found_at": "2026-06-24 22:03"
+    },
+    {
+      "creator_id": "cw1782303278333268",
+      "creator_title": "李沐",
+      "platform": "youtube",
+      "vid": "rRocC2dttOc",
+      "url": "https://www.youtube.com/watch?v=rRocC2dttOc",
+      "title": "李沐 - 把你寫成我的歌 「我吃了那男孩一整年的早餐」 插曲",
+      "when": "",
+      "found_at": "2026-06-24 22:03"
+    },
+    {
+      "creator_id": "cw1782303278333268",
+      "creator_title": "李沐",
+      "platform": "youtube",
+      "vid": "eoPyVty7L6c",
+      "url": "https://www.youtube.com/watch?v=eoPyVty7L6c",
+      "title": "冠軍 ( #陳昊森)靠雕花擄獲小晴 ( #李沐) 的芳心  兩人的感情從這裡開始...| #地獄里長 EP06精華｜ #公共電視 每週六晚上九點｜#嚴正嵐 #林哲熹  #浪漫",
+      "when": "",
+      "found_at": "2026-06-24 22:03"
+    },
+    {
+      "creator_id": "cw1782303278333268",
+      "creator_title": "李沐",
+      "platform": "youtube",
+      "vid": "laUDqV8ugKU",
+      "url": "https://www.youtube.com/watch?v=laUDqV8ugKU",
+      "title": "首合作拍電影！林柏宏聲如地震餘波　李沐曝：嚇到魂魄飛出來－民視新聞",
+      "when": "",
+      "found_at": "2026-06-24 22:03"
+    },
+    {
+      "creator_id": "cw1782303239603268",
+      "creator_title": "Karpathy",
+      "platform": "youtube",
+      "vid": "zduSFxRajkE",
+      "url": "https://www.youtube.com/watch?v=zduSFxRajkE",
+      "title": "Let's build the GPT Tokenizer",
+      "when": "",
+      "found_at": "2026-06-25 09:25"
+    },
+    {
+      "creator_id": "cw1782303239603268",
+      "creator_title": "Karpathy",
+      "platform": "youtube",
+      "vid": "brB-hSiV2iU",
+      "url": "https://www.youtube.com/watch?v=brB-hSiV2iU",
+      "title": "What Karpathy Joining Anthropic Actually Means For Claude",
+      "when": "",
+      "found_at": "2026-06-25 09:30"
+    },
+    {
+      "creator_id": "cw1782303239603268",
+      "creator_title": "Karpathy",
+      "platform": "youtube",
+      "vid": "xnG8h3UnNFI",
+      "url": "https://www.youtube.com/watch?v=xnG8h3UnNFI",
+      "title": "Karpathy's Agent Ran 700 Experiments While He Slept. It's Coming For You.",
+      "when": "",
+      "found_at": "2026-06-25 09:30"
+    },
+    {
+      "creator_id": "cw1782303239603268",
+      "creator_title": "Karpathy",
+      "platform": "youtube",
+      "vid": "l8pRSuU81PU",
+      "url": "https://www.youtube.com/watch?v=l8pRSuU81PU",
+      "title": "Let's reproduce GPT-2 (124M)",
+      "when": "",
+      "found_at": "2026-06-25 09:30"
+    },
+    {
+      "creator_id": "cw1782303239603268",
+      "creator_title": "Karpathy",
+      "platform": "youtube",
+      "vid": "hzQie4EucY0",
+      "url": "https://www.youtube.com/watch?v=hzQie4EucY0",
+      "title": "This “Karpathy file” will 10x your claude output (132,000 Github Stars!)",
+      "when": "",
+      "found_at": "2026-06-25 09:30"
+    },
+    {
+      "creator_id": "cw1782303278333268",
+      "creator_title": "李沐",
+      "platform": "youtube",
+      "vid": "UCf1ThDpuOacPqS52uwXw9Xg",
+      "url": "https://www.youtube.com/channel/UCf1ThDpuOacPqS52uwXw9Xg",
+      "title": "李沐Moon",
+      "when": "",
+      "found_at": "2026-06-25 10:28"
+    },
+    {
+      "creator_id": "cw1782303278333268",
+      "creator_title": "李沐",
+      "platform": "youtube",
+      "vid": "nzqlFIcCSWQ",
+      "url": "https://www.youtube.com/watch?v=nzqlFIcCSWQ",
+      "title": "Transformer论文逐段精读",
+      "when": "",
+      "found_at": "2026-06-25 10:39"
+    },
+    {
+      "creator_id": "cw1782303278333268",
+      "creator_title": "李沐",
+      "platform": "youtube",
+      "vid": "qNjfVZjyWn8",
+      "url": "https://www.youtube.com/watch?v=qNjfVZjyWn8",
+      "title": "[SUB] Shuhua Genie, every wish will come true✨Moon Lee (李沐), tell us your wish✨",
+      "when": "",
+      "found_at": "2026-06-25 11:13"
+    },
+    {
+      "creator_id": "cw1782303278333268",
+      "creator_title": "李沐",
+      "platform": "youtube",
+      "vid": "IQC6NX7yd1s",
+      "url": "https://www.youtube.com/watch?v=IQC6NX7yd1s",
+      "title": "《誰是被害者2》李沐獲迷你劇集女配角獎！從她 #一週ootd 找穿搭靈感：穿出小個兒最佳比例、Chanel 項鍊與 GD 最近距離｜7 Days, 7 Looks｜Vogue Taiwan",
+      "when": "",
+      "found_at": "2026-06-25 11:13"
+    },
+    {
+      "creator_id": "cw1782303278333268",
+      "creator_title": "李沐",
+      "platform": "youtube",
+      "vid": "1RAI66Me0wg",
+      "url": "https://www.youtube.com/watch?v=1RAI66Me0wg",
+      "title": "24歲李沐絕緣圈內桃花　怪物新人羞認有郎愛 #專訪 | 台灣新聞 Taiwan 蘋果新聞網",
+      "when": "",
+      "found_at": "2026-06-25 11:13"
+    },
+    {
+      "creator_id": "cw1782303278333268",
+      "creator_title": "李沐",
+      "platform": "youtube",
+      "vid": "E-e4vLZDGSU",
+      "url": "https://www.youtube.com/watch?v=E-e4vLZDGSU",
+      "title": "【如果我不曾見過太陽】曾敬驊.李沐演反差情侶背後涉凶殺案?! 訪談到一半竟忍不住落淚｜完全娛樂",
+      "when": "",
+      "found_at": "2026-06-25 11:13"
+    },
+    {
+      "creator_id": "cw1782303278333268",
+      "creator_title": "李沐",
+      "platform": "youtube",
+      "vid": "3tJNO4TLzJI",
+      "url": "https://www.youtube.com/watch?v=3tJNO4TLzJI",
+      "title": "【青春弒戀】林哲熹.李沐再次合作 首扛女主剛開拍就崩潰喊:我快瘋了",
+      "when": "",
+      "found_at": "2026-06-25 14:56"
+    },
+    {
+      "creator_id": "cw1782303278333268",
+      "creator_title": "李沐",
+      "platform": "youtube",
+      "vid": "Vl2El2RSYPk",
+      "url": "https://www.youtube.com/watch?v=Vl2El2RSYPk",
+      "title": "【不要吵架XD】周興哲太幼稚讓李沐破滅:他不講話的時候才帥 \"華燈\"小蘇慶儀竟是理工出身女神",
+      "when": "",
+      "found_at": "2026-06-25 14:56"
+    },
+    {
+      "creator_id": "cw1782303239603268",
+      "creator_title": "Karpathy",
+      "platform": "youtube",
+      "vid": "tOC2N0B9lio",
+      "url": "https://www.youtube.com/watch?v=tOC2N0B9lio",
+      "title": "The next paradigm shift (according to Karpathy)",
+      "when": "",
+      "found_at": "2026-06-26 08:46"
+    }
+  ],
+  "video_cache": {
+    "cw1782300547610680": {
+      "videos": [
+        {
+          "vid": "4pG3SJQPAwk",
+          "url": "https://www.youtube.com/watch?v=4pG3SJQPAwk",
+          "title": "The data black hole at the center of AI",
+          "when": "20260619",
+          "when_human": "2026-06-19",
+          "days_ago": 7
+        },
+        {
+          "vid": "U1FrhkLQnCI",
+          "url": "https://www.youtube.com/watch?v=U1FrhkLQnCI",
+          "title": "Machiavelli is the most misunderstood thinker of all time – Ada Palmer",
+          "when": "20260616",
+          "when_human": "2026-06-16",
+          "days_ago": 10
+        },
+        {
+          "vid": "OS1NZLgKM2c",
+          "url": "https://www.youtube.com/watch?v=OS1NZLgKM2c",
+          "title": "Sarah Paine - Why Putin and Xi can't escape geography",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "Jj-kBHzUohs",
+          "url": "https://www.youtube.com/watch?v=Jj-kBHzUohs",
+          "title": "The better AI gets, the smaller its share of the economy might get – Alex Imas and Phil Trammell",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "oIk3R-sMX5o",
+          "url": "https://www.youtube.com/watch?v=oIk3R-sMX5o",
+          "title": "Chip design from the bottom up – Reiner Pope",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "X_ZVSPcZhtw",
+          "url": "https://www.youtube.com/watch?v=X_ZVSPcZhtw",
+          "title": "What rebuilding AlphaGo teaches us about self-play, RL, and future of LLMs - Eric Jang",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "sRKBGVFVYAw",
+          "url": "https://www.youtube.com/watch?v=sRKBGVFVYAw",
+          "title": "David Reich – Bronze Age shock, the Neanderthal puzzle, & the sudden spread of farming",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "xmkSf5IS-zw",
+          "url": "https://www.youtube.com/watch?v=xmkSf5IS-zw",
+          "title": "How GPT, Claude, and Gemini are actually trained and served – Reiner Pope",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "Hrbq66XqtCo",
+          "url": "https://www.youtube.com/watch?v=Hrbq66XqtCo",
+          "title": "Jensen Huang – Will Nvidia’s moat persist?",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "myP8UjAM1pk",
+          "url": "https://www.youtube.com/watch?v=myP8UjAM1pk",
+          "title": "Michael Nielsen – Why aliens will have a different tech stack than us",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "Q8Fkpi18QXU",
+          "url": "https://www.youtube.com/watch?v=Q8Fkpi18QXU",
+          "title": "Terence Tao – How the world’s top mathematician uses AI",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "mDG_Hx3BSUE",
+          "url": "https://www.youtube.com/watch?v=mDG_Hx3BSUE",
+          "title": "Dylan Patel — The single biggest bottleneck to scaling AI compute",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "KBPOTklFTiU",
+          "url": "https://www.youtube.com/watch?v=KBPOTklFTiU",
+          "title": "The most important question nobody's asking about AI.",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "PAIhVfGbREA",
+          "url": "https://www.youtube.com/watch?v=PAIhVfGbREA",
+          "title": "Why Leonardo was a saboteur, Gutenberg went broke, and Florence was weird – Ada Palmer",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "n1E9IZfvGMA",
+          "url": "https://www.youtube.com/watch?v=n1E9IZfvGMA",
+          "title": "Dario Amodei — “We are near the end of the exponential”",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        }
+      ],
+      "total": 15,
+      "platform_label": "YouTube",
+      "title": "Dwarkesh Patel",
+      "ts": "2026-06-26 08:46"
+    },
+    "cw1782303239603268": {
+      "videos": [
+        {
+          "vid": "UCXUPKJO5MZQN11PqgIvyuvQ",
+          "url": "https://www.youtube.com/channel/UCXUPKJO5MZQN11PqgIvyuvQ",
+          "title": "Andrej Karpathy",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "96jN2OCOfLs",
+          "url": "https://www.youtube.com/watch?v=96jN2OCOfLs",
+          "title": "Andrej Karpathy: From Vibe Coding to Agentic Engineering w/ Stephanie Zhan",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "kwSVtQ7dziU",
+          "url": "https://www.youtube.com/watch?v=kwSVtQ7dziU",
+          "title": "Skill Issue: Andrej Karpathy on Code Agents, AutoResearch, and the Loopy Era of AI",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "7xTGNNLPyMI",
+          "url": "https://www.youtube.com/watch?v=7xTGNNLPyMI",
+          "title": "Deep Dive into LLMs like ChatGPT",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "LCEmiRjPEtQ",
+          "url": "https://www.youtube.com/watch?v=LCEmiRjPEtQ",
+          "title": "Andrej Karpathy: Software Is Changing (Again)",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "zjkBMFhNj_g",
+          "url": "https://www.youtube.com/watch?v=zjkBMFhNj_g",
+          "title": "[1hr Talk] Intro to Large Language Models",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "kCc8FmEb1nY",
+          "url": "https://www.youtube.com/watch?v=kCc8FmEb1nY",
+          "title": "Let's build GPT: from scratch, in code, spelled out.",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "tOC2N0B9lio",
+          "url": "https://www.youtube.com/watch?v=tOC2N0B9lio",
+          "title": "The next paradigm shift (according to Karpathy)",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "lXUZvyajciY",
+          "url": "https://www.youtube.com/watch?v=lXUZvyajciY",
+          "title": "Andrej Karpathy — “We’re summoning ghosts, not building animals”",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "iXd0t60YmMw",
+          "url": "https://www.youtube.com/watch?v=iXd0t60YmMw",
+          "title": "Karpathy's LLM Wiki - Full Beginner Setup Guide",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "cdiD-9MMpb0",
+          "url": "https://www.youtube.com/watch?v=cdiD-9MMpb0",
+          "title": "Andrej Karpathy: Tesla AI, Self-Driving, Optimus, Aliens, and AGI | Lex Fridman Podcast #333",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "EWvNQjAaOHw",
+          "url": "https://www.youtube.com/watch?v=EWvNQjAaOHw",
+          "title": "How I use LLMs",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "VMj-3S1tku0",
+          "url": "https://www.youtube.com/watch?v=VMj-3S1tku0",
+          "title": "The spelled-out intro to neural networks and backpropagation: building micrograd",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "PLAqhIrjkxbuWI23v9cThsA9GvCAUhRvKZ",
+          "url": "https://www.youtube.com/playlist?list=PLAqhIrjkxbuWI23v9cThsA9GvCAUhRvKZ",
+          "title": "Neural Networks: Zero to Hero",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "I2ZK3ngNvvI",
+          "url": "https://www.youtube.com/watch?v=I2ZK3ngNvvI",
+          "title": "Advice for machine learning beginners | Andrej Karpathy and Lex Fridman",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        }
+      ],
+      "total": 15,
+      "platform_label": "YouTube",
+      "title": "Karpathy",
+      "ts": "2026-06-26 08:46"
+    },
+    "cw1782303278333268": {
+      "videos": [
+        {
+          "vid": "UC8WCW6C3BWLKSZ5cMzD8Gyw",
+          "url": "https://www.youtube.com/channel/UC8WCW6C3BWLKSZ5cMzD8Gyw",
+          "title": "跟李沐学AI",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "UCPMqbkR35zZV1ysWGXJPW-w",
+          "url": "https://www.youtube.com/channel/UCPMqbkR35zZV1ysWGXJPW-w",
+          "title": "新聞看點 李沐陽",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "nzqlFIcCSWQ",
+          "url": "https://www.youtube.com/watch?v=nzqlFIcCSWQ",
+          "title": "Transformer论文逐段精读",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "CzZ9B0Sr2Gc",
+          "url": "https://www.youtube.com/watch?v=CzZ9B0Sr2Gc",
+          "title": "Li Mu & Han Xingzhenyong learned the most practical Chinese while filming in Taiwan. 《Us in That ...",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "4rHIDMun-qI",
+          "url": "https://www.youtube.com/watch?v=4rHIDMun-qI",
+          "title": "李沐 把你寫成我的歌（電影《我吃了那男孩一整年的早餐》插曲）",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "qnqSe2SeE-Y",
+          "url": "https://www.youtube.com/watch?v=qnqSe2SeE-Y",
+          "title": "【完整版】李沐自爆：《如果我不曾見過太陽》幕後祕辛 唐綺陽解析星盤力勸程予希買房！【唐綺陽談星私廚】EP27@jessetang1113 @soacliu_yt",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "hJPtfQqGpQk",
+          "url": "https://www.youtube.com/watch?v=hJPtfQqGpQk",
+          "title": "李沐〈不小心〉王曉夏Ver.—《夏日的檸檬草》電影主題曲",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "VBqrdaz5mMg",
+          "url": "https://www.youtube.com/watch?v=VBqrdaz5mMg",
+          "title": "【夏日的檸檬草】婁峻碩被李沐逼瘋怒喊\"我要分手\"！曹佑寧哄女友搬出中醫馬上得分XD ｜完全娛樂",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "c7epTB9bu5E",
+          "url": "https://www.youtube.com/watch?v=c7epTB9bu5E",
+          "title": "曹佑寧 李沐 英國加西班牙文登場！？Sandra被英腔惡整根本聽不懂？暗戀五年沒結果的初戀？| ( ft. 曹佑寧 李沐）驚奇脫口秀#208",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "BGW-BlbcdF4",
+          "url": "https://www.youtube.com/watch?v=BGW-BlbcdF4",
+          "title": "【如果我不曾見過太陽】曾敬驊撞見李沐跳芭蕾瞬間被煞到! 兩人躲學校天台互吃\"雞腿便當\"超青春｜完全娛樂",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "HvvN3_t9o4U",
+          "url": "https://www.youtube.com/watch?v=HvvN3_t9o4U",
+          "title": "[Video Version] OH Night DJ Interview: Waa Wei x Li Mu x Cheng Yu-hsi | Chinese-language TV Serie...",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "YTL-yXjeFto",
+          "url": "https://www.youtube.com/watch?v=YTL-yXjeFto",
+          "title": "【幕後花絮】被問誰最壞？李沐落淚：最糟糕的是我 吐真心話“我愛的人的人生 都是我搞砸的\"｜完全娛樂",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "zpoMuvDZPi0",
+          "url": "https://www.youtube.com/watch?v=zpoMuvDZPi0",
+          "title": "60金鐘 戲劇類｜迷你劇集電視電影 女配角獎：李沐／誰是被害者：第二季",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "i45lJYc2Idg",
+          "url": "https://www.youtube.com/watch?v=i45lJYc2Idg",
+          "title": "【鑑定師】舒華.李沐挑戰空中瑜珈狂尖叫!驚:不用保險嗎?! 見她懷疑振永偷管理身材急撇清:我沒那麼心機XD｜完全娛樂",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "Vl2El2RSYPk",
+          "url": "https://www.youtube.com/watch?v=Vl2El2RSYPk",
+          "title": "【不要吵架XD】周興哲太幼稚讓李沐破滅:他不講話的時候才帥 \"華燈\"小蘇慶儀竟是理工出身女神",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        }
+      ],
+      "total": 15,
+      "platform_label": "YouTube",
+      "title": "李沐",
+      "ts": "2026-06-26 08:46"
+    },
+    "cw1782303444343476": {
+      "videos": [
+        {
+          "vid": "cQLKVzbwN7I",
+          "url": "https://www.youtube.com/watch?v=cQLKVzbwN7I",
+          "title": "Is AI Crossing the Rubicon? How Far Are We from Self-Improving AI? (Part 2)",
+          "when": "20260524",
+          "when_human": "2026-05-24",
+          "days_ago": 33
+        },
+        {
+          "vid": "s06mSAGN4gM",
+          "url": "https://www.youtube.com/watch?v=s06mSAGN4gM",
+          "title": "AI 要跨越盧比孔河了嗎？自我成長的 AI 離我們多遠 (上集)",
+          "when": "20260510",
+          "when_human": "2026-05-10",
+          "days_ago": 47
+        },
+        {
+          "vid": "m3i2mk5hs8U",
+          "url": "https://www.youtube.com/watch?v=m3i2mk5hs8U",
+          "title": "AI 能自我修正嗎？從 decoding、workflow 到 reasoning 的技術發展整理",
+          "when": "20260425",
+          "when_human": "2026-04-25",
+          "days_ago": 62
+        },
+        {
+          "vid": "R6fZR_9kmIw",
+          "url": "https://www.youtube.com/watch?v=R6fZR_9kmIw",
+          "title": "Harness Engineering：有時候語言模型不是不夠聰明，只是沒有人類好好引導",
+          "when": "20260412",
+          "when_human": "2026-04-12",
+          "days_ago": 75
+        },
+        {
+          "vid": "Ll-wk8x3G_g",
+          "url": "https://www.youtube.com/watch?v=Ll-wk8x3G_g",
+          "title": "如何讓 Transformer 知道輸入 Token 的順序？Absolute、Relative、RoPE、到沒有 Positional Embedding",
+          "when": "20260330",
+          "when_human": "2026-03-30",
+          "days_ago": 88
+        },
+        {
+          "vid": "fDQaadKysSA",
+          "url": "https://www.youtube.com/watch?v=fDQaadKysSA",
+          "title": "加快語言模型生成速度 (2/2)：KV Cache",
+          "when": "20260323",
+          "when_human": "2026-03-23",
+          "days_ago": 95
+        },
+        {
+          "vid": "vXb2QYOUzl4",
+          "url": "https://www.youtube.com/watch?v=vXb2QYOUzl4",
+          "title": "加快語言模型生成速度 (1/2)：Flash Attention",
+          "when": "20260323",
+          "when_human": "2026-03-23",
+          "days_ago": 95
+        },
+        {
+          "vid": "VqB8zMujdjM",
+          "url": "https://www.youtube.com/watch?v=VqB8zMujdjM",
+          "title": "AI Agent (3/3): AI Agent 對於工作帶來的衝擊 - 以學術研究為例",
+          "when": "20260315",
+          "when_human": "2026-03-15",
+          "days_ago": 103
+        },
+        {
+          "vid": "mmPmNezjCi0",
+          "url": "https://www.youtube.com/watch?v=mmPmNezjCi0",
+          "title": "AI Agent (2/3): AI Agent 之間可以有什麼樣的互動",
+          "when": "20260315",
+          "when_human": "2026-03-15",
+          "days_ago": 103
+        },
+        {
+          "vid": "urwDLyNa9FU",
+          "url": "https://www.youtube.com/watch?v=urwDLyNa9FU",
+          "title": "AI Agent (1/3)：核心技術 Context Engineering 基本概念解說",
+          "when": "20260315",
+          "when_human": "2026-03-15",
+          "days_ago": 103
+        },
+        {
+          "vid": "2rcJdFuNbZQ",
+          "url": "https://www.youtube.com/watch?v=2rcJdFuNbZQ",
+          "title": "解剖小龍蝦 — 以 OpenClaw 為例介紹 AI Agent 的運作原理",
+          "when": "20260309",
+          "when_human": "2026-03-09",
+          "days_ago": 109
+        },
+        {
+          "vid": "CbIPjrOj2Tc",
+          "url": "https://www.youtube.com/watch?v=CbIPjrOj2Tc",
+          "title": "【生成式人工智慧與機器學習導論2025】第 10 講：語音語言模型發展史 (本課程前段內容為歷史回顧，2025 年的技術從 1:42:00 開始)",
+          "when": "20251222",
+          "when_human": "2025-12-22",
+          "days_ago": 186
+        },
+        {
+          "vid": "ccqCDD9LqCA",
+          "url": "https://www.youtube.com/watch?v=ccqCDD9LqCA",
+          "title": "【生成式人工智慧與機器學習導論2025】第 9 講：影像和聲音上的生成策略 — Diffusion/Flow-matching 系列和接龍 (Autoregressive) 這兩條世界線的交會",
+          "when": "20251214",
+          "when_human": "2025-12-14",
+          "days_ago": 194
+        },
+        {
+          "vid": "EnWz5XuOnIQ",
+          "url": "https://www.youtube.com/watch?v=EnWz5XuOnIQ",
+          "title": "【生成式人工智慧與機器學習導論2025】第 8 講：通用模型的終身學習 (Fine-tuning, Model Editing, Model Merging, Test-Time Training)",
+          "when": "20251201",
+          "when_human": "2025-12-01",
+          "days_ago": 207
+        },
+        {
+          "vid": "YJoegm7kiUM",
+          "url": "https://www.youtube.com/watch?v=YJoegm7kiUM",
+          "title": "【生成式人工智慧與機器學習導論2025】第 7 講：大型語言模型的學習歷程",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        }
+      ],
+      "total": 15,
+      "platform_label": "YouTube",
+      "title": "Hung-yi Lee",
+      "ts": "2026-06-26 08:46"
+    },
+    "cw1782303524056476": {
+      "videos": [
+        {
+          "vid": "oHwUD9b9_pg",
+          "url": "https://www.youtube.com/watch?v=oHwUD9b9_pg",
+          "title": "Zynga Founder: Consumer Is Not Investible Right Now - Thats Why You Should Build It",
+          "when": "20260625",
+          "when_human": "2026-06-25",
+          "days_ago": 1
+        },
+        {
+          "vid": "_FBivfgOvuE",
+          "url": "https://www.youtube.com/watch?v=_FBivfgOvuE",
+          "title": "How to Get Your First 10 Customers",
+          "when": "20260622",
+          "when_human": "2026-06-22",
+          "days_ago": 4
+        },
+        {
+          "vid": "8OOuCnZB-4o",
+          "url": "https://www.youtube.com/watch?v=8OOuCnZB-4o",
+          "title": "The Age Of The 40-Year-Old Solo Founder Is Here",
+          "when": "20260619",
+          "when_human": "2026-06-19",
+          "days_ago": 7
+        },
+        {
+          "vid": "R56RJFZBasQ",
+          "url": "https://www.youtube.com/watch?v=R56RJFZBasQ",
+          "title": "Pick One Idea and Go Deep",
+          "when": "20260617",
+          "when_human": "2026-06-17",
+          "days_ago": 9
+        },
+        {
+          "vid": "ObBAxL2dFzw",
+          "url": "https://www.youtube.com/watch?v=ObBAxL2dFzw",
+          "title": "Groww: If Your Customers Don't Love It or Hate It, You've Already Lost",
+          "when": "20260615",
+          "when_human": "2026-06-15",
+          "days_ago": 11
+        },
+        {
+          "vid": "3rWSvrFahIY",
+          "url": "https://www.youtube.com/watch?v=3rWSvrFahIY",
+          "title": "Self-Play for LLMs, AI for Biology, Formal Verification, and More | YC Paper Club",
+          "when": "20260612",
+          "when_human": "2026-06-12",
+          "days_ago": 14
+        },
+        {
+          "vid": "49L8lVe_PVo",
+          "url": "https://www.youtube.com/watch?v=49L8lVe_PVo",
+          "title": "How Meesho Became India’s Biggest Shopping App",
+          "when": "20260611",
+          "when_human": "2026-06-11",
+          "days_ago": 15
+        },
+        {
+          "vid": "mPAHvz8kW24",
+          "url": "https://www.youtube.com/watch?v=mPAHvz8kW24",
+          "title": "The Most AI-Pilled CEO We Know",
+          "when": "20260610",
+          "when_human": "2026-06-10",
+          "days_ago": 16
+        },
+        {
+          "vid": "yyXCQHX55N4",
+          "url": "https://www.youtube.com/watch?v=yyXCQHX55N4",
+          "title": "Emergent: How Six Months of Tinkering Led To A $100M ARR Company",
+          "when": "20260606",
+          "when_human": "2026-06-06",
+          "days_ago": 20
+        },
+        {
+          "vid": "mjmswQurIU4",
+          "url": "https://www.youtube.com/watch?v=mjmswQurIU4",
+          "title": "How Legora Went From YC to $100M ARR in 18 Months",
+          "when": "20260605",
+          "when_human": "2026-06-05",
+          "days_ago": 21
+        },
+        {
+          "vid": "fQmlML9Lay4",
+          "url": "https://www.youtube.com/watch?v=fQmlML9Lay4",
+          "title": "Conductor CEO Charlie Holtz Walks Us Through His AI Coding Setup",
+          "when": "20260604",
+          "when_human": "2026-06-04",
+          "days_ago": 22
+        },
+        {
+          "vid": "gSNFJbgoaHI",
+          "url": "https://www.youtube.com/watch?v=gSNFJbgoaHI",
+          "title": "How to Build an AI-Native Services Company",
+          "when": "20260603",
+          "when_human": "2026-06-03",
+          "days_ago": 23
+        },
+        {
+          "vid": "2Ap1dnv-GXA",
+          "url": "https://www.youtube.com/watch?v=2Ap1dnv-GXA",
+          "title": "Why Two IIT Engineers Turned Down $550K Jobs To Build A Startup",
+          "when": "20260529",
+          "when_human": "2026-05-29",
+          "days_ago": 28
+        },
+        {
+          "vid": "wE1ZgJdt4uM",
+          "url": "https://www.youtube.com/watch?v=wE1ZgJdt4uM",
+          "title": "Inference, Diffusion, World Models, and More | YC Paper Club",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "B246K_G7mHU",
+          "url": "https://www.youtube.com/watch?v=B246K_G7mHU",
+          "title": "Inside YC's AI Playbook",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        }
+      ],
+      "total": 15,
+      "platform_label": "YouTube",
+      "title": "Y Combinator",
+      "ts": "2026-06-26 08:46"
+    },
+    "cw1782303553561476": {
+      "videos": [
+        {
+          "vid": "Ybrl4FYM57c",
+          "url": "https://www.youtube.com/watch?v=Ybrl4FYM57c",
+          "title": "What happens after coding is solved? | Fiona Fung (Claude Code & Cowork)",
+          "when": "20260621",
+          "when_human": "2026-06-21",
+          "days_ago": 5
+        },
+        {
+          "vid": "7eh9C3TUotc",
+          "url": "https://www.youtube.com/watch?v=7eh9C3TUotc",
+          "title": "The hidden pattern behind successful products | Mark Pincus (FarmVille, Words with Friends, & more)",
+          "when": "20260614",
+          "when_human": "2026-06-14",
+          "days_ago": 12
+        },
+        {
+          "vid": "RJjl1TwyfWM",
+          "url": "https://www.youtube.com/watch?v=RJjl1TwyfWM",
+          "title": "Tony Fadell on the product judgment AI can’t replace",
+          "when": "20260607",
+          "when_human": "2026-06-07",
+          "days_ago": 19
+        },
+        {
+          "vid": "BD3vLtWhT5A",
+          "url": "https://www.youtube.com/watch?v=BD3vLtWhT5A",
+          "title": "The most rational take on AI you’ll hear this year",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "4D3hDmGhFhA",
+          "url": "https://www.youtube.com/watch?v=4D3hDmGhFhA",
+          "title": "AI predictions: Job markets, Codex beats Claude, and the death of org charts | Dan Shipper",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "G5WTgB87rYQ",
+          "url": "https://www.youtube.com/watch?v=G5WTgB87rYQ",
+          "title": "Why the next AI boom is physical AI | Caitlin Kalinowski (ex-OpenAI, Meta, Apple)",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "PoJ1vTdHpks",
+          "url": "https://www.youtube.com/watch?v=PoJ1vTdHpks",
+          "title": "How Anthropic, Costco, and Patagonia all build incorruptible companies  | Eric Ries",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "mCO-D3pkviM",
+          "url": "https://www.youtube.com/watch?v=mCO-D3pkviM",
+          "title": "AI era skills: Why cultivating agency matters more than job titles | Max Schoening (Notion)",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "-7Yol5vX5xw",
+          "url": "https://www.youtube.com/watch?v=-7Yol5vX5xw",
+          "title": "How to win when software is not a moat | Evan Spiegel (Snapchat CEO)",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "PplmzlgE0kg",
+          "url": "https://www.youtube.com/watch?v=PplmzlgE0kg",
+          "title": "How Anthropic’s product team moves faster than anyone else | Cat Wu (Head of Product, Claude Code)",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "yUohoaC8_Hs",
+          "url": "https://www.youtube.com/watch?v=yUohoaC8_Hs",
+          "title": "Why half of product managers are in trouble | Nikhyl Singhal (Meta, Google)",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "xCd9ykretlg",
+          "url": "https://www.youtube.com/watch?v=xCd9ykretlg",
+          "title": "Hard truths about building in the AI era | Keith Rabois (Khosla Ventures)",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "k-H4nsOTuxU",
+          "url": "https://www.youtube.com/watch?v=k-H4nsOTuxU",
+          "title": "Head of Growth (Anthropic): Anthropic is automating its own growth",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "wc8FBhQtdsA",
+          "url": "https://www.youtube.com/watch?v=wc8FBhQtdsA",
+          "title": "An AI state of the union: We’ve passed the inflection point & dark factories are coming",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        },
+        {
+          "vid": "DIa0MYJzM5I",
+          "url": "https://www.youtube.com/watch?v=DIa0MYJzM5I",
+          "title": "From skeptic to true believer: How OpenClaw changed my life | Claire Vo",
+          "when": "",
+          "when_human": "",
+          "days_ago": null
+        }
+      ],
+      "total": 15,
+      "platform_label": "YouTube",
+      "title": "Lenny's Podcast",
+      "ts": "2026-06-26 08:46"
+    },
+    "cw1782303591400476": {
+      "videos": [
+        {
+          "vid": "VICrf_yV0co",
+          "url": "https://www.youtube.com/watch?v=VICrf_yV0co",
+          "title": "CEO-Led AI Gets 3X the ROI",
+          "when": "20260625",
+          "when_human": "2026-06-25",
+          "days_ago": 1
+        },
+        {
+          "vid": "EpxZEvvOTL8",
+          "url": "https://www.youtube.com/watch?v=EpxZEvvOTL8",
+          "title": "5 Ways Claude Tag Could Change How You Use AI",
+          "when": "20260624",
+          "when_human": "2026-06-24",
+          "days_ago": 2
+        },
+        {
+          "vid": "HkVpSoaIKsc",
+          "url": "https://www.youtube.com/watch?v=HkVpSoaIKsc",
+          "title": "Why AI Users Are Raving About GLM 5.2",
+          "when": "20260622",
+          "when_human": "2026-06-22",
+          "days_ago": 4
+        },
+        {
+          "vid": "VK56IPRsA-s",
+          "url": "https://www.youtube.com/watch?v=VK56IPRsA-s",
+          "title": "The 5-Minute AI Weekly Recap: Realignment Week",
+          "when": "20260621",
+          "when_human": "2026-06-21",
+          "days_ago": 5
+        },
+        {
+          "vid": "sKrr_ckIt4s",
+          "url": "https://www.youtube.com/watch?v=sKrr_ckIt4s",
+          "title": "Your Company Doesn't Need an AI Strategy",
+          "when": "20260620",
+          "when_human": "2026-06-20",
+          "days_ago": 6
+        },
+        {
+          "vid": "4hvA6aCwf6E",
+          "url": "https://www.youtube.com/watch?v=4hvA6aCwf6E",
+          "title": "The Models Trying to Replace Fable",
+          "when": "20260619",
+          "when_human": "2026-06-19",
+          "days_ago": 7
+        },
+        {
+          "vid": "v3jwNZ94GLo",
+          "url": "https://www.youtube.com/watch?v=v3jwNZ94GLo",
+          "title": "Why Only AI Training Can Save the Economy",
+          "when": "20260618",
+          "when_human": "2026-06-18",
+          "days_ago": 8
+        },
+        {
+          "vid": "RO7Ly_wu9dQ",
+          "url": "https://www.youtube.com/watch?v=RO7Ly_wu9dQ",
+          "title": "A Big Shift in the AI Race",
+          "when": "20260617",
+          "when_human": "2026-06-17",
+          "days_ago": 9
+        },
+        {
+          "vid": "5-CGzLrA4fg",
+          "url": "https://www.youtube.com/watch?v=5-CGzLrA4fg",
+          "title": "Fable 5 Shut Down by US Government",
+          "when": "20260613",
+          "when_human": "2026-06-13",
+          "days_ago": 13
+        },
+        {
+          "vid": "05VE_9rI954",
+          "url": "https://www.youtube.com/watch?v=05VE_9rI954",
+          "title": "The AI Chart Everyone Is Getting Wrong",
+          "when": "20260613",
+          "when_human": "2026-06-13",
+          "days_ago": 13
+        },
+        {
+          "vid": "45UGHbqq2fQ",
+          "url": "https://www.youtube.com/watch?v=45UGHbqq2fQ",
+          "title": "10 Sites Knowledge Workers Should Build with AI",
+          "when": "20260612",
+          "when_human": "2026-06-12",
+          "days_ago": 14
+        },
+        {
+          "vid": "LNXDoKPe06I",
+          "url": "https://www.youtube.com/watch?v=LNXDoKPe06I",
+          "title": "Why Fable 5 is the Most Controversial AI Release Ever",
+          "when": "20260612",
+          "when_human": "2026-06-12",
+          "days_ago": 14
+        },
+        {
+          "vid": "it7VUqfVorw",
+          "url": "https://www.youtube.com/watch?v=it7VUqfVorw",
+          "title": "Fable 5 Raises the Bar for AI Ambition",
+          "when": "20260611",
+          "when_human": "2026-06-11",
+          "days_ago": 15
+        },
+        {
+          "vid": "pnxRfJRAh5A",
+          "url": "https://www.youtube.com/watch?v=pnxRfJRAh5A",
+          "title": "OpenAI Declares the Next Phase of AI",
+          "when": "20260610",
+          "when_human": "2026-06-10",
+          "days_ago": 16
+        },
+        {
+          "vid": "RKpEI37RnfI",
+          "url": "https://www.youtube.com/watch?v=RKpEI37RnfI",
+          "title": "The Way We Use AI is Changing",
+          "when": "20260609",
+          "when_human": "2026-06-09",
+          "days_ago": 17
+        }
+      ],
+      "total": 15,
+      "platform_label": "YouTube",
+      "title": "The AI Daily Brief: Artificial Intelligence News",
+      "ts": "2026-06-26 08:46"
+    }
+  },
+  "title_zh_map": {}
 }

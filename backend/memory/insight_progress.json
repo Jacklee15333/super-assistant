@@ -1,131 +1,143 @@
 {
   "active": false,
   "phase": "done",
-  "total": 242,
-  "done": 242,
-  "learned": 8,
+  "total": 274,
+  "done": 274,
+  "learned": 4,
   "current": null,
   "queue": [],
   "activity": [
-    "18:06:03  🚀 开始逐篇精读：共 242 篇，其中 234 篇已学过、本轮要读 8 篇。",
-    "18:06:03  📂 爬取 视频内容库《20260624-175618-做投资和做企业的人今天这期不要错过》（第 235/242 篇）",
-    "18:06:03  🤖 派给 AI 通读这篇…",
-    "18:06:09  ✓ 已学习：1. 这期视频借瑞·达利欧关于全球新秩序的博客，提出一个宏大判断：美国信用与实力正在",
-    "18:06:09  📂 爬取 视频内容库《20260624-171909-AI_干复杂任务总出错爱胡说八道_不是》（第 236/242 篇）",
-    "18:06:09  🤖 派给 AI 通读这篇…",
-    "18:06:11  ✓ 已学习：1. AI在处理复杂任务时容易出错，通常不是因为模型能力不足，而是由于任务设计不当导",
-    "18:06:11  📂 爬取 视频内容库《20260624-171425-牢A精选美英留学一定要避开当地青少年》（第 237/242 篇）",
-    "18:06:11  🤖 派给 AI 通读这篇…",
-    "18:06:14  ✓ 已学习：1. 视频强烈警告留学生应远离当地青少年群体及相关亚文化圈，尤其是避免接触毒品。",
-    "18:06:14  📂 爬取 视频内容库《20260624-171221-那些年屁股长歪的美吹们儿_那些年屁股长》（第 238/242 篇）",
-    "18:06:14  🤖 派给 AI 通读这篇…",
-    "18:06:16  ✓ 已学习：1. **视频主题**：反驳“国外免费医疗、国外医疗更好”的简单化说法，强调医疗成本",
-    "18:06:16  📂 爬取 视频内容库《20260624-164613-告别幻觉完全开源本地部署科研效率翻倍》（第 239/242 篇）",
-    "18:06:16  🤖 派给 AI 通读这篇…",
-    "18:06:19  ✓ 已学习：1. 介绍了一个支持本地部署的开源多智能体科研系统，通过四个Agent协作完成论文检",
-    "18:06:19  📂 爬取 主动研究《research-20260624-164427-中国育儿假男性陪产假与托育政策最新进展国际比较及家庭分工影响》（第 240/242 篇）",
-    "18:06:19  🤖 派给 AI 通读这篇…",
-    "18:06:22  ✓ 已学习：1. **政策动态**：近年来，中国政府在育儿假、男性陪产假和托育服务等方面推出了一",
-    "18:06:22  📂 爬取 主动研究《research-20260624-164422-年_AI_Agent_安全治理VPS_沙箱权限隔离提示词注入》（第 241/242 篇）",
-    "18:06:22  🤖 派给 AI 通读这篇…",
-    "18:06:25  ✓ 已学习：1. **AI Agent 安全问题探讨**：研究分析 AI Agent 在面对间接",
-    "18:06:25  📂 爬取 主动研究《research-20260624-164417-AI_一人公司两周市场验证获客成本自动化交付复购率与失败案例》（第 242/242 篇）",
-    "18:06:25  🤖 派给 AI 通读这篇…",
-    "18:06:28  ✓ 已学习：1. **研究背景与主要内容**：探讨AI时代一人公司的现实状况，通过多个案例分析获",
-    "18:06:28  🧩 读完了，正在把 242 篇的学习数据汇总成对你的理解…",
-    "18:07:02  🎉 分析完成，小助更懂你了。",
-    "18:07:02  🌐 开始根据你的画像主动上网搜相关内容…",
-    "18:07:22  🔍 正在研究：AI Agent 提示词注入真实攻击案例 MCP 工具链安全 权限隔离最佳实践",
-    "18:07:28  ✓ 已存进成长库：AI Agent 提示词注入真实攻击案例 MCP 工具链安全 权限隔离最佳实践（4 个来源）",
-    "18:07:28  🌐 主动研究完成，新增 1 篇进成长库（下次洞察会读到）。"
+    "14:38:50  🚀 开始逐篇精读：共 274 篇，其中 270 篇已学过、本轮要读 4 篇。",
+    "14:38:50  📂 爬取 主动研究《research-20260625-134234-城投改革_2027_资产处置_房地产重新定价_居民资产负债表》（第 271/274 篇）",
+    "14:38:50  🤖 派给 AI 通读这篇…",
+    "14:38:54  ✓ 已学习：1. **资产负债表再平衡**：重点关注中国城市更新过程中面临的资产价格下行和居民负",
+    "14:38:54  📂 爬取 主动研究《research-20260625-134229-AI_一人公司_获客成本_自动化交付_复购率_失败案例》（第 272/274 篇）",
+    "14:38:54  🤖 派给 AI 通读这篇…",
+    "14:38:57  ✓ 已学习：1. 研究主题聚焦于社区团购行业的发展现状与未来趋势，强调获客效率和供应链优化为核心",
+    "14:38:57  📂 爬取 主动研究《research-20260625-134224-Claude_Code_Codex_桌面_Agent_自动化》（第 273/274 篇）",
+    "14:38:57  🤖 派给 AI 通读这篇…",
+    "14:38:59  ✓ 已学习：1. **调研主题**：对比分析 OpenAI Codex 的全面更新，特别是其桌面",
+    "14:38:59  📂 爬取 主动研究《research-20260625-134211-AI_Agent_MCP_工具链安全_提示词注入_沙箱隔离》（第 274/274 篇）",
+    "14:38:59  🤖 派给 AI 通读这篇…",
+    "14:39:02  ✓ 已学习：1. **调研主题**：AI Agent MCP工具链安全、提示词注入及沙箱隔离的安",
+    "14:39:02  🧩 读完了，正在把 278 篇的学习数据汇总成对你的理解…",
+    "14:39:31  🎉 分析完成，小助更懂你了。",
+    "14:39:31  🌐 开始根据你的画像主动上网搜相关内容…",
+    "14:39:58  🔍 正在研究：MCP 工具投毒攻击 提示词注入 AI Agent 沙箱隔离 实战案例",
+    "14:40:03  ✓ 已存进成长库：MCP 工具投毒攻击 提示词注入 AI Agent 沙箱隔离 实战案例（4 个来源）",
+    "14:40:04  🔍 正在研究：AI 一人公司 获客成本 自动化交付 复购率 失败案例",
+    "14:40:10  ✓ 已存进成长库：AI 一人公司 获客成本 自动化交付 复购率 失败案例（4 个来源）",
+    "14:40:10  🔍 正在研究：城投改革 2027 资产处置 房地产重新定价 居民资产负债表",
+    "14:40:14  ✓ 已存进成长库：城投改革 2027 资产处置 房地产重新定价 居民资产负债表（4 个来源）",
+    "14:40:14  🌐 主动研究完成，新增 3 篇进成长库（下次洞察会读到）。"
   ],
   "read_files": [
     {
-      "name": "20260624-175618-做投资和做企业的人今天这期不要错过",
-      "scope": "video",
-      "label": "视频内容库",
-      "chars": 8996,
-      "at": "18:06:09"
-    },
-    {
-      "name": "20260624-171909-AI_干复杂任务总出错爱胡说八道_不是",
-      "scope": "video",
-      "label": "视频内容库",
-      "chars": 7052,
-      "at": "18:06:11"
-    },
-    {
-      "name": "20260624-171425-牢A精选美英留学一定要避开当地青少年",
-      "scope": "video",
-      "label": "视频内容库",
-      "chars": 4695,
-      "at": "18:06:14"
-    },
-    {
-      "name": "20260624-171221-那些年屁股长歪的美吹们儿_那些年屁股长",
-      "scope": "video",
-      "label": "视频内容库",
-      "chars": 6990,
-      "at": "18:06:16"
-    },
-    {
-      "name": "20260624-164613-告别幻觉完全开源本地部署科研效率翻倍",
-      "scope": "video",
-      "label": "视频内容库",
-      "chars": 5025,
-      "at": "18:06:19"
-    },
-    {
-      "name": "research-20260624-164427-中国育儿假男性陪产假与托育政策最新进展国际比较及家庭分工影响",
+      "name": "research-20260625-134234-城投改革_2027_资产处置_房地产重新定价_居民资产负债表",
       "scope": "research",
       "label": "主动研究",
-      "chars": 6992,
-      "at": "18:06:22"
+      "chars": 6784,
+      "at": "14:38:54"
     },
     {
-      "name": "research-20260624-164422-年_AI_Agent_安全治理VPS_沙箱权限隔离提示词注入",
+      "name": "research-20260625-134229-AI_一人公司_获客成本_自动化交付_复购率_失败案例",
       "scope": "research",
       "label": "主动研究",
-      "chars": 6974,
-      "at": "18:06:25"
+      "chars": 6733,
+      "at": "14:38:57"
     },
     {
-      "name": "research-20260624-164417-AI_一人公司两周市场验证获客成本自动化交付复购率与失败案例",
+      "name": "research-20260625-134224-Claude_Code_Codex_桌面_Agent_自动化",
       "scope": "research",
       "label": "主动研究",
-      "chars": 7013,
-      "at": "18:06:28"
+      "chars": 6497,
+      "at": "14:38:59"
+    },
+    {
+      "name": "research-20260625-134211-AI_Agent_MCP_工具链安全_提示词注入_沙箱隔离",
+      "scope": "research",
+      "label": "主动研究",
+      "chars": 6763,
+      "at": "14:39:02"
     }
   ],
   "skipped_files": [],
   "research": [
     {
-      "topic": "AI Agent 提示词注入真实攻击案例 MCP 工具链安全 权限隔离最佳实践",
+      "topic": "MCP 工具投毒攻击 提示词注入 AI Agent 沙箱隔离 实战案例",
       "status": "saved",
       "sources": [
         {
-          "title": "AI Agent七大致命威胁揭秘:恶意插件正盯着你的API Key_腾讯新闻",
-          "url": "http://www.baidu.com/link?url=fhpH_F3pCpd94Mya7I-nifyb4buID4grrMkma2vsYJpPgYADvmXN64XF3uneceGROVS4x1KTE5MwKp-D5nwyNK"
+          "title": "面对MCP“工具投毒”,我们该如何应对_腾讯新闻",
+          "url": "http://www.baidu.com/link?url=339FKaqslh288PZ8z8jBoFLdJ8VhgfZ4BLiEw-8BuZZyDhxs8rosuQox8Zz6T5oxDiKgXyIz--8Zv-WwP_9zLK"
         },
         {
-          "title": "...AI 安全报告:把钱交给“龙虾”等 AI Agent 真的安全吗?|AI|自动...",
-          "url": "http://www.baidu.com/link?url=a2aX6UCT0TxO5f19O6N4xp9LQiPmfxhnWWHgUiQFgeFP0jSW5OUuTsiUiaUHCkafp7D5HDECdpP8ParHz_WHSF4aS8X2ofmBMpD2GhKSh-e"
+          "title": "面对MCP“工具投毒”,我们该如何应对_腾讯新闻",
+          "url": "http://www.baidu.com/link?url=Ri6p7mLFtAxmOjXKAy2hoGh70WcXg0OXL7daW-ZM9kkyitv0maPij-FNXxLfATCkqODQH53SBENsSSjbTy8iqa"
         },
         {
-          "title": "阿里千问 vs 字节豆包:当 AI 开始“点外卖”,Agent 的 0-1 终局已定...",
-          "url": "http://www.baidu.com/link?url=P7TOkcixXKUcV3Ek7ut3Nqa07fV5pKL1U7WkQt9Nxn2eMIV2wuUZXWktJXrkMiGiaGLj6BYQmw-U1aztfz22Aq"
+          "title": "面对MCP“工具投毒”,我们该如何应对_腾讯新闻",
+          "url": "http://www.baidu.com/link?url=DZ4NfZHlLxXYelsELlhgR3HAUON8WqsjxIovRlB50luBv25mX1ytjjAc5tb9OT_ROfJD4qpyIfQPu17aPNhQwq"
         },
         {
-          "title": "AI Agent破局:MCP与A2A定义安全新边界_腾讯新闻",
-          "url": "http://www.baidu.com/link?url=rLrFmupsMBqVLYIDtwKJ0vBjK8L0W3xgpLIg2LuaHHdNOZtZqjm4Qr4QgvMe-D_a3kAfXZu-ny2ZgTkmJlo7wa"
+          "title": "...企业、个人都能用|沙箱|云安全|安全中心|知名企业|agent_网易...",
+          "url": "http://www.baidu.com/link?url=fGgdpDLnSgnSajkhpONtOS8REfdxglENaPw4QLQ89fFMaf9tVr2DA_QYLkvjM4OAi0dMofxvUVwsP7ogoYolZK"
         }
       ],
-      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20260624-180728-AI_Agent_提示词注入真实攻击案例_MCP_工具链安全.md",
-      "at": "18:07:22"
+      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20260625-144003-MCP_工具投毒攻击_提示词注入_AI_Agent_沙箱隔离.md",
+      "at": "14:39:58"
+    },
+    {
+      "topic": "AI 一人公司 获客成本 自动化交付 复购率 失败案例",
+      "status": "saved",
+      "sources": [
+        {
+          "title": "...AI 获客工具:用户口碑 TOP5》|触达|运营|top|复购率|目标客户_网 ...",
+          "url": "http://www.baidu.com/link?url=qDTXeyCLOuzNXDu4qWU7BgEOZ3eDhZ-Coq3XqWNcK9SP6CwS6wjlwsr4hQ5YlDqcuN_AueM98HQDxv84qEqpga"
+        },
+        {
+          "title": "社区团购:行至半程,徐图进取|电商|sku|淘宝|分销|单量_网易订阅",
+          "url": "http://www.baidu.com/link?url=B_29QR2zW-vO4NQvc_3H_S7EG4jYWea7VwcvH_KJxl0y9IYXYkIlLTgYTwCsOUVlG8CGCSUQsX9erE4NT_A2hq"
+        },
+        {
+          "title": "拆解有赞,万字长文!_腾讯新闻",
+          "url": "http://www.baidu.com/link?url=nq7I-j7e-KNcT0ZAEeIE5Axed1us6-dXcaLNtLqUw4uMH1aSdgmGlPuZTVAnjufzaG95Huz8DmeenM1LtZKf4q"
+        },
+        {
+          "title": "分销+小程序:社交裂变背后的增长引擎|分销商|小程序|社交裂变|...",
+          "url": "http://www.baidu.com/link?url=qDTXeyCLOuzNXDu4qWU7BgEOZ3eDhZ-Coq3XqWNcK9Vrsik3NxCt4bbxtknsrcGMgt8xc2-ZDaJHYEuTrIijpa"
+        }
+      ],
+      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20260625-144010-AI_一人公司_获客成本_自动化交付_复购率_失败案例.md",
+      "at": "14:40:04"
+    },
+    {
+      "topic": "城投改革 2027 资产处置 房地产重新定价 居民资产负债表",
+      "status": "saved",
+      "sources": [
+        {
+          "title": "中国城市更新最大的挑战恐怕正是资产负债表的再平衡|存量|现金流|金 ...",
+          "url": "http://www.baidu.com/link?url=FjM5z1ePSjp23GUlZtjC4qf5p0zun81x8ETzxdy8jyrRRtfN6iuBqMnYAmwCUhoeHZHHPrK3zwvn3hTV-DKE6a"
+        },
+        {
+          "title": "首提修复居民资产负债表释放重大信号",
+          "url": "http://www.baidu.com/link?url=uNnt_v1_GXq3BND6jei7yvGEtV0w7N4lhvzXorBMemFdoohQn_PdYFTBfANH-CkvbcknR6PCrar6sq56R9P4LAEh4W5_3D4WYRcXnFOhB_7"
+        },
+        {
+          "title": "2027城投改革持续深化!普通人的生活将迎来三类直观改变",
+          "url": "http://www.baidu.com/link?url=cqT0mwriKjUjzq3qq6xb1ACTbUa18tS9ayYD_gZKZzRyx8IudRsmZRevMjStgShw9U6D5G47Z5q5vfSdA-vaZtBcGVHEgaqZ2J0_7T_SA8m"
+        },
+        {
+          "title": "2027年前后中国困境资产有望进入处置高峰与价值重塑期,但这是...",
+          "url": "http://www.baidu.com/link?url=pYa4MFJikG0qidk-s6YcrUyxLRrjN4YUn274sHeDL-x1UBNwkPEIZ1-z_Cn-IrICaUlqn8ioJB3KwpN6ulf7z_piwvBIWvyswI_z3LVS17q"
+        }
+      ],
+      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20260625-144014-城投改革_2027_资产处置_房地产重新定价_居民资产负债表.md",
+      "at": "14:40:10"
     }
   ],
-  "started_at": "2026-06-24 18:06",
-  "finished_at": "2026-06-24 18:07",
+  "started_at": "2026-06-25 14:38",
+  "finished_at": "2026-06-25 14:40",
   "source": "auto",
   "read_local": true,
   "use_local": false,

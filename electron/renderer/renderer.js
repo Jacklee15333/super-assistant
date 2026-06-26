@@ -49,12 +49,21 @@ function setStatusDot(state) {
   else if (state === false) dot.classList.add("bad");
 }
 
+let _backendReadyOnce = false;
 window.crayfish?.onBackendStatus((ok) => {
   const line = document.getElementById("statusLine");
   line.textContent = ok ? "已就绪" : "后端未连接";
   line.style.color = ok ? "var(--text-dim)" : "var(--accent)";
   if (!ok) setStatusDot(false);  // 后端都没连上，模型必然不正常
-  if (ok) maybeGreetOnce();
+  if (ok) {
+    maybeGreetOnce();
+    // 冷启动时窗口先于后端出现，各页第一次 fetch 会失败（显示「加载失败」）。
+    // 后端一就绪就重跑当前视图的加载逻辑，让页面自动恢复，不用手动刷新/切页。
+    if (!_backendReadyOnce) {
+      _backendReadyOnce = true;
+      try { document.querySelector(".nav-item.active")?.click(); } catch (e) {}
+    }
+  }
 });
 
 // 后端首次就绪时，显示一句个性化问候（只显示一次；没画像/记忆时后端会给通用问候）
@@ -2080,6 +2089,503 @@ setTimeout(() => { try { runVideoHealthCheck(false); } catch (_) {} }, 4000);
 
 let _currentVideo = null;  // 当前展示的视频数据（用于复制/导出）
 
+/* =======================================================================
+ *  轻量思维导图渲染器（纯 SVG，无第三方库，离线可用）
+ *  - 输入：{ data:{text, note?, color?}, children:[...] } 递归树
+ *  - 布局：横向（中心在左，逐层向右展开），自动按子树高度排布，不重叠
+ *  - 交互：点节点折叠/展开、拖拽平移、滚轮缩放、工具条（适应/放大/缩小/重新生成/导出PNG）
+ *  - 主题：用页面 CSS 变量取色，跟随明暗主题
+ * ===================================================================== */
+
+// 把思维导图树转成「缩进大纲」文本（复制/朗读/导出用）
+function mindmapToOutline(root, depth, lines) {
+  lines = lines || [];
+  if (!root) return "";
+  if (depth === undefined) depth = 0;
+  const d = root.data || {};
+  const text = (d.text || "").trim();
+  if (text) {
+    const prefix = depth === 0 ? "" : ("  ".repeat(depth - 1) + "- ");
+    lines.push(prefix + text + (d.note ? "（" + d.note + "）" : ""));
+  }
+  const kids = Array.isArray(root.children) ? root.children : [];
+  for (const k of kids) mindmapToOutline(k, depth + 1, lines);
+  return lines.join("\n");
+}
+
+// 读取一个 CSS 变量（取不到给兜底值）
+function _cssVar(name, fallback) {
+  try {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name);
+    return (v && v.trim()) ? v.trim() : fallback;
+  } catch (_) { return fallback; }
+}
+
+// 估算文本像素宽度（粗略：中文按 ~fontSize，英文/数字按 ~0.6*fontSize）
+function _measureText(text, fontSize) {
+  let w = 0;
+  for (const ch of String(text || "")) {
+    w += /[\u4e00-\u9fff\uff00-\uffef]/.test(ch) ? fontSize : fontSize * 0.6;
+  }
+  return Math.max(w, fontSize); // 至少一个字宽
+}
+
+// 把节点文本按最大宽度折行，返回行数组
+function _wrapLines(text, fontSize, maxWidth) {
+  const words = String(text || "").split("");
+  const lines = [];
+  let cur = "", curW = 0;
+  for (const ch of words) {
+    const cw = /[\u4e00-\u9fff\uff00-\uffef]/.test(ch) ? fontSize : fontSize * 0.6;
+    if (ch === "\n") { lines.push(cur); cur = ""; curW = 0; continue; }
+    if (curW + cw > maxWidth && cur) { lines.push(cur); cur = ch; curW = cw; }
+    else { cur += ch; curW += cw; }
+  }
+  if (cur) lines.push(cur);
+  return lines.length ? lines : [""];
+}
+
+function renderMindmapInto(container, root, onRegen) {
+  if (!container) return;
+  container.innerHTML = "";
+
+  // —— 配置 ——
+  const FONT = 15;                 // 基础字号（调大一点，更清晰）
+  const MAX_TEXT_W = 220;          // 单节点文本最大宽度（超出折行）
+  const PAD_X = 13, PAD_Y = 8;     // 节点内边距
+  const GAP_X = 56;                // 层与层水平间距
+  const GAP_Y = 14;                // 同层兄弟垂直间距
+  const LINE_H = FONT * 1.35;      // 行高
+  const MIN_FIT_SCALE = 0.55;      // 「适应」时的最小缩放：低于它就不再缩，改用滚动看（保证字够大）
+
+  const colText = _cssVar("--text", "#1f2329");
+  const colDim = _cssVar("--text-dim", "#8a8a93");
+  const colLine = _cssVar("--line", "#e3e3e8");
+  const colAccent = _cssVar("--accent", "#3b6cff");
+  const colAccentSoft = _cssVar("--accent-soft", "rgba(59,108,255,.12)");
+  const colCardBg = _cssVar("--card", _cssVar("--bg", "#ffffff"));
+
+  // 深浅主题判断（用于根节点文字反白）：简单看强调色亮度
+  function _isDark(hex) {
+    const m = /^#?([0-9a-f]{6})$/i.exec((hex || "").trim());
+    if (!m) return false;
+    const n = parseInt(m[1], 16);
+    const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    return (0.299 * r + 0.587 * g + 0.114 * b) < 140;
+  }
+
+  // —— 给每个节点建立内部布局对象 ——
+  let _uid = 0;
+  function build(node, depth) {
+    const d = node.data || {};
+    const text = (d.text || "·").toString();
+    const lines = _wrapLines(text, FONT, MAX_TEXT_W);
+    let textW = 0;
+    for (const ln of lines) textW = Math.max(textW, _measureText(ln, FONT));
+    const w = Math.min(textW, MAX_TEXT_W) + PAD_X * 2;
+    const h = lines.length * LINE_H + PAD_Y * 2;
+    const kids = Array.isArray(node.children) ? node.children : [];
+    const item = {
+      id: ++_uid,
+      depth,
+      text,
+      note: (d.note || "").toString(),
+      color: (typeof d.color === "string" && d.color.trim().startsWith("#")) ? d.color.trim() : "",
+      lines,
+      w, h,
+      // 默认只展开到一级分支：深度>=1 且有子节点的，初始折叠起来（点开看细节）
+      collapsed: depth >= 1 && kids.length > 0,
+      children: [],
+      x: 0, y: 0,          // 节点左上角坐标
+      subTop: 0, subBot: 0 // 子树纵向范围（布局用）
+    };
+    for (const k of kids) item.children.push(build(k, depth + 1));
+    return item;
+  }
+  const tree = build(root, 0);
+
+  // —— 纵向布局：后序遍历，叶子按顺序堆叠，父节点居中于子树 ——
+  let _cursorY = 0;
+  function layoutV(item) {
+    if (item.collapsed || !item.children.length) {
+      item.subTop = _cursorY;
+      item.cy = _cursorY + item.h / 2;
+      _cursorY += item.h + GAP_Y;
+      item.subBot = _cursorY;
+      return;
+    }
+    const top = _cursorY;
+    for (const c of item.children) layoutV(c);
+    const first = item.children[0], last = item.children[item.children.length - 1];
+    item.cy = (first.cy + last.cy) / 2;        // 居中于第一个和最后一个子节点
+    item.subTop = top;
+    item.subBot = _cursorY;
+  }
+
+  // —— 横向布局：x 按深度累加（按每层最大宽度对齐更整齐，这里用累进） ——
+  function layoutH(item, x) {
+    item.x = x;
+    const nextX = x + item.w + GAP_X;
+    if (!item.collapsed) for (const c of item.children) layoutH(c, nextX);
+  }
+
+  // —— SVG 容器 ——
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("class", "mm-svg");
+  svg.style.width = "100%";
+  svg.style.height = "100%";       // 高度交给外层 .mm-stage 控制（默认 70vh，可全屏）
+  svg.style.display = "block";
+  svg.style.cursor = "grab";
+  const gRoot = document.createElementNS(NS, "g");   // 总变换组（平移/缩放）
+  svg.appendChild(gRoot);
+
+  // 一键展开全部 / 收起到一级（总览 ↔ 细节）
+  function setCollapsedAll(collapsed) {
+    (function walk(item) {
+      if (item.depth >= 1 && item.children.length) item.collapsed = collapsed;
+      item.children.forEach(walk);
+    })(tree);
+    draw();
+    requestAnimationFrame(() => { try { fitView(); } catch (_) {} });
+  }
+
+  // 视图变换状态
+  let scale = 1, tx = 0, ty = 0;
+  function applyTransform() {
+    gRoot.setAttribute("transform", "translate(" + tx + "," + ty + ") scale(" + scale + ")");
+  }
+
+  // —— 真正画图：清空 gRoot，重新计算布局并绘制 ——
+  function draw() {
+    while (gRoot.firstChild) gRoot.removeChild(gRoot.firstChild);
+    _cursorY = 0;
+    layoutV(tree);
+    layoutH(tree, 0);
+
+    // 先画连线（在节点下层）
+    const gLines = document.createElementNS(NS, "g");
+    const gNodes = document.createElementNS(NS, "g");
+    gRoot.appendChild(gLines);
+    gRoot.appendChild(gNodes);
+
+    function nodeColor(item) {
+      if (item.depth === 0) return colAccent;
+      // 一级分支用模型给的颜色；更深层继承最近祖先的颜色（视觉成组）
+      return item.color || item._inherit || colAccent;
+    }
+
+    function drawNode(item, parent) {
+      // 继承色：把最近的彩色祖先色往下传
+      if (item.depth >= 1) item._inherit = item.color || (parent ? parent._inherit || parent.color : "") || colAccent;
+      const c = nodeColor(item);
+
+      // 连线：父右中 → 子左中，三次贝塞尔
+      if (parent) {
+        const x1 = parent.x + parent.w, y1 = parent.cy;
+        const x2 = item.x, y2 = item.cy;
+        const mx = (x1 + x2) / 2;
+        const path = document.createElementNS(NS, "path");
+        path.setAttribute("d", "M" + x1 + "," + y1 + " C" + mx + "," + y1 + " " + mx + "," + y2 + " " + x2 + "," + y2);
+        path.setAttribute("fill", "none");
+        path.setAttribute("stroke", item.color || (parent._inherit || colLine));
+        path.setAttribute("stroke-width", item.depth <= 1 ? "2" : "1.5");
+        path.setAttribute("opacity", "0.55");
+        gLines.appendChild(path);
+      }
+
+      // 节点组
+      const g = document.createElementNS(NS, "g");
+      g.setAttribute("class", "mm-node");
+      g.setAttribute("transform", "translate(" + item.x + "," + (item.cy - item.h / 2) + ")");
+      g.style.cursor = item.children.length ? "pointer" : "default";
+
+      const rect = document.createElementNS(NS, "rect");
+      rect.setAttribute("width", item.w);
+      rect.setAttribute("height", item.h);
+      rect.setAttribute("rx", "9");
+      rect.setAttribute("ry", "9");
+      if (item.depth === 0) {
+        rect.setAttribute("fill", colAccent);
+        rect.setAttribute("stroke", colAccent);
+      } else {
+        rect.setAttribute("fill", colCardBg);
+        rect.setAttribute("stroke", c);
+        rect.setAttribute("stroke-width", "1.5");
+      }
+      g.appendChild(rect);
+
+      // 文本（多行）
+      const txt = document.createElementNS(NS, "text");
+      txt.setAttribute("x", PAD_X);
+      txt.setAttribute("y", PAD_Y + FONT);
+      txt.setAttribute("font-size", FONT);
+      txt.setAttribute("font-family", "inherit");
+      const rootDark = _isDark(colAccent);
+      txt.setAttribute("fill", item.depth === 0 ? (rootDark ? "#fff" : "#fff") : colText);
+      if (item.depth <= 1) txt.setAttribute("font-weight", "600");
+      item.lines.forEach((ln, i) => {
+        const tspan = document.createElementNS(NS, "tspan");
+        tspan.setAttribute("x", PAD_X);
+        tspan.setAttribute("dy", i === 0 ? 0 : LINE_H);
+        tspan.textContent = ln;
+        txt.appendChild(tspan);
+      });
+      g.appendChild(txt);
+
+      // note：作为原生悬停提示
+      if (item.note) {
+        const title = document.createElementNS(NS, "title");
+        title.textContent = item.note;
+        g.appendChild(title);
+      }
+
+      // 折叠指示点（有子节点时，画在右侧）
+      if (item.children.length) {
+        const dot = document.createElementNS(NS, "circle");
+        dot.setAttribute("cx", item.w);
+        dot.setAttribute("cy", item.h / 2);
+        dot.setAttribute("r", "5.5");
+        dot.setAttribute("fill", item.collapsed ? c : colCardBg);
+        dot.setAttribute("stroke", c);
+        dot.setAttribute("stroke-width", "1.5");
+        g.appendChild(dot);
+        if (item.collapsed) {
+          // 折叠时显示子节点个数
+          const cnt = document.createElementNS(NS, "text");
+          cnt.setAttribute("x", item.w + 11);
+          cnt.setAttribute("y", item.h / 2 + 4);
+          cnt.setAttribute("font-size", "11");
+          cnt.setAttribute("fill", colDim);
+          cnt.textContent = _countLeaves(item);
+          g.appendChild(cnt);
+        }
+      }
+
+      // 点击折叠/展开
+      g.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (!item.children.length) return;
+        item.collapsed = !item.collapsed;
+        draw();
+      });
+
+      gNodes.appendChild(g);
+
+      if (!item.collapsed) for (const c2 of item.children) drawNode(c2, item);
+    }
+    drawNode(tree, null);
+
+    // 记录内容包围盒，供「适应窗口」用
+    _bbox = { w: _maxRight(tree), h: _cursorY };
+  }
+
+  function _countLeaves(item) {
+    if (!item.children.length) return 1;
+    let n = 0;
+    const walk = (it) => { if (!it.children.length) n++; else it.children.forEach(walk); };
+    item.children.forEach(walk);
+    return n;
+  }
+  function _maxRight(item) {
+    let m = item.x + item.w;
+    if (!item.collapsed) for (const c of item.children) m = Math.max(m, _maxRight(c));
+    return m;
+  }
+
+  let _bbox = { w: 100, h: 100 };
+
+  // —— 适应窗口：算缩放使整张图放进可视区；但有「最小缩放」下限，
+  //    图太大时不再继续缩小（那样字会看不清），而是保证字够大、超出部分靠拖拽/滚动看。——
+  function fitView() {
+    const rect = svg.getBoundingClientRect();
+    const vw = rect.width || 800, vh = rect.height || 520;
+    const pad = 28;
+    const sx = (vw - pad * 2) / Math.max(_bbox.w, 1);
+    const sy = (vh - pad * 2) / Math.max(_bbox.h, 1);
+    let s = Math.min(sx, sy, 1.5);
+    if (!isFinite(s) || s <= 0) s = 1;
+    // 关键：不让缩放低于下限。低于下限说明图很大 → 保持可读字号，改用平移看全。
+    const floored = s < MIN_FIT_SCALE;
+    scale = floored ? MIN_FIT_SCALE : s;
+    tx = pad;
+    // 没触底就纵向居中；触底了就顶部对齐，方便从上往下拖着看
+    ty = floored ? pad : Math.max(pad, (vh - _bbox.h * scale) / 2);
+    applyTransform();
+    // 触底时给个轻提示：可以拖动查看
+    _setHint(floored
+      ? "图较大，已保证文字清晰；可拖动画布或用「全屏」查看全部"
+      : "");
+  }
+
+  // —— 缩放（以视图中心为锚点）——
+  function zoomBy(factor) {
+    const rect = svg.getBoundingClientRect();
+    const cx = rect.width / 2, cy = rect.height / 2;
+    const ns = Math.min(Math.max(scale * factor, 0.2), 3);
+    // 保持中心点不动
+    tx = cx - (cx - tx) * (ns / scale);
+    ty = cy - (cy - ty) * (ns / scale);
+    scale = ns;
+    applyTransform();
+  }
+
+  // —— 拖拽平移 ——
+  let dragging = false, lastX = 0, lastY = 0;
+  svg.addEventListener("mousedown", (e) => {
+    dragging = true; lastX = e.clientX; lastY = e.clientY;
+    svg.style.cursor = "grabbing";
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (!dragging) return;
+    tx += e.clientX - lastX; ty += e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    applyTransform();
+  });
+  window.addEventListener("mouseup", () => {
+    if (dragging) { dragging = false; svg.style.cursor = "grab"; }
+  });
+  // 滚轮缩放（按指针位置锚定）
+  svg.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const rect = svg.getBoundingClientRect();
+    const px = e.clientX - rect.left, py = e.clientY - rect.top;
+    const factor = e.deltaY < 0 ? 1.12 : 0.89;
+    const ns = Math.min(Math.max(scale * factor, 0.2), 3);
+    tx = px - (px - tx) * (ns / scale);
+    ty = py - (py - ty) * (ns / scale);
+    scale = ns;
+    applyTransform();
+  }, { passive: false });
+
+  // —— 导出 PNG ——
+  function exportPng() {
+    try {
+      const pad = 24;
+      const w = Math.ceil(_bbox.w + pad * 2), h = Math.ceil(_bbox.h + pad * 2);
+      // 克隆 gRoot，套一个干净的 svg，平移 pad，背景填充
+      const clone = svg.cloneNode(true);
+      clone.setAttribute("width", w);
+      clone.setAttribute("height", h);
+      clone.setAttribute("viewBox", "0 0 " + w + " " + h);
+      const inner = clone.querySelector("g");
+      if (inner) inner.setAttribute("transform", "translate(" + pad + "," + pad + ") scale(1)");
+      // 背景矩形
+      const bg = document.createElementNS(NS, "rect");
+      bg.setAttribute("x", 0); bg.setAttribute("y", 0);
+      bg.setAttribute("width", w); bg.setAttribute("height", h);
+      bg.setAttribute("fill", colCardBg);
+      clone.insertBefore(bg, clone.firstChild);
+
+      const xml = new XMLSerializer().serializeToString(clone);
+      const svg64 = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(xml)));
+      const img = new Image();
+      img.onload = () => {
+        const ratio = window.devicePixelRatio || 2;
+        const canvas = document.createElement("canvas");
+        canvas.width = w * ratio; canvas.height = h * ratio;
+        const ctx = canvas.getContext("2d");
+        ctx.scale(ratio, ratio);
+        ctx.drawImage(img, 0, 0);
+        canvas.toBlob((blob) => {
+          if (!blob) return;
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = "思维导图.png";
+          document.body.appendChild(a); a.click();
+          setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+        }, "image/png");
+      };
+      img.src = svg64;
+    } catch (e) {
+      alert("导出图片失败：" + e);
+    }
+  }
+
+  // —— 工具条 ——
+  const bar = document.createElement("div");
+  bar.className = "mm-bar";
+  bar.innerHTML =
+    '<button class="mm-tool" data-act="expand" title="展开所有分支">⊞ 展开全部</button>' +
+    '<button class="mm-tool" data-act="collapse" title="只看一级分支（总览）">⊟ 收起到一级</button>' +
+    '<span class="mm-bar-div"></span>' +
+    '<button class="mm-tool" data-act="fit" title="适应窗口（保证文字清晰）">⤢ 适应</button>' +
+    '<button class="mm-tool" data-act="in" title="放大">＋</button>' +
+    '<button class="mm-tool" data-act="out" title="缩小">－</button>' +
+    '<span class="mm-bar-sp"></span>' +
+    '<span class="mm-hint" id="mmHint"></span>' +
+    '<button class="mm-tool" data-act="full" title="全屏查看">⛶ 全屏</button>' +
+    '<button class="mm-tool" data-act="png" title="导出为图片">🖼 导出图片</button>' +
+    (onRegen ? '<button class="mm-tool" data-act="regen" title="让 AI 重新生成">↻ 重新生成</button>' : "");
+
+  // 提示文字（适应触底时显示）
+  function _setHint(msg) {
+    const h = bar.querySelector("#mmHint");
+    if (h) h.textContent = msg || "";
+  }
+
+  // —— 全屏：优先用浏览器原生全屏；失败则降级为覆盖整窗的固定层 ——
+  let _isFull = false;
+  function _fullBtn() { return bar.querySelector('[data-act="full"]'); }
+  function _syncFullBtn() {
+    const b = _fullBtn();
+    if (b) { b.textContent = _isFull ? "⛶ 退出全屏" : "⛶ 全屏"; b.title = _isFull ? "退出全屏 (Esc)" : "全屏查看"; }
+  }
+  function enterFull() {
+    wrap.classList.add("mm-fullscreen");
+    _isFull = true;
+    _syncFullBtn();
+    // 原生全屏（拿不到也没关系，CSS 固定层已经铺满）
+    try { if (wrap.requestFullscreen) wrap.requestFullscreen({ navigationUI: "hide" }).catch(() => {}); } catch (_) {}
+    // 等布局生效后重新适应，用满大屏
+    setTimeout(() => { try { fitView(); } catch (_) {} }, 60);
+  }
+  function exitFull() {
+    wrap.classList.remove("mm-fullscreen");
+    _isFull = false;
+    _syncFullBtn();
+    try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {}); } catch (_) {}
+    setTimeout(() => { try { fitView(); } catch (_) {} }, 60);
+  }
+  function toggleFull() { _isFull ? exitFull() : enterFull(); }
+  // Esc 退出（原生全屏会自动退；这里兜底处理降级层）
+  const _onKey = (e) => { if (e.key === "Escape" && _isFull) exitFull(); };
+  document.addEventListener("keydown", _onKey);
+  // 原生全屏被用户/系统退出时，同步样式
+  const _onFsChange = () => { if (!document.fullscreenElement && _isFull) { wrap.classList.remove("mm-fullscreen"); _isFull = false; _syncFullBtn(); setTimeout(() => { try { fitView(); } catch (_) {} }, 60); } };
+  document.addEventListener("fullscreenchange", _onFsChange);
+
+  bar.addEventListener("click", (e) => {
+    const b = e.target.closest(".mm-tool"); if (!b) return;
+    const act = b.dataset.act;
+    if (act === "expand") setCollapsedAll(false);
+    else if (act === "collapse") setCollapsedAll(true);
+    else if (act === "fit") fitView();
+    else if (act === "in") zoomBy(1.18);
+    else if (act === "out") zoomBy(0.85);
+    else if (act === "full") toggleFull();
+    else if (act === "png") exportPng();
+    else if (act === "regen" && onRegen) onRegen();
+  });
+
+  const wrap = document.createElement("div");
+  wrap.className = "mm-wrap";
+  const stage = document.createElement("div");   // 舞台：放 svg，固定/全屏高度都由它控制
+  stage.className = "mm-stage";
+  stage.appendChild(svg);
+  wrap.appendChild(bar);
+  wrap.appendChild(stage);
+  container.appendChild(wrap);
+
+  _syncFullBtn();
+
+  // 首绘 + 适应
+  draw();
+  applyTransform();
+  // 等容器拿到真实宽度后再适应一次
+  requestAnimationFrame(() => { try { fitView(); } catch (_) {} });
+}
+
 function mountVideoResult(data, target) {
   const resultEl = target || document.getElementById("videoResult");
   if (!target) _currentVideo = data;  // 只有视频标签页才更新全局当前视频
@@ -2104,6 +2610,7 @@ function mountVideoResult(data, target) {
     doneBadge +
     '<div class="video-toolbar">' +
       '<button class="vtab active" data-tab="analysis">🤖 AI 分析</button>' +
+      '<button class="vtab" data-tab="mindmap">🧠 思维导图</button>' +
       '<button class="vtab" data-tab="transcript">📝 完整原文</button>' +
       '<span class="vdetail" id="vDetailToggle">' +
         '<button class="vd active" data-d="full">详细</button>' +
@@ -2118,6 +2625,7 @@ function mountVideoResult(data, target) {
     head +
     tagRowHtml +
     '<div class="vtab-body" id="vAnalysis">' + renderMarkdown(data.analysis || "（无分析）") + '</div>' +
+    '<div class="vtab-body" id="vMindmap" style="display:none"></div>' +
     '<div class="vtab-body" id="vTranscript" style="display:none">' +
       renderMarkdown(paragraphizeCN(data.transcript || "（无文字稿）")) +
     '</div>';
@@ -2176,13 +2684,86 @@ function mountVideoResult(data, target) {
     const which = t.dataset.tab;
     if (_collapsed) return;  // 折叠状态下只切换高亮，不展开正文
     $("#vAnalysis").style.display = which === "analysis" ? "" : "none";
+    $("#vMindmap").style.display = which === "mindmap" ? "" : "none";
     $("#vTranscript").style.display = which === "transcript" ? "" : "none";
     detailToggle.style.display = which === "analysis" ? "" : "none";  // 只在 AI 分析时显示开关
+    if (which === "mindmap") ensureMindmap();  // 首次切到思维导图时再生成
   }));
+
+  // ——— 思维导图：首次进入时调后端用网页模型生成结构，再用本地渲染器画图 ———
+  // 生成结果缓存在 data._mindmapRoot 上，再次切换不重复请求。
+  let _mmRendered = false;     // 是否已经把图画进容器（避免重复 mount）
+  let _mmLoading = false;      // 防止并发点击重复请求
+  function ensureMindmap() {
+    const box = $("#vMindmap");
+    if (!box) return;
+    if (_mmRendered) return;                 // 已经画过
+    if (data._mindmapRoot) {                 // 有缓存的结构，直接画
+      renderMindmapInto(box, data._mindmapRoot, () => regenMindmap(box));
+      _mmRendered = true;
+      return;
+    }
+    if (_mmLoading) return;
+    generateMindmap(box);
+  }
+  function generateMindmap(box) {
+    const analysisMd = data.analysis || "";
+    if (!analysisMd.trim()) {
+      box.innerHTML = '<div class="mm-empty">没有可用于生成思维导图的分析内容。</div>';
+      return;
+    }
+    _mmLoading = true;
+    box.innerHTML =
+      '<div class="mm-loading"><span class="mm-spin"></span>' +
+      '正在用 AI 把这篇笔记整理成思维导图…</div>';
+    fetch(BACKEND + "/video_mindmap", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        analysis: analysisMd,
+        title: data.title || "",
+        use_local: false,          // 设计：交给网页模型；后端会自行回退
+        model: "web",
+      }),
+    })
+      .then((r) => r.json())
+      .then((res) => {
+        _mmLoading = false;
+        if (res && res.ok && res.root) {
+          data._mindmapRoot = res.root;     // 缓存，供再次切换/重渲染
+          renderMindmapInto(box, res.root, () => regenMindmap(box));
+          _mmRendered = true;
+        } else {
+          const msg = (res && res.error) ? res.error : "生成失败";
+          box.innerHTML =
+            '<div class="mm-empty">思维导图生成失败：' + escapeHtml(msg) +
+            '<br><button class="vbtn mm-retry">重试</button></div>';
+          const rb = box.querySelector(".mm-retry");
+          if (rb) rb.addEventListener("click", () => generateMindmap(box));
+        }
+      })
+      .catch((e) => {
+        _mmLoading = false;
+        box.innerHTML =
+          '<div class="mm-empty">思维导图请求出错：' + escapeHtml(String(e)) +
+          '<br><button class="vbtn mm-retry">重试</button></div>';
+        const rb = box.querySelector(".mm-retry");
+        if (rb) rb.addEventListener("click", () => generateMindmap(box));
+      });
+  }
+  function regenMindmap(box) {
+    // 「重新生成」：清掉缓存，重新向模型要一份
+    data._mindmapRoot = null;
+    _mmRendered = false;
+    generateMindmap(box);
+  }
+
   $("#vCopyBtn").addEventListener("click", () => {
     const active = resultEl.querySelector(".vtab.active").dataset.tab;
     let text;
     if (active === "transcript") text = data.transcript || "";
+    else if (active === "mindmap")
+      text = data._mindmapRoot ? mindmapToOutline(data._mindmapRoot) : "";
     else text = detailMode === "brief" ? conciseMarkdown(data.analysis || "") : (data.analysis || "");
     copyText(text);
     const b = $("#vCopyBtn");
@@ -2198,20 +2779,24 @@ function mountVideoResult(data, target) {
       _collapsed = !_collapsed;
       const tagRow = $("#vTagRow");
       const ana = $("#vAnalysis");
+      const mm = $("#vMindmap");
       const tr = $("#vTranscript");
       const dt = $("#vDetailToggle");
-      // 折叠时全部隐藏；展开时按当前所在标签恢复（原文/分析二选一）
+      // 折叠时全部隐藏；展开时按当前所在标签恢复（分析/导图/原文 三选一）
       if (tagRow) tagRow.style.display = _collapsed ? "none" : "";
       if (dt) dt.style.display = _collapsed ? "none" : "";
       if (_collapsed) {
         if (ana) ana.style.display = "none";
+        if (mm) mm.style.display = "none";
         if (tr) tr.style.display = "none";
       } else {
         const activeTab = resultEl.querySelector(".vtab.active");
         const which = activeTab ? activeTab.dataset.tab : "analysis";
         if (ana) ana.style.display = which === "analysis" ? "" : "none";
+        if (mm) mm.style.display = which === "mindmap" ? "" : "none";
         if (tr) tr.style.display = which === "transcript" ? "" : "none";
         if (dt) dt.style.display = which === "analysis" ? "" : "none";
+        if (which === "mindmap") ensureMindmap();
       }
       collapseBtn.textContent = _collapsed ? "▸ 展开" : "▾ 折叠";
       collapseBtn.title = _collapsed ? "展开正文" : "折叠正文，方便看下面的内容";
@@ -2219,9 +2804,11 @@ function mountVideoResult(data, target) {
   }
   $("#vSpeakBtn").addEventListener("click", () => {
     const active = resultEl.querySelector(".vtab.active").dataset.tab;
-    const text = active === "transcript"
-      ? (data.transcript || "")
-      : (detailMode === "brief" ? conciseMarkdown(data.analysis || "") : (data.analysis || ""));
+    let text;
+    if (active === "transcript") text = data.transcript || "";
+    else if (active === "mindmap")
+      text = data._mindmapRoot ? mindmapToOutline(data._mindmapRoot) : "";
+    else text = detailMode === "brief" ? conciseMarkdown(data.analysis || "") : (data.analysis || "");
     if (window.cxSpeak) window.cxSpeak(text, $("#vSpeakBtn"));
   });
 }
@@ -5246,9 +5833,48 @@ let _cwScanTimer = null;
 let _cwVideos = [];
 let _cwCurrentCreator = { id: null, title: "" };
 
+// 改动1：博主视频前端缓存。key=creator id，值 {videos,total,platform_label,title,ts}
+// 命中即立即渲染，再后台静默刷新，二次点开秒开、不再卡 2 秒。
+const _cwVideoCache = {};
+// 改动4：分页 + 跨页选择。选中用 Set（key=vid），覆盖所有页，不依赖当前 DOM。
+let _cwPage = 1;
+let _cwPageSize = 20;
+let _cwSelectedVids = new Set();
+// 批量扫描按钮原文案（改动2：扫描中切换文案/禁用后用于恢复）
+let _cwScanAllLabel = "";
+
 const _CW_PLAT_ICON = { youtube: "▶️", bilibili: "📺", douyin: "🎵" };
 
-// 顶部两个并列标签：🎯 博主更新 / 📡 网站动态
+// 安全取「当前模型设置」：settings() 在设置面板还没初始化时可能抛错，
+// 这里兜底，保证翻译/提取请求不会因为读不到设置而静默失败。
+function _cwSafeSettings() {
+  try {
+    if (typeof settings === "function") {
+      const s = settings();
+      if (s && (s.model || s.use_local != null)) return s;
+    }
+  } catch (e) {}
+  // 兜底：优先本地 qwen2.5；后端自己还会做本地→网页的兜底
+  return { use_local: true, model: "qwen2.5" };
+}
+
+// 统一的「页内状态提示」——取代弹窗。写到左卡头部状态行（这个标签页里始终可见），
+// 几秒后自动淡出（被新的扫描状态覆盖时不清，交给轮询自己更新）。
+let _cwStatusTimer = null;
+function _cwSetStatus(msg) {
+  const el = document.getElementById("cwScanState");
+  if (!el) return;
+  el.textContent = msg || "";
+  if (_cwStatusTimer) { clearTimeout(_cwStatusTimer); _cwStatusTimer = null; }
+  if (msg) {
+    _cwStatusTimer = setTimeout(() => {
+      // 只在不是「扫描中」状态时清，避免把进行中的提示抹掉
+      if (el.textContent === msg && !/扫描中|正在扫/.test(el.textContent)) el.textContent = "";
+    }, 8000);
+  }
+}
+
+// 顶部并列标签：🎯 博主更新 / 📡 网站动态
 document.getElementById("snTabs")?.addEventListener("click", (e) => {
   const t = e.target.closest(".sn-tab");
   if (!t) return;
@@ -5256,6 +5882,78 @@ document.getElementById("snTabs")?.addEventListener("click", (e) => {
   document.querySelectorAll("#view-sniff .sn-tab").forEach((b) => b.classList.toggle("active", b === t));
   document.querySelectorAll("#view-sniff .sn-tabpane").forEach((p) => { p.hidden = (p.dataset.pane !== name); });
 });
+
+// ⓘ / ? 浮动说明气泡：点按钮弹出绝对定位的气泡，点别处或 × 关闭（不挤占布局）
+function _snBindPop(btnId, popId) {
+  const btn = document.getElementById(btnId);
+  const pop = document.getElementById(popId);
+  if (!btn || !pop) return;
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const show = pop.hasAttribute("hidden");
+    // 先关掉本视图里其它已打开的气泡
+    document.querySelectorAll("#view-sniff .sn-pop").forEach((p) => { if (p !== pop) p.setAttribute("hidden", ""); });
+    document.querySelectorAll("#view-sniff .sn-info.on, #view-sniff .sn-q.on").forEach((b) => { if (b !== btn) b.classList.remove("on"); });
+    if (show) { pop.removeAttribute("hidden"); btn.classList.add("on"); }
+    else { pop.setAttribute("hidden", ""); btn.classList.remove("on"); }
+  });
+  // 气泡内部点击不冒泡（避免被「点别处关闭」误关），但 × 按钮要能关
+  pop.addEventListener("click", (e) => {
+    if (e.target.closest("[data-popclose]")) {
+      pop.setAttribute("hidden", ""); btn.classList.remove("on");
+    }
+    e.stopPropagation();
+  });
+}
+_snBindPop("cwInfoBtn", "cwInfoPanel");        // 我关注的博主 ⓘ
+_snBindPop("cwPerScanQ", "cwPerScanPanel");    // 「每次最多 N 条」?
+_snBindPop("cwNewInfoBtn", "cwNewInfoPanel");  // 扫出来的新视频 ⓘ
+_snBindPop("dgInfoBtn", "dgInfoPanel");        // 按时间看全部 ⓘ
+// 点视图内任意空白处，关闭所有气泡
+document.getElementById("view-sniff")?.addEventListener("click", () => {
+  document.querySelectorAll("#view-sniff .sn-pop").forEach((p) => p.setAttribute("hidden", ""));
+  document.querySelectorAll("#view-sniff .sn-info.on, #view-sniff .sn-q.on").forEach((b) => b.classList.remove("on"));
+});
+
+// 右侧工作区两个子标签：① 扫出来的新视频 ② 按时间看全部
+document.getElementById("cwWorkTabs")?.addEventListener("click", (e) => {
+  // 点子标签里的 ⓘ 按钮不切换标签（它自己 stopPropagation 了，这里兜底）
+  if (e.target.closest(".sn-info") || e.target.closest(".sn-pop")) return;
+  const t = e.target.closest(".cw-subtab");
+  if (!t) return;
+  const name = t.dataset.worktab;
+  document.querySelectorAll("#cwWorkTabs .cw-subtab").forEach((b) => b.classList.toggle("active", b === t));
+  document.querySelectorAll('#view-sniff .cw-worktab-pane').forEach((p) => { p.hidden = (p.dataset.workpane !== name); });
+  // 切到「按时间看全部」时首次加载（默认用缓存，秒出）
+  if (name === "digest" && !_dgLoadedOnce) { _dgLoadedOnce = true; loadDigest(false); }
+});
+
+// 「博主列表」可折叠（保留）
+(function () {
+  const head = document.getElementById("cwListToggle");
+  const body = document.getElementById("cwListBody");
+  if (!head || !body) return;
+  const setOpen = (open) => {
+    head.classList.toggle("collapsed", !open);
+    body.classList.toggle("collapsed", !open);
+    if (open) body.style.maxHeight = body.scrollHeight + 40 + "px";
+    else body.style.maxHeight = "0px";
+  };
+  body.style.maxHeight = "none";
+  head.addEventListener("click", () => {
+    const isOpen = !head.classList.contains("collapsed");
+    if (isOpen) {
+      body.style.maxHeight = body.scrollHeight + "px";
+      requestAnimationFrame(() => setOpen(false));
+    } else {
+      setOpen(true);
+      setTimeout(() => { if (!head.classList.contains("collapsed")) body.style.maxHeight = "none"; }, 240);
+    }
+  });
+  window._cwRelaxListHeight = () => {
+    if (!head.classList.contains("collapsed")) body.style.maxHeight = "none";
+  };
+})();
 
 async function loadCreators() {
   try {
@@ -5273,7 +5971,9 @@ function renderCreators(list) {
   const box = document.getElementById("cwList");
   const cnt = document.getElementById("cwCount");
   if (cnt) cnt.textContent = list.length;
-  if (!box) return;
+  const cnt2 = document.getElementById("cwListCount");   // 改动2：折叠头里的计数
+  if (cnt2) cnt2.textContent = list.length;
+  if (!box) { if (window._cwRelaxListHeight) window._cwRelaxListHeight(); return; }
   if (!list.length) {
     box.innerHTML = '<div class="cw-empty">还没有博主。上面填主页链接，点「添加博主」。</div>';
     return;
@@ -5305,7 +6005,9 @@ function renderCreators(list) {
     el.querySelector(".cw-c-main")?.addEventListener("click", () => openCreatorVideos(id, c.title || ""));
     el.querySelector(".cw-scan-one")?.addEventListener("click", async (e) => {
       const btn = e.currentTarget; const old = btn.textContent;
+      const nm = (c.title || "这个博主");
       btn.textContent = "扫描中…"; btn.disabled = true;
+      _cwSetStatus("正在扫「" + nm + "」…");
       try {
         const r = await fetch(BACKEND + "/creator/scan", {
           method: "POST", headers: { "Content-Type": "application/json" },
@@ -5313,11 +6015,11 @@ function renderCreators(list) {
         });
         const d = await r.json();
         const res = d.result || {};
-        if (res.error) { alert("扫描失败：" + res.error); }
-        else if (res.first_time) { alert("已记录这个博主当前的作品（首次只记录，下次起才报新视频）。"); }
-        else { alert(res.new_count ? ("发现 " + res.new_count + " 条新视频，已加到「本次新增」。") : "没有新视频。"); }
+        if (res.error) { _cwSetStatus("「" + nm + "」扫描失败：" + res.error); }
+        else if (res.first_time) { _cwSetStatus("「" + nm + "」已记录当前作品（首次只记录，下次起才报新视频）"); }
+        else { _cwSetStatus(res.new_count ? ("「" + nm + "」发现 " + res.new_count + " 条新视频，已加到右侧「本次新增」") : ("「" + nm + "」没有新视频")); }
         loadCreators(); loadCreatorFindings();
-      } catch (err) { alert("扫描出错：" + err.message); }
+      } catch (err) { _cwSetStatus("扫描出错：" + err.message); }
       finally { btn.textContent = old; btn.disabled = false; }
     });
     el.querySelector(".cw-tog")?.addEventListener("change", async (e) => {
@@ -5329,24 +6031,39 @@ function renderCreators(list) {
         loadCreators();
       } catch (err) {}
     });
-    el.querySelector(".cw-edit")?.addEventListener("click", async () => {
+    el.querySelector(".cw-edit")?.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const main = el.querySelector(".cw-c-main");
+      if (!main || main.querySelector(".cw-edit-input")) return;
       const cur = (c.title || "").trim();
-      const name = prompt("给这个博主改个名字 / 备注：", cur);
-      if (name == null) return;
-      const v = name.trim();
-      if (!v || v === cur) return;
-      try {
-        await fetch(BACKEND + "/creator/rename", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id, title: v }),
-        });
-        if (_cwCurrentCreator.id === id) {
-          _cwCurrentCreator.title = v;
-          const tt = document.getElementById("cwVideoTitle");
-          if (tt) tt.textContent = "📹 " + v;
-        }
-        loadCreators();
-      } catch (err) { alert("改名出错：" + err.message); }
+      main.innerHTML = '<input class="cw-edit-input sn-input" style="width:100%;font-size:13px" />';
+      const inp = main.querySelector(".cw-edit-input");
+      inp.value = cur; inp.focus(); inp.select();
+      inp.addEventListener("click", (e) => e.stopPropagation());
+      let done = false;
+      const finish = async (commit) => {
+        if (done) return; done = true;
+        const v = commit ? inp.value.trim() : "";
+        if (!commit || !v || v === cur) { loadCreators(); return; }
+        try {
+          await fetch(BACKEND + "/creator/rename", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id, title: v }),
+          });
+          if (_cwCurrentCreator.id === id) {
+            _cwCurrentCreator.title = v;
+            const tt = document.getElementById("cwVideoTitle");
+            if (tt) tt.textContent = "📹 " + v;
+          }
+          _cwSetStatus("已改名为「" + v + "」");
+          loadCreators();
+        } catch (err) { _cwSetStatus("改名出错：" + err.message); loadCreators(); }
+      };
+      inp.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); finish(true); }
+        else if (e.key === "Escape") { e.preventDefault(); finish(false); }
+      });
+      inp.addEventListener("blur", () => finish(true));
     });
     el.querySelector(".cw-del")?.addEventListener("click", async () => {
       if (!confirm("删除这个博主？（它名下还没处理的新视频也会一并清掉）")) return;
@@ -5360,6 +6077,8 @@ function renderCreators(list) {
       } catch (err) {}
     });
   });
+  // 改动2：列表内容更新后，若处于展开态放开高度限制（避免被旧固定值裁剪）
+  if (window._cwRelaxListHeight) window._cwRelaxListHeight();
 }
 
 // ─── 本次新增（自动扫攒下的新视频）───
@@ -5371,14 +6090,72 @@ async function loadCreatorFindings() {
     renderFindings(_cwFindings);
     const st = document.getElementById("cwScanState");
     const scan = d.scan || {};
-    if (st) st.textContent = scan.running ? "⏳ 扫描中…" : (scan.last || "");
-    if (scan.running && !_cwScanTimer) {
-      _cwScanTimer = setInterval(loadCreatorFindings, 2000);
-    } else if (!scan.running && _cwScanTimer) {
+    _cwRenderScanLog(scan);   // 改动2：逐博主明细
+    if (scan.running) {
+      _cwSetScanAllBusy(true);   // 改动2：按钮变「扫描中…」并禁用
+      const prog = scan.progress ? (" " + scan.progress) : "";
+      const cur = scan.current ? ("：" + scan.current) : "";
+      if (st) st.textContent = scan.last || ("⏳ 批量扫描中…" + prog + cur);
+      if (!_cwScanTimer) _cwScanTimer = setInterval(loadCreatorFindings, 1500);
+    } else if (_cwScanTimer) {
+      // 刚从「扫描全部」结束 → 显示一次结果再停轮询
       clearInterval(_cwScanTimer); _cwScanTimer = null;
+      _cwSetScanAllBusy(false);   // 改动2：恢复按钮
+      if (st && scan.last) st.textContent = scan.last;
       loadCreators();
+      // 扫描刚结束：把「按时间看全部」也刷新一遍，让它和「扫出来的新视频」保持同步。
+      // 扫描已经把各博主最新视频写进同一份缓存，这里默认吃缓存即可拿到最新（含刚扫到的新视频）。
+      // 只有用户已经打开过「按时间看全部」才刷，避免无谓联网。
+      if (_dgLoadedOnce) { try { loadDigest(false); } catch (e) {} }
+    } else {
+      _cwSetScanAllBusy(false);   // 保险：非扫描态确保按钮可用
     }
+    // 非扫描中：不主动改状态行，免得把单次扫描 / 改名 / 提取的页内提示覆盖掉
   } catch (e) {}
+}
+
+// 改动2：批量扫描按钮忙/闲切换（存原文案，闲时恢复）
+function _cwSetScanAllBusy(busy) {
+  const b = document.getElementById("cwScanAll");
+  if (!b) return;
+  if (busy) {
+    if (!_cwScanAllLabel) _cwScanAllLabel = b.textContent;
+    if (!b.disabled) { b.disabled = true; b.textContent = "扫描中…"; }
+  } else if (b.disabled || _cwScanAllLabel) {
+    b.disabled = false;
+    b.textContent = _cwScanAllLabel || "⚡ 批量扫描";
+    _cwScanAllLabel = "";
+  }
+}
+
+// 改动2：渲染逐博主扫描明细（进度 + 当前是谁 + 各自结果/出错）
+function _cwRenderScanLog(scan) {
+  const box = document.getElementById("cwScanLog");
+  if (!box) return;
+  const log = Array.isArray(scan.log) ? scan.log : [];
+  if (!scan.running && !log.length) { box.hidden = true; box.innerHTML = ""; return; }
+  box.hidden = false;
+  let html = "";
+  if (scan.running && scan.current) {
+    html += '<div class="cw-scanlog-cur">⏳ ' +
+      (scan.progress ? (escapeHtml(scan.progress) + " ") : "") +
+      "正在扫：" + escapeHtml(scan.current) + "…</div>";
+  }
+  html += log.map((it) => {
+    const ok = !!it.ok;
+    let res, cls;
+    if (!ok) { res = "失败" + (it.error ? ("：" + escapeHtml(String(it.error).slice(0, 40))) : ""); cls = "err"; }
+    else if (it.first_time) { res = "首次记录"; cls = "ok"; }
+    else if (it.new_count > 0) { res = "新增 " + it.new_count + " 条"; cls = "ok"; }
+    else { res = "无新增"; cls = ""; }
+    const ico = !ok ? "❌" : "✅";
+    return '<div class="cw-scanlog-row">' +
+      '<span class="cw-scanlog-ico">' + ico + "</span>" +
+      '<span class="cw-scanlog-name">' + escapeHtml(it.name || "博主") + "</span>" +
+      '<span class="cw-scanlog-res ' + cls + '">' + res + "</span>" +
+      "</div>";
+  }).join("");
+  box.innerHTML = html;
 }
 
 function renderFindings(list) {
@@ -5387,18 +6164,21 @@ function renderFindings(list) {
   if (cnt) cnt.textContent = list.length;
   if (!box) return;
   if (!list.length) {
-    box.innerHTML = '<div class="cw-empty">暂无新视频。点左边某个博主「查看视频」，或点「扫描全部」。</div>';
+    box.innerHTML = '<div class="cw-empty">暂无新视频。点左边某个博主「查看视频」，或点「批量扫描」。</div>';
     const sa = document.getElementById("cwSelAll"); if (sa) sa.checked = false;
     return;
   }
   box.innerHTML = list.map((f, i) => {
     const ic = _CW_PLAT_ICON[f.platform] || "🔗";
     const title = f.title || f.url || "(无标题)";
+    // 这一列里的每条都是「扫描发现的新视频」，统一打「新」角标
+    const zhText = (f.title_zh && f.title_zh !== f.title) ? ("🌐 " + escapeHtml(f.title_zh)) : "";
     return '' +
       '<div class="cw-video">' +
         '<input type="checkbox" class="cw-fcb" data-i="' + i + '" />' +
         '<div class="cw-v-main">' +
-          '<div class="cw-v-title">' + ic + " " + escapeHtml(title) + "</div>" +
+          '<div class="cw-v-title"><span class="cw-new-badge">新</span>' + ic + " " + escapeHtml(title) + "</div>" +
+          '<div class="cw-v-zh">' + zhText + "</div>" +
           '<div class="cw-v-meta"><span class="cw-tag">' + escapeHtml(f.creator_title || "") + "</span>" +
             '<a class="cw-vlink" href="' + escapeHtml(f.url) + '" target="_blank">原视频↗</a><span>' + escapeHtml(f.found_at || "") + "</span></div>" +
         "</div>" +
@@ -5412,6 +6192,39 @@ function renderFindings(list) {
       if (sa) sa.checked = all.length > 0 && checked.length === all.length;
     });
   });
+  _cwTranslateFindings();   // 把英文标题翻成中文，填进预留的占位
+}
+
+// 翻译「扫出来的新视频」里的英文标题（和视频清单同一套后端接口）
+async function _cwTranslateFindings() {
+  const box = document.getElementById("cwFindings");
+  if (!box || !Array.isArray(_cwFindings)) return;
+  const idxs = [], titles = [];
+  _cwFindings.forEach((f, i) => {
+    const t = (f.title || "").trim();
+    if (!t || f.title_zh || /[\u4e00-\u9fff]/.test(t)) return;  // 已翻/含中文跳过
+    idxs.push(i); titles.push(t);
+  });
+  if (!titles.length) return;
+  const s = _cwSafeSettings();
+  try {
+    const r = await fetch(BACKEND + "/creator/translate", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ titles, use_local: s.use_local, model: s.model }),
+    });
+    const d = await r.json();
+    if (!d.ok || !Array.isArray(d.translations)) return;
+    d.translations.forEach((zh, k) => {
+      const i = idxs[k];
+      const z = (zh || "").trim();
+      if (!z || !_cwFindings[i] || z === (_cwFindings[i].title || "").trim()) return;
+      _cwFindings[i].title_zh = z;
+      const cb = box.querySelector('.cw-fcb[data-i="' + i + '"]');
+      const main = cb ? cb.closest(".cw-video").querySelector(".cw-v-main") : null;
+      const zhEl = main ? main.querySelector(".cw-v-zh") : null;
+      if (zhEl) zhEl.textContent = "🌐 " + z;
+    });
+  } catch (e) {}
 }
 
 function _cwSelectedItems() {
@@ -5428,12 +6241,72 @@ function _cwSelectedItems() {
 // ─── 单个博主的视频清单（点博主名进入）───
 function openCreatorVideos(cid, title) {
   _cwCurrentCreator = { id: cid, title: title };
+  _cwPage = 1;                       // 改动4：每次进入回到第 1 页
+  _cwSelectedVids = new Set();       // 改动4：换博主清空跨页选择
+  // 点博主看视频 → 确保切回「扫出来的新视频」子标签（视频清单在这个子页里）
+  document.querySelectorAll("#cwWorkTabs .cw-subtab").forEach((b) => b.classList.toggle("active", b.dataset.worktab === "new"));
+  document.querySelectorAll('#view-sniff .cw-worktab-pane').forEach((p) => { p.hidden = (p.dataset.workpane !== "new"); });
   document.getElementById("cwDigestView").hidden = true;
   document.getElementById("cwVideoView").hidden = false;
   const tt = document.getElementById("cwVideoTitle");
   if (tt) tt.textContent = "📹 " + (title || "视频清单");
   document.querySelectorAll("#cwList .cw-creator").forEach((el) => el.classList.toggle("sel", el.dataset.id === cid));
-  loadCreatorVideos();
+  // 改动4（秒开）：分三层，越靠前越快——
+  // 1) 内存缓存命中（同一次会话里点过）→ 立刻渲染
+  // 2) 否则问后端「持久缓存」（上次列到的，落盘了）→ 几十毫秒返回，立刻渲染
+  // 3) 两者都没有，才显示骨架并联网列（首次添加的博主才会走到这）
+  // 不论走 1 还是 2，都接着后台 loadCreatorVideos(true) 联网刷新一遍。
+  const mem = _cwVideoCache[cid];
+  if (mem && Array.isArray(mem.videos)) {
+    _cwVideos = mem.videos;
+    const st = document.getElementById("cwVideoState");
+    if (st) st.textContent = (mem.platform_label || "") + " · 共 " + (mem.total || _cwVideos.length) + " 条（刷新中…）";
+    renderVideos();
+    _cwTranslateTitles();
+    loadCreatorVideos(true);
+    return;
+  }
+  // 先放骨架占位（保持高度稳定），同时去问持久缓存
+  const box = document.getElementById("cwVideos");
+  if (box) box.innerHTML = _cwSkeletonRows(Math.min(_cwPageSize || 8, 8));
+  const st0 = document.getElementById("cwVideoState");
+  if (st0) st0.textContent = "读取中…";
+  _cwTryCachedThenLive(cid);
+}
+
+// 改动4（秒开）：先打「只读缓存」接口，命中就秒渲染再后台刷新；没命中直接联网列
+async function _cwTryCachedThenLive(cid) {
+  try {
+    const r = await fetch(BACKEND + "/creator/videos_cached", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: cid }),
+    });
+    const d = await r.json();
+    // 用户可能在等待时已切走/换了博主，要校验仍是当前博主
+    if (_cwCurrentCreator.id !== cid) return;
+    if (d && d.ok && Array.isArray(d.videos) && d.videos.length) {
+      _cwVideos = d.videos;
+      // 同步进内存缓存
+      _cwVideoCache[cid] = { videos: d.videos, total: d.total || d.videos.length,
+                             platform_label: d.platform_label || "", title: d.title || _cwCurrentCreator.title, ts: Date.now() };
+      if (d.title && d.title !== _cwCurrentCreator.title) {
+        _cwCurrentCreator.title = d.title;
+        const tt = document.getElementById("cwVideoTitle");
+        if (tt) tt.textContent = "📹 " + d.title;
+        _cwUpdateCreatorTitle(cid, d.title);
+      }
+      const st = document.getElementById("cwVideoState");
+      if (st) st.textContent = (d.platform_label || "") + " · 共 " + (d.total || d.videos.length) + " 条" +
+        (d.cached_at ? ("（缓存于 " + d.cached_at + "，刷新中…）") : "（刷新中…）");
+      _cwClampPage();
+      renderVideos();
+      _cwTranslateTitles();
+      loadCreatorVideos(true);   // 后台联网刷新
+      return;
+    }
+  } catch (e) {}
+  // 没有缓存（或为空）→ 正常联网列
+  if (_cwCurrentCreator.id === cid) loadCreatorVideos(false);
 }
 
 function backToDigest() {
@@ -5443,15 +6316,18 @@ function backToDigest() {
   document.querySelectorAll("#cwList .cw-creator").forEach((el) => el.classList.remove("sel"));
 }
 
-async function loadCreatorVideos() {
+async function loadCreatorVideos(silent) {
   const cid = _cwCurrentCreator.id;
   if (!cid) return;
   const raw = (document.getElementById("cwVideoLimit").value || "").trim();
   const limit = raw === "" ? 0 : (parseInt(raw, 10) || 0);   // 空 / 0 = 全部
   const box = document.getElementById("cwVideos");
   const st = document.getElementById("cwVideoState");
-  if (box) box.innerHTML = '<div class="cw-empty">加载中…（在列这个博主的视频，列「全部」或走代理可能要一会儿）</div>';
-  if (st) st.textContent = "";
+  if (!silent) {
+    // 改动1：用骨架行代替单行「加载中」，保持高度稳定、不跳
+    if (box) box.innerHTML = _cwSkeletonRows(Math.min(_cwPageSize || 8, 8));
+    if (st && !st.textContent) st.textContent = "加载中…（在列这个博主的视频，列「全部」或走代理可能要一会儿）";
+  }
   try {
     const r = await fetch(BACKEND + "/creator/videos", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -5459,146 +6335,574 @@ async function loadCreatorVideos() {
     });
     const d = await r.json();
     if (!d.ok) {
+      if (silent) return;   // 静默刷新失败：保留已显示的缓存内容，不打扰
       _cwVideos = [];
       if (box) box.innerHTML = '<div class="cw-empty">取不到视频：' + escapeHtml(d.message || "未知错误") + "</div>";
+      _cwRenderPager();
       updateExtractVLabel();
       return;
     }
-    _cwVideos = d.videos || [];
-    // 若服务端这次识别到了真实昵称，更新标题 + 左侧清单
+    const fresh = d.videos || [];
+    // 改动1：静默刷新时，数据没变就别重渲染（避免无谓闪动 + 丢翻译）
+    if (silent && _cwSameVideos(_cwVideos, fresh)) {
+      // 仅更新「刷新中…」状态行为正常计数
+      const shown0 = fresh.length, total0 = d.total || shown0;
+      if (st) st.textContent = (d.platform_label || "") + " · 共 " + total0 + " 条";
+      _cwVideoCache[cid] = { videos: fresh, total: total0, platform_label: d.platform_label || "", title: d.title || _cwCurrentCreator.title, ts: Date.now() };
+      return;
+    }
+    _cwVideos = fresh;
+    // 若服务端这次识别到了真实昵称，只改这一个左列节点 + 右侧标题（改动1：不整列重渲染）
     if (d.title && d.title !== _cwCurrentCreator.title) {
       _cwCurrentCreator.title = d.title;
       const tt = document.getElementById("cwVideoTitle");
       if (tt) tt.textContent = "📹 " + d.title;
-      loadCreators();
+      _cwUpdateCreatorTitle(cid, d.title);
     }
     const hasDate = _cwVideos.some((v) => v.days_ago != null);
-    if (st) st.textContent = (d.platform_label || "") + " · 共 " + _cwVideos.length + " 条" +
-      (hasDate ? "" : "（该平台未提供发布日期，按天数筛选可能不可用，请用「全部」或手动勾选）");
-    renderVideos(_cwVideos);
-    _cwTranslateTitles();   // 英文标题异步翻译成中文，翻好再补到每条下面
+    const shown = (d.shown != null) ? d.shown : _cwVideos.length;
+    const total = d.total || shown;
+    const cntTxt = (total && total > shown)
+      ? ("显示最新 " + shown + " / 共 " + total + " 条（点「重置」看全部）")
+      : ("共 " + shown + " 条");
+    if (st) st.textContent = (d.platform_label || "") + " · " + cntTxt +
+      (hasDate ? "" : "（旧视频无发布日期，按天数筛选只对最近的有效，可用「全选」或手动勾选）");
+    // 改动1：写前端缓存，下次点开秒出
+    _cwVideoCache[cid] = { videos: _cwVideos, total: total, platform_label: d.platform_label || "", title: d.title || _cwCurrentCreator.title, ts: Date.now() };
+    // 数据变了：把页码夹到合法范围再渲染当前页
+    _cwClampPage();
+    renderVideos();
+    _cwTranslateTitles();   // 翻译当前页可见的、未翻的标题（改动5）
   } catch (e) {
+    if (silent) return;
     if (box) box.innerHTML = '<div class="cw-empty">出错：' + escapeHtml(e.message) + "</div>";
   }
 }
 
-// 把列表里「非中文」的标题批量翻成中文（异步，不阻塞列表显示）
+// 改动1：骨架行（占位，保持列表高度稳定）
+function _cwSkeletonRows(n) {
+  let s = "";
+  for (let i = 0; i < n; i++) {
+    s += '<div class="cw-skel"><div class="cw-skel-box"></div>' +
+      '<div class="cw-skel-main"><div class="cw-skel-line"></div>' +
+      '<div class="cw-skel-line short"></div></div></div>';
+  }
+  return s;
+}
+
+// 改动1：只更新某一个左列博主节点的标题文本，避免 loadCreators() 整列重渲染导致跳动
+function _cwUpdateCreatorTitle(cid, title) {
+  const el = document.querySelector('#cwList .cw-creator[data-id="' + (window.CSS && CSS.escape ? CSS.escape(cid) : cid) + '"]');
+  const t = el ? el.querySelector(".cw-c-title") : null;
+  if (t) t.textContent = title;
+}
+
+// 比较两批视频是否「实质相同」（按 vid 序列），用于静默刷新去抖
+function _cwSameVideos(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if ((a[i] && a[i].vid) !== (b[i] && b[i].vid)) return false;
+  }
+  return true;
+}
+
+// 把当前页里「非中文」的标题批量翻成中文（异步，不阻塞列表显示）。
+// 改动5：只翻当前页可见、未翻的；本地优先、网页兜底由后端处理；翻不动给轻提示。
 async function _cwTranslateTitles() {
-  const TRANSLATE_CAP = 60;   // 列「全部」时可能上百条，一次只翻最前面的一批，免得把模型撑爆
+  const page = _cwPageItems();           // 只取当前页
   const idxs = [], titles = [];
-  for (let i = 0; i < _cwVideos.length; i++) {
-    if (titles.length >= TRANSLATE_CAP) break;
-    const v = _cwVideos[i];
+  for (const { v, i } of page) {
     const t = (v.title || "").trim();
     if (!t || v.title_zh || /[\u4e00-\u9fff]/.test(t)) continue;  // 已翻/含中文则跳过
     idxs.push(i); titles.push(t);
   }
   if (!titles.length) return;
-  const s = (typeof settings === "function") ? settings() : { use_local: true, model: "qwen2.5" };
+  const s = _cwSafeSettings();
   try {
     const r = await fetch(BACKEND + "/creator/translate", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ titles, use_local: s.use_local, model: s.model }),
     });
     const d = await r.json();
-    if (!d.ok || !Array.isArray(d.translations)) return;
+    if (!d.ok || !Array.isArray(d.translations)) {
+      if (d && d.message) _cwSetVideoNote("翻译出错：" + d.message);
+      return;
+    }
     const box = document.getElementById("cwVideos");
+    let filled = 0;
     d.translations.forEach((zh, k) => {
       const i = idxs[k];
       const z = (zh || "").trim();
       if (!z || !_cwVideos[i] || z === (_cwVideos[i].title || "").trim()) return;
-      _cwVideos[i].title_zh = z;   // 存下来，刷新/重渲染也在
-      // 原地插入中文行，避免整列重渲染把已勾选的清掉
+      _cwVideos[i].title_zh = z;   // 存下来，翻页/重渲染也在
+      filled++;
+      // 改动1：填进预留的占位 .cw-v-zh，而不是新插一行（不再把下面顶下去）
       if (box) {
         const cb = box.querySelector('.cw-vcb[data-i="' + i + '"]');
-        const main = cb ? cb.parentElement.querySelector(".cw-v-main") : null;
-        const titleEl = main ? main.querySelector(".cw-v-title") : null;
-        if (main && titleEl && !main.querySelector(".cw-v-zh")) {
-          const div = document.createElement("div");
-          div.className = "cw-v-zh";
-          div.textContent = "🌐 " + z;
-          titleEl.insertAdjacentElement("afterend", div);
-        }
+        const main = cb ? cb.closest(".cw-video").querySelector(".cw-v-main") : null;
+        const zhEl = main ? main.querySelector(".cw-v-zh") : null;
+        if (zhEl) zhEl.textContent = "🌐 " + z;
       }
     });
+    // 后端明确说翻不动（本地没起 + 网页不可用）→ 轻提示
+    if (filled === 0 && d.note) _cwSetVideoNote(d.note);
   } catch (e) {}
 }
 
-function renderVideos(list) {
+// 改动5：视频区轻状态（翻译进度/失败提示），写到 #cwVideoState 末尾，几秒淡出
+let _cwVideoNoteTimer = null;
+function _cwSetVideoNote(msg) {
+  const st = document.getElementById("cwVideoState");
+  if (!st || !msg) return;
+  const base = st.dataset.base != null ? st.dataset.base : st.textContent;
+  st.dataset.base = base;
+  st.textContent = base + "　·　🌐 " + msg;
+  if (_cwVideoNoteTimer) { clearTimeout(_cwVideoNoteTimer); }
+  _cwVideoNoteTimer = setTimeout(() => {
+    if (st.dataset.base != null) { st.textContent = st.dataset.base; delete st.dataset.base; }
+  }, 8000);
+}
+
+// ─── 改动4：分页 + 跨页选择（用 _cwSelectedVids Set，覆盖所有页）───
+
+// CSS 选择器里安全转义 vid（vid 里可能有特殊字符）
+function _cwCssEsc(s) {
+  s = String(s == null ? "" : s);
+  return (window.CSS && CSS.escape) ? CSS.escape(s) : s.replace(/["\\\]\[]/g, "\\$&");
+}
+
+// 当前每页条数（读输入框，至少 1）
+function _cwGetPageSize() {
+  const el = document.getElementById("cwPageSize");
+  let n = parseInt((el && el.value) || _cwPageSize, 10);
+  if (!n || n < 1) n = _cwPageSize || 20;
+  _cwPageSize = n;
+  return n;
+}
+
+function _cwPageCount() {
+  const size = _cwGetPageSize();
+  return Math.max(1, Math.ceil((_cwVideos.length || 0) / size));
+}
+
+// 把 _cwPage 夹到 [1, 总页数]
+function _cwClampPage() {
+  const tp = _cwPageCount();
+  if (_cwPage > tp) _cwPage = tp;
+  if (_cwPage < 1) _cwPage = 1;
+}
+
+// 当前页的 {v, i}（i 是它在 _cwVideos 里的全局下标）
+function _cwPageItems() {
+  const size = _cwGetPageSize();
+  const start = (_cwPage - 1) * size;
+  const out = [];
+  for (let i = start; i < Math.min(start + size, _cwVideos.length); i++) {
+    out.push({ v: _cwVideos[i], i });
+  }
+  return out;
+}
+
+function renderVideos() {
   const box = document.getElementById("cwVideos");
   if (!box) return;
-  if (!list.length) {
+  if (!_cwVideos.length) {
     box.innerHTML = '<div class="cw-empty">这个博主没列到视频。</div>';
+    _cwRenderPager();
     updateExtractVLabel();
     return;
   }
-  box.innerHTML = list.map((v, i) => {
+  _cwClampPage();
+  const items = _cwPageItems();
+  box.innerHTML = items.map(({ v, i }) => {
     const date = v.when_human ? ('<span class="cw-date">' + escapeHtml(v.when_human) + "</span>")
                               : '<span class="cw-date">日期未知</span>';
     const ago = (v.days_ago != null) ? (v.days_ago + " 天前") : "";
-    const zh = (v.title_zh && v.title_zh !== v.title)
-      ? ('<div class="cw-v-zh">🌐 ' + escapeHtml(v.title_zh) + "</div>") : "";
+    // 改动1：中文行始终预留占位（空着也占位），翻译回来填进去，不再新插一行
+    const zhText = (v.title_zh && v.title_zh !== v.title) ? ("🌐 " + escapeHtml(v.title_zh)) : "";
+    const checked = _cwSelectedVids.has(v.vid) ? " checked" : "";   // 改动4：按 Set 回填勾选态
     return '' +
       '<div class="cw-video">' +
-        '<input type="checkbox" class="cw-vcb" data-i="' + i + '" />' +
+        '<input type="checkbox" class="cw-vcb" data-vid="' + escapeHtml(v.vid) + '" data-i="' + i + '"' + checked + " />" +
         '<div class="cw-v-main">' +
           '<div class="cw-v-title">' + escapeHtml(v.title || v.url || "(无标题)") + "</div>" +
-          zh +
+          '<div class="cw-v-zh">' + zhText + "</div>" +
           '<div class="cw-v-meta">' + date + (ago ? ('<span>' + escapeHtml(ago) + "</span>") : "") +
             '<a class="cw-vlink" href="' + escapeHtml(v.url) + '" target="_blank">原视频↗</a></div>' +
         "</div>" +
         '<button class="sn-btn sm cw-vget" data-i="' + i + '">提取</button>' +
       "</div>";
   }).join("");
-  box.querySelectorAll(".cw-vcb").forEach((cb) => cb.addEventListener("change", updateExtractVLabel));
+  // 勾选 → 更新 Set（跨页保持）
+  box.querySelectorAll(".cw-vcb").forEach((cb) => cb.addEventListener("change", (e) => {
+    const vid = e.currentTarget.dataset.vid;
+    if (e.currentTarget.checked) _cwSelectedVids.add(vid);
+    else _cwSelectedVids.delete(vid);
+    updateExtractVLabel();
+  }));
   box.querySelectorAll(".cw-vget").forEach((b) => b.addEventListener("click", (e) => {
     const v = _cwVideos[parseInt(e.currentTarget.dataset.i, 10)];
     if (v) _cwExtract([{ creator_id: _cwCurrentCreator.id, vid: v.vid, url: v.url }]);
   }));
+  _cwRenderPager();
   updateExtractVLabel();
 }
 
-function updateExtractVLabel() {
-  const n = document.querySelectorAll("#cwVideos .cw-vcb:checked").length;
-  const b = document.getElementById("cwExtractV");
-  if (b) b.textContent = "提取选中（" + n + "）";
+// 渲染分页条
+function _cwRenderPager() {
+  const pager = document.getElementById("cwPager");
+  if (!pager) return;
+  const total = _cwVideos.length;
+  const tp = _cwPageCount();
+  if (total <= _cwGetPageSize()) { pager.hidden = true; }   // 一页装得下就不显示
+  else { pager.hidden = false; }
+  const cur = document.getElementById("cwPageCur"); if (cur) cur.textContent = _cwPage;
+  const tot = document.getElementById("cwPageTotal"); if (tot) tot.textContent = tp;
+  const prev = document.getElementById("cwPagePrev"); if (prev) prev.disabled = (_cwPage <= 1);
+  const next = document.getElementById("cwPageNext"); if (next) next.disabled = (_cwPage >= tp);
+  const c = document.getElementById("cwPagerCount");
+  if (c) c.textContent = "共 " + total + " 条，已选 " + _cwSelectedVids.size + " 条";
 }
 
+// 翻页：只重渲染 + 翻译当前页，不重新 fetch（改动4）
+function _cwGotoPage(p) {
+  _cwPage = p;
+  _cwClampPage();
+  renderVideos();
+  _cwTranslateTitles();
+}
+
+function updateExtractVLabel() {
+  const n = _cwSelectedVids.size;   // 改动4：基于 Set（所有页），不读 DOM
+  const b = document.getElementById("cwExtractV");
+  if (b) b.textContent = "提取选中（" + n + "）";
+  _cwRenderPager();   // 同步分页条里的已选计数
+}
+
+// 改动4：选中项基于 Set，覆盖所有页（而非只当前 DOM）
 function _cwVideoSelected() {
   const out = [];
-  document.querySelectorAll("#cwVideos .cw-vcb:checked").forEach((cb) => {
-    const v = _cwVideos[parseInt(cb.dataset.i, 10)];
+  const byVid = {};
+  for (const v of _cwVideos) byVid[v.vid] = v;
+  _cwSelectedVids.forEach((vid) => {
+    const v = byVid[vid];
     if (v) out.push({ creator_id: _cwCurrentCreator.id, vid: v.vid, url: v.url });
   });
   return out;
 }
 
+// 改动4：按天数筛选对「所有页」生效——直接改 Set，再重渲染回填勾选
 function _cwPickByDays(days) {
   let matched = 0;
-  document.querySelectorAll("#cwVideos .cw-vcb").forEach((cb) => {
-    const v = _cwVideos[parseInt(cb.dataset.i, 10)];
-    const ok = !!(v && v.days_ago != null && v.days_ago <= days);
-    cb.checked = ok; if (ok) matched++;
-  });
-  updateExtractVLabel();
-  if (matched === 0) alert("没有带日期、且在最近 " + days + " 天内的视频（该平台可能未提供发布日期，可改用「全部」或手动勾选）。");
+  for (const v of _cwVideos) {
+    if (v && v.days_ago != null && v.days_ago <= days) { _cwSelectedVids.add(v.vid); matched++; }
+  }
+  renderVideos();
+  if (matched === 0) _cwSetStatus("没有「最近 " + days + " 天」内、且带日期的视频（该平台可能没提供发布日期，可改用「全选」或手动勾选）");
+  else _cwSetStatus("已选中最近 " + days + " 天内的 " + matched + " 条（所有页）");
+}
+
+// 改动4：全选/清空也作用于所有页
+function _cwSelectAllVideos() {
+  for (const v of _cwVideos) _cwSelectedVids.add(v.vid);
+  renderVideos();
+}
+function _cwClearSelVideos() {
+  _cwSelectedVids.clear();
+  renderVideos();
 }
 
 // 提取入口（单条 / 批量 / 本次新增 共用）
 async function _cwExtract(items) {
-  if (!items || !items.length) { alert("先勾选要提取的视频"); return; }
-  const s = (typeof settings === "function") ? settings() : { use_local: true, model: "qwen2.5" };
+  if (!items || !items.length) { _cwSetStatus("先勾选要提取的视频"); return; }
+  const s = _cwSafeSettings();
   try {
     const r = await fetch(BACKEND + "/creator/extract", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ items, use_local: s.use_local, model: s.model, mode: "auto" }),
     });
     const d = await r.json();
-    if (!d.ok) { alert(d.message || "提取失败"); return; }
-    alert("已把 " + (d.queued || items.length) + " 个视频加入提取队列，去「视频」页看进度。");
+    if (!d.ok) { _cwSetStatus(d.message || "提取失败"); return; }
+    _cwSetStatus("✓ 已把 " + (d.queued || items.length) + " 个视频加入提取队列，去「视频」页看进度");
     loadCreatorFindings();
-  } catch (e) { alert("出错：" + e.message); }
+  } catch (e) { _cwSetStatus("提取出错：" + e.message); }
 }
+
+// ════════════════════════════════════════════════════════════
+// 新版块：近期汇总（所有关注博主近 N 天发的视频，汇总在一起）
+// ════════════════════════════════════════════════════════════
+let _dgLoadedOnce = false;          // 首次切到该 tab 才自动加载
+let _dgDays = 3;                    // 当前天数窗口
+let _dgItems = [];                  // 当前窗口内（带日期）的视频
+let _dgUndated = [];               // 无日期的视频（可选显示）
+let _dgSelected = new Set();        // 选中的 vid（跨博主）
+let _dgShowUndated = false;
+
+// 数字状态行
+function _dgSetStat(html) {
+  const el = document.getElementById("dgStat");
+  if (el) el.innerHTML = html || "";
+}
+
+// 拉取汇总数据（恢复成以前的「直接加载」）：
+//  · 默认：每个博主先吃缓存、缓存没有的当场直接联网列出来（后端每个博主有 120s 超时上限）。
+//  · refresh=true：所有博主重新联网列一遍。
+// 加载时显示「正在加载，请稍候…」，不再做秒出+后台补全那套。
+async function loadDigest(refresh) {
+  const box = document.getElementById("dgList");
+  const rb = document.getElementById("dgRefreshBtn");
+  const note = document.getElementById("dgInlineNote");
+  if (box) box.innerHTML = _cwSkeletonRows(6);
+  _dgSetStat(refresh ? "正在联网刷新，请稍候…" : "正在加载视频列表，请稍候…");
+  if (note) { note.textContent = refresh ? "正在联网刷新，请稍候…" : "正在加载视频列表，请稍候…（首次或没缓存的博主要联网，会慢一点）"; note.hidden = false; note.classList.add("loading"); }
+  if (rb) { rb.disabled = true; rb.textContent = "刷新中…"; }
+  // 先确保「本次新增」清单已拉到（给汇总里属于新视频的条目打「新」角标）
+  try {
+    if (!Array.isArray(_cwFindings) || !_cwFindings.length) {
+      const fr = await fetch(BACKEND + "/creator/findings");
+      const fd = await fr.json();
+      if (fd && Array.isArray(fd.findings)) _cwFindings = fd.findings;
+    }
+  } catch (e) {}
+  try {
+    const r = await fetch(BACKEND + "/creator/gather", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ days: _dgDays, refresh: !!refresh, per_timeout: 120 }),
+    });
+    const d = await r.json();
+    if (!d.ok) {
+      _dgItems = []; _dgUndated = [];
+      if (box) box.innerHTML = '<div class="dg-empty">汇总失败：' + escapeHtml(d.message || "后端没有响应这个功能") +
+        '<br><br>如果刚更新过文件，请<b>完全退出并重新打开</b>超能小助（后端 Python 要重启才会加载新接口）。</div>';
+      _dgSetStat("");
+      if (note) { note.classList.remove("loading"); note.hidden = true; }
+      return;
+    }
+    _dgItems = d.items || [];
+    _dgUndated = d.undated || [];
+    // 清理选中集里已不存在的项
+    const live = new Set([..._dgItems, ..._dgUndated].map((x) => x.vid));
+    _dgSelected.forEach((v) => { if (!live.has(v)) _dgSelected.delete(v); });
+    // 顶部数字总览
+    let stat = "近 <b>" + d.days + "</b> 天 · <b>" + (d.in_window || 0) + "</b> 条新视频 · 来自 <b>" +
+               (d.creators_ok || 0) + "/" + (d.creators_total || 0) + "</b> 位博主";
+    if (d.undated_count) stat += " · 另有 " + d.undated_count + " 条无日期";
+    if (d.generated_at) stat += "　·　" + escapeHtml(d.generated_at);
+    _dgSetStat(stat);
+    // 有博主这次没列到（超时/被限流）→ 给个轻提示，不挡内容
+    const miss = Array.isArray(d.uncached) ? d.uncached.length : 0;
+    if (note) {
+      note.classList.remove("loading");
+      if (miss) { note.textContent = miss + " 位博主这次没列到（超时/被限流），点「🔄 联网刷新」可再试。"; note.hidden = false; }
+      else { note.hidden = true; }
+    }
+    renderDigest(d.errors || []);
+    _dgTranslate();
+  } catch (e) {
+    if (box) box.innerHTML = '<div class="dg-empty">出错：' + escapeHtml(e.message) + "</div>";
+    _dgSetStat("");
+    if (note) { note.classList.remove("loading"); note.hidden = true; }
+  } finally {
+    if (rb) { rb.disabled = false; rb.textContent = "🔄 联网刷新"; }
+  }
+}
+
+// 渲染：按博主分组，组内按时间倒序
+function renderDigest(errors) {
+  const box = document.getElementById("dgList");
+  if (!box) return;
+  const list = _dgShowUndated ? _dgItems.concat(_dgUndated) : _dgItems;
+
+  let html = "";
+  // 出错的博主（联网刷新时某些列不到）提示在最上面
+  (errors || []).forEach((er) => {
+    html += '<div class="dg-err">⚠ <b>' + escapeHtml(er.title || "某博主") + '</b>：' + escapeHtml(er.error || "列不到") + "</div>";
+  });
+
+  if (!list.length) {
+    box.innerHTML = html + '<div class="dg-empty">这 ' + _dgDays + ' 天，关注的博主没有发布带日期的新视频。' +
+      (_dgUndated.length && !_dgShowUndated ? '<br>（有 ' + _dgUndated.length + ' 条无发布日期的视频，可勾选右上「显示无日期」查看）' : '') +
+      '<br><br>想要最新的可点右上「🔄 联网刷新」。</div>';
+    _dgUpdateExtractLabel();
+    return;
+  }
+
+  // 分组
+  const groups = [];
+  const idx = {};
+  for (const it of list) {
+    const key = it.creator_id || it.creator_title;
+    if (idx[key] == null) { idx[key] = groups.length; groups.push({ key, title: it.creator_title, platform: it.platform, plabel: it.platform_label, items: [] }); }
+    groups[idx[key]].items.push(it);
+  }
+  // 组内排序：有日期的按天数升序，无日期排后
+  groups.forEach((g) => g.items.sort((a, b) => {
+    const da = a.days_ago == null ? 1e9 : a.days_ago;
+    const db = b.days_ago == null ? 1e9 : b.days_ago;
+    return da - db;
+  }));
+
+  // 哪些视频是「扫描发现的新视频」（出现在本次新增清单里）→ 给它们打「新」角标
+  const newKeys = new Set();
+  if (Array.isArray(_cwFindings)) {
+    _cwFindings.forEach((f) => { if (f && f.vid != null) newKeys.add((f.creator_id || "") + "|" + f.vid); });
+  }
+
+  for (const g of groups) {
+    // 博主头像：用名字首字做「字母头像」（清楚表示这是博主/频道，不再用 ▶ 播放图标，免得被当成视频）
+    const gname = (g.title || "未命名").trim();
+    const letter = escapeHtml((gname[0] || "?").toUpperCase());
+    // 平台放到名字下方那行（YouTube / B站 / 抖音），头像只表示「这是个博主」
+    const platTxt = escapeHtml(g.plabel || "");
+    html += '<div class="dg-group">';
+    html += '<div class="dg-group-head">' +
+      '<div class="dg-group-ava dg-creator-ava">' + letter + "</div>" +
+      '<div class="dg-group-info">' +
+        '<div class="dg-group-name"><span class="dg-creator-tag">博主</span>' + escapeHtml(gname) + "</div>" +
+        '<div class="dg-group-meta">' + platTxt + "</div></div>" +
+      '<span class="dg-group-cnt">' + g.items.length + " 条新视频</span>" +
+      "</div>";
+    html += g.items.map((it) => {
+      const checked = _dgSelected.has(it.vid) ? " checked" : "";
+      const when = it.when_human ? ('<span class="cw-date">' + escapeHtml(it.when_human) + "</span>")
+                                 : '<span class="cw-date">无日期</span>';
+      const ago = (it.days_ago != null) ? ('<span>' + it.days_ago + " 天前</span>") : "";
+      // 中文标题：有就显示，没有先占位（翻译回来填）
+      const zh = (it.title_zh && it.title_zh !== it.title)
+        ? ('<div class="cw-v-zh">🌐 ' + escapeHtml(it.title_zh) + "</div>")
+        : '<div class="cw-v-zh"></div>';
+      const isNew = newKeys.has((it.creator_id || "") + "|" + it.vid);
+      const badge = isNew ? '<span class="cw-new-badge">新</span>' : "";
+      const platIcon = _CW_PLAT_ICON[it.platform] || "🔗";
+      // 每条都自带：平台图标 + 博主名 tag，信息更全（和「扫出来的新视频」一致）
+      return '' +
+        '<div class="cw-video">' +
+          '<input type="checkbox" class="dg-cb" data-vid="' + escapeHtml(it.vid) + '"' + checked + " />" +
+          '<div class="cw-v-main">' +
+            '<div class="cw-v-title">' + badge + platIcon + " " + escapeHtml(it.title || it.url || "(无标题)") + "</div>" +
+            zh +
+            '<div class="cw-v-meta">' +
+              '<span class="cw-tag">' + escapeHtml(it.creator_title || g.title || "") + "</span>" +
+              when + ago +
+              '<a class="cw-vlink" href="' + escapeHtml(it.url) + '" target="_blank">原视频↗</a></div>' +
+          "</div>" +
+          '<button class="sn-btn sm dg-get" data-vid="' + escapeHtml(it.vid) + '">提取</button>' +
+        "</div>";
+    }).join("");
+    html += "</div>";
+  }
+  box.innerHTML = html;
+
+  // 勾选 → Set
+  box.querySelectorAll(".dg-cb").forEach((cb) => cb.addEventListener("change", (e) => {
+    const vid = e.currentTarget.dataset.vid;
+    if (e.currentTarget.checked) _dgSelected.add(vid); else _dgSelected.delete(vid);
+    _dgSyncSelAll();
+    _dgUpdateExtractLabel();
+  }));
+  // 单条提取
+  box.querySelectorAll(".dg-get").forEach((b) => b.addEventListener("click", (e) => {
+    const it = _dgFind(e.currentTarget.dataset.vid);
+    if (it) _cwExtract([{ creator_id: it.creator_id, vid: it.vid, url: it.url }]);
+  }));
+  _dgSyncSelAll();
+  _dgUpdateExtractLabel();
+}
+
+function _dgFind(vid) {
+  return _dgItems.concat(_dgUndated).find((x) => x.vid === vid) || null;
+}
+
+function _dgSelectedItems() {
+  const all = _dgItems.concat(_dgUndated);
+  const out = [];
+  _dgSelected.forEach((vid) => {
+    const it = all.find((x) => x.vid === vid);
+    if (it) out.push({ creator_id: it.creator_id, vid: it.vid, url: it.url });
+  });
+  return out;
+}
+
+function _dgUpdateExtractLabel() {
+  const b = document.getElementById("dgExtractBtn");
+  if (b) b.textContent = "提取选中（" + _dgSelected.size + "）";
+}
+
+// 同步「全选」勾选态
+function _dgSyncSelAll() {
+  const list = _dgShowUndated ? _dgItems.concat(_dgUndated) : _dgItems;
+  const sa = document.getElementById("dgSelAll");
+  if (!sa) return;
+  const selectedInView = list.filter((x) => _dgSelected.has(x.vid)).length;
+  sa.checked = list.length > 0 && selectedInView === list.length;
+}
+
+// 翻译当前可见、未翻的英文标题（复用 /creator/translate）
+async function _dgTranslate() {
+  const box = document.getElementById("dgList");
+  if (!box) return;
+  const list = _dgShowUndated ? _dgItems.concat(_dgUndated) : _dgItems;
+  const todo = [];
+  for (const it of list) {
+    const t = (it.title || "").trim();
+    if (!t || it.title_zh || /[\u4e00-\u9fff]/.test(t)) continue;
+    todo.push(it);
+  }
+  if (!todo.length) return;
+  const s = _cwSafeSettings();
+  try {
+    const r = await fetch(BACKEND + "/creator/translate", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ titles: todo.map((x) => x.title), use_local: s.use_local, model: s.model }),
+    });
+    const d = await r.json();
+    if (!d.ok || !Array.isArray(d.translations)) return;
+    d.translations.forEach((zh, k) => {
+      const it = todo[k];
+      const z = (zh || "").trim();
+      if (!z || !it || z === (it.title || "").trim()) return;
+      it.title_zh = z;
+      const cb = box.querySelector('.dg-cb[data-vid="' + _cwCssEsc(it.vid) + '"]');
+      const zhEl = cb ? cb.closest(".cw-video").querySelector(".cw-v-zh") : null;
+      if (zhEl) zhEl.textContent = "🌐 " + z;
+    });
+  } catch (e) {}
+}
+
+// ─ 近期汇总：事件绑定 ─
+document.getElementById("dgSeg")?.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-days]");
+  if (!b) return;
+  document.querySelectorAll("#dgSeg button").forEach((x) => x.classList.toggle("active", x === b));
+  _dgDays = parseInt(b.dataset.days, 10) || 7;
+  const inp = document.getElementById("dgDaysInput"); if (inp) inp.value = _dgDays;
+  loadDigest(false);
+});
+document.getElementById("dgDaysGo")?.addEventListener("click", () => {
+  const inp = document.getElementById("dgDaysInput");
+  let v = parseInt((inp && inp.value) || "7", 10);
+  if (!v || v < 1) v = 7; if (v > 365) v = 365;
+  _dgDays = v;
+  // 自定义天数 → 取消段选中的高亮（除非正好等于预设）
+  document.querySelectorAll("#dgSeg button").forEach((x) => x.classList.toggle("active", parseInt(x.dataset.days, 10) === v));
+  loadDigest(false);
+});
+document.getElementById("dgDaysInput")?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); document.getElementById("dgDaysGo")?.click(); }
+});
+document.getElementById("dgRefreshBtn")?.addEventListener("click", () => loadDigest(true));
+document.getElementById("dgShowUndated")?.addEventListener("change", (e) => {
+  _dgShowUndated = e.target.checked;
+  renderDigest([]);
+  _dgTranslate();
+});
+document.getElementById("dgSelAll")?.addEventListener("change", (e) => {
+  const list = _dgShowUndated ? _dgItems.concat(_dgUndated) : _dgItems;
+  if (e.target.checked) list.forEach((x) => _dgSelected.add(x.vid));
+  else list.forEach((x) => _dgSelected.delete(x.vid));
+  renderDigest([]);
+});
+document.getElementById("dgExtractBtn")?.addEventListener("click", () => _cwExtract(_dgSelectedItems()));
 
 // ─── 事件绑定 ───
 document.getElementById("cwAddBtn")?.addEventListener("click", async () => {
@@ -5628,17 +6932,21 @@ document.getElementById("cwAddBtn")?.addEventListener("click", async () => {
 });
 
 document.getElementById("cwScanAll")?.addEventListener("click", async () => {
+  _cwSetScanAllBusy(true);   // 改动2：点击即按钮禁用 + 文案改「扫描中…」
+  // 先把上一轮明细清掉，展开容器等本轮进度
+  const logBox = document.getElementById("cwScanLog");
+  if (logBox) { logBox.hidden = false; logBox.innerHTML = '<div class="cw-scanlog-cur">⏳ 批量扫描启动中…</div>'; }
   try {
     const r = await fetch(BACKEND + "/creator/scan", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
     });
     const d = await r.json();
-    if (!d.ok) { alert(d.message || "启动失败"); return; }
+    if (!d.ok) { _cwSetScanAllBusy(false); _cwSetStatus(d.message || "启动失败"); return; }
     const st = document.getElementById("cwScanState");
-    if (st) st.textContent = "⏳ 扫描中…";
-    loadCreatorFindings();
-  } catch (e) { alert("出错：" + e.message); }
+    if (st) st.textContent = "⏳ 批量扫描启动中…";
+    loadCreatorFindings();   // 进入轮询，loadCreatorFindings 会接管按钮恢复 + 明细渲染
+  } catch (e) { _cwSetScanAllBusy(false); _cwSetStatus("出错：" + e.message); }
 });
 
 document.getElementById("cwCfgSave")?.addEventListener("click", async () => {
@@ -5665,7 +6973,7 @@ document.getElementById("cwExtractBtn")?.addEventListener("click", () => _cwExtr
 
 document.getElementById("cwDismissBtn")?.addEventListener("click", async () => {
   const items = _cwSelectedItems();
-  if (!items.length) { alert("先勾选要忽略的视频"); return; }
+  if (!items.length) { _cwSetStatus("先勾选要忽略的视频"); return; }
   try {
     await fetch(BACKEND + "/creator/dismiss", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -5685,12 +6993,30 @@ document.getElementById("cwClearBtn")?.addEventListener("click", async () => {
 
 // 视频清单工具条
 document.getElementById("cwBack")?.addEventListener("click", backToDigest);
-document.getElementById("cwVideoRefresh")?.addEventListener("click", loadCreatorVideos);
-document.getElementById("cwSelAllV")?.addEventListener("click", () => { document.querySelectorAll("#cwVideos .cw-vcb").forEach((cb) => cb.checked = true); updateExtractVLabel(); });
-document.getElementById("cwClearSelV")?.addEventListener("click", () => { document.querySelectorAll("#cwVideos .cw-vcb").forEach((cb) => cb.checked = false); updateExtractVLabel(); });
+document.getElementById("cwVideoRefresh")?.addEventListener("click", () => loadCreatorVideos(false));
+document.getElementById("cwShowAll")?.addEventListener("click", () => {
+  const inp = document.getElementById("cwVideoLimit");
+  if (inp) inp.value = "";   // 空 = 全部（「重置」抓取条数为全部）
+  _cwPage = 1;
+  loadCreatorVideos(false);
+});
+// 改动4：全选/清空对「所有页」生效（基于 Set）
+document.getElementById("cwSelAllV")?.addEventListener("click", _cwSelectAllVideos);
+document.getElementById("cwClearSelV")?.addEventListener("click", _cwClearSelVideos);
 document.getElementById("cwPick7")?.addEventListener("click", () => _cwPickByDays(7));
 document.getElementById("cwPick30")?.addEventListener("click", () => _cwPickByDays(30));
 document.getElementById("cwExtractV")?.addEventListener("click", () => _cwExtract(_cwVideoSelected()));
+// 改动4：分页控制——翻页只重渲染当前页 + 翻当前页，不重新 fetch
+document.getElementById("cwPagePrev")?.addEventListener("click", () => _cwGotoPage(_cwPage - 1));
+document.getElementById("cwPageNext")?.addEventListener("click", () => _cwGotoPage(_cwPage + 1));
+document.getElementById("cwPageSize")?.addEventListener("change", () => { _cwPage = 1; renderVideos(); _cwTranslateTitles(); });
+// 改「抓取条数」后回车 / 失焦 → 重新抓取（条数变了必须重新 fetch）
+(function () {
+  const inp = document.getElementById("cwVideoLimit");
+  if (!inp) return;
+  inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { _cwPage = 1; loadCreatorVideos(false); } });
+  inp.addEventListener("change", () => { _cwPage = 1; loadCreatorVideos(false); });
+})();
 document.getElementById("sniffClearBtn")?.addEventListener("click", async () => {
   if (!confirm("清空时间线？（嗅探源和快照保留）")) return;
   try { await fetch(BACKEND + "/sniff/feed/clear", { method: "POST" }); loadSniffFeed(); } catch (e) {}
