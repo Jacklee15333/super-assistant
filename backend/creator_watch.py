@@ -401,6 +401,16 @@ def _list_bilibili(url, limit):
 
 def _douyin_name_from_page(url):
     """从抖音用户主页 HTML 里尽量抠出昵称（作品列表取不到时也能拿到名字）。失败返回空。"""
+    # 先走 douyin_resolver 的新逻辑（短链跟随 + sec_uid + 接口/HTML 多重兜底），更稳
+    try:
+        import douyin_resolver
+        if hasattr(douyin_resolver, "user_name"):
+            nm = douyin_resolver.user_name(url)
+            if nm:
+                return nm
+    except Exception:
+        pass
+    # 退回老办法：直接爬一次主页 HTML 从 <title> / nickname 抠
     try:
         import douyin_resolver
         s = douyin_resolver._session()
@@ -422,12 +432,35 @@ def _douyin_name_from_page(url):
 
 
 def _list_douyin(url, limit):
-    """抖音作品列表：尽力而为。
-    抖音主页作品列表需要带签名的接口，yt-dlp 多数情况下也解不动（要登录 cookie）。
-    这里先试 yt-dlp，拿到就用；拿不到就抛一个**清楚的错误**，让上层提示用户改用手动贴链接，
+    """抖音作品列表：尽力而为，多重兜底。
+
+    取数顺序（前一层失败/为空才走后一层）：
+      ① douyin_resolver.list_user_posts —— 不需要 a_bogus 签名的两条老路
+         （移动端 aweme/post 接口 + 用户主页 SSR 注水数据），现在的主力；
+      ② yt-dlp 扁平列 —— 接口都挂了才用（抖音主页 yt-dlp 多半 Unsupported URL，
+         但偶尔某些落地形态能解，保留着当最后一手）。
+    全失败才抛一个**清楚的错误**，让上层提示用户改用手动贴链接，
     不假装成功、不返回空当作「没有新视频」。"""
     target = url.strip()
-    # 短链先跟随跳转，尽量落到 www.douyin.com/user/{sec_uid}
+
+    # ── ① 主力：douyin_resolver 无签名两条路 ──
+    try:
+        import douyin_resolver
+        if hasattr(douyin_resolver, "list_user_posts"):
+            res = douyin_resolver.list_user_posts(target, limit=limit)
+            if res.get("ok") and res.get("videos"):
+                vids = res["videos"]
+                # 名字：接口/HTML 拿到就用，否则再单独探一次主页昵称
+                name = (res.get("name") or "").strip() or _douyin_name_from_page(target)
+                return {"name": name, "videos": vids, "total": res.get("total") or len(vids)}
+            # 接口/HTML 都没拿到作品 → 记下原因，继续往下试 yt-dlp
+            _dy_reason = res.get("error") or "接口与主页都没解析到作品"
+        else:
+            _dy_reason = "douyin_resolver 版本过旧（没有 list_user_posts）"
+    except Exception as e:
+        _dy_reason = "解析用户作品出错：%s" % (str(e)[:80])
+
+    # ── 短链先跟随跳转，尽量落到 www.douyin.com/user/{sec_uid}，给 yt-dlp 用 ──
     try:
         if "v.douyin" in target.lower() or "iesdouyin" in target.lower():
             import douyin_resolver
@@ -436,13 +469,16 @@ def _list_douyin(url, limit):
             target = str(getattr(r, "url", "")) or target
     except Exception:
         pass
+
+    # ── ② 兜底：yt-dlp 扁平列 ──
     name, entries = "", []
     try:
         data = _ytdlp_list(target, limit, use_proxy=False, platform="douyin")
         name, entries = data.get("name", ""), data["entries"]
-    except Exception as e:
-        raise RuntimeError("抖音作品列表取不到（%s）。抖音主页要签名/登录才能列作品，"
-                           "建议先把想要的视频链接手动贴到「视频」页提取。" % str(e)[:80])
+    except Exception:
+        raise RuntimeError("抖音作品列表取不到（%s）。抖音主页现在有风控，免登录不一定能列到作品。"
+                           "最稳的办法：从浏览器复制一份抖音 Cookie，粘到 backend/memory/douyin_cookie.txt 后重试；"
+                           "或先把想要的视频链接手动贴到「视频」页提取。" % str(_dy_reason)[:90])
     out = []
     for e in entries:
         if not isinstance(e, dict):
@@ -457,8 +493,9 @@ def _list_douyin(url, limit):
                     "title": (e.get("title") or "").strip(),
                     "when": _entry_when(e)})
     if not out:
-        raise RuntimeError("抖音作品列表没解析到内容（多半是签名/登录限制）。"
-                           "建议先把想要的视频链接手动贴到「视频」页提取。")
+        raise RuntimeError("抖音作品列表没解析到内容（%s）。最稳的办法：从浏览器复制一份抖音 Cookie，"
+                           "粘到 backend/memory/douyin_cookie.txt 后重试；"
+                           "或先把想要的视频链接手动贴到「视频」页提取。" % str(_dy_reason)[:90])
     return {"name": name, "videos": out, "total": len(out)}
 
 

@@ -6825,7 +6825,98 @@ function _dgSelectedItems() {
 
 function _dgUpdateExtractLabel() {
   const b = document.getElementById("dgExtractBtn");
-  if (b) b.textContent = "提取选中（" + _dgSelected.size + "）";
+  if (!b) return;
+  // 正在提取 / 刚提取完的反馈期间，不要被这个函数把文字覆盖回去
+  if (b.dataset.busy === "1" || b.dataset.flash === "1") return;
+  b.textContent = "提取选中（" + _dgSelected.size + "）";
+  b.disabled = _dgSelected.size === 0;   // 没勾选时置灰，避免空点没反应
+}
+
+// 「按时间看全部」里的「提取选中」专用提取：带明确的按钮反馈
+// （原来直接调 _cwExtract，状态提示写在左侧「博主更新」面板里，这边看不到，
+//   用户点了像没反应。这里把反馈做在按钮本身 + 按钮上方的 dgStat 行。）
+async function _dgExtractSelected() {
+  const b = document.getElementById("dgExtractBtn");
+  const items = _dgSelectedItems();
+  if (!items.length) {
+    // 没勾选：按钮抖一下 + 上方提示，而不是悄无声息
+    if (b) {
+      const old = b.textContent;
+      b.textContent = "先勾选视频";
+      b.dataset.flash = "1";
+      setTimeout(() => { b.dataset.flash = ""; _dgUpdateExtractLabel(); }, 1500);
+    }
+    _dgSetStat('<span style="color:var(--accent)">请先勾选要提取的视频（或点「全选」）。</span>');
+    return;
+  }
+
+  const n = items.length;
+  // —— 进入「提取中」：禁用 + 改字 + 防重复点 ——
+  if (b) {
+    b.dataset.busy = "1";
+    b.disabled = true;
+    b.textContent = "提取中…（" + n + "）";
+  }
+  _dgSetStat('正在把 ' + n + ' 个视频加入提取队列…');
+
+  let okMsg = "", errMsg = "";
+  try {
+    const s = _cwSafeSettings();
+    const r = await fetch(BACKEND + "/creator/extract", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items, use_local: s.use_local, model: s.model, mode: "auto" }),
+    });
+    const d = await r.json();
+    if (!d.ok) { errMsg = d.message || "提取失败"; }
+    else {
+      const q = (d.queued != null) ? d.queued : n;
+      okMsg = "已把 " + q + " 个视频加入提取队列，去「视频」页看进度";
+      // 入队成功后清掉勾选，避免重复提交
+      _dgSelected.clear();
+      loadCreatorFindings();
+    }
+  } catch (e) {
+    errMsg = "提取出错：" + e.message;
+  }
+
+  // —— 退出「提取中」，进入短暂的「结果反馈」态 ——
+  if (b) b.dataset.busy = "";
+  if (okMsg) {
+    if (b) {
+      b.dataset.flash = "1";
+      b.textContent = "✓ 已加入队列";
+      b.style.background = "#16a34a";
+      b.style.borderColor = "#16a34a";
+      b.style.color = "#fff";
+      setTimeout(() => {
+        b.dataset.flash = "";
+        b.style.background = "";
+        b.style.borderColor = "";
+        b.style.color = "";
+        _dgUpdateExtractLabel();
+      }, 2600);
+    }
+    _dgSetStat('<span style="color:#16a34a">✓ ' + escapeHtml(okMsg) + '</span>');
+    // 同步刷新视图里的勾选态（已清空）
+    _dgSyncSelAll();
+    renderDigest([]);
+  } else {
+    if (b) {
+      b.dataset.flash = "1";
+      b.textContent = "✗ 提取失败";
+      b.style.background = "#dc2626";
+      b.style.borderColor = "#dc2626";
+      b.style.color = "#fff";
+      setTimeout(() => {
+        b.dataset.flash = "";
+        b.style.background = "";
+        b.style.borderColor = "";
+        b.style.color = "";
+        _dgUpdateExtractLabel();
+      }, 2600);
+    }
+    _dgSetStat('<span style="color:#dc2626">✗ ' + escapeHtml(errMsg || "提取失败") + '</span>');
+  }
 }
 
 // 同步「全选」勾选态
@@ -6902,7 +6993,7 @@ document.getElementById("dgSelAll")?.addEventListener("change", (e) => {
   else list.forEach((x) => _dgSelected.delete(x.vid));
   renderDigest([]);
 });
-document.getElementById("dgExtractBtn")?.addEventListener("click", () => _cwExtract(_dgSelectedItems()));
+document.getElementById("dgExtractBtn")?.addEventListener("click", () => _dgExtractSelected());
 
 // ─── 事件绑定 ───
 document.getElementById("cwAddBtn")?.addEventListener("click", async () => {

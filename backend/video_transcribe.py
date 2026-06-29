@@ -769,8 +769,9 @@ def install_deps():
     import sys
     import subprocess
     # curl_cffi：让 impersonate（模拟真实 Chrome 指纹）可用，抖音提取大幅更稳。
+    # gmssl：抖音「作品列表」签名 a_bogus 用得到（列博主作品更稳）；不装也能用，会退回 X-Bogus。
     # yt-dlp 用 --upgrade 升到最新，跟上抖音接口变化。
-    pkgs = ["yt-dlp", "faster-whisper", "curl_cffi"]
+    pkgs = ["yt-dlp", "faster-whisper", "curl_cffi", "gmssl"]
     cmd = [sys.executable, "-m", "pip", "install", "--upgrade"] + pkgs
     # 某些环境需要 --break-system-packages，加上不影响普通环境
     try:

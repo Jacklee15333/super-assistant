@@ -109,7 +109,11 @@ function Get-FileHead {
     param([string]$filepath)
     try {
         $bytes = [System.IO.File]::ReadAllBytes($filepath)
-        $take = [Math]::Min(51200, $bytes.Length)
+        # Read the whole file for the keyword check (cap 2MB, enough for any source file).
+        # The old 50KB limit missed keywords located later in big files like
+        # server.py (class Handler / do_POST sit past 60KB), causing a false
+        # 'missing expected keyword' warning.
+        $take = [Math]::Min(2097152, $bytes.Length)
         return [System.Text.Encoding]::UTF8.GetString($bytes, 0, $take)
     } catch { return $null }
 }

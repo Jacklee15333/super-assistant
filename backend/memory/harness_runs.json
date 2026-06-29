@@ -1,584 +1,5 @@
 [
   {
-    "id": "video-1782297921846",
-    "ts": "06-24 18:45:21",
-    "kind": "video",
-    "title": "这也能开源？！乌克兰发布”TrophyLab”开源共享平台。",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "获取标题",
-      "语音转文字",
-      "AI 分析"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "获取标题": 1,
-      "语音转文字": 1,
-      "AI 分析": 1
-    },
-    "steps": 6,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 168,
-    "note": "✅ 已完成《这也能开源？！乌克兰发布”TrophyL》，继续处理下一个（还剩 1 个）"
-  },
-  {
-    "id": "video-1782298090632",
-    "ts": "06-24 18:48:10",
-    "kind": "video",
-    "title": "视频提取：https://v.douyin.com/wI-z3sPSziM/",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1
-    },
-    "steps": 3,
-    "error": "提取失败：ERROR: Unsupported URL: https://www.iesdouyin.com/share/video/7654632704771656995/?region=CN&mid=7654632861265333028&u_code=15e488kf6&did=MS4wLjABAAAAk2oguDqweY95C6pM2jYEYsBJReFEjZz3T2jtyeEQLmK44byLi3TdgWYIKjqMRlxR&iid=MS4wLjABAAAANwkJuWIRFOzg5uCpDRpMj4OX-QryoDgn-yYlXQnRwQQ&with_sec_did=1&video",
-    "outcome": "stopped",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 2,
-    "note": "⚠ 这条没成功，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1782300291088",
-    "ts": "06-24 19:24:51",
-    "kind": "video",
-    "title": "五月社零首度转负 低婚育重塑市场格局 #财经 #社零数据 #生育率",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "加载语音模型",
-      "语音转文字",
-      "AI 分析"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "AI 分析": 1
-    },
-    "steps": 6,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 264,
-    "note": "✅ 已完成《五月社零首度转负 低婚育重塑市场格局 #》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1782300809730",
-    "ts": "06-24 19:33:29",
-    "kind": "video",
-    "title": "手把手教你免费使用Claude Code！ 无限制使用AI编程、AI生成图片和视频！  #vibecoding大赏 #agnes #agent #agnesai使用教程 #claudecode",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "AI 分析"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "AI 分析": 1
-    },
-    "steps": 5,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 378,
-    "note": "✅ 已完成《手把手教你免费使用Claude Code》，继续处理下一个（还剩 1 个）"
-  },
-  {
-    "id": "video-1782301188654",
-    "ts": "06-24 19:39:48",
-    "kind": "video",
-    "title": "视频提取：https://v.douyin.com/5SqK9fhL9CE/",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1
-    },
-    "steps": 4,
-    "error": "",
-    "outcome": "",
-    "status": "running",
-    "tokens_est": 0,
-    "seconds": 0,
-    "_start": 1782301188.654917
-  },
-  {
-    "id": "video-1782301330592",
-    "ts": "06-24 19:42:10",
-    "kind": "video",
-    "title": "Cluade 6月15镰刀挥下，阶跃开源砸出逃生通道 阶跃开源Step 3.7 Flash，海光信息“Day0适配”成新常态！#海光信息  #国产算力  #Token",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "获取标题",
-      "加载语音模型",
-      "语音转文字",
-      "AI 分析"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "获取标题": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "AI 分析": 1
-    },
-    "steps": 7,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 267,
-    "note": "✅ 已完成《Cluade 6月15镰刀挥下，阶跃开源》，继续处理下一个（还剩 4 个）"
-  },
-  {
-    "id": "video-1782301598338",
-    "ts": "06-24 19:46:38",
-    "kind": "video",
-    "title": "视频提取：https://v.douyin.com/6CeBeT_DEio/",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "AI 分析"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "AI 分析": 1
-    },
-    "steps": 5,
-    "error": "",
-    "outcome": "",
-    "status": "running",
-    "tokens_est": 0,
-    "seconds": 0,
-    "_start": 1782301598.338692
-  },
-  {
-    "id": "video-1782301927230",
-    "ts": "06-24 19:52:07",
-    "kind": "video",
-    "title": "带你聊透Agent脱离不了的4个概念。 Function Calling、Tool、MCP、Skill 到底有什么区别?#AI #大模型 #gpt #gemini #AI新星计划",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "加载语音模型",
-      "语音转文字",
-      "AI 分析"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "AI 分析": 1
-    },
-    "steps": 6,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 402,
-    "note": "✅ 已完成《带你聊透Agent脱离不了的4个概念。 》，继续处理下一个（还剩 3 个）"
-  },
-  {
-    "id": "video-1782302329684",
-    "ts": "06-24 19:58:49",
-    "kind": "video",
-    "title": "征婚拆解 #现在相亲都这么现实吗 #现在婚恋市场的真实现状 #当今社会找对象的现状 #婚恋市场的奇怪现象 #玩法合伙人计划",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "AI 分析"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "AI 分析": 1
-    },
-    "steps": 5,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 283,
-    "note": "✅ 已完成《征婚拆解 #现在相亲都这么现实吗 #现在》，继续处理下一个（还剩 3 个）"
-  },
-  {
-    "id": "video-1782302613485",
-    "ts": "06-24 20:03:33",
-    "kind": "video",
-    "title": "视频提取：https://v.douyin.com/UJ7AtICGgzA/",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "AI 分析"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "AI 分析": 1
-    },
-    "steps": 5,
-    "error": "",
-    "outcome": "",
-    "status": "running",
-    "tokens_est": 0,
-    "seconds": 0,
-    "_start": 1782302613.4851027
-  },
-  {
-    "id": "video-1782302856621",
-    "ts": "06-24 20:07:36",
-    "kind": "video",
-    "title": "高考后消费清单，榨干父母血汗钱 #高考后 #生养之恩大于天 #硬核深度计划 #零基础看懂财经",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "加载语音模型",
-      "语音转文字",
-      "AI 分析"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "AI 分析": 1
-    },
-    "steps": 6,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 368,
-    "note": "✅ 已完成《高考后消费清单，榨干父母血汗钱 #高考后》，继续处理下一个（还剩 3 个）"
-  },
-  {
-    "id": "video-1782303224735",
-    "ts": "06-24 20:13:44",
-    "kind": "video",
-    "title": "一人自媒体公司全流程（内容创作、分发、互动、变现）打通的开源项目 #开源项目  #自媒体  #开发者  #一人公司  #效率神器",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "AI 分析"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "AI 分析": 1
-    },
-    "steps": 5,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 83,
-    "note": "✅ 已完成《一人自媒体公司全流程（内容创作、分发、互》，继续处理下一个（还剩 2 个）"
-  },
-  {
-    "id": "video-1782303308401",
-    "ts": "06-24 20:15:08",
-    "kind": "video",
-    "title": "视频提取：https://v.douyin.com/BSNOnFSqGUY/",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1
-    },
-    "steps": 4,
-    "error": "",
-    "outcome": "",
-    "status": "running",
-    "tokens_est": 0,
-    "seconds": 0,
-    "_start": 1782303308.4013832
-  },
-  {
-    "id": "video-1782303430863",
-    "ts": "06-24 20:17:10",
-    "kind": "video",
-    "title": "Codex 帮我自动追踪 AI 博主更新 我关注了20多个AI博主，但我已经不用一个个刷他们的主页了。每天打开飞书，就能看到他们都在发什么、哪些内容数据好、哪些观点比较有意思。\n#我在抖音聊科技 #当我开始使用codex #codex\n#a",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "获取标题",
-      "加载语音模型",
-      "语音转文字",
-      "AI 分析"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "获取标题": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "AI 分析": 1
-    },
-    "steps": 7,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 164,
-    "note": "✅ 已完成《Codex 帮我自动追踪 AI 博主更新》，继续处理下一个（还剩 1 个）"
-  },
-  {
-    "id": "video-1782303595492",
-    "ts": "06-24 20:19:55",
-    "kind": "video",
-    "title": "The data black hole at the center of AI",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "加载语音模型",
-      "语音转文字",
-      "AI 分析"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "AI 分析": 1
-    },
-    "steps": 6,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 319,
-    "note": "✅ 已完成《The data black hole 》，继续处理下一个（还剩 1 个）"
-  },
-  {
-    "id": "video-1782303914662",
-    "ts": "06-24 20:25:14",
-    "kind": "video",
-    "title": "枕边人的算计 #大头鹰",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "AI 分析"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "AI 分析": 1
-    },
-    "steps": 5,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 527,
-    "note": "✅ 已完成《枕边人的算计 #大头鹰》，继续处理下一个（还剩 2 个）"
-  },
-  {
-    "id": "video-1782304441863",
-    "ts": "06-24 20:34:01",
-    "kind": "video",
-    "title": "视频提取：https://v.douyin.com/LZnXiEmSJBg/",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1
-    },
-    "steps": 4,
-    "error": "",
-    "outcome": "",
-    "status": "running",
-    "tokens_est": 0,
-    "seconds": 0,
-    "_start": 1782304441.8634953
-  },
-  {
-    "id": "video-1782304545819",
-    "ts": "06-24 20:35:45",
-    "kind": "video",
-    "title": "让写作终回到人的手中 发自内心的推荐\n#openclaw #写作 #创作 #AI工具 #AI应用",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "获取标题",
-      "加载语音模型",
-      "语音转文字",
-      "AI 分析"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "获取标题": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "AI 分析": 1
-    },
-    "steps": 7,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 148,
-    "note": "✅ 已完成《让写作终回到人的手中 发自内心的推荐\n#》，继续处理下一个（还剩 1 个）"
-  },
-  {
-    "id": "video-1782304694245",
-    "ts": "06-24 20:38:14",
-    "kind": "video",
-    "title": "中国社会正在经历一场前所未有的“7.8级地震”！阶层重组、AI平权，你还在用“宠物思维”打工吗？别再抱怨没机会，你的痛点就是AI创业的起点！看完这个视频，重新审视你的未来！#AI创业  #阶层跃迁   #思维升级  #未来趋势  你觉得AI",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "AI 分析"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "AI 分析": 1
-    },
-    "steps": 5,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 597,
-    "note": "✅ 已完成《中国社会正在经历一场前所未有的“7.8级》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1782305390427",
-    "ts": "06-24 20:49:50",
-    "kind": "video",
-    "title": "35-45岁穷的5个习惯#穷 #中年危机如何自救 #穷的原因 #实话实说",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "AI 分析"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "AI 分析": 1
-    },
-    "steps": 5,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 806,
-    "note": "✅ 已完成《35-45岁穷的5个习惯#穷 #中年危机》，继续处理下一个（还剩 3 个）"
-  },
-  {
-    "id": "video-1782306197146",
-    "ts": "06-24 21:03:17",
-    "kind": "video",
-    "title": "结构变了，分析方式也要改变。🧐🧐 #金融常识 #知识创作人",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "AI 分析"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "AI 分析": 1
-    },
-    "steps": 5,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 192,
-    "note": "✅ 已完成《结构变了，分析方式也要改变。🧐🧐 #金融》，继续处理下一个（还剩 4 个）"
-  },
-  {
     "id": "video-1782306389185",
     "ts": "06-24 21:06:29",
     "kind": "video",
@@ -1382,5 +803,582 @@
     "tokens_est": 0,
     "seconds": 480,
     "note": "✅ 已完成《5 Ways Claude Tag Co》，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1782455297940",
+    "ts": "06-26 14:28:17",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/5LP8_UO8iq8/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型",
+      "语音转文字"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1
+    },
+    "steps": 5,
+    "error": "",
+    "outcome": "",
+    "status": "running",
+    "tokens_est": 0,
+    "seconds": 0,
+    "_start": 1782455297.9407563
+  },
+  {
+    "id": "video-1782457579852",
+    "ts": "06-26 15:06:19",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/5LP8_UO8iq8/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "获取标题",
+      "加载语音模型",
+      "语音转文字"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "获取标题": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1
+    },
+    "steps": 6,
+    "error": "",
+    "outcome": "",
+    "status": "running",
+    "tokens_est": 0,
+    "seconds": 0,
+    "_start": 1782457579.852867
+  },
+  {
+    "id": "video-1782460150367",
+    "ts": "06-26 15:49:10",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/D8QAR6vLh1U/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型",
+      "语音转文字"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1
+    },
+    "steps": 5,
+    "error": "",
+    "outcome": "",
+    "status": "running",
+    "tokens_est": 0,
+    "seconds": 0,
+    "_start": 1782460150.3673868
+  },
+  {
+    "id": "video-1782461485427",
+    "ts": "06-26 16:11:25",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/D8QAR6vLh1U/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型",
+      "语音转文字"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1
+    },
+    "steps": 5,
+    "error": "",
+    "outcome": "",
+    "status": "running",
+    "tokens_est": 0,
+    "seconds": 0,
+    "_start": 1782461485.4273653
+  },
+  {
+    "id": "video-1782693333347",
+    "ts": "06-29 08:35:33",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/1lfnaQ8Z1AY/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1
+    },
+    "steps": 3,
+    "error": "",
+    "outcome": "",
+    "status": "running",
+    "tokens_est": 0,
+    "seconds": 0,
+    "_start": 1782693333.3476222
+  },
+  {
+    "id": "video-1782693351229",
+    "ts": "06-29 08:35:51",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/1lfnaQ8Z1AY/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 6,
+    "error": "name 're' is not defined",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 442,
+    "note": "⚠ 这条没成功，继续处理下一个（还剩 1 个）"
+  },
+  {
+    "id": "video-1782693793582",
+    "ts": "06-29 08:43:13",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/7HsyA0YM2D4/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 5,
+    "error": "name 're' is not defined",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 277,
+    "note": "⚠ 这条没成功，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1782694600016",
+    "ts": "06-29 08:56:40",
+    "kind": "video",
+    "title": "视频提取：ps://www.youtube.com/watch?v=P3KDebPTUrw",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型",
+      "语音转文字"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1
+    },
+    "steps": 5,
+    "error": "",
+    "outcome": "",
+    "status": "running",
+    "tokens_est": 0,
+    "seconds": 0,
+    "_start": 1782694600.0161521
+  },
+  {
+    "id": "video-1782695153303",
+    "ts": "06-29 09:05:53",
+    "kind": "video",
+    "title": "视频提取：ps://www.youtube.com/watch?v=P3KDebPTUrw",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 6,
+    "error": "name 're' is not defined",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 766,
+    "note": "⚠ 这条没成功，继续处理下一个（还剩 3 个）"
+  },
+  {
+    "id": "video-1782695919578",
+    "ts": "06-29 09:18:39",
+    "kind": "video",
+    "title": "视频提取：ps://www.youtube.com/watch?v=WkXuk8NlPAQ",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 5,
+    "error": "",
+    "outcome": "",
+    "status": "running",
+    "tokens_est": 0,
+    "seconds": 0,
+    "_start": 1782695919.5786803
+  },
+  {
+    "id": "video-1782696213510",
+    "ts": "06-29 09:23:33",
+    "kind": "video",
+    "title": "视频提取：ps://www.youtube.com/watch?v=WkXuk8NlPAQ",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 6,
+    "error": "name 're' is not defined",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 271,
+    "note": "⚠ 这条没成功，继续处理下一个（还剩 3 个）"
+  },
+  {
+    "id": "video-1782696484996",
+    "ts": "06-29 09:28:04",
+    "kind": "video",
+    "title": "视频提取：ps://www.youtube.com/watch?v=Ju8LVdvuxGM",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1
+    },
+    "steps": 4,
+    "error": "",
+    "outcome": "",
+    "status": "running",
+    "tokens_est": 0,
+    "seconds": 0,
+    "_start": 1782696484.996331
+  },
+  {
+    "id": "video-1782696820966",
+    "ts": "06-29 09:33:40",
+    "kind": "video",
+    "title": "视频提取：ps://www.youtube.com/watch?v=Ju8LVdvuxGM",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 6,
+    "error": "name 're' is not defined",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 331,
+    "note": "⚠ 这条没成功，继续处理下一个（还剩 2 个）"
+  },
+  {
+    "id": "video-1782697152613",
+    "ts": "06-29 09:39:12",
+    "kind": "video",
+    "title": "视频提取：ps://www.youtube.com/watch?v=20p5-kQXF_Q",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1
+    },
+    "steps": 4,
+    "error": "",
+    "outcome": "",
+    "status": "running",
+    "tokens_est": 0,
+    "seconds": 0,
+    "_start": 1782697152.6131659
+  },
+  {
+    "id": "video-1782697433470",
+    "ts": "06-29 09:43:53",
+    "kind": "video",
+    "title": "视频提取：ps://www.youtube.com/watch?v=20p5-kQXF_Q",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 6,
+    "error": "name 're' is not defined",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 343,
+    "note": "⚠ 这条没成功，继续处理下一个（还剩 1 个）"
+  },
+  {
+    "id": "video-1782697776590",
+    "ts": "06-29 09:49:36",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/SZfI6Z7OabM/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 6,
+    "error": "name 're' is not defined",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 363,
+    "note": "⚠ 这条没成功，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1782698493287",
+    "ts": "06-29 10:01:33",
+    "kind": "video",
+    "title": "下班了再去热爱 关于高考志愿的一些个人见解。#高考 #志愿填报 #热爱 #人生选择",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 6,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 374,
+    "note": "✅ 已完成《下班了再去热爱 关于高考志愿的一些个人见》，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1782702535998",
+    "ts": "06-29 11:08:55",
+    "kind": "video",
+    "title": "OpenAI Codex 负责人谈产品工作的全新形态｜Andrew Ambrosino",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 6,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 1290,
+    "note": "✅ 已完成《OpenAI Codex 负责人谈产品工》，继续处理下一个（还剩 3 个）"
+  },
+  {
+    "id": "video-1782703826274",
+    "ts": "06-29 11:30:26",
+    "kind": "video",
+    "title": "认识你的临时拼凑式 AI 许可制度",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 5,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 307,
+    "note": "✅ 已完成《认识你的临时拼凑式 AI 许可制度》，继续处理下一个（还剩 2 个）"
+  },
+  {
+    "id": "video-1782704133836",
+    "ts": "06-29 11:35:33",
+    "kind": "video",
+    "title": "印度能够诞生全球最大的 AI 公司",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 5,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 602,
+    "note": "✅ 已完成《印度能够诞生全球最大的 AI 公司》，继续处理下一个（还剩 1 个）"
+  },
+  {
+    "id": "video-1782704736451",
+    "ts": "06-29 11:45:36",
+    "kind": "video",
+    "title": "下一代 AI 训练范式会是什么样？",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "AI 分析"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "AI 分析": 1
+    },
+    "steps": 5,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 408,
+    "note": "✅ 已完成《下一代 AI 训练范式会是什么样？》，队列已清空，等待新任务"
   }
 ]

@@ -253,17 +253,18 @@ _ITEMINFO_API = _API_CANDIDATES[0]
 _DETAIL_API = _API_CANDIDATES[1]
 
 
-def _api_get_json(session, api_url):
+def _api_get_json(session, api_url, referer=None, user_agent=None, timeout=10):
     """GET 一个抖音 JSON 接口，返回解析后的 dict（失败返回 None）。
-    超时设得短（8 秒）：接口正常时 1~2 秒就回，迟迟不回基本就是被拦/接口已废，
-    早点放手去走下一个候选/兜底，免得一条失败的视频把用户晾上好几分钟。"""
+    超时默认 10 秒：接口正常时 1~2 秒就回，迟迟不回基本就是被拦/接口已废，
+    早点放手去走下一个候选/兜底，免得一条失败的请求把用户晾上好几分钟。
+    referer/user_agent 可覆盖：作品列表接口要用桌面 UA + 主页 Referer（和签名一致）。"""
     try:
         r = session.get(api_url, headers={
-            "User-Agent": _MOBILE_UA,
-            "Referer": "https://www.iesdouyin.com/",
+            "User-Agent": user_agent or _MOBILE_UA,
+            "Referer": referer or "https://www.iesdouyin.com/",
             "Accept": "application/json, text/plain, */*",
             "Accept-Language": "zh-CN,zh;q=0.9",
-        }, timeout=8)
+        }, timeout=timeout)
         if getattr(r, "status_code", 0) >= 400:
             return None
         txt = getattr(r, "text", "") or ""
@@ -282,6 +283,41 @@ def _api_get_json(session, api_url):
             return None
     except Exception:
         return None
+
+
+def _api_get_json_ex(session, api_url, referer=None, user_agent=None,
+                     timeout=12, extra_headers=None):
+    """像 _api_get_json，但额外返回 (data, http_status, raw_text)，并支持自定义请求头
+    （作品列表接口要带 Cookie 头）。data 解析失败为 None，但 status / raw 仍会带回，
+    便于诊断到底是被拦（空 200 / 4xx）还是结构变了（非 JSON）。"""
+    headers = {
+        "User-Agent": user_agent or _SIGN_UA,
+        "Referer": referer or "https://www.douyin.com/",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "zh-CN,zh;q=0.9",
+    }
+    if extra_headers:
+        headers.update({k: v for k, v in extra_headers.items() if v})
+    try:
+        r = session.get(api_url, headers=headers, timeout=timeout)
+    except Exception as e:
+        return None, "exc:%s" % (str(e)[:60]), ""
+    status = getattr(r, "status_code", 0)
+    txt = getattr(r, "text", "") or ""
+    if status >= 400:
+        return None, status, txt[:300]
+    if not txt.strip():
+        return None, status, ""        # 空 200：典型风控信号
+    try:
+        return json.loads(txt), status, txt[:300]
+    except Exception:
+        i, j = txt.find("{"), txt.rfind("}")
+        if 0 <= i < j:
+            try:
+                return json.loads(txt[i:j + 1]), status, txt[:300]
+            except Exception:
+                pass
+    return None, status, txt[:300]
 
 
 def _item_from_api(data):
@@ -506,6 +542,634 @@ def fetch_to(url, dest_path):
                     "uploader": info.get("uploader") or "",
                     "tags": info.get("tags") or []}
     return {"ok": False, "error": "直链都下载失败（可能 CDN 拒绝或链接过期）"}
+
+
+# ════════════════════ 用户主页作品列表（带 a_bogus/X-Bogus 签名） ════════════════════
+# 背景：抖音用户主页作品列表接口 www.douyin.com/aweme/v1/web/aweme/post/ 现在强制要一个
+#   用 JS 算出来的签名参数（a_bogus）。以前那些不用签名的老接口（iesdouyin 系）已基本作废，
+#   yt-dlp 也给不出签名，于是只能 “Unsupported URL / 取不到作品”。
+#
+#   这里引入两份**纯 Python 实现的签名算法**（从开源项目移植，见 dy_abogus.py / dy_xbogus.py），
+#   在本地把 a_bogus 算出来，再带访客 cookie（ttwid + 本地造的 msToken）去请求正式接口，
+#   就能像浏览器那样列出公开博主的作品——**无需登录**（私密账号 / 收藏夹才需要登录 cookie）。
+#
+#   取数顺序（前一层失败/为空才走后一层）：
+#     ① 正式接口 aweme/post + a_bogus 签名（gmssl 在时）——主力，最稳；
+#     ② 同接口改用 X-Bogus 签名（纯标准库，gmssl 不在时自动走这条）——兜底；
+#     ③ 用户主页 HTML 里的 SSR 注水数据（RENDER_DATA / _ROUTER_DATA / __pace_f）——最后一手。
+#   全失败返回 {ok: False, error}，由上层 creator_watch 再退回 yt-dlp（基本也列不到，
+#   于是给用户那句“手动贴链接”的提示）。整条链路只会“锦上添花”，不会让现有逻辑变差。
+
+# 正式 web 接口域名 & 路径
+_POST_API_HOST = "https://www.douyin.com"
+_POST_API_PATH = "/aweme/v1/web/aweme/post/"
+# 桌面 Chrome UA（和签名里用的 UA 必须一致，否则签名校验不过）
+_SIGN_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0"
+)
+
+
+def _gen_ms_token(n=182):
+    """本地造一个长度合规的随机 msToken（接口要这个参数在，但不强校验真伪）。"""
+    import random, string
+    return "".join(random.choice(string.ascii_letters + string.digits) for _ in range(n)) + "=="
+
+
+def _gen_webid():
+    """造一个 19 位的 webid（抖音接口现在要这个参数；纯数字，长度对即可）。"""
+    import random
+    return str(random.randint(7000000000000000000, 7499999999999999999))
+
+
+def _gen_verify_fp():
+    """造一个 verifyFp / s_v_web_id 值，格式照抓包里真实的：
+    verify_<8位时间戳样>_<4>_<4>_<4>_<4>_<12>。抖音只校验格式像，不校验真伪。"""
+    import random, string
+    def seg(n):
+        return "".join(random.choices(string.ascii_letters + string.digits, k=n))
+    return "verify_%s_%s_%s_%s_%s_%s" % (
+        seg(8).lower(), seg(8), seg(4), seg(4), seg(4), seg(12))
+
+
+# 用户可手动粘贴的抖音 Cookie（从浏览器复制）。放这个文件里就会被优先使用，
+# 能彻底绕过「访客 cookie 被风控拦」的问题——这是稳定列作品最可靠的办法。
+def _cookie_file():
+    import os
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "memory", "douyin_cookie.txt")
+
+
+def _parse_cookie_str(raw):
+    """把浏览器复制的一整串 Cookie（k1=v1; k2=v2; ...）解析成 dict。"""
+    out = {}
+    for part in (raw or "").replace("\n", ";").split(";"):
+        part = part.strip()
+        if not part or "=" not in part:
+            continue
+        k, v = part.split("=", 1)
+        k = k.strip()
+        v = v.strip()
+        if k:
+            out[k] = v
+    return out
+
+
+def _load_user_cookie():
+    """读用户手动填的抖音 Cookie（backend/memory/douyin_cookie.txt）。没有返回 {}。"""
+    try:
+        p = _cookie_file()
+        import os
+        if os.path.exists(p):
+            with open(p, "r", encoding="utf-8") as f:
+                raw = f.read().strip()
+            if raw:
+                return _parse_cookie_str(raw)
+    except Exception:
+        pass
+    return {}
+
+
+def _apply_cookies(session, cookies):
+    """把一组 cookie 塞进会话（curl_cffi）。尽力而为。"""
+    if not cookies:
+        return
+    try:
+        jar = getattr(session, "cookies", None)
+        for k, v in cookies.items():
+            try:
+                if jar is not None and hasattr(jar, "set"):
+                    jar.set(k, v, domain=".douyin.com")
+                elif jar is not None:
+                    jar[k] = v
+            except Exception:
+                try:
+                    session.cookies.update({k: v})
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+
+def _ensure_ttwid(session, sec_uid=None):
+    """确保会话里有访客 cookie（公开作品列表尽量用访客 cookie；用户填了真 cookie 更稳）。
+    顺序：① 用户手填 cookie（最稳，绕风控）→ ② 主动访问抖音首页 + 目标用户主页拿访客
+    ttwid / s_v_web_id / __ac_nonce（用户主页能下发后两个，post 接口会校验）。
+    返回收集到的 cookie dict（尽力而为，失败也不致命）。"""
+    # ① 用户手填 cookie 优先
+    user_ck = _load_user_cookie()
+    if user_ck:
+        _apply_cookies(session, user_ck)
+
+    # ② 访客 cookie 预热：先首页，再目标用户主页（用户页能拿到 s_v_web_id / __ac_nonce）
+    warm_urls = ["https://www.douyin.com/"]
+    if sec_uid:
+        warm_urls.append("https://www.douyin.com/user/%s" % sec_uid)
+    else:
+        warm_urls.append("https://www.douyin.com/discover")
+    try:
+        jar = getattr(session, "cookies", None)
+        have = False
+        if jar is not None:
+            try:
+                have = bool(jar.get("ttwid")) and bool(jar.get("s_v_web_id"))
+            except Exception:
+                have = False
+        if not have:
+            for warm in warm_urls:
+                try:
+                    session.get(warm, headers={
+                        "User-Agent": _SIGN_UA,
+                        "Referer": "https://www.douyin.com/",
+                        "Accept": ("text/html,application/xhtml+xml,application/xml;"
+                                   "q=0.9,image/avif,image/webp,*/*;q=0.8"),
+                        "Accept-Language": "zh-CN,zh;q=0.9",
+                        "Upgrade-Insecure-Requests": "1",
+                    }, timeout=10)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    cookies = dict(user_ck) if user_ck else {}
+    try:
+        jar = getattr(session, "cookies", None)
+        if jar is not None:
+            for k in ("ttwid", "odin_tt", "passport_csrf_token", "msToken",
+                      "s_v_web_id", "__ac_nonce", "sessionid", "sid_guard"):
+                try:
+                    v = jar.get(k)
+                    if v and k not in cookies:
+                        cookies[k] = v
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    # ③ 没拿到 ttwid → 去 ttwid 注册接口主动要一个（抖音公开的访客标识下发接口）
+    if not cookies.get("ttwid"):
+        tt = _register_ttwid(session)
+        if tt:
+            cookies["ttwid"] = tt
+            _apply_cookies(session, {"ttwid": tt})
+
+    # ④ 还缺 s_v_web_id → 自己造一个格式合法的（抖音只校验「存在且格式像」，不校验真伪）。
+    #    这一步是关键：诊断显示访客只有 __ac_nonce、缺 s_v_web_id 时会被风控返回空。
+    if not cookies.get("s_v_web_id"):
+        try:
+            import random, string
+            rnd = "".join(random.choices(string.ascii_lowercase + string.digits, k=8))
+            tail = "".join(random.choices(string.ascii_letters + string.digits, k=44))
+            svw = "verify_%s_%s" % (rnd, tail)
+            cookies["s_v_web_id"] = svw
+            _apply_cookies(session, {"s_v_web_id": svw})
+        except Exception:
+            pass
+
+    return cookies
+
+
+def _register_ttwid(session):
+    """主动向抖音 ttwid 注册接口要一个访客 ttwid。拿不到返回 ''。
+    这是公开的访客标识下发接口，不需要登录。"""
+    try:
+        import json as _json
+        body = _json.dumps({
+            "region": "cn", "aid": 1768, "needFid": False,
+            "service": "www.ixigua.com", "migrate_info": {"ticket": "", "source": "node"},
+            "cbUrlProtocol": "https", "union": True,
+        })
+        r = session.post("https://ttwid.bytedance.com/ttwid/union/register/",
+                         data=body,
+                         headers={"User-Agent": _SIGN_UA,
+                                  "Content-Type": "application/json"},
+                         timeout=8)
+        # 优先从 Set-Cookie 拿
+        try:
+            jar = getattr(session, "cookies", None)
+            if jar is not None:
+                v = jar.get("ttwid")
+                if v:
+                    return v
+        except Exception:
+            pass
+        # 退一步：从响应体里抠
+        txt = getattr(r, "text", "") or ""
+        m = re.search(r'"ttwid"\s*:\s*"([^"]+)"', txt)
+        if m:
+            return m.group(1)
+    except Exception:
+        pass
+    return ""
+
+
+# 一份签名器缓存（造指纹 / 算签名有点开销，复用即可；线程不安全无所谓，最坏多造几个）
+_ABOGUS_OK = None       # None=未探测；True/False=能否用 a_bogus（取决于 gmssl）
+_ABOGUS_SIGNER = None
+
+
+def _abogus_available():
+    global _ABOGUS_OK, _ABOGUS_SIGNER
+    if _ABOGUS_OK is not None:
+        return _ABOGUS_OK
+    try:
+        import dy_abogus  # 需要 gmssl
+        fp = dy_abogus.BrowserFingerprintGenerator.generate_fingerprint("Edge")
+        _ABOGUS_SIGNER = dy_abogus.ABogus(fp=fp, user_agent=_SIGN_UA)
+        _ABOGUS_OK = True
+    except Exception:
+        _ABOGUS_OK = False
+        _ABOGUS_SIGNER = None
+    return _ABOGUS_OK
+
+
+def _build_post_query(sec_uid, max_cursor, count, ms_token, webid="", verify_fp="", uifid=""):
+    """拼一份和浏览器一致的 aweme/post 查询参数（未签名）。
+    verify_fp / fp / uifid 是抖音风控现在校验的关键字段（从真实抓包确认）。"""
+    from urllib.parse import urlencode
+    vfp = verify_fp or _gen_verify_fp()
+    params = {
+        "device_platform": "webapp",
+        "aid": "6383",
+        "channel": "channel_pc_web",
+        "sec_user_id": sec_uid,
+        "max_cursor": max_cursor,
+        "locate_query": "false",
+        "show_live_replay_strategy": "1",
+        "need_time_list": "1",
+        "time_list_query": "0",
+        "whale_cut_token": "",
+        "cut_version": "1",
+        "count": count,
+        "publish_video_strategy_type": "2",
+        "from_user_page": "1",
+        "update_version_code": "170400",
+        "pc_client_type": "1",
+        "pc_libra_divert": "Windows",
+        "support_h265": "1",
+        "support_dash": "1",
+        "version_code": "170400",
+        "version_name": "17.4.0",
+        "cookie_enabled": "true",
+        "screen_width": "1920",
+        "screen_height": "1080",
+        "browser_language": "zh-CN",
+        "browser_platform": "Win32",
+        "browser_name": "Chrome",
+        "browser_version": "130.0.0.0",
+        "browser_online": "true",
+        "engine_name": "Blink",
+        "engine_version": "130.0.0.0",
+        "os_name": "Windows",
+        "os_version": "10",
+        "cpu_core_num": "12",
+        "device_memory": "8",
+        "platform": "PC",
+        "downlink": "10",
+        "effective_type": "4g",
+        "round_trip_time": "50",
+        "uifid": uifid or "",
+        "webid": webid or _gen_webid(),
+        "verifyFp": vfp,
+        "fp": vfp,
+        "msToken": ms_token,
+    }
+    return urlencode(params)
+
+
+def _sign_post_query(query):
+    """给查询串加签名，返回带签名的完整 query。优先 a_bogus，不行用 X-Bogus。"""
+    # ① a_bogus（gmssl 在时）
+    if _abogus_available():
+        try:
+            signed, _ab, _ua, _body = _ABOGUS_SIGNER.generate_abogus(query, "")
+            return signed
+        except Exception:
+            pass
+    # ② X-Bogus（纯标准库兜底）
+    try:
+        import dy_xbogus
+        full = "%s%s?%s" % (_POST_API_HOST, _POST_API_PATH, query)
+        signed_url, _xb, _ua = dy_xbogus.XBogus(_SIGN_UA).build(full)
+        # 只取 query 部分（含 &X-Bogus=...）
+        return signed_url.split("?", 1)[1]
+    except Exception:
+        return query
+
+
+def _norm_post_item(aw):
+    """把 aweme/post 接口或 SSR 里的一条作品，规整成 creator_watch 要的
+    {vid, url, title, when}（when 为 YYYYMMDD 或空串）。不是有效作品返回 None。"""
+    if not isinstance(aw, dict):
+        return None
+    vid = (aw.get("aweme_id") or aw.get("awemeId") or aw.get("id") or "")
+    vid = str(vid).strip()
+    if not vid or not vid.isdigit():
+        return None
+    title = (aw.get("desc") or aw.get("title") or "").strip()
+    when = ""
+    ct = aw.get("create_time") or aw.get("createTime")
+    if ct:
+        try:
+            import datetime as _dt
+            when = _dt.datetime.fromtimestamp(int(ct)).strftime("%Y%m%d")
+        except Exception:
+            when = ""
+    return {"vid": vid, "url": "https://www.douyin.com/video/%s" % vid,
+            "title": title, "when": when}
+
+
+def _extract_sec_uid(text):
+    """从一段文本（URL 或 HTML）里抠出 sec_uid（MS4w... 那一长串）。抠不到返回 None。"""
+    if not text:
+        return None
+    m = re.search(r'(?:sec_uid["\']?\s*[=:]\s*["\']?|sec_user_id["\']?\s*[=:]\s*["\']?|/user/|share/user/)(MS4w[\w\-]+)', text)
+    if m:
+        return m.group(1)
+    m = re.search(r'(MS4w[\w\-]{20,})', text)
+    if m:
+        return m.group(1)
+    return None
+
+
+def _resolve_sec_uid(url):
+    """把用户主页链接（含 v.douyin.com 短链）解析成 sec_uid。
+    先直接从链接抠；抠不到就跟随跳转，从落地址 / 跳转链路 / 落地页 HTML 里再抠。
+    顺手把落地页 HTML 一并返回（供 HTML 兜底复用，省一次请求）。
+    返回 (sec_uid 或 None, html 或 '')。"""
+    sec = _extract_sec_uid(url)
+    html = ""
+    if sec:
+        return sec, html
+    if not available():
+        return None, html
+    try:
+        s = _session()
+        r = s.get(url, headers={"User-Agent": _MOBILE_UA},
+                  allow_redirects=True, timeout=10)
+        final_url = str(getattr(r, "url", "")) or ""
+        html = getattr(r, "text", "") or ""
+        sec = _extract_sec_uid(final_url)
+        if not sec:
+            for h in (getattr(r, "history", None) or []):
+                sec = _extract_sec_uid(str(getattr(h, "url", "")))
+                if sec:
+                    break
+        if not sec:
+            sec = _extract_sec_uid(html)
+    except Exception:
+        pass
+    return sec, html
+
+
+def _cookie_header(cookies):
+    """把 cookie dict 拼成 Cookie 请求头字符串。"""
+    return "; ".join("%s=%s" % (k, v) for k, v in (cookies or {}).items() if v)
+
+
+def _posts_from_api(session, sec_uid, limit, diag=None):
+    """走正式 aweme/post 接口（带签名）拿作品列表，max_cursor 翻页直到够数 / 没有更多。
+    返回 (videos, name)；拿不到返回 ([], '')。
+    diag：可选的诊断 dict，把每一页的请求结果写进去，便于失败时定位。"""
+    try:
+        want = int(limit)
+    except Exception:
+        want = 0
+    cap = 1000 if want <= 0 else min(1000, want)
+    per = 18 if cap > 18 else cap        # 浏览器一页 18 条
+    cookies = _ensure_ttwid(session, sec_uid=sec_uid)
+    ms_token = (cookies.get("msToken") or "").strip() or _gen_ms_token()
+    webid = (cookies.get("webid") or "").strip() or _gen_webid()
+    # verifyFp / fp 用 cookie 里的 s_v_web_id（两者同源）；没有就造一个格式合法的
+    verify_fp = (cookies.get("s_v_web_id") or cookies.get("verifyFp") or "").strip() or _gen_verify_fp()
+    uifid = (cookies.get("UIFID") or cookies.get("uifid") or "").strip()
+    cookie_hdr = _cookie_header(cookies)
+    if diag is not None:
+        diag["cookies_keys"] = sorted(cookies.keys())
+        diag["has_user_cookie"] = bool(_load_user_cookie())
+        diag["sign"] = "a_bogus" if _abogus_available() else "X-Bogus"
+        diag["has_verify_fp"] = bool(verify_fp)
+        diag["pages"] = []
+
+    out, name = [], ""
+    cursor = "0"
+    seen = set()
+    for _page in range(80):              # 80 页 × 18 ≈ 1440，封顶防死循环
+        query = _build_post_query(sec_uid, cursor, per, ms_token,
+                                  webid=webid, verify_fp=verify_fp, uifid=uifid)
+        signed_query = _sign_post_query(query)
+        api = "%s%s?%s" % (_POST_API_HOST, _POST_API_PATH, signed_query)
+        extra = {"Cookie": cookie_hdr} if cookie_hdr else None
+        data, status, raw = _api_get_json_ex(
+            session, api,
+            referer="https://www.douyin.com/user/%s" % sec_uid,
+            user_agent=_SIGN_UA, extra_headers=extra)
+        if diag is not None:
+            pg = {"cursor": cursor, "http_status": status}
+            if isinstance(data, dict):
+                pg["status_code"] = data.get("status_code")
+                pg["status_msg"] = str(data.get("status_msg") or "")[:120]
+                pg["has_more"] = data.get("has_more")
+                pg["aweme_list_len"] = len(data.get("aweme_list") or []) if isinstance(data.get("aweme_list"), list) else None
+                pg["keys"] = sorted(list(data.keys()))[:20]
+            else:
+                pg["raw_head"] = (raw or "")[:200]
+            diag["pages"].append(pg)
+        if not isinstance(data, dict) or not data:
+            break
+        lst = data.get("aweme_list")
+        if not isinstance(lst, list):
+            lst = []
+        if not lst:
+            # 没有作品列表：首页就停（交给上层兜底），翻页途中则正常结束
+            break
+        for aw in lst:
+            it = _norm_post_item(aw)
+            if not it or it["vid"] in seen:
+                continue
+            seen.add(it["vid"])
+            out.append(it)
+            if not name:
+                try:
+                    name = ((aw.get("author") or {}).get("nickname") or "").strip()
+                except Exception:
+                    pass
+        if cap and len(out) >= cap:
+            out = out[:cap]
+            break
+        if not data.get("has_more"):
+            break
+        nxt = data.get("max_cursor")
+        if nxt in (None, "", 0, "0") or str(nxt) == str(cursor):
+            break
+        cursor = str(nxt)
+    return out, name
+
+
+def _posts_from_html(html, limit):
+    """从用户主页 HTML 里的 SSR 注水数据中扒作品列表（接口都挂时的兜底）。
+    返回 (videos, name)。结构多变，挨个兜底；扒不到返回 ([], '')。"""
+    if not html:
+        return [], ""
+    try:
+        want = int(limit)
+    except Exception:
+        want = 0
+    cap = 1000 if want <= 0 else min(1000, want)
+
+    blobs = []
+    import urllib.parse as _up
+    for pat in (
+        r"window\._ROUTER_DATA\s*=\s*(\{.*?\})\s*;?\s*</script>",
+        r"id=\"RENDER_DATA\"[^>]*>([^<]+)</script>",
+        r"<script[^>]*>\s*self\.__pace_f\.push\(\[\d+,\s*\"(.*?)\"\]\)\s*</script>",
+    ):
+        for m in re.finditer(pat, html, re.S):
+            blobs.append(m.group(1))
+
+    name = ""
+    out, seen = [], set()
+
+    def _harvest(node):
+        if cap and len(out) >= cap:
+            return
+        if isinstance(node, dict):
+            it = _norm_post_item(node)
+            if it and it["vid"] not in seen:
+                if ("desc" in node) or ("video" in node) or ("statistics" in node) or ("create_time" in node):
+                    seen.add(it["vid"])
+                    out.append(it)
+            for v in node.values():
+                _harvest(v)
+        elif isinstance(node, list):
+            for v in node:
+                _harvest(v)
+
+    for raw in blobs:
+        data = None
+        for transform in (
+            lambda x: x,
+            lambda x: _up.unquote(x),
+            lambda x: x.encode("utf-8").decode("unicode_escape"),
+        ):
+            try:
+                data = json.loads(transform(raw))
+                break
+            except Exception:
+                data = None
+        if data is None:
+            continue
+        if not name:
+            mm = re.search(r'"nickname"\s*:\s*"([^"]{1,40})"', raw)
+            if mm:
+                name = mm.group(1).strip()
+        try:
+            _harvest(data)
+        except Exception:
+            pass
+        if cap and len(out) >= cap:
+            break
+
+    return (out[:cap] if cap else out), name
+
+
+def _write_list_diag(diag):
+    """把列作品失败的诊断写到 backend/memory/douyin_list_diag.txt，方便发给开发者定位。"""
+    try:
+        import os, json as _json, datetime as _dt
+        p = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         "memory", "douyin_list_diag.txt")
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        diag = dict(diag or {})
+        diag["time"] = _dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(_json.dumps(diag, ensure_ascii=False, indent=2))
+    except Exception:
+        pass
+
+
+def list_user_posts(url, limit=40):
+    """列一个抖音用户主页的作品。带 a_bogus/X-Bogus 签名走正式接口，逐层兜底。
+    返回 {ok, videos:[{vid,url,title,when}], name, total, sec_uid, source}；失败 {ok: False, error}。
+
+      url   —— 用户主页链接，支持 v.douyin.com 短链 / www.douyin.com/user/{sec_uid}
+                / iesdouyin.com/share/user/...；
+      limit —— 想要的条数（<=0 表示尽量全部，内部封顶 ~1000）。
+
+    供 creator_watch._list_douyin 优先调用；这里失败时它再退回 yt-dlp。
+    失败时会把诊断写到 memory/douyin_list_diag.txt。"""
+    diag = {"url": url, "curl_cffi": available(),
+            "abogus": _abogus_available(), "gmssl": _abogus_available()}
+    if not available():
+        diag["fail"] = "curl_cffi 不可用"
+        _write_list_diag(diag)
+        return {"ok": False, "error": "curl_cffi 不可用，无法列抖音作品。请点「安装/更新视频依赖」。"}
+    sec, html = _resolve_sec_uid(url)
+    diag["sec_uid"] = sec or ""
+    if not sec:
+        diag["fail"] = "没解析到 sec_uid"
+        _write_list_diag(diag)
+        return {"ok": False, "error": "没解析到用户 sec_uid（主页链接可能失效或被拦）"}
+
+    s = _session()
+    # ①②：正式接口（a_bogus 优先，X-Bogus 兜底，都在 _sign_post_query 里处理）
+    try:
+        videos, name = _posts_from_api(s, sec, limit, diag=diag)
+        if videos:
+            src = "api+abogus" if _abogus_available() else "api+xbogus"
+            return {"ok": True, "videos": videos, "name": name, "total": len(videos),
+                    "sec_uid": sec, "source": src}
+    except Exception as e:
+        diag["api_exc"] = str(e)[:120]
+
+    # ③：用户主页 HTML 注水数据
+    if not html:
+        try:
+            r = s.get("https://www.douyin.com/user/%s" % sec, headers={
+                "User-Agent": _SIGN_UA,
+                "Referer": "https://www.douyin.com/",
+                "Accept-Language": "zh-CN,zh;q=0.9",
+            }, timeout=12)
+            html = getattr(r, "text", "") or ""
+        except Exception:
+            html = ""
+    diag["html_len"] = len(html or "")
+    diag["html_has_render"] = bool(html and ("RENDER_DATA" in html or "_ROUTER_DATA" in html or "__pace_f" in html))
+    try:
+        videos, name = _posts_from_html(html, limit)
+        if videos:
+            return {"ok": True, "videos": videos, "name": name, "total": len(videos),
+                    "sec_uid": sec, "source": "html"}
+    except Exception as e:
+        diag["html_exc"] = str(e)[:120]
+
+    diag["fail"] = "接口与主页都没解析到作品"
+    _write_list_diag(diag)
+    return {"ok": False, "error": "接口与主页都没解析到作品（多半是私密账号 / 风控拦截 / 结构又变了）。"
+                                  "可在 backend/memory/douyin_cookie.txt 里粘贴浏览器抖音 Cookie 后重试。",
+            "sec_uid": sec}
+
+
+def user_name(url):
+    """只取这个抖音主页的昵称（作品列不到时也能拿到名字）。失败返回空。"""
+    try:
+        sec, html = _resolve_sec_uid(url)
+        if html:
+            mm = re.search(r'"nickname"\s*:\s*"([^"]{1,40})"', html)
+            if mm:
+                return mm.group(1).strip()
+            mm = re.search(r"<title>(.*?)</title>", html, re.S)
+            if mm:
+                t = re.sub(r"\s*[-–—]\s*抖音.*$", "", mm.group(1)).strip()
+                if t and t.lower() not in ("抖音", "douyin"):
+                    return t
+        if sec:
+            s = _session()
+            videos, name = _posts_from_api(s, sec, 1)
+            if name:
+                return name
+    except Exception:
+        pass
+    return ""
 
 
 # ════════════════════ 自检 / 版本 ════════════════════

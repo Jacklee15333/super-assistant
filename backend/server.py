@@ -15,6 +15,7 @@ server.py — 本地 HTTP 服务，把 Electron 窗口和 Python agent 连起来
 
 import json
 import os
+import re
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 

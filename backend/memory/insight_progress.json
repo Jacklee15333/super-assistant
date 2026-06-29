@@ -1,143 +1,223 @@
 {
   "active": false,
   "phase": "done",
-  "total": 274,
-  "done": 274,
-  "learned": 4,
+  "total": 284,
+  "done": 284,
+  "learned": 13,
   "current": null,
   "queue": [],
   "activity": [
-    "14:38:50  🚀 开始逐篇精读：共 274 篇，其中 270 篇已学过、本轮要读 4 篇。",
-    "14:38:50  📂 爬取 主动研究《research-20260625-134234-城投改革_2027_资产处置_房地产重新定价_居民资产负债表》（第 271/274 篇）",
-    "14:38:50  🤖 派给 AI 通读这篇…",
-    "14:38:54  ✓ 已学习：1. **资产负债表再平衡**：重点关注中国城市更新过程中面临的资产价格下行和居民负",
-    "14:38:54  📂 爬取 主动研究《research-20260625-134229-AI_一人公司_获客成本_自动化交付_复购率_失败案例》（第 272/274 篇）",
-    "14:38:54  🤖 派给 AI 通读这篇…",
-    "14:38:57  ✓ 已学习：1. 研究主题聚焦于社区团购行业的发展现状与未来趋势，强调获客效率和供应链优化为核心",
-    "14:38:57  📂 爬取 主动研究《research-20260625-134224-Claude_Code_Codex_桌面_Agent_自动化》（第 273/274 篇）",
-    "14:38:57  🤖 派给 AI 通读这篇…",
-    "14:38:59  ✓ 已学习：1. **调研主题**：对比分析 OpenAI Codex 的全面更新，特别是其桌面",
-    "14:38:59  📂 爬取 主动研究《research-20260625-134211-AI_Agent_MCP_工具链安全_提示词注入_沙箱隔离》（第 274/274 篇）",
-    "14:38:59  🤖 派给 AI 通读这篇…",
-    "14:39:02  ✓ 已学习：1. **调研主题**：AI Agent MCP工具链安全、提示词注入及沙箱隔离的安",
-    "14:39:02  🧩 读完了，正在把 278 篇的学习数据汇总成对你的理解…",
-    "14:39:31  🎉 分析完成，小助更懂你了。",
-    "14:39:31  🌐 开始根据你的画像主动上网搜相关内容…",
-    "14:39:58  🔍 正在研究：MCP 工具投毒攻击 提示词注入 AI Agent 沙箱隔离 实战案例",
-    "14:40:03  ✓ 已存进成长库：MCP 工具投毒攻击 提示词注入 AI Agent 沙箱隔离 实战案例（4 个来源）",
-    "14:40:04  🔍 正在研究：AI 一人公司 获客成本 自动化交付 复购率 失败案例",
-    "14:40:10  ✓ 已存进成长库：AI 一人公司 获客成本 自动化交付 复购率 失败案例（4 个来源）",
-    "14:40:10  🔍 正在研究：城投改革 2027 资产处置 房地产重新定价 居民资产负债表",
-    "14:40:14  ✓ 已存进成长库：城投改革 2027 资产处置 房地产重新定价 居民资产负债表（4 个来源）",
-    "14:40:14  🌐 主动研究完成，新增 3 篇进成长库（下次洞察会读到）。"
+    "11:46:56  📂 爬取 视频内容库《20260629-100747-下班了再去热爱_关于高考志愿的一些个人见》（第 275/284 篇）",
+    "11:46:56  🤖 派给 AI 通读这篇…",
+    "11:46:59  ✓ 已学习：1. **高考志愿不能盲目照搬富裕家庭“追求热爱”的人生样本**：普通人应优先选择能",
+    "11:46:59  📂 爬取 视频内容库《20260626-091548-5_Ways_Claude_Tag_Co》（第 276/284 篇）",
+    "11:46:59  🤖 派给 AI 通读这篇…",
+    "11:47:01  ✓ 已学习：1. AI 模型的竞争不仅体现在技术能力上，还受到了监管、立法和市场因素的影响。",
+    "11:47:01  📂 爬取 视频内容库《20260626-090748-Zynga_Founder_Consu》（第 277/284 篇）",
+    "11:47:01  🤖 派给 AI 通读这篇…",
+    "11:47:04  ✓ 已学习：1. **消费级产品当前融资不易，但AI和agent创造了新的机会窗口。**",
+    "11:47:04  📂 爬取 视频内容库《20260626-085558-CEO-Led_AI_Gets_3X_t》（第 278/284 篇）",
+    "11:47:04  🤖 派给 AI 通读这篇…",
+    "11:47:07  ✓ 已学习：1. AI 行业正在从单一产品功能更新转向算力、组织架构、供应链和企业战略深度绑定，",
+    "11:47:07  📂 爬取 视频内容库《20260625-155823-How_to_Get_Your_Firs》（第 279/284 篇）",
+    "11:47:07  🤖 派给 AI 通读这篇…",
+    "11:47:10  ✓ 已学习：1. **目标客户在哪里花时间？** 创始人需要先了解目标客户的日常生活和工作习惯，",
+    "11:47:10  📂 爬取 视频内容库《20260625-155359-Why_AI_Users_Are_Rav》（第 280/284 篇）",
+    "11:47:10  🤖 派给 AI 通读这篇…",
+    "11:47:13  ✓ 已学习：1. **拆解“Fable 5封禁”事件的误读与夸大**：视频指出社交媒体上关于“F",
+    "11:47:13  📂 爬取 视频内容库《20260625-154659-5_Ways_Claude_Tag_Co》（第 281/284 篇）",
+    "11:47:13  🤖 派给 AI 通读这篇…",
+    "11:47:16  ✓ 已学习：1. **AI监管加速**：美国政府在出口管制、国家安全框架下加强对AI与机器人技术",
+    "11:47:16  📂 爬取 主动研究《research-20260625-144014-城投改革_2027_资产处置_房地产重新定价_居民资产负债表》（第 282/284 篇）",
+    "11:47:16  🤖 派给 AI 通读这篇…",
+    "11:47:20  ✓ 已学习：### 简要提炼：",
+    "11:47:20  📂 爬取 主动研究《research-20260625-144010-AI_一人公司_获客成本_自动化交付_复购率_失败案例》（第 283/284 篇）",
+    "11:47:20  🤖 派给 AI 通读这篇…",
+    "11:47:23  ✓ 已学习：1. 研究探讨了社区团购行业近期的阶段性瓶颈问题及长期发展潜力。",
+    "11:47:23  📂 爬取 主动研究《research-20260625-144003-MCP_工具投毒攻击_提示词注入_AI_Agent_沙箱隔离》（第 284/284 篇）",
+    "11:47:23  🤖 派给 AI 通读这篇…",
+    "11:47:25  ✓ 已学习：1. **研究主题**：MCP工具投毒攻击，通过在AI工具描述中嵌入恶意指令，诱导A",
+    "11:47:25  🧩 读完了，正在把 291 篇的学习数据汇总成对你的理解…",
+    "11:47:58  🎉 分析完成，小助更懂你了。",
+    "11:47:58  🌐 开始根据你的画像主动上网搜相关内容…",
+    "11:48:16  🔍 正在研究：年 MCP 工具投毒、提示词注入与 AI Agent 沙箱隔离最新攻击案例",
+    "11:48:21  ✓ 已存进成长库：年 MCP 工具投毒、提示词注入与 AI Agent 沙箱隔离最新攻击案例（4 个来源）",
+    "11:48:21  🔍 正在研究：AI 一人公司从冷启动获客到自动化交付、复购和盈利的真实失败案例",
+    "11:48:26  ✓ 已存进成长库：AI 一人公司从冷启动获客到自动化交付、复购和盈利的真实失败案例（4 个来源）",
+    "11:48:26  🔍 正在研究：年城投改革、国有资产处置与房地产重新定价对居民资产负债表的影响",
+    "11:48:31  ✓ 已存进成长库：年城投改革、国有资产处置与房地产重新定价对居民资产负债表的影响（4 个来源）",
+    "11:48:31  🌐 主动研究完成，新增 3 篇进成长库（下次洞察会读到）。"
   ],
   "read_files": [
     {
-      "name": "research-20260625-134234-城投改革_2027_资产处置_房地产重新定价_居民资产负债表",
+      "name": "20260629-114536-India_Can_Create_The",
+      "scope": "video",
+      "label": "视频内容库",
+      "chars": 30963,
+      "at": "11:46:51"
+    },
+    {
+      "name": "20260629-113533-Meet_Your_Ad_Hoc_AI_",
+      "scope": "video",
+      "label": "视频内容库",
+      "chars": 19426,
+      "at": "11:46:53"
+    },
+    {
+      "name": "20260629-113026-OpenAI_Codex_lead_on",
+      "scope": "video",
+      "label": "视频内容库",
+      "chars": 49480,
+      "at": "11:46:56"
+    },
+    {
+      "name": "20260629-100747-下班了再去热爱_关于高考志愿的一些个人见",
+      "scope": "video",
+      "label": "视频内容库",
+      "chars": 8643,
+      "at": "11:46:59"
+    },
+    {
+      "name": "20260626-091548-5_Ways_Claude_Tag_Co",
+      "scope": "video",
+      "label": "视频内容库",
+      "chars": 38491,
+      "at": "11:47:01"
+    },
+    {
+      "name": "20260626-090748-Zynga_Founder_Consu",
+      "scope": "video",
+      "label": "视频内容库",
+      "chars": 40922,
+      "at": "11:47:04"
+    },
+    {
+      "name": "20260626-085558-CEO-Led_AI_Gets_3X_t",
+      "scope": "video",
+      "label": "视频内容库",
+      "chars": 39021,
+      "at": "11:47:07"
+    },
+    {
+      "name": "20260625-155823-How_to_Get_Your_Firs",
+      "scope": "video",
+      "label": "视频内容库",
+      "chars": 19498,
+      "at": "11:47:10"
+    },
+    {
+      "name": "20260625-155359-Why_AI_Users_Are_Rav",
+      "scope": "video",
+      "label": "视频内容库",
+      "chars": 30641,
+      "at": "11:47:13"
+    },
+    {
+      "name": "20260625-154659-5_Ways_Claude_Tag_Co",
+      "scope": "video",
+      "label": "视频内容库",
+      "chars": 31004,
+      "at": "11:47:16"
+    },
+    {
+      "name": "research-20260625-144014-城投改革_2027_资产处置_房地产重新定价_居民资产负债表",
       "scope": "research",
       "label": "主动研究",
       "chars": 6784,
-      "at": "14:38:54"
+      "at": "11:47:20"
     },
     {
-      "name": "research-20260625-134229-AI_一人公司_获客成本_自动化交付_复购率_失败案例",
+      "name": "research-20260625-144010-AI_一人公司_获客成本_自动化交付_复购率_失败案例",
       "scope": "research",
       "label": "主动研究",
       "chars": 6733,
-      "at": "14:38:57"
+      "at": "11:47:23"
     },
     {
-      "name": "research-20260625-134224-Claude_Code_Codex_桌面_Agent_自动化",
+      "name": "research-20260625-144003-MCP_工具投毒攻击_提示词注入_AI_Agent_沙箱隔离",
       "scope": "research",
       "label": "主动研究",
-      "chars": 6497,
-      "at": "14:38:59"
-    },
-    {
-      "name": "research-20260625-134211-AI_Agent_MCP_工具链安全_提示词注入_沙箱隔离",
-      "scope": "research",
-      "label": "主动研究",
-      "chars": 6763,
-      "at": "14:39:02"
+      "chars": 6722,
+      "at": "11:47:25"
     }
   ],
   "skipped_files": [],
   "research": [
     {
-      "topic": "MCP 工具投毒攻击 提示词注入 AI Agent 沙箱隔离 实战案例",
+      "topic": "年 MCP 工具投毒、提示词注入与 AI Agent 沙箱隔离最新攻击案例",
       "status": "saved",
       "sources": [
         {
           "title": "面对MCP“工具投毒”,我们该如何应对_腾讯新闻",
-          "url": "http://www.baidu.com/link?url=339FKaqslh288PZ8z8jBoFLdJ8VhgfZ4BLiEw-8BuZZyDhxs8rosuQox8Zz6T5oxDiKgXyIz--8Zv-WwP_9zLK"
+          "url": "http://www.baidu.com/link?url=sfBvYSY3jKhXRSPk3Ibk_-SF5J2TK9875Hr0BrPyMSfsef_inLWnI417QM9FrJhM6u_fjlbr3Lih1ZA62cW_3_"
         },
         {
-          "title": "面对MCP“工具投毒”,我们该如何应对_腾讯新闻",
-          "url": "http://www.baidu.com/link?url=Ri6p7mLFtAxmOjXKAy2hoGh70WcXg0OXL7daW-ZM9kkyitv0maPij-FNXxLfATCkqODQH53SBENsSSjbTy8iqa"
+          "title": "全网最全面的 MCP 解读来了!_集成_Agent_模型",
+          "url": "http://www.baidu.com/link?url=hqhDV5oDoAMICQHD3_AOVxtBBEA3076t0fDh-WGOY7f7CQbuNpJzLcgEQwt0murEkFm2LH-t9VYBrVzL8D92gK"
         },
         {
-          "title": "面对MCP“工具投毒”,我们该如何应对_腾讯新闻",
-          "url": "http://www.baidu.com/link?url=DZ4NfZHlLxXYelsELlhgR3HAUON8WqsjxIovRlB50luBv25mX1ytjjAc5tb9OT_ROfJD4qpyIfQPu17aPNhQwq"
+          "title": "拥抱AGI 时代的中间层⼒量:AI 中间件的机遇与挑战|agent|中间件...",
+          "url": "http://www.baidu.com/link?url=O8fvxRZrRgh2SsPfQ18TT7u0WDAyPvbRZkswSKmPPYNRWfdwNEzNjQuv66rkcLBCHn_tYDcakssDbfRzo1uS7K"
         },
         {
-          "title": "...企业、个人都能用|沙箱|云安全|安全中心|知名企业|agent_网易...",
-          "url": "http://www.baidu.com/link?url=fGgdpDLnSgnSajkhpONtOS8REfdxglENaPw4QLQ89fFMaf9tVr2DA_QYLkvjM4OAi0dMofxvUVwsP7ogoYolZK"
+          "title": "OpenClaw:疯狂背后的隐患_腾讯新闻",
+          "url": "http://www.baidu.com/link?url=YBDQLWDNqe_mJx7eDLrIXbOurfEHKPRkatVwiVZmCpsztu-21jtwViCVQsv_4R1zacE2q2tTXVs6BWJcbCtjbq"
         }
       ],
-      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20260625-144003-MCP_工具投毒攻击_提示词注入_AI_Agent_沙箱隔离.md",
-      "at": "14:39:58"
+      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20260629-114821-年_MCP_工具投毒提示词注入与_AI_Agent_沙箱隔离.md",
+      "at": "11:48:16"
     },
     {
-      "topic": "AI 一人公司 获客成本 自动化交付 复购率 失败案例",
+      "topic": "AI 一人公司从冷启动获客到自动化交付、复购和盈利的真实失败案例",
       "status": "saved",
       "sources": [
         {
-          "title": "...AI 获客工具:用户口碑 TOP5》|触达|运营|top|复购率|目标客户_网 ...",
-          "url": "http://www.baidu.com/link?url=qDTXeyCLOuzNXDu4qWU7BgEOZ3eDhZ-Coq3XqWNcK9SP6CwS6wjlwsr4hQ5YlDqcuN_AueM98HQDxv84qEqpga"
+          "title": "年营收过亿的企业如何内部推行OPC一人公司——从孵化器到并购的全...",
+          "url": "http://www.baidu.com/link?url=RuOK6LOmAedM5F55DBv1ClxGmYLYBBukPg_eKckojzJ04AiNOr3RbyJSHSS1iCnSQoot_Ii8ooDGniYSPfhe3a"
+        },
+        {
+          "title": "2026年4月最新AI搜索优化公司十大品牌:全域获客突围指南|招商|运营|...",
+          "url": "http://www.baidu.com/link?url=B_DnZoCVVHIGG48NpOnqH2Rs_p-diGdJ56YZ5OGKjXQoWRarS4tkJhR6vEmomhclR590EWRSg8SPc_LqRlrVQa"
+        },
+        {
+          "title": "混沌AI院3期重磅发布:90天手把手落地AI试点,为企业锻造实战型AI...",
+          "url": "http://www.baidu.com/link?url=rm_bsuzJo9_4ePgXuefSWGbu20xy4mk9k5NP7VdvLbi_YWMdxwKBDo4K4Fa34OPcaY7tsYjqraSByXd-AGFzra"
         },
         {
           "title": "社区团购:行至半程,徐图进取|电商|sku|淘宝|分销|单量_网易订阅",
-          "url": "http://www.baidu.com/link?url=B_29QR2zW-vO4NQvc_3H_S7EG4jYWea7VwcvH_KJxl0y9IYXYkIlLTgYTwCsOUVlG8CGCSUQsX9erE4NT_A2hq"
-        },
-        {
-          "title": "拆解有赞,万字长文!_腾讯新闻",
-          "url": "http://www.baidu.com/link?url=nq7I-j7e-KNcT0ZAEeIE5Axed1us6-dXcaLNtLqUw4uMH1aSdgmGlPuZTVAnjufzaG95Huz8DmeenM1LtZKf4q"
-        },
-        {
-          "title": "分销+小程序:社交裂变背后的增长引擎|分销商|小程序|社交裂变|...",
-          "url": "http://www.baidu.com/link?url=qDTXeyCLOuzNXDu4qWU7BgEOZ3eDhZ-Coq3XqWNcK9Vrsik3NxCt4bbxtknsrcGMgt8xc2-ZDaJHYEuTrIijpa"
+          "url": "http://www.baidu.com/link?url=pjoP8iTxfXQn9k0YPi0chrtSCLV6rlfmYaJZ5JWln6VE0_076VFFr8ABnbvz9X6PUGfehLGDY-q9aoqJZU3lhq"
         }
       ],
-      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20260625-144010-AI_一人公司_获客成本_自动化交付_复购率_失败案例.md",
-      "at": "14:40:04"
+      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20260629-114826-AI_一人公司从冷启动获客到自动化交付复购和盈利的真实失败案.md",
+      "at": "11:48:21"
     },
     {
-      "topic": "城投改革 2027 资产处置 房地产重新定价 居民资产负债表",
+      "topic": "年城投改革、国有资产处置与房地产重新定价对居民资产负债表的影响",
       "status": "saved",
       "sources": [
         {
-          "title": "中国城市更新最大的挑战恐怕正是资产负债表的再平衡|存量|现金流|金 ...",
-          "url": "http://www.baidu.com/link?url=FjM5z1ePSjp23GUlZtjC4qf5p0zun81x8ETzxdy8jyrRRtfN6iuBqMnYAmwCUhoeHZHHPrK3zwvn3hTV-DKE6a"
+          "title": "郭磊丨等待需求侧:2024年中期宏观环境展望_腾讯新闻",
+          "url": "http://www.baidu.com/link?url=vot12y5KeEBJpJtbJ83Jynyr5rCo1HmA0muWECswJSHHjxpQCf9CFPMKW61BRv5o4vsuVPXYrmy3lxiq_sA1Ea"
         },
         {
-          "title": "首提修复居民资产负债表释放重大信号",
-          "url": "http://www.baidu.com/link?url=uNnt_v1_GXq3BND6jei7yvGEtV0w7N4lhvzXorBMemFdoohQn_PdYFTBfANH-CkvbcknR6PCrar6sq56R9P4LAEh4W5_3D4WYRcXnFOhB_7"
+          "title": "张瑜:解开三螺旋——2025年度展望报告_腾讯新闻",
+          "url": "http://www.baidu.com/link?url=Iru3swDfLojniJAhoVv49bvBhxNmEZecdUl-Kz9Z3yVZckmssa_OCcs76lR21Yh5tFUOxMbHbpOwoSVtPbfTSK"
         },
         {
-          "title": "2027城投改革持续深化!普通人的生活将迎来三类直观改变",
-          "url": "http://www.baidu.com/link?url=cqT0mwriKjUjzq3qq6xb1ACTbUa18tS9ayYD_gZKZzRyx8IudRsmZRevMjStgShw9U6D5G47Z5q5vfSdA-vaZtBcGVHEgaqZ2J0_7T_SA8m"
+          "title": "至纯科技发行股份及支付现金购买资产并募集配套资金暨关联交易...",
+          "url": "http://www.baidu.com/link?url=Qs7GYHttbijC7UcwH90taX1py1TYuL5crmeCKvS-pbkoWx0t9_odlifgTm-OfOgv6LlinPIFNPVA6B19OsgEEgMGhKbyawZnb7myAGWO_zi"
         },
         {
-          "title": "2027年前后中国困境资产有望进入处置高峰与价值重塑期,但这是...",
-          "url": "http://www.baidu.com/link?url=pYa4MFJikG0qidk-s6YcrUyxLRrjN4YUn274sHeDL-x1UBNwkPEIZ1-z_Cn-IrICaUlqn8ioJB3KwpN6ulf7z_piwvBIWvyswI_z3LVS17q"
+          "title": "周末要闻回顾:财政部深化财税体制改革 建立健全与中国式现代化相...",
+          "url": "http://www.baidu.com/link?url=gFGdQecU8r4gbIDE-mBHmUUHLh3deP2EMtz1i2aqhKtw3rgmEr2QiATkXDHP1kwFOyq8mLBFf2KoWCFSlKxAua"
         }
       ],
-      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20260625-144014-城投改革_2027_资产处置_房地产重新定价_居民资产负债表.md",
-      "at": "14:40:10"
+      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20260629-114831-年城投改革国有资产处置与房地产重新定价对居民资产负债表的影响.md",
+      "at": "11:48:26"
     }
   ],
-  "started_at": "2026-06-25 14:38",
-  "finished_at": "2026-06-25 14:40",
+  "started_at": "2026-06-29 11:46",
+  "finished_at": "2026-06-29 11:48",
   "source": "auto",
   "read_local": true,
   "use_local": false,
