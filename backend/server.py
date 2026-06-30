@@ -69,8 +69,9 @@ _LOG_QUIET_PATHS = {
     "/chat_progress", "/heartbeat/status", "/lumi/status", "/lumi/evolve_status",
     "/web_model/state", "/web_model/config", "/loop/status", "/insight/status",
     "/insight/config", "/system_access", "/claude_config", "/harness/config",
-    "/sniff/config", "/skills/list", "/datadb/list", "/memory/list",
+    "/sniff/config", "/skills/list", "/agents/list", "/agents/convos", "/agents/notifications", "/datadb/list", "/memory/list",
     "/creator/list", "/creator/findings", "/creator/videos_cached",
+    "/creator/x_cookie_status",
 }
 
 # 给少数关键路径配一句「人话」描述，让日志一眼能看懂用户在干嘛。
@@ -911,10 +912,16 @@ def _video_worker():
             do_screenshot = bool(job.get("screenshot"))
             do_link = bool(job.get("link"))
             sub_mode = job.get("mode") or "auto"   # auto / subtitle_only / transcribe
-            res = video_transcribe.extract(job["url"], level=job["level"],
-                                           progress_cb=cb,
-                                           need_video=do_screenshot,
-                                           mode=sub_mode)
+            local_path = (job.get("local_path") or "").strip()
+            if local_path:
+                # 本地文件任务：跳过链接解析与下载，直接听写本地文件
+                res = video_transcribe.extract_local(
+                    local_path, level=job["level"], progress_cb=cb)
+            else:
+                res = video_transcribe.extract(job["url"], level=job["level"],
+                                               progress_cb=cb,
+                                               need_video=do_screenshot,
+                                               mode=sub_mode)
             if res.get("ok"):
                 cb("AI 分析", "让模型把文字稿总结成笔记…")
                 transcript = res["transcript"]
@@ -971,8 +978,10 @@ def _video_worker():
                         pass  # 插图/跳转失败不影响笔记本体
 
                 # 用完即清：删掉为截图下载的视频画面文件，省空间
+                #   注意：本地文件任务的 video_path 就是用户自己的源文件，绝不能删！
                 try:
-                    if video_path:
+                    is_local_job = bool(res.get("local_path")) or bool(job.get("local_path"))
+                    if video_path and not is_local_job:
                         import shutil as _shutil
                         _vp = video_transcribe._video_file_dir(clean_url)
                         _shutil.rmtree(str(_vp), ignore_errors=True)
@@ -1312,6 +1321,97 @@ def _heartbeat_loop():
     _hb_state["running"] = False
 
 
+# ════════════════════ 分身自动化调度（每个分身独立的定时任务）════════════════════
+_auto_state = {"running": False, "thread": None, "stop": None}
+
+
+def _automation_client(use_local, model):
+    """按分身自己存的模型，造一个对应的 client（本地 / 云端 / 网页 / Claude）。"""
+    if model == "claude" or str(model).startswith("claude::"):
+        return core.make_client_for(model, use_local)
+    if core.is_web_model(model):
+        return core.make_client_for("web", use_local=False)
+    return core.make_client(use_local)
+
+
+def _run_one_automation(slug, task_id):
+    """跑某分身的某个自动化任务：用【该任务自己的模型】（为空回退到分身的模型），安全工具可用、
+    危险操作自动拒绝，结果存成「🤖 自动」历史对话，并写一条通知让前端弹窗。"""
+    import datetime as _dt
+    try:
+        import agents_store
+    except Exception:
+        return
+    a = agents_store.get_agent(slug)
+    if not a:
+        return
+    task = agents_store.get_automation_task(slug, task_id)
+    if not task:
+        return
+    prompt = (task.get("prompt") or "").strip()
+    if not prompt:
+        return
+    use_local = bool(task.get("use_local", a.get("use_local", True)))
+    model = (task.get("model") or a.get("model") or "").strip()
+    if not model:
+        model = "qwen2.5" if use_local else "web"   # 任务和分身都没指定时的兜底
+    now = _dt.datetime.now()
+    try:
+        sys_prompt = core.build_system_prompt() + "\n\n" + \
+            agents_store.build_agent_system_prompt(slug)
+        messages = [{"role": "system", "content": sys_prompt},
+                    {"role": "user", "content": prompt}]
+        client = _automation_client(use_local, model)
+        reply, _ = core.run_agent_autodeny(client, model, messages)
+        reply = (reply or "").strip() or "（没有产出内容）"
+    except Exception as e:
+        reply = "（自动运行出错：%s）" % e
+    cid = "auto-" + now.strftime("%Y%m%d-%H%M%S")
+    if task_id:
+        cid += "-" + str(task_id)[-4:]
+    tname = (task.get("name") or "").strip()
+    title = "🤖 自动 · " + (tname + " · " if tname else "") + now.strftime("%m-%d %H:%M")
+    try:
+        agents_store.save_agent_convo(slug, cid, title, [
+            {"role": "user", "content": prompt},
+            {"role": "assistant", "content": reply}])
+        agents_store.mark_automation_ran(slug, task_id, now.strftime("%Y-%m-%d"), cid)
+        agents_store.bump_usage(slug)
+        agents_store.add_notification(slug, a.get("name", ""), a.get("emoji", "🎭"),
+                                      task_id, cid, title, task_name=tname)
+    except Exception:
+        pass
+
+
+def _automation_loop():
+    """后台循环：每 60 秒看一遍所有分身，到点的就跑（每个分身一天只跑一次）。"""
+    import datetime as _dt
+    stop = _auto_state["stop"]
+    while not stop.is_set():
+        try:
+            import agents_store
+            for slug, task_id in agents_store.due_automations(_dt.datetime.now()):
+                if stop.is_set():
+                    break
+                _run_one_automation(slug, task_id)
+        except Exception:
+            pass
+        if stop.wait(60):
+            break
+    _auto_state["running"] = False
+
+
+def _boot_automation_scheduler():
+    """随软件启动：拉起分身自动化调度线程（跟着软件活，关软件即停）。"""
+    if _auto_state["running"]:
+        return
+    _auto_state["stop"] = _threading.Event()
+    _auto_state["running"] = True
+    t = _threading.Thread(target=_automation_loop, daemon=True)
+    _auto_state["thread"] = t
+    t.start()
+
+
 def _json_body(handler):
     length = int(handler.headers.get("Content-Length", 0))
     if length == 0:
@@ -1417,6 +1517,44 @@ class Handler(BaseHTTPRequestHandler):
             qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
             return self._handle_library_item(qs.get("cat", [""])[0],
                                              qs.get("name", [""])[0])
+
+        if path == "/conversations/list":
+            # 知识云图：列出所有对话存档（带正文，供前端做关键词聚类）
+            try:
+                import conversation_memory as cm
+                qs2 = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                with_text = qs2.get("text", ["1"])[0] != "0"
+                items = cm.list_conversations(limit=800, with_text=with_text)
+                return self._send({"ok": True, "items": items})
+            except Exception as e:
+                return self._send({"ok": False, "items": [], "message": str(e)})
+        if path == "/conversations/get":
+            try:
+                import conversation_memory as cm
+                qs2 = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                data = cm.read_conversation(qs2.get("id", [""])[0])
+                if not data:
+                    return self._send({"ok": False, "message": "没找到这段对话"})
+                return self._send({"ok": True, **data})
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)})
+
+        if path == "/graph/overview":
+            # 知识云图：各范围（对话/视频/嗅探/洞察）各有多少条，给范围选择器显示数量
+            try:
+                import graph_nodes
+                return self._send(graph_nodes.scope_overview())
+            except Exception as e:
+                return self._send({"ok": False, "counts": {}, "message": str(e)})
+        if path == "/graph/nodes":
+            # 知识云图：按范围返回统一节点。?scope=chat|video|sniff|insight|all
+            try:
+                import graph_nodes
+                qs2 = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                scope = qs2.get("scope", ["all"])[0]
+                return self._send(graph_nodes.get_nodes(scope))
+            except Exception as e:
+                return self._send({"ok": False, "items": [], "message": str(e)})
 
         if path == "/chat_progress":
             qs = urllib.parse.urlparse(self.path).query
@@ -1537,6 +1675,52 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send({"error": str(e)}, 200)
 
+        # ── 分身（Agents）：列表 / 取单个 ──
+        if path == "/agents/list":
+            try:
+                import agents_store
+                return self._send({"ok": True, "agents": agents_store.list_agents()})
+            except Exception as e:
+                return self._send({"ok": False, "agents": [], "error": str(e)}, 200)
+
+        if path == "/agents/get":
+            slug = qs.get("slug", [""])[0]
+            try:
+                import agents_store
+                a = agents_store.get_agent(slug)
+                if not a:
+                    return self._send({"ok": False, "error": "not found"}, 404)
+                return self._send({"ok": True, "agent": a})
+            except Exception as e:
+                return self._send({"ok": False, "error": str(e)}, 200)
+
+        # ── 分身的会话历史：列表 / 取单段（每个分身独立工作区）──
+        if path == "/agents/convos":
+            try:
+                import agents_store
+                return self._send({"ok": True,
+                                   "convos": agents_store.list_agent_convos(qs.get("slug", [""])[0])})
+            except Exception as e:
+                return self._send({"ok": False, "convos": [], "error": str(e)}, 200)
+
+        if path == "/agents/convo":
+            try:
+                import agents_store
+                c = agents_store.get_agent_convo(qs.get("slug", [""])[0], qs.get("id", [""])[0])
+                if not c:
+                    return self._send({"ok": False, "error": "not found"}, 404)
+                return self._send({"ok": True, "convo": c})
+            except Exception as e:
+                return self._send({"ok": False, "error": str(e)}, 200)
+
+        if path == "/agents/notifications":
+            # 前端定时来取未读的自动化结果通知（用于弹窗提醒）
+            try:
+                import agents_store
+                return self._send({"ok": True, "items": agents_store.list_notifications(True)})
+            except Exception as e:
+                return self._send({"ok": False, "items": [], "error": str(e)}, 200)
+
         if path == "/loop/status":
             try:
                 import loop_engine
@@ -1583,6 +1767,14 @@ class Handler(BaseHTTPRequestHandler):
                                    "config": creator_watch.get_config()})
             except Exception as e:
                 return self._send({"ok": False, "creators": [], "error": str(e)}, 200)
+
+        if path == "/creator/x_cookie_status":
+            # 查询 X Cookie 是否已配置（前端添加 X 博主时用来决定要不要弹框）
+            try:
+                import x_watch
+                return self._send({"ok": True, "has_cookie": x_watch.has_cookie()})
+            except Exception as e:
+                return self._send({"ok": False, "has_cookie": False, "error": str(e)}, 200)
 
         if path == "/creator/findings":
             # 博主监控：「本次新增」待办清单 + 扫描运行状态
@@ -1887,6 +2079,93 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/skills/from_conversation":
             return self._handle_skill_from_conversation(body)
 
+        # ── 分身（Agents）：保存（新建/编辑）/ 删除 / 把反馈并进判断标准 ──
+        if path == "/agents/save":
+            try:
+                import agents_store
+                rec = agents_store.save_agent(body or {})
+                return self._send({"ok": True, "slug": rec["slug"], "agent": rec})
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/agents/delete":
+            try:
+                import agents_store
+                ok = agents_store.delete_agent(body.get("slug", ""))
+                return self._send({"ok": ok})
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/agents/update_standard":
+            try:
+                import agents_store
+                res = agents_store.update_standard(
+                    body.get("slug", ""), body.get("feedback", ""))
+                return self._send(res)
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e), "standard": ""}, 200)
+
+        # ── 分身会话历史：保存（自动落盘）/ 删除 ──
+        if path == "/agents/convo_save":
+            try:
+                import agents_store
+                return self._send(agents_store.save_agent_convo(
+                    body.get("slug", ""), body.get("id", ""),
+                    body.get("title", ""), body.get("messages") or []))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/agents/convo_delete":
+            try:
+                import agents_store
+                return self._send(agents_store.delete_agent_convo(
+                    body.get("slug", ""), body.get("id", "")))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        # ── 分身：保存它【自己的】模型/模式偏好（各分身独立）──
+        if path == "/agents/model_save":
+            try:
+                import agents_store
+                return self._send(agents_store.set_agent_model(
+                    body.get("slug", ""), body.get("use_local", True),
+                    body.get("model", ""), body.get("smart_routing", True)))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        # ── 分身自动化（SOP/定时任务）：保存多任务设置 / 立即手动跑某个任务 ──
+        if path == "/agents/automation_save":
+            try:
+                import agents_store
+                return self._send(agents_store.set_automation(
+                    body.get("slug", ""), {"tasks": body.get("tasks", [])}))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/agents/automation_run":
+            # 立即在后台跑一次该分身的某个任务（不阻塞；结果完成后出现在历史对话里，并弹窗提醒）
+            try:
+                slug = body.get("slug", "")
+                task_id = body.get("task_id", "")
+                import agents_store
+                if not agents_store.get_agent(slug):
+                    return self._send({"ok": False, "message": "分身不存在"}, 200)
+                if not agents_store.get_automation_task(slug, task_id):
+                    return self._send({"ok": False, "message": "任务不存在，请先保存设置"}, 200)
+                t = _threading.Thread(target=_run_one_automation, args=(slug, task_id), daemon=True)
+                t.start()
+                return self._send({"ok": True, "message": "已在后台开始运行，完成后会弹窗提醒并出现在历史对话里。"})
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/agents/notifications/seen":
+            try:
+                import agents_store
+                agents_store.mark_notifications_seen(body.get("ids", []))
+                return self._send({"ok": True})
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
         if path == "/loop/start":
             try:
                 import loop_engine
@@ -2047,14 +2326,28 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send({"ok": False, "message": str(e)}, 200)
 
+        if path == "/creator/x_cookie_save":
+            # 保存用户粘贴的 X（推特）登录 Cookie
+            try:
+                import x_watch
+                return self._send(x_watch.save_cookie(body.get("cookie") or ""))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
         if path == "/creator/videos_cached":
             # 改动4（秒开）：只读「上次列到的视频」持久缓存，不联网，立刻返回。
             # 前端点开博主时先调它把缓存秒显示，再调 /creator/videos 后台刷新。
             try:
                 import creator_watch
-                data = creator_watch.get_cached_videos(body.get("id", ""))
+                cid = body.get("id", "")
+                data = creator_watch.get_cached_videos(cid)
                 if data is None:
                     return self._send({"ok": False, "cached": False}, 200)
+                # 给每条视频补 creator_id 并标注「已提取」，界面据此显示角标/禁用按钮
+                for v in (data.get("videos") or []):
+                    if isinstance(v, dict):
+                        v.setdefault("creator_id", cid)
+                creator_watch._annotate_extracted(data.get("videos") or [])
                 return self._send({"ok": True, **data})
             except Exception as e:
                 return self._send({"ok": False, "cached": False, "message": str(e)}, 200)
@@ -2063,7 +2356,12 @@ class Handler(BaseHTTPRequestHandler):
             # 列出某博主主页最近的视频（只读，不动快照），给界面挑选/批量提取用
             try:
                 import creator_watch
-                data = creator_watch.list_videos(body.get("id", ""), body.get("limit", 0))
+                cid = body.get("id", "")
+                data = creator_watch.list_videos(cid, body.get("limit", 0))
+                for v in (data.get("videos") or []):
+                    if isinstance(v, dict):
+                        v.setdefault("creator_id", cid)
+                creator_watch._annotate_extracted(data.get("videos") or [])
                 return self._send({"ok": True, **data})
             except Exception as e:
                 return self._send({"ok": False, "message": str(e)}, 200)
@@ -2081,6 +2379,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/creator/extract":
             # 把勾选的视频灌进视频提取队列，并从待办里移除。
+            # 已提取过的（在 extracted 记录里）直接跳过，不重复送队列。
             try:
                 import creator_watch
                 items = body.get("items") or []
@@ -2088,22 +2387,83 @@ class Handler(BaseHTTPRequestHandler):
                 use_local = body.get("use_local", True)
                 model = body.get("model", "qwen2.5")
                 mode = body.get("mode") or "auto"
+                # force=True 时无视「已提取」记录，强制重新提取（前端可不传，默认 False）
+                force = bool(body.get("force", False))
                 if mode not in ("auto", "subtitle_only", "transcribe"):
                     mode = "auto"
-                queued, done_keys = 0, []
+                queued, skipped = 0, 0
+                done_keys, new_marks, skipped_items = [], [], []
+                x_saved = 0   # X 推文直接存成笔记的条数（不走视频队列）
                 for it in items:
                     u = (it.get("url") or "").strip()
                     if not u:
+                        continue
+                    cid = it.get("creator_id")
+                    vid = it.get("vid")
+                    # 已提取过 → 跳过（除非强制）
+                    if (not force) and creator_watch.is_extracted(cid, vid, u):
+                        skipped += 1
+                        skipped_items.append({"creator_id": cid, "vid": vid, "url": u})
+                        # 跳过的也从「本次新增」待办里清掉，免得一直挂着
+                        done_keys.append({"creator_id": cid, "vid": vid, "url": u})
+                        continue
+                    # ── X 推文：文字内容，直接存成笔记，不进视频听写队列 ──
+                    # 前端 item 可能没带 platform/text，从待办记录里补回来
+                    meta = {}
+                    if (not it.get("text")) or (not it.get("platform")):
+                        try:
+                            meta = creator_watch.get_finding_meta(cid, vid, u) or {}
+                        except Exception:
+                            meta = {}
+                    plat = it.get("platform") or meta.get("platform") or ""
+                    is_x = (plat == "x") or ("x.com/" in u) or ("twitter.com/" in u)
+                    tweet_text = (it.get("text") or meta.get("text") or "").strip()
+                    if is_x and tweet_text:
+                        if not it.get("uploader"):
+                            it["uploader"] = meta.get("uploader") or ""
+                        if not it.get("title"):
+                            it["title"] = meta.get("title") or ""
+                        try:
+                            self._save_x_note(it, tweet_text, use_local, model)
+                            x_saved += 1
+                        except Exception:
+                            pass
+                        new_marks.append({"creator_id": cid, "vid": vid, "url": u,
+                                          "title": it.get("title") or ""})
+                        done_keys.append({"creator_id": cid, "vid": vid, "url": u})
                         continue
                     _enqueue_video({"url": u, "level": level, "use_local": use_local,
                                     "model": model, "screenshot": False, "link": False,
                                     "mode": mode})
                     queued += 1
-                    done_keys.append({"creator_id": it.get("creator_id"),
-                                      "vid": it.get("vid"), "url": u})
+                    done_keys.append({"creator_id": cid, "vid": vid, "url": u})
+                    new_marks.append({"creator_id": cid, "vid": vid, "url": u,
+                                      "title": it.get("title") or ""})
+                # 记下这次真正送队列的，下次就不会再重复提取
+                if new_marks:
+                    creator_watch.mark_extracted(new_marks)
                 if done_keys:
                     creator_watch.remove_findings(done_keys)
-                return self._send({"ok": True, "queued": queued})
+                # 组织一句给界面看的提示
+                parts = []
+                if queued:
+                    parts.append("已把 %d 个视频加入提取队列" % queued)
+                if x_saved:
+                    parts.append("已直接保存 %d 条 X 推文为笔记" % x_saved)
+                if skipped:
+                    parts.append("%d 个之前提取过，已跳过" % skipped)
+                msg = "；".join(parts) if parts else "没有可提取的内容"
+                return self._send({"ok": True, "queued": queued, "skipped": skipped,
+                                   "x_saved": x_saved, "message": msg})
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/creator/unextract":
+            # 把若干视频移出「已提取」记录，使其可以重新提取。
+            # body: {items:[{creator_id,vid,url}]} 或 {items:[url,...]}；items 省略=清空整表
+            try:
+                import creator_watch
+                return self._send(creator_watch.unmark_extracted(body.get("items")))
             except Exception as e:
                 return self._send({"ok": False, "message": str(e)}, 200)
 
@@ -2174,6 +2534,23 @@ class Handler(BaseHTTPRequestHandler):
             result = core.write_memory_file(name, content)
             ok = not result.startswith("拒绝")
             return self._send({"ok": ok, "message": result})
+
+        if path == "/conversations/save":
+            # 知识云图：把前端某个会话落盘成存档（聊过的就进云图）。
+            # body: {id, title, messages:[{role,content}], starred?}
+            try:
+                import conversation_memory as cm
+                return self._send(cm.save_session(
+                    body.get("id"), body.get("title"),
+                    body.get("messages") or [], body.get("starred")))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)})
+        if path == "/conversations/delete":
+            try:
+                import conversation_memory as cm
+                return self._send(cm.delete_conversation(body.get("id", "")))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)})
 
         self._send({"error": "not found"}, 404)
 
@@ -2554,6 +2931,21 @@ class Handler(BaseHTTPRequestHandler):
 
         # 每次都用最新的记忆文件重建系统提示
         sys_prompt = core.build_system_prompt()
+        # ── 分身：若本次带了 agent_slug，把这个分身的「判断标准/风格样本」拼到系统提示之后 ──
+        #    （只增不改：原 prompt 带着软件的记忆/人格，分身片段追加在末尾，让它带着用户的判断做事）
+        #    特殊 slug "__interview__" 走的是"访谈引导"提示——让模型采访用户、最后吐出分身草稿。
+        _agent_slug = (body.get("agent_slug") or "").strip()
+        if _agent_slug:
+            try:
+                import agents_store
+                _frag = agents_store.build_agent_system_prompt(_agent_slug)
+                if _frag:
+                    sys_prompt = sys_prompt + "\n\n" + _frag
+                # 真·分身（非访谈）每派一次活计一次数；失败静默，不影响对话
+                if _agent_slug != agents_store.INTERVIEW_SLUG:
+                    agents_store.bump_usage(_agent_slug)
+            except Exception:
+                pass
         if messages and messages[0].get("role") == "system":
             messages[0]["content"] = sys_prompt
         else:
@@ -3072,9 +3464,58 @@ class Handler(BaseHTTPRequestHandler):
             # 检测失败就当没字幕，前端照常按「自动」提交，不卡用户
             return self._send({"ok": True, "has": False, "error": str(e)})
 
+    def _save_x_note(self, item, tweet_text, use_local, model):
+        """把一条 X 推文直接存成笔记（文字内容，不走视频听写）。
+        格式与视频笔记一致，能直接在「视频笔记 / 数据库」里看到。"""
+        import datetime as _dt
+        url = (item.get("url") or "").strip()
+        uploader = (item.get("uploader") or "").strip()
+        raw_title = (item.get("title") or tweet_text[:40] or "X 推文").strip()
+        # 让模型把推文整理成中文笔记（推文可能是英文）。失败就退回原文。
+        analysis = ""
+        title_zh = ""
+        try:
+            analysis = _cx_analyze_transcript(
+                tweet_text, raw_title, use_local, model)
+            title_zh, analysis = _split_title_from_analysis(analysis)
+        except Exception:
+            analysis = tweet_text
+        # 标签：让 AI 归纳几个（失败就空）
+        try:
+            tags = _cx_suggest_tag(raw_title, analysis or tweet_text, use_local, model)
+        except Exception:
+            tags = []
+        tags = [(_t or "").strip().lstrip("#").strip() for _t in (tags or [])]
+        tags = [t for t in tags if t][:6]
+        tag_line = ("- 标签：" + "、".join(tags) + "\n") if tags else ""
+
+        display_title = (title_zh or "").strip() or raw_title
+        orig_line = (f"- 原文标题：{raw_title}\n"
+                     if (title_zh and title_zh.strip() != raw_title) else "")
+        ts = _dt.datetime.now()
+        safe = "".join(c for c in display_title[:20]
+                       if c.isalnum() or c in " 　-_") or "x_post"
+        fname = (f"{ts.strftime('%Y%m%d-%H%M%S')}-{safe}.md").replace(" ", "_")
+        doc = (f"# {display_title}\n\n"
+               f"- 来源链接：{url}\n"
+               f"- 作者：{uploader}\n"
+               f"- 平台：X（推特）\n"
+               f"- 提取时间：{ts.strftime('%Y-%m-%d %H:%M')}\n"
+               f"{orig_line}"
+               f"{tag_line}\n"
+               f"## 🤖 AI 分析\n\n{analysis or '（无）'}\n\n"
+               f"---\n\n## 📝 推文原文\n\n{tweet_text}\n")
+        try:
+            _cx_video_dir().joinpath(fname).write_text(doc, encoding="utf-8")
+        except Exception:
+            pass
+        return fname
+
     def _handle_video_transcribe(self, body):
-        """把视频任务加入队列，后台逐个处理。前端轮询 /video_progress。"""
+        """把视频任务加入队列，后台逐个处理。前端轮询 /video_progress。
+        支持两种来源：① url=在线链接；② local_path=本地音/视频文件（新增）。"""
         url = body.get("url", "").strip()
+        local_path = (body.get("local_path") or "").strip()
         level = body.get("level", "balanced")
         use_local = body.get("use_local", True)
         model = body.get("model", "qwen2.5")
@@ -3085,12 +3526,37 @@ class Handler(BaseHTTPRequestHandler):
         mode = body.get("mode") or "auto"
         if mode not in ("auto", "subtitle_only", "transcribe"):
             mode = "auto"
-        if not url:
-            return self._send({"ok": False, "error": "请先粘贴视频链接。"})
+
         try:
             import video_transcribe
         except Exception as e:
             return self._send({"ok": False, "error": f"模块加载失败：{e}"})
+
+        # ── 分支一：本地文件 ──
+        if local_path:
+            import os as _os
+            if not _os.path.exists(local_path):
+                return self._send({"ok": False,
+                                   "error": "找不到这个文件（可能被移动或删除了）。"})
+            # 本地文件只需要 faster-whisper（不需要 yt-dlp）
+            missing = video_transcribe.check_deps_local()
+            if missing:
+                return self._send({"need": missing})
+            base = _os.path.basename(local_path)
+            title = _os.path.splitext(base)[0] or "本地文件"
+            # 入队：用 local_path 标记这是本地任务；url 放一个占位名只为显示/去重
+            pos = _enqueue_video({
+                "url": "local://" + local_path,   # 占位，仅用于去重/显示，不会真的去下载
+                "local_path": local_path,
+                "title": title,
+                "level": level, "use_local": use_local, "model": model,
+                "screenshot": do_screenshot, "link": do_link, "mode": mode,
+            })
+            return self._send({"queued": True, "position": pos})
+
+        # ── 分支二：在线链接（原逻辑）──
+        if not url:
+            return self._send({"ok": False, "error": "请先粘贴视频链接，或导入本地文件。"})
 
         # ★境外视频（YouTube 等）预检：先看代理通不通、上不上得了外网。
         #   不通就早早给一句清楚的提示，而不是让用户干等三五十秒超时。
@@ -3167,8 +3633,24 @@ class Handler(BaseHTTPRequestHandler):
             items = []
             for p in sorted(d.glob("*.md"), reverse=True):
                 txt = p.read_text(encoding="utf-8", errors="replace")
-                title = txt.splitlines()[0].lstrip("# ").strip() if txt else p.stem
-                items.append({"name": p.name, "title": title})
+                lines = txt.splitlines()
+                title = lines[0].lstrip("# ").strip() if lines else p.stem
+                # 解析「- 作者：xxx」。纯数字 ID（抖音没抓到昵称的兜底）不展示，
+                # 只把有意义的昵称返给前端，避免列表上一堆看不懂的数字。
+                author = ""
+                for ln in lines[1:8]:
+                    s = ln.strip().lstrip("-").strip()
+                    hit = False
+                    for key in ("作者：", "作者:"):
+                        if s.startswith(key):
+                            cand = s[len(key):].strip()
+                            if cand and not cand.isdigit():
+                                author = cand[:40]
+                            hit = True
+                            break
+                    if hit:
+                        break
+                items.append({"name": p.name, "title": title, "author": author})
             return self._send({"ok": True, "notes": items})
         except Exception as e:
             return self._send({"ok": False, "notes": [], "error": str(e)})
@@ -3521,6 +4003,12 @@ def main():
         creator_watch.boot_scheduler()
     except Exception as e:
         print("[creator] 调度启动失败：%s" % e)
+    # 分身自动化：拉起定时调度（每个分身独立的定时任务）
+    try:
+        _boot_automation_scheduler()
+        print("[agents] 分身自动化调度已启动")
+    except Exception as e:
+        print("[agents] 自动化调度启动失败：%s" % e)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

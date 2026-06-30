@@ -214,6 +214,11 @@
         : (taggable ? '<span class="ddb-card-tags ddb-notag">未打标签</span>' : '');
       const exp = _ddbExpanded[it.name];
       const isOpen = !!exp;
+      const authorHtml = it.author
+        ? '<span class="ddb-card-author" style="color:#1a73e8;font-weight:600;background:rgba(26,115,232,0.10);border:1px solid rgba(26,115,232,0.30);border-radius:6px;padding:1px 8px;margin-right:8px">👤 ' + esc(it.author) + '</span>'
+        : (_ddbCat === "video" && !it.is_dir
+            ? '<span class="ddb-card-author" style="color:var(--text-dim,#999);margin-right:8px">（无作者）</span>'
+            : '');
       html += '<div class="ddb-card' + (isOpen ? ' open' : '') + '">' +
         '<div class="ddb-card-row">' +
           '<div class="ddb-card-main"' + (it.is_dir ? '' : ' data-toggle="' + esc(it.name) + '"') + '>' +
@@ -222,7 +227,7 @@
               (it.is_dir ? '' : '<span class="ddb-card-toggle">' + (isOpen ? '收起 ▲' : '阅读 ▼') + '</span>') +
             '</div>' +
             (isOpen ? '' : (it.preview ? '<div class="ddb-card-prev">' + esc(it.preview) + '</div>' : '')) +
-            '<div class="ddb-card-meta">' + tagsHtml +
+            '<div class="ddb-card-meta">' + tagsHtml + authorHtml +
               '<span class="ddb-card-info">' + esc(it.date) + ' · ' + esc(it.size_h) + '</span></div>' +
           '</div>' +
           '<div class="ddb-card-acts">' +

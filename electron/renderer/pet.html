@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' data: file: https:; style-src 'self' 'unsafe-inline'; script-src 'self';" />
+  <title>桌宠</title>
+  <link rel="stylesheet" href="pet.css" />
+</head>
+<body>
+  <div id="petStage">
+    <!-- 说话气泡 -->
+    <div id="bubble"></div>
+
+    <!-- 任务进行中的小光点 -->
+    <div id="busyDot"></div>
+
+    <!-- 桌宠本体（SVG 注入到这里） -->
+    <div id="pet" title="点我有菜单 · 拖我换位置 · 拖文件喂我"></div>
+
+    <!-- 点击菜单 -->
+    <div id="menu">
+      <div class="menu-item" data-act="open"><span class="mi-ico">💬</span><span>打开超能小助</span></div>
+      <div class="menu-item" data-act="say"><span class="mi-ico">✨</span><span>说点什么</span></div>
+      <div class="menu-item" data-act="skin"><span class="mi-ico">🎭</span><span>换个形象</span></div>
+      <div class="menu-sep"></div>
+      <div class="menu-item" data-act="sleep"><span class="mi-ico">😴</span><span>去休息 / 唤醒</span></div>
+      <div class="menu-item" data-act="hide"><span class="mi-ico">🚪</span><span>先收起来</span></div>
+    </div>
+
+    <!-- 换形象面板 -->
+    <div id="skinPanel">
+      <div class="skin-title">选择桌宠形象</div>
+      <div id="skinChips" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;"></div>
+      <div class="skin-back" id="skinBack">← 返回</div>
+    </div>
+  </div>
+
+  <script src="pet-characters.js"></script>
+  <script src="pet.js"></script>
+</body>
+</html>

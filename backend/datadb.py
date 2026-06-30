@@ -148,6 +148,27 @@ def _tags_of(path):
     return []
 
 
+def _author_of(path):
+    """解析 md 文件里的「- 作者：xxx」。纯数字 ID（抖音没抓到昵称时的兜底）
+    视为没有意义的作者，返回空串，避免列表上显示一串看不懂的数字。
+    返回作者昵称字符串（没有/是纯数字 ID 都返回 ''）。"""
+    try:
+        if path.suffix.lower() != ".md":
+            return ""
+        txt = path.read_text(encoding="utf-8", errors="replace")
+        for line in txt.splitlines()[1:8]:
+            s = line.strip().lstrip("-").strip()
+            for key in ("作者：", "作者:"):
+                if s.startswith(key):
+                    cand = s[len(key):].strip()
+                    if cand and not cand.isdigit():
+                        return cand[:40]
+                    return ""
+    except Exception:
+        pass
+    return ""
+
+
 def _preview_of(path):
     """取正文前一小段做预览（跳过标题/标签/分隔等元数据行）。"""
     try:
@@ -209,9 +230,11 @@ def _list_items(g):
             if is_content and not is_dir and p.suffix.lower() == ".md":
                 item["tags"] = _tags_of(p)
                 item["preview"] = _preview_of(p)
+                item["author"] = _author_of(p)   # 作者昵称（纯数字 ID 已过滤为空）
             else:
                 item["tags"] = []
                 item["preview"] = ""
+                item["author"] = ""
             items.append(item)
         except Exception:
             continue

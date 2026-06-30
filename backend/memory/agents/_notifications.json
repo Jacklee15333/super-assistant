@@ -1,0 +1,108 @@
+{
+  "items": [
+    {
+      "id": "n-20260629184441268047",
+      "slug": "ai-intel-agent",
+      "agent_name": "AI 情报分身",
+      "agent_emoji": "🧠",
+      "task_id": "t-1782729748831-r8g7",
+      "conversation_id": "auto-20260629-184326-r8g7",
+      "title": "🤖 自动 · 06-29 18:43",
+      "created_at": "2026-06-29T18:44:41",
+      "seen": true
+    },
+    {
+      "id": "n-20260629184609953574",
+      "slug": "ai-intel-agent",
+      "agent_name": "AI 情报分身",
+      "agent_emoji": "🧠",
+      "task_id": "t-184222-47be",
+      "conversation_id": "auto-20260629-184405-47be",
+      "title": "🤖 自动 · 06-29 18:44",
+      "created_at": "2026-06-29T18:46:09",
+      "seen": true
+    },
+    {
+      "id": "n-20260629184701132624",
+      "slug": "ai-intel-agent",
+      "agent_name": "AI 情报分身",
+      "agent_emoji": "🧠",
+      "task_id": "t-1782729748831-r8g7",
+      "conversation_id": "auto-20260629-184609-r8g7",
+      "title": "🤖 自动 · 06-29 18:46",
+      "created_at": "2026-06-29T18:47:01",
+      "seen": true
+    },
+    {
+      "id": "n-20260629193311424931",
+      "slug": "ai-intel-agent",
+      "agent_name": "情报员",
+      "agent_emoji": "🧠",
+      "task_id": "t-1782732670790-st6b",
+      "conversation_id": "auto-20260629-193226-st6b",
+      "title": "🤖 自动 · 特朗普动态 · 06-29 19:32",
+      "created_at": "2026-06-29T19:33:11",
+      "seen": true
+    },
+    {
+      "id": "n-20260629195444859353",
+      "slug": "action-coach",
+      "agent_name": "行动教练 · 选择不如先动",
+      "agent_emoji": "🧭",
+      "task_id": "t-coach-evening",
+      "conversation_id": "auto-20260629-195328-ning",
+      "task_name": "晚上三句复盘",
+      "title": "🤖 自动 · 晚上三句复盘 · 06-29 19:53",
+      "created_at": "2026-06-29T19:54:44",
+      "seen": true
+    },
+    {
+      "id": "n-20260629195637848884",
+      "slug": "action-coach",
+      "agent_name": "行动教练 · 选择不如先动",
+      "agent_emoji": "🧭",
+      "task_id": "t-coach-morning",
+      "conversation_id": "auto-20260629-195305-ning",
+      "task_name": "早上开工三问",
+      "title": "🤖 自动 · 早上开工三问 · 06-29 19:53",
+      "created_at": "2026-06-29T19:56:37",
+      "seen": true
+    },
+    {
+      "id": "n-20260630090447979941",
+      "slug": "ai-intel-agent",
+      "agent_name": "情报员",
+      "agent_emoji": "🧠",
+      "task_id": "t-184222-47be",
+      "conversation_id": "auto-20260630-090003-47be",
+      "task_name": "最新AI动态",
+      "title": "🤖 自动 · 最新AI动态 · 06-30 09:00",
+      "created_at": "2026-06-30T09:04:47",
+      "seen": true
+    },
+    {
+      "id": "n-20260630092118057851",
+      "slug": "ai-intel-agent",
+      "agent_name": "情报员",
+      "agent_emoji": "🧠",
+      "task_id": "t-1782729748831-r8g7",
+      "conversation_id": "auto-20260630-092101-r8g7",
+      "task_name": "最新github开源项目",
+      "title": "🤖 自动 · 最新github开源项目 · 06-30 09:21",
+      "created_at": "2026-06-30T09:21:18",
+      "seen": true
+    },
+    {
+      "id": "n-20260630092310778652",
+      "slug": "ai-intel-agent",
+      "agent_name": "情报员",
+      "agent_emoji": "🧠",
+      "task_id": "t-1782732670790-st6b",
+      "conversation_id": "auto-20260630-092218-st6b",
+      "task_name": "特朗普动态",
+      "title": "🤖 自动 · 特朗普动态 · 06-30 09:22",
+      "created_at": "2026-06-30T09:23:10",
+      "seen": true
+    }
+  ]
+}

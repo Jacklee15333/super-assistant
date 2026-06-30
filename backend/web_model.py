@@ -1220,18 +1220,27 @@ class _WebWorker:
 # 把"最新一条 AI 回复"抓成 Markdown：保留 <a href> 为可点击链接 [文字](网址)，
 # 去掉 ChatGPT 的引用角标/来源芯片（"+1""+2"、citation/footnote 之类）这些杂质。
 _GRAB_MARKDOWN_JS = r"""() => {
-    const sels = ['[data-message-author-role="assistant"]','[class*="markdown"]',
-        '[class*="prose"]','[class*="assistant"]','[class*="message-content"]'];
-    let best=null, bestBottom=-1;
-    for (const s of sels){
-        let els; try{els=document.querySelectorAll(s)}catch(e){continue}
-        for(const el of els){
-            const r=el.getBoundingClientRect();
-            const t=(el.innerText||'').trim();
-            if(r.width>200 && t.length>20 && r.bottom>bestBottom){ best=el; bestBottom=r.bottom; }
+    // 同一条回复常被网站拆成多个兄弟块（如正文段落 +（另起的）序号列表）。
+    // 从最底部命中块向上爬到「整条回复」的容器，把被拆开的块合起来，但不跨越到上一条消息。
+    const __cxClimb = (el) => {
+        if(!el) return el;
+        let container = el, cur = el;
+        for(let i=0;i<8;i++){
+            const p = cur.parentElement;
+            if(!p || p===document.body || p===document.documentElement) break;
+            const r = p.getBoundingClientRect();
+            if(!r || r.width < 200) break;
+            let roleCount = 0;
+            try { roleCount = p.querySelectorAll('[data-message-author-role]').length; } catch(e){}
+            if(roleCount > 1) break;                       // 跨越了多条消息 → 爬过头，停
+            const cLen = (container.innerText||'').length;
+            const pLen = (p.innerText||'').length;
+            if(pLen <= cLen){ cur = p; continue; }         // 纯包裹层，继续往上看
+            if(pLen > cLen*2.6) break;                     // 文本暴涨＝并入了别的轮次，停
+            container = p; cur = p;
         }
-    }
-    if(!best) return '';
+        return container;
+    };
     const clsOf = (el) => {
         try { return (el.className && el.className.baseVal!==undefined) ? el.className.baseVal : (el.className||''); }
         catch(e){ return ''; }
@@ -1243,6 +1252,26 @@ _GRAB_MARKDOWN_JS = r"""() => {
         if(/^[+＋﹢][\d０-９]+$/.test(t)) return true;   // "+1" "+2"（含全角＋/全角数字/带空格）
         return false;
     };
+    // 单元格内联文本（用于表格）：把竖线换成空格，避免撑破 Markdown 表格
+    const cellText = (el) => {
+        let t=(el.innerText||el.textContent||'').replace(/\s+/g,' ').trim();
+        return t.replace(/\|/g,' ').trim();
+    };
+    // <table> -> Markdown 表格（首行作表头）。ChatGPT 的表格（含「写入/Canvas」里的）都是真实 <table>。
+    const tableToMd = (table) => {
+        const trs = [...table.querySelectorAll('tr')].filter(tr => tr.querySelector('th,td'));
+        if(!trs.length) return '';
+        let rows = trs.map(tr => [...tr.children]
+            .filter(c => /^(td|th)$/i.test(c.tagName))
+            .map(cellText)).filter(r => r.length);
+        if(!rows.length) return '';
+        const cols = Math.max(...rows.map(r => r.length));
+        rows = rows.map(r => { while(r.length<cols) r.push(''); return r; });
+        const head = rows[0];
+        let md = '\n| ' + head.join(' | ') + ' |\n| ' + head.map(()=>'---').join(' | ') + ' |\n';
+        for(const r of rows.slice(1)) md += '| ' + r.join(' | ') + ' |\n';
+        return md + '\n';
+    };
     const walk = (node) => {
         let out='';
         for(const child of node.childNodes){
@@ -1251,6 +1280,14 @@ _GRAB_MARKDOWN_JS = r"""() => {
             const el=child, tag=el.tagName.toLowerCase();
             if(tag==='script'||tag==='style') continue;
             if(isCite(el)) continue;
+            if(tag==='table'){ out += tableToMd(el); continue; }                   // ★表格整体转 Markdown
+            if(/^(thead|tbody|tfoot|tr|td|th|colgroup|col)$/.test(tag)) continue;  // 已由 table 处理，跳过防重复
+            if(tag==='img'){                                                       // ★图片
+                const src=el.getAttribute('src')||el.currentSrc||'';
+                const alt=(el.getAttribute('alt')||'图片').trim();
+                if(src && !/^data:/.test(src)) out += '\n!['+alt+']('+src+')\n';
+                continue;
+            }
             if(tag==='a'){
                 const href=el.getAttribute('href')||'';
                 let txt=(el.innerText||el.textContent||'').trim().replace(/\s*↗\s*$/,'').trim();
@@ -1284,13 +1321,49 @@ _GRAB_MARKDOWN_JS = r"""() => {
                 out+='\n'; continue;
             }
             if(tag==='li'){ out += '- '+walk(el).trim()+'\n'; continue; }
-            const block=/^(p|div|tr|blockquote|pre|section|article)$/.test(tag);
+            const block=/^(p|div|blockquote|pre|section|article)$/.test(tag);
             out += walk(el);
             if(block) out+='\n';
         }
         return out;
     };
-    let md = walk(best);
+    const sels = ['[data-message-author-role="assistant"]','[class*="markdown"]',
+        '[class*="prose"]','[class*="assistant"]','[class*="message-content"]'];
+    let best=null, bestBottom=-1;
+    for (const s of sels){
+        let els; try{els=document.querySelectorAll(s)}catch(e){continue}
+        for(const el of els){
+            const r=el.getBoundingClientRect();
+            const t=(el.innerText||'').trim();
+            if(r.width>200 && t.length>20 && r.bottom>bestBottom){ best=el; bestBottom=r.bottom; }
+        }
+    }
+    if(!best) return '';
+    const root = __cxClimb(best);
+    let md = walk(root);
+
+    // ★画布 / 侧栏：把「不在回复气泡里」的表格也补抓进来。
+    //   ChatGPT 把表格放进「写入 / Canvas」面板时，它是独立的一块 DOM，不在助手气泡里，
+    //   上面的 walk 扫不到。这里只补抓表格（最稳、几乎不会误抓别的东西），并按内容去重。
+    try {
+        const seen = md.replace(/[\s|*_#`-]+/g,'');
+        const extra = [];
+        for(const tb of document.querySelectorAll('table')){
+            if(root.contains(tb)) continue;                 // 已在回复气泡里，跳过
+            const r = tb.getBoundingClientRect();
+            if(!r || r.width < 120) continue;
+            const tmd = tableToMd(tb);
+            if(!tmd) continue;
+            const key = tmd.replace(/[\s|*_#`-]+/g,'');
+            if(key.length < 12) continue;
+            if(seen.indexOf(key.slice(0, Math.min(40, key.length))) >= 0) continue;   // 已包含，去重
+            extra.push(tmd);
+        }
+        if(extra.length){
+            md = (md.trim() ? md.trim()+'\n\n' : '') + '——— 画布内容 ———\n' + extra.join('\n');
+        }
+    } catch(e){}
+
     md = md.replace(/[ \t]+\n/g,'\n').replace(/\n{3,}/g,'\n\n').replace(/[ \t]{2,}/g,' ').trim();
     return md;
 }"""
@@ -1386,6 +1459,25 @@ _DISPATCH_SEND_JS = r"""() => {
 
 # 探测 JS（_wait_for_reply 每轮调用）——思考态识别 + 发送/停止按钮态 + 回复块抓取
 _PROBE_JS = r"""() => {
+    const __cxClimb = (el) => {
+        if(!el) return el;
+        let container = el, cur = el;
+        for(let i=0;i<8;i++){
+            const p = cur.parentElement;
+            if(!p || p===document.body || p===document.documentElement) break;
+            const r = p.getBoundingClientRect();
+            if(!r || r.width < 200) break;
+            let roleCount = 0;
+            try { roleCount = p.querySelectorAll('[data-message-author-role]').length; } catch(e){}
+            if(roleCount > 1) break;
+            const cLen = (container.innerText||'').length;
+            const pLen = (p.innerText||'').length;
+            if(pLen <= cLen){ cur = p; continue; }
+            if(pLen > cLen*2.6) break;
+            container = p; cur = p;
+        }
+        return container;
+    };
     const bodyText = (document.body.innerText || '').slice(0, 4000);
     const thinkingPatterns = [
         /^\s*正在思考[\s.…]*$/im, /^\s*思考中[\s.…]*$/im,
@@ -1472,15 +1564,26 @@ _PROBE_JS = r"""() => {
             const r = el.getBoundingClientRect();
             const t = (el.innerText || '').trim();
             if (r.width > 200 && t.length > 30)
-                candidates.push({ text: t, bottom: r.bottom, length: t.length, selector: sel });
+                candidates.push({ el, text: t, bottom: r.bottom, length: t.length, selector: sel });
         }
     }
     if (candidates.length > 0) {
         candidates.sort((a,b)=>b.bottom-a.bottom);
+        const bottomEl = candidates[0].el;
         const topY = candidates[0].bottom;
         const near = candidates.filter(c => topY - c.bottom < 200);
         near.sort((a,b)=>b.length-a.length);
-        return { chosen: near[0], totalCandidates: candidates.length,
+        let chosen = { text: near[0].text, bottom: near[0].bottom,
+                       length: near[0].length, selector: near[0].selector };
+        // 合并被拆成多个兄弟块的同一条回复（如序号列表），让「完成判定」和最终取文都拿到完整内容
+        try {
+            const cont = __cxClimb(bottomEl);
+            const ct = (cont.innerText||'').trim();
+            if (ct.length > chosen.text.length)
+                chosen = { text: ct, bottom: cont.getBoundingClientRect().bottom,
+                           length: ct.length, selector: 'climbed' };
+        } catch(e) {}
+        return { chosen, totalCandidates: candidates.length,
                  hasThinkingIndicator, hasLooseThinking, thinkingDoneCount, thinkingDoneText, genState };
     }
     if (hasThinkingIndicator || hasLooseThinking) {

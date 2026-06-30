@@ -1,223 +1,259 @@
 {
   "active": false,
   "phase": "done",
-  "total": 284,
-  "done": 284,
-  "learned": 13,
+  "total": 319,
+  "done": 319,
+  "learned": 17,
   "current": null,
   "queue": [],
   "activity": [
-    "11:46:56  📂 爬取 视频内容库《20260629-100747-下班了再去热爱_关于高考志愿的一些个人见》（第 275/284 篇）",
-    "11:46:56  🤖 派给 AI 通读这篇…",
-    "11:46:59  ✓ 已学习：1. **高考志愿不能盲目照搬富裕家庭“追求热爱”的人生样本**：普通人应优先选择能",
-    "11:46:59  📂 爬取 视频内容库《20260626-091548-5_Ways_Claude_Tag_Co》（第 276/284 篇）",
-    "11:46:59  🤖 派给 AI 通读这篇…",
-    "11:47:01  ✓ 已学习：1. AI 模型的竞争不仅体现在技术能力上，还受到了监管、立法和市场因素的影响。",
-    "11:47:01  📂 爬取 视频内容库《20260626-090748-Zynga_Founder_Consu》（第 277/284 篇）",
-    "11:47:01  🤖 派给 AI 通读这篇…",
-    "11:47:04  ✓ 已学习：1. **消费级产品当前融资不易，但AI和agent创造了新的机会窗口。**",
-    "11:47:04  📂 爬取 视频内容库《20260626-085558-CEO-Led_AI_Gets_3X_t》（第 278/284 篇）",
-    "11:47:04  🤖 派给 AI 通读这篇…",
-    "11:47:07  ✓ 已学习：1. AI 行业正在从单一产品功能更新转向算力、组织架构、供应链和企业战略深度绑定，",
-    "11:47:07  📂 爬取 视频内容库《20260625-155823-How_to_Get_Your_Firs》（第 279/284 篇）",
-    "11:47:07  🤖 派给 AI 通读这篇…",
-    "11:47:10  ✓ 已学习：1. **目标客户在哪里花时间？** 创始人需要先了解目标客户的日常生活和工作习惯，",
-    "11:47:10  📂 爬取 视频内容库《20260625-155359-Why_AI_Users_Are_Rav》（第 280/284 篇）",
-    "11:47:10  🤖 派给 AI 通读这篇…",
-    "11:47:13  ✓ 已学习：1. **拆解“Fable 5封禁”事件的误读与夸大**：视频指出社交媒体上关于“F",
-    "11:47:13  📂 爬取 视频内容库《20260625-154659-5_Ways_Claude_Tag_Co》（第 281/284 篇）",
-    "11:47:13  🤖 派给 AI 通读这篇…",
-    "11:47:16  ✓ 已学习：1. **AI监管加速**：美国政府在出口管制、国家安全框架下加强对AI与机器人技术",
-    "11:47:16  📂 爬取 主动研究《research-20260625-144014-城投改革_2027_资产处置_房地产重新定价_居民资产负债表》（第 282/284 篇）",
-    "11:47:16  🤖 派给 AI 通读这篇…",
-    "11:47:20  ✓ 已学习：### 简要提炼：",
-    "11:47:20  📂 爬取 主动研究《research-20260625-144010-AI_一人公司_获客成本_自动化交付_复购率_失败案例》（第 283/284 篇）",
-    "11:47:20  🤖 派给 AI 通读这篇…",
-    "11:47:23  ✓ 已学习：1. 研究探讨了社区团购行业近期的阶段性瓶颈问题及长期发展潜力。",
-    "11:47:23  📂 爬取 主动研究《research-20260625-144003-MCP_工具投毒攻击_提示词注入_AI_Agent_沙箱隔离》（第 284/284 篇）",
-    "11:47:23  🤖 派给 AI 通读这篇…",
-    "11:47:25  ✓ 已学习：1. **研究主题**：MCP工具投毒攻击，通过在AI工具描述中嵌入恶意指令，诱导A",
-    "11:47:25  🧩 读完了，正在把 291 篇的学习数据汇总成对你的理解…",
-    "11:47:58  🎉 分析完成，小助更懂你了。",
-    "11:47:58  🌐 开始根据你的画像主动上网搜相关内容…",
-    "11:48:16  🔍 正在研究：年 MCP 工具投毒、提示词注入与 AI Agent 沙箱隔离最新攻击案例",
-    "11:48:21  ✓ 已存进成长库：年 MCP 工具投毒、提示词注入与 AI Agent 沙箱隔离最新攻击案例（4 个来源）",
-    "11:48:21  🔍 正在研究：AI 一人公司从冷启动获客到自动化交付、复购和盈利的真实失败案例",
-    "11:48:26  ✓ 已存进成长库：AI 一人公司从冷启动获客到自动化交付、复购和盈利的真实失败案例（4 个来源）",
-    "11:48:26  🔍 正在研究：年城投改革、国有资产处置与房地产重新定价对居民资产负债表的影响",
-    "11:48:31  ✓ 已存进成长库：年城投改革、国有资产处置与房地产重新定价对居民资产负债表的影响（4 个来源）",
-    "11:48:31  🌐 主动研究完成，新增 3 篇进成长库（下次洞察会读到）。"
+    "11:35:43  ✓ 已学习：1. 长期感到疲惫的主要原因是大脑持续面对杂乱环境、廉价刺激、不确定性、未完成事项和",
+    "11:35:43  📂 爬取 视频内容库《20260630-091924-为什么房间越乱的人越累这不是迷信是脑》（第 311/319 篇）",
+    "11:35:43  🤖 派给 AI 通读这篇…",
+    "11:35:46  ✓ 已学习：1. **环境杂乱的负面影响**：房间越乱使人感到疲劳的原因不仅是视觉上的不悦，更因",
+    "11:35:46  📂 爬取 视频内容库《20260630-085518-让你AI使用效率快速提升的方法AI执行》（第 312/319 篇）",
+    "11:35:46  🤖 派给 AI 通读这篇…",
+    "11:35:50  ✓ 已学习：1. **视频主题与核心观点**：视频主要探讨如何通过定义和使用Skill（标准化专",
+    "11:35:50  📂 爬取 视频内容库《20260629-195413-就很辞职后续_劳动仲裁邯郸金力》（第 313/319 篇）",
+    "11:35:50  🤖 派给 AI 通读这篇…",
+    "11:35:52  ✓ 已学习：1. **员工拒绝先报诉求，以防落入“敲诈勒索”陷阱**：员工担心先提出具体要求会让",
+    "11:35:52  📂 爬取 视频内容库《20260629-193811-普通人负债的原因就是太相信选择大于努》（第 314/319 篇）",
+    "11:35:52  🤖 派给 AI 通读这篇…",
+    "11:35:55  ✓ 已学习：1. 普通人容易负债的原因是过度相信“选择大于努力”，但实际上他们没有能力做出正确的",
+    "11:35:55  📂 爬取 视频内容库《20260629-192038-如何把_Codex_改造成自进化系统完》（第 315/319 篇）",
+    "11:35:55  🤖 派给 AI 通读这篇…",
+    "11:35:57  ✓ 已学习：1. 教授如何将Codex改造为自进化系统的方法，涉及系统的四层架构。",
+    "11:35:57  📂 爬取 视频内容库《20260629-181209-收入卡住上不去别往外找原因了全是心理》（第 316/319 篇）",
+    "11:35:57  🤖 派给 AI 通读这篇…",
+    "11:35:59  ✓ 已学习：1. 收入停滞的主要原因是心理问题，不听“老套”的建议。",
+    "11:35:59  📂 爬取 主动研究《research-20260629-175627-在学__在做什么》（第 317/319 篇）",
+    "11:35:59  🤖 派给 AI 通读这篇…",
+    "11:36:01  ✓ 已学习：1. 探讨如何更自然地问候对方，避免直接问“在干嘛”导致冷场。",
+    "11:36:01  📂 爬取 主动研究《research-20260629-175622-最近在关注什么》（第 318/319 篇）",
+    "11:36:01  🤖 派给 AI 通读这篇…",
+    "11:36:03  ✓ 已学习：1. 关注最新热点资讯与热门话题，涵盖科技、娱乐、体育、财经等多领域。",
+    "11:36:03  📂 爬取 主动研究《research-20260629-175553-已思考_4s》（第 319/319 篇）",
+    "11:36:03  🤖 派给 AI 通读这篇…",
+    "11:36:06  ✓ 已学习：1. 4S理论被广泛应用于制造业、电子商务、零售业、服务业和B2B领域，以提升客户体",
+    "11:36:06  🧩 读完了，正在把 336 篇的学习数据汇总成对你的理解…",
+    "11:36:17  🎉 分析完成，小助更懂你了。",
+    "11:36:17  🌐 开始根据你的画像主动上网搜相关内容…",
+    "11:36:26  🔍 正在研究：已思考若干秒",
+    "11:36:33  ✓ 已存进成长库：已思考若干秒（4 个来源）",
+    "11:36:33  🔍 正在研究：中文标题：005、第五节：从单数到复数，主谓一致",
+    "11:36:40  ✓ 已存进成长库：中文标题：005、第五节：从单数到复数，主谓一致（2 个来源）",
+    "11:36:40  🔍 正在研究：一句话概括",
+    "11:36:45  ✓ 已存进成长库：一句话概括（2 个来源）",
+    "11:36:45  🔍 正在研究：背景与主题",
+    "11:36:52  ✓ 已存进成长库：背景与主题（4 个来源）",
+    "11:36:52  🌐 主动研究完成，新增 4 篇进成长库（下次洞察会读到）。"
   ],
   "read_files": [
     {
-      "name": "20260629-114536-India_Can_Create_The",
+      "name": "20260630-113310-005第五节从单数到复数主谓一致",
       "scope": "video",
       "label": "视频内容库",
-      "chars": 30963,
-      "at": "11:46:51"
+      "chars": 19201,
+      "at": "11:35:23"
     },
     {
-      "name": "20260629-113533-Meet_Your_Ad_Hoc_AI_",
+      "name": "20260630-112042-004第四节时态入门实现从静态描述",
       "scope": "video",
       "label": "视频内容库",
-      "chars": 19426,
-      "at": "11:46:53"
+      "chars": 17219,
+      "at": "11:35:26"
     },
     {
-      "name": "20260629-113026-OpenAI_Codex_lead_on",
+      "name": "20260630-111132-003第三节运用形容词所有格描述所属",
       "scope": "video",
       "label": "视频内容库",
-      "chars": 49480,
-      "at": "11:46:56"
+      "chars": 13572,
+      "at": "11:35:29"
     },
     {
-      "name": "20260629-100747-下班了再去热爱_关于高考志愿的一些个人见",
+      "name": "20260630-110443-002第二节运用核心名词精准指认具",
       "scope": "video",
       "label": "视频内容库",
-      "chars": 8643,
-      "at": "11:46:59"
+      "chars": 11278,
+      "at": "11:35:31"
     },
     {
-      "name": "20260626-091548-5_Ways_Claude_Tag_Co",
+      "name": "20260630-105913-001第一节掌握核心结构构建基础句",
       "scope": "video",
       "label": "视频内容库",
-      "chars": 38491,
-      "at": "11:47:01"
+      "chars": 12004,
+      "at": "11:35:34"
     },
     {
-      "name": "20260626-090748-Zynga_Founder_Consu",
+      "name": "20260630-105229-给普通人的生产资料积累指南_赚钱_赚",
       "scope": "video",
       "label": "视频内容库",
-      "chars": 40922,
-      "at": "11:47:04"
+      "chars": 9115,
+      "at": "11:35:37"
     },
     {
-      "name": "20260626-085558-CEO-Led_AI_Gets_3X_t",
+      "name": "20260630-095521-卡帕西发了一条推文两天千万人看44K收藏",
       "scope": "video",
       "label": "视频内容库",
-      "chars": 39021,
-      "at": "11:47:07"
+      "chars": 7434,
+      "at": "11:35:40"
     },
     {
-      "name": "20260625-155823-How_to_Get_Your_Firs",
+      "name": "20260630-092041-当老板的谁没经历过这些扎心时刻_微",
       "scope": "video",
       "label": "视频内容库",
-      "chars": 19498,
-      "at": "11:47:10"
+      "chars": 8870,
+      "at": "11:35:43"
     },
     {
-      "name": "20260625-155359-Why_AI_Users_Are_Rav",
+      "name": "20260630-091924-为什么房间越乱的人越累这不是迷信是脑",
       "scope": "video",
       "label": "视频内容库",
-      "chars": 30641,
-      "at": "11:47:13"
+      "chars": 11655,
+      "at": "11:35:46"
     },
     {
-      "name": "20260625-154659-5_Ways_Claude_Tag_Co",
+      "name": "20260630-085518-让你AI使用效率快速提升的方法AI执行",
       "scope": "video",
       "label": "视频内容库",
-      "chars": 31004,
-      "at": "11:47:16"
+      "chars": 6969,
+      "at": "11:35:50"
     },
     {
-      "name": "research-20260625-144014-城投改革_2027_资产处置_房地产重新定价_居民资产负债表",
+      "name": "20260629-195413-就很辞职后续_劳动仲裁邯郸金力",
+      "scope": "video",
+      "label": "视频内容库",
+      "chars": 8142,
+      "at": "11:35:52"
+    },
+    {
+      "name": "20260629-193811-普通人负债的原因就是太相信选择大于努",
+      "scope": "video",
+      "label": "视频内容库",
+      "chars": 7937,
+      "at": "11:35:55"
+    },
+    {
+      "name": "20260629-192038-如何把_Codex_改造成自进化系统完",
+      "scope": "video",
+      "label": "视频内容库",
+      "chars": 4585,
+      "at": "11:35:57"
+    },
+    {
+      "name": "20260629-181209-收入卡住上不去别往外找原因了全是心理",
+      "scope": "video",
+      "label": "视频内容库",
+      "chars": 4450,
+      "at": "11:35:59"
+    },
+    {
+      "name": "research-20260629-175627-在学__在做什么",
       "scope": "research",
       "label": "主动研究",
-      "chars": 6784,
-      "at": "11:47:20"
+      "chars": 3978,
+      "at": "11:36:01"
     },
     {
-      "name": "research-20260625-144010-AI_一人公司_获客成本_自动化交付_复购率_失败案例",
+      "name": "research-20260629-175622-最近在关注什么",
       "scope": "research",
       "label": "主动研究",
-      "chars": 6733,
-      "at": "11:47:23"
+      "chars": 6482,
+      "at": "11:36:03"
     },
     {
-      "name": "research-20260625-144003-MCP_工具投毒攻击_提示词注入_AI_Agent_沙箱隔离",
+      "name": "research-20260629-175553-已思考_4s",
       "scope": "research",
       "label": "主动研究",
-      "chars": 6722,
-      "at": "11:47:25"
+      "chars": 6695,
+      "at": "11:36:06"
     }
   ],
   "skipped_files": [],
   "research": [
     {
-      "topic": "年 MCP 工具投毒、提示词注入与 AI Agent 沙箱隔离最新攻击案例",
+      "topic": "已思考若干秒",
       "status": "saved",
       "sources": [
         {
-          "title": "面对MCP“工具投毒”,我们该如何应对_腾讯新闻",
-          "url": "http://www.baidu.com/link?url=sfBvYSY3jKhXRSPk3Ibk_-SF5J2TK9875Hr0BrPyMSfsef_inLWnI417QM9FrJhM6u_fjlbr3Lih1ZA62cW_3_"
+          "title": "让智能更生动·让创想更自由 ——四博智联 RoPet S3 AI 双目机器人,开 ...",
+          "url": "http://www.baidu.com/link?url=bNcfpi1c7R-mqGNpnHMFnPvfO7-c2pMFvTngJEbok6U6JJGrzFkFk-Ta_Jp7h4VnkO3uJU-gtXydWkxVw4kkVGe-hD5K4RVPzVYj1Ms-tIe"
         },
         {
-          "title": "全网最全面的 MCP 解读来了!_集成_Agent_模型",
-          "url": "http://www.baidu.com/link?url=hqhDV5oDoAMICQHD3_AOVxtBBEA3076t0fDh-WGOY7f7CQbuNpJzLcgEQwt0murEkFm2LH-t9VYBrVzL8D92gK"
+          "title": "《生活随笔,感悟生活》说话做事前给自己留几秒思考的时间",
+          "url": "http://www.baidu.com/link?url=D2xinNRXLxi8zOnYggo1zkzwwqwvULVxS1ZMkAyqJVf_atZk-HkPqVX6_vsn-cZXKGvQW9ZVFZ5pYbKjYwQTddOejC1TUsYRn9F7aK-3RQC"
         },
         {
-          "title": "拥抱AGI 时代的中间层⼒量:AI 中间件的机遇与挑战|agent|中间件...",
-          "url": "http://www.baidu.com/link?url=O8fvxRZrRgh2SsPfQ18TT7u0WDAyPvbRZkswSKmPPYNRWfdwNEzNjQuv66rkcLBCHn_tYDcakssDbfRzo1uS7K"
+          "title": "...没有注意到他在深度思考的模式下花了多长时间,若干秒至一分钟不...",
+          "url": "http://www.baidu.com/link?url=pES06BdDpESmqf5UoJUdn5O0Z7hjrJdGeWKiPP8Gj4W3tPWjurMkVzpjaTGIZSXrjiv7aPygVceFRinK71BoIK"
         },
         {
-          "title": "OpenClaw:疯狂背后的隐患_腾讯新闻",
-          "url": "http://www.baidu.com/link?url=YBDQLWDNqe_mJx7eDLrIXbOurfEHKPRkatVwiVZmCpsztu-21jtwViCVQsv_4R1zacE2q2tTXVs6BWJcbCtjbq"
+          "title": "你思考了几秒钟?_哔哩哔哩_bilibili",
+          "url": "http://www.baidu.com/link?url=sW4rFoUA43H0mVeBs15P_3-WPk_CcDIa710vRHSyrGuPaQ2T7KVjQArYmVX9rPoNps8ZkZfR3FSCQfdzrhztC_"
         }
       ],
-      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20260629-114821-年_MCP_工具投毒提示词注入与_AI_Agent_沙箱隔离.md",
-      "at": "11:48:16"
+      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20260630-113633-已思考若干秒.md",
+      "at": "11:36:26"
     },
     {
-      "topic": "AI 一人公司从冷启动获客到自动化交付、复购和盈利的真实失败案例",
+      "topic": "中文标题：005、第五节：从单数到复数，主谓一致",
       "status": "saved",
       "sources": [
         {
-          "title": "年营收过亿的企业如何内部推行OPC一人公司——从孵化器到并购的全...",
-          "url": "http://www.baidu.com/link?url=RuOK6LOmAedM5F55DBv1ClxGmYLYBBukPg_eKckojzJ04AiNOr3RbyJSHSS1iCnSQoot_Ii8ooDGniYSPfhe3a"
+          "title": "一张图搞懂英语主谓一致:单数、复数与就近原则",
+          "url": "http://www.baidu.com/link?url=q9Uky_ulms7PSqPhcrNX1Nx4pmtPy9clnmSMi7i5fF2qOcPgbS9FBPcqGL5CE2N-Z299hlA4KAuKVGDptH8Q536g9MMYYBem4LINHlb1WIO"
         },
         {
-          "title": "2026年4月最新AI搜索优化公司十大品牌:全域获客突围指南|招商|运营|...",
-          "url": "http://www.baidu.com/link?url=B_DnZoCVVHIGG48NpOnqH2Rs_p-diGdJ56YZ5OGKjXQoWRarS4tkJhR6vEmomhclR590EWRSg8SPc_LqRlrVQa"
-        },
-        {
-          "title": "混沌AI院3期重磅发布:90天手把手落地AI试点,为企业锻造实战型AI...",
-          "url": "http://www.baidu.com/link?url=rm_bsuzJo9_4ePgXuefSWGbu20xy4mk9k5NP7VdvLbi_YWMdxwKBDo4K4Fa34OPcaY7tsYjqraSByXd-AGFzra"
-        },
-        {
-          "title": "社区团购:行至半程,徐图进取|电商|sku|淘宝|分销|单量_网易订阅",
-          "url": "http://www.baidu.com/link?url=pjoP8iTxfXQn9k0YPi0chrtSCLV6rlfmYaJZ5JWln6VE0_076VFFr8ABnbvz9X6PUGfehLGDY-q9aoqJZU3lhq"
+          "title": "【初中英语语法】《主谓一致的用法》视频讲解+知识点+练习",
+          "url": "http://www.baidu.com/link?url=q9Uky_ulms7PSqPhcrNX1MyUXiA0_Js4AqBAcuv6T66mOyjM28BvpbTnTuWNyfNZ9Y9A3EDaFoGn52O4CgYZQOWQV0wzjp-bpJSgS6NZxUI2FeYAEz0FzPbwC7Jpa4kwbm_j0AczdKBRJ4pEKUm5aGyQXoac4kiJFqVSpMw9EBnq6xzzMK4X45H-qzOHyQL6ff8epFTMxMaBjBTpa4HOlykfENv8x6ppoyR5dMnqtm4wsezq7XqWj142_aXQkGLOKwVWw1HEQ4ntqzT97WQJIq"
         }
       ],
-      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20260629-114826-AI_一人公司从冷启动获客到自动化交付复购和盈利的真实失败案.md",
-      "at": "11:48:21"
+      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20260630-113640-中文标题005第五节从单数到复数主谓一致.md",
+      "at": "11:36:33"
     },
     {
-      "topic": "年城投改革、国有资产处置与房地产重新定价对居民资产负债表的影响",
+      "topic": "一句话概括",
       "status": "saved",
       "sources": [
         {
-          "title": "郭磊丨等待需求侧:2024年中期宏观环境展望_腾讯新闻",
-          "url": "http://www.baidu.com/link?url=vot12y5KeEBJpJtbJ83Jynyr5rCo1HmA0muWECswJSHHjxpQCf9CFPMKW61BRv5o4vsuVPXYrmy3lxiq_sA1Ea"
+          "title": "一句话概括心情的说说,很经典很走心! - 触碰心灵的话",
+          "url": "http://www.baidu.com/link?url=jdJwSggr77sCJMFS7anoXpNjUWsWx2QiX_splQUR6YX_1zuC1YYK8citnUGhR4r2K-Ry-u4xKgjhobzlSQxk_sYJSrzuJcWF3V--4RsWpEm"
         },
         {
-          "title": "张瑜:解开三螺旋——2025年度展望报告_腾讯新闻",
-          "url": "http://www.baidu.com/link?url=Iru3swDfLojniJAhoVv49bvBhxNmEZecdUl-Kz9Z3yVZckmssa_OCcs76lR21Yh5tFUOxMbHbpOwoSVtPbfTSK"
-        },
-        {
-          "title": "至纯科技发行股份及支付现金购买资产并募集配套资金暨关联交易...",
-          "url": "http://www.baidu.com/link?url=Qs7GYHttbijC7UcwH90taX1py1TYuL5crmeCKvS-pbkoWx0t9_odlifgTm-OfOgv6LlinPIFNPVA6B19OsgEEgMGhKbyawZnb7myAGWO_zi"
-        },
-        {
-          "title": "周末要闻回顾:财政部深化财税体制改革 建立健全与中国式现代化相...",
-          "url": "http://www.baidu.com/link?url=gFGdQecU8r4gbIDE-mBHmUUHLh3deP2EMtz1i2aqhKtw3rgmEr2QiATkXDHP1kwFOyq8mLBFf2KoWCFSlKxAua"
+          "title": "一句话概括:听得进劝,方能行稳致远",
+          "url": "http://www.baidu.com/link?url=TxbYHbJbqISIi4XALkXuYsjgcscacE0xFMBEHfwUyI0Sobx-PQFR5u4SWI6D-a4MEgynPC9CFRduFkeLRdJE1tWjgM_VKKfNxw_6C7EjdAO"
         }
       ],
-      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20260629-114831-年城投改革国有资产处置与房地产重新定价对居民资产负债表的影响.md",
-      "at": "11:48:26"
+      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20260630-113645-一句话概括.md",
+      "at": "11:36:40"
+    },
+    {
+      "topic": "背景与主题",
+      "status": "saved",
+      "sources": [
+        {
+          "title": "背景不会处理?现在轻松解决!_主体_感觉_画面",
+          "url": "http://www.baidu.com/link?url=m93oqpQAjpTOPdBO0BKgYA8Zq837YPGGKpH6D_KSZA2P_Lzi4ovBp5QnBVKzfHlSAMGsQN0c6KhYVbMSK5x4tq"
+        },
+        {
+          "title": "摄影中怎么最大化发挥拍摄背景魅力的方法,看看你会几个_腾讯新闻",
+          "url": "http://www.baidu.com/link?url=rzCDG_sXEF6vEnBP1E3YB-Leh-ZgK9UABBaDw79oSrkn5yTNeBE5yRdy0_nG9rilKLawGfUp9PXzMQRniBzfSq"
+        },
+        {
+          "title": "重读《雪落香杉树》:意外统御宇宙万物,唯独人心除外|小说|白鲸|福克纳...",
+          "url": "http://www.baidu.com/link?url=rpBMSc6uIhDc06iL4p1TKlE6zyWXxqOqzKSFcGo2r2rX49aRCH6uENWzPd3DlSnoUNd9RCSCbZCDkDqoTPADl_"
+        },
+        {
+          "title": "《废都》与《白鹿原》:城市风月和乡土枷锁,为何一被禁一经典?|黑娃|...",
+          "url": "http://www.baidu.com/link?url=rpBMSc6uIhDc06iL4p1TKlE6zyWXxqOqzKSFcGo2r2qheXRm6nrgW7mlB6tVs-aVcyhS-rThsoxBH9hYRMC-7q"
+        }
+      ],
+      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20260630-113652-背景与主题.md",
+      "at": "11:36:45"
     }
   ],
-  "started_at": "2026-06-29 11:46",
-  "finished_at": "2026-06-29 11:48",
+  "started_at": "2026-06-30 11:35",
+  "finished_at": "2026-06-30 11:36",
   "source": "auto",
   "read_local": true,
   "use_local": false,

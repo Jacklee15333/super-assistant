@@ -1,0 +1,16 @@
+{
+  "id": "auto-20260629-184326-r8g7",
+  "title": "🤖 自动 · 06-29 18:43",
+  "created_at": "2026-06-29T18:44:41",
+  "updated_at": "2026-06-29T18:44:41",
+  "messages": [
+    {
+      "role": "user",
+      "content": "查最新 github 最新的，最热门的开源项目"
+    },
+    {
+      "role": "assistant",
+      "content": "查到的是 **GitHub Trending - Today** 和 **Trendshift Daily**。结论：今天 GitHub 热门开源项目明显集中在 **AI Agent、MCP、AI 编程助手、文档处理、视频生产、金融 Agent、安全 Agent** 这些方向。\n\n项目方向今日热度信号我看法\n**DeusData/codebase-memory-mcp**MCP / 代码知识图谱GitHub 显示 20.3k stars，今日 +2,190最值得看。解决 AI Coding 的“代码库长期记忆/低 token 查询”问题，贴近实际开发痛点。[GitHub](https://github.com/trending)\n**xbtlin/ai-berkshire**AI 投研 AgentGitHub 显示 5.9k stars，今日 +1,445中文圈热度很高。卖点是 Claude Code / Codex + 多 Agent 投研框架，适合观察“垂直 Agent 模板化”机会。[GitHub](https://github.com/trending)\n**simplex-chat/simplex-chat**隐私通信GitHub 显示 15.5k stars，今日 +1,180非 AI，但热度强。隐私通信、无用户标识，是长期价值型项目。[GitHub](https://github.com/trending)\n**ripienaar/free-for-dev**免费开发资源清单GitHub 显示 125.9k stars，今日 +495；Trendshift 也列为 Daily 第 1老牌资源库反复上榜，说明开发者对低成本工具链需求仍强。[GitHub\n+1](https://github.com/trending)\n**HKUDS/Vibe-Trading**交易 AgentGitHub 显示 14.6k stars，今日 +492热点明显，但金融类 Agent 要重点看回测、风控、合规，不要只看 demo。[GitHub](https://github.com/trending)\n**opendatalab/MinerU**文档解析 / Agent 工作流GitHub 显示 71.9k stars，今日 +380很实用。PDF / Office 转 Markdown/JSON，是企业知识库、RAG、Agent 落地的基础件。[GitHub](https://github.com/trending)\n**Robbyant/lingbot-map**3D 重建 / 视觉模型GitHub 显示 8.3k stars，今日 +372偏研究和视觉基础设施，适合关注空间智能、机器人、3D 数据方向。[GitHub](https://github.com/trending)\n**altic-dev/FluidVoice**本地离线语音转文字GitHub 显示 3.9k stars，今日 +365本地化、隐私、离线语音输入是明确需求，但目前是 macOS 方向，对 Windows 生态机会还可挖。[GitHub](https://github.com/trending)\n**commaai/openpilot**机器人 / 自动驾驶GitHub 显示 62.5k stars，今日 +266成熟项目，不是新项目，但持续热门，说明开源自动驾驶仍有关注度。[GitHub](https://github.com/trending)\n**browser-use/video-use**AI 视频编辑GitHub 显示 11.3k stars，今日 +196；Trendshift 也列入 Daily 热榜“用 coding agent 编辑视频”这个方向值得盯，和短视频生产工具链有关。[GitHub\n+1](https://github.com/trending)\n**usestrix/strix**AI 安全 AgentGitHub 显示 26.9k stars，今日 +122；Trendshift 标为 AI agent + PentestingAI 自动找漏洞方向很热，但使用和商业化都涉及安全边界，适合做防御型工具，不适合灰产化。[GitHub\n+1](https://github.com/trending)\n\n我的判断：\n\n今天最强的主线不是“通用大模型”，而是 **AI 开发基础设施**。尤其是 MCP、代码库记忆、Agent 工作流、文档转结构化数据，这些都在解决 AI Coding / 企业 Agent 落地里的真实摩擦。\n\n最值得你重点看三个：**codebase-memory-mcp、MinerU、browser-use/video-use**。前两个是基础设施，容易嵌进现有工作流；video-use 则贴近内容生产，有产品化空间。\n\n需要谨慎看的两个：**Vibe-Trading** 和 **strix**。前者涉及金融决策，容易被热度放大；后者涉及安全自动化，价值高但边界敏感。\n\n趋势层面，Trendshift 今日主题榜里 **AI agent、AI coding assistant、AI skills、AI workflow、AI infrastructure、MCP、Document processing** 都排在前列，说明市场注意力仍在“让 AI 真正接管复杂工作流”这一层，而不是单纯聊天机器人。[Trendshift](https://trendshift.io/)"
+    }
+  ]
+}

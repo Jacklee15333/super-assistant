@@ -1395,3 +1395,93 @@ def extract(url, level="balanced", progress_cb=None, need_video=False, mode="aut
         except Exception:
             pass
         return {"ok": False, "error": f"提取失败：{msg}"}
+
+# ════════════════════ 本地文件提取（导入本地音/视频文件）════════════════════════
+# 背景：原本只支持「粘贴链接 → yt-dlp 下载 → 听写」。这里新增本地文件直转：
+#   用户从电脑里选好一个音频/视频文件，跳过「找链接 + 下载」两步，
+#   直接把这个文件喂给 faster-whisper 听写。
+# 关键点：faster_whisper 的 decode_audio() 内部用 PyAV(ffmpeg) 解码，
+#   能直接读 mp4/mov/mkv/avi/flv/m4a/mp3/wav/aac… 几乎所有常见音视频格式，
+#   所以本地文件**不需要 yt-dlp，也不需要单独下载**，只要装了 faster-whisper 即可。
+
+# 常见可处理的本地音/视频后缀（仅用于前端友好提示与基本校验，不是硬限制）
+LOCAL_MEDIA_EXTS = (
+    ".mp4", ".mov", ".mkv", ".avi", ".flv", ".webm", ".wmv", ".m4v", ".ts",
+    ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".wma", ".amr",
+)
+
+
+def check_deps_local():
+    """本地文件提取只需要 faster-whisper（解码靠它内置的 ffmpeg/PyAV）。
+    返回缺失列表（空=就绪）。不要求 yt-dlp。"""
+    missing = []
+    try:
+        import faster_whisper  # noqa
+    except Exception:
+        missing.append("faster-whisper")
+    return missing
+
+
+def extract_local(file_path, level="balanced", progress_cb=None):
+    """把本地音/视频文件直接听写成文字稿。
+    跳过链接解析与下载，直接走 faster-whisper。
+
+    返回结构与 extract() 完全一致（ok/title/uploader/url/transcript/segments/source…），
+    这样上层 worker 的后续处理（AI 分析、存笔记、插图）可以原样复用。
+    标题默认用文件名（不含扩展名），交给 AI 分析时若识别出更好的标题会覆盖。"""
+    def step(s, d=""):
+        if progress_cb:
+            progress_cb(s, d)
+
+    p = (file_path or "").strip().strip('"').strip("'")
+    if not p:
+        return {"ok": False, "error": "没有提供文件路径。"}
+    if not os.path.exists(p):
+        return {"ok": False, "error": f"找不到这个文件（可能被移动或删除了）：{p}"}
+    if not os.path.isfile(p):
+        return {"ok": False, "error": f"这不是一个文件：{p}"}
+
+    ext = os.path.splitext(p)[1].lower()
+    if ext and ext not in LOCAL_MEDIA_EXTS:
+        # 不是已知音视频后缀也允许试（ffmpeg 可能照样能解），但先给个提示日志
+        step("解析文件", f"后缀 {ext} 不在常见音视频列表里，仍尝试解码…")
+
+    missing = check_deps_local()
+    if missing:
+        return {"ok": False, "need": missing}
+
+    base = os.path.basename(p)
+    title = os.path.splitext(base)[0] or "本地文件"
+
+    step("读取文件", f"准备听写本地文件：{base[:40]}")
+    try:
+        # 本地文件没有断点续传目录（不像在线任务按 url 建 job 目录），
+        # 直接整段听写即可；文件通常已在本地，重跑成本低。
+        transcript, segments = _transcribe(
+            p, level, progress_cb=progress_cb, job_dir=None)
+        if not transcript:
+            return {"ok": False,
+                    "error": "文件读到了，但没识别出文字（可能是纯音乐/无人声，或时长太短）。"}
+        try:
+            clear_diag()
+        except Exception:
+            pass
+        return {
+            "ok": True,
+            "title": _fallback_title(title, transcript),
+            "uploader": "",
+            "url": "（本地文件）" + base,   # 笔记里「来源链接」一栏显示文件名，便于追溯
+            "transcript": transcript,
+            "segments": segments,
+            "source": "local_file",
+            "video_path": p,               # 本地文件本身即可用于截图（插图功能复用）
+            "platform_tags": [],
+            "local_path": p,
+        }
+    except Exception as e:
+        msg = _clean_err(e)
+        try:
+            write_diag(p, "extract_local", msg)
+        except Exception:
+            pass
+        return {"ok": False, "error": f"本地文件提取失败：{msg}"}

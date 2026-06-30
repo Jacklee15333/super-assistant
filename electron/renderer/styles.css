@@ -690,12 +690,25 @@ body {
                    background: var(--bg-elev); border: 1px solid var(--line);
                    border-radius: 8px; cursor: pointer; display: flex;
                    align-items: center; gap: 8px; }
-.video-note-item .vn-name { flex: 1; overflow: hidden; text-overflow: ellipsis;
+.video-note-item .vn-name { flex: 1 1 auto; min-width: 0;
+                            overflow: hidden; text-overflow: ellipsis;
                             white-space: nowrap; }
+.video-note-item .vn-author { flex: 0 0 auto; white-space: nowrap;
+                            color: #1a73e8; font-weight: 600; font-size: 13px;
+                            background: rgba(26,115,232,0.10);
+                            border: 1px solid rgba(26,115,232,0.30);
+                            border-radius: 6px; padding: 2px 8px; cursor: pointer;
+                            max-width: 200px; overflow: hidden;
+                            text-overflow: ellipsis; }
+.video-note-item .vn-author:hover { background: rgba(26,115,232,0.18); }
+.video-note-item .vn-author-none { color: var(--text-dim, #999); font-weight: 400;
+                            font-size: 12px; background: transparent;
+                            border: none; padding: 2px 4px; cursor: default; }
+.video-note-item .vn-author-none:hover { background: transparent; }
 .video-note-item:hover { border-color: var(--accent); }
 .video-note-item:hover .vn-name { color: var(--accent); }
 .vn-del { background: transparent; border: none; cursor: pointer; font-size: 13px;
-          opacity: 0; padding: 2px 4px; }
+          opacity: 0; padding: 2px 4px; flex: 0 0 auto; }
 .video-note-item:hover .vn-del { opacity: 0.7; }
 .vn-del:hover { opacity: 1; }
 

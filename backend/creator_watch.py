@@ -41,6 +41,11 @@ _DEFAULT_PER_SCAN = 15      # 每个博主每次最多取最近多少条
 # log: 批量扫描的逐博主明细，每条 {name, ok, new_count, error, ts}
 _scan_state = {"running": False, "last": "", "started": 0.0, "progress": "", "current": "", "log": []}
 
+# YouTube 较老视频（RSS 没覆盖）逐条精确补日期时，单次最多补多少条。
+# RSS 覆盖最近 ~15 条；这个再往前多补一些，覆盖到「最近7/30天」筛选所需的范围。
+# 设太大每次扫描会慢（每条要单独请求一次 yt-dlp）；25 条是速度与覆盖的平衡。
+_YT_DATE_PROBE_MAX = 25
+
 
 # ──────────────────────────── 工具 ────────────────────────────
 def _now_iso():
@@ -86,6 +91,11 @@ def _default_store():
         "video_cache": {},
         # 标题译文表：英文原文 → 中文。翻译成功后回存，下次直接显示中文、不再重翻。
         "title_zh_map": {},
+        # 已提取记录：哪些视频已经送进过「视频内容提取」队列。
+        # key = "creator_id|vid"（creator_id 为空时退化成 "|vid"，再退化用 url）。
+        # 值 = {"creator_id":..., "vid":..., "url":..., "title":..., "at": 本地时间字符串}。
+        # 作用：嗅探/汇总里再次出现同一视频时，标「已提取」并跳过，不重复送队列。
+        "extracted": {},
     }
 
 
@@ -150,13 +160,18 @@ def _detect_platform(url):
         return "bilibili"
     if "douyin.com" in u or "iesdouyin" in u or "v.douyin" in u:
         return "douyin"
+    if "x.com/" in u or "twitter.com/" in u:
+        return "x"
     return ""
 
 
-_PLATFORM_LABEL = {"youtube": "YouTube", "bilibili": "B站", "douyin": "抖音"}
+_PLATFORM_LABEL = {"youtube": "YouTube", "bilibili": "B站", "douyin": "抖音", "x": "X"}
+
+# 这些平台抓内容需要登录 Cookie；前端添加时应弹框让用户粘 Cookie。
+_LOGIN_REQUIRED_PLATFORMS = {"x"}
 
 # 这些是「还没识别出真实昵称」时用的占位名；之后一旦探到真名就替换掉。
-_GENERIC_TITLES = {"", "YouTube博主", "B站博主", "抖音博主", "博主"}
+_GENERIC_TITLES = {"", "YouTube博主", "B站博主", "抖音博主", "X博主", "博主"}
 
 
 def _is_generic_title(t):
@@ -191,7 +206,7 @@ def add_creator(url, platform="auto", title=""):
         return {"ok": False, "message": "主页链接要以 http:// 或 https:// 开头"}
     plat = platform if platform in _PLATFORM_LABEL else _detect_platform(url)
     if not plat:
-        return {"ok": False, "message": "认不出这是哪个平台的主页（支持抖音 / B站 / YouTube）"}
+        return {"ok": False, "message": "认不出这是哪个平台的主页（支持抖音 / B站 / YouTube / X）"}
     store = _load()
     creators = store.get("creators", [])
     if any((c.get("url") or "").strip() == url for c in creators):
@@ -321,6 +336,32 @@ def _norm_youtube_channel(url):
     return url  # watch 链接等交给 yt-dlp 自己处理
 
 
+def _resolve_youtube_channel_id(url, flat_cid=""):
+    """尽量拿到 YouTube 频道的真实 UC... ID（RSS 接口必须用这个）。
+    顺序：① 扁平列表已给的就是 UC 开头 → 直接用；
+         ② 否则抓频道页 HTML，从里面找 channelId/externalId/UC... ；抓不到返回空串。
+    @handle、/c/、/user/ 这些写法 yt-dlp 给的 uploader_id 经常不是 UC 开头，
+    导致原来 RSS 直接被跳过、整页视频都「日期未知」——这里把它补上。"""
+    cid = (flat_cid or "").strip()
+    if cid.startswith("UC"):
+        return cid
+    try:
+        import web_tools
+        page = web_tools._fetch(url, timeout=15, use_proxy=bool(_proxy()))
+    except Exception:
+        page = ""
+    if page:
+        for pat in (r'"channelId":"(UC[\w-]{20,})"',
+                    r'"externalId":"(UC[\w-]{20,})"',
+                    r'<meta itemprop="channelId" content="(UC[\w-]{20,})"',
+                    r'channel_id=(UC[\w-]{20,})',
+                    r'/channel/(UC[\w-]{20,})'):
+            m = re.search(pat, page)
+            if m:
+                return m.group(1)
+    return ""
+
+
 def _youtube_rss_dates(channel_id, timeout=12):
     """用 YouTube 频道 RSS 拿最近 ~15 条视频的真实发布日期。返回 {video_id: 'YYYYMMDD'}。
     扁平列频道本身拿不到发布日期，RSS 能补上最近视频的日期，让「最近7/30天」筛选可用。"""
@@ -343,12 +384,54 @@ def _youtube_rss_dates(channel_id, timeout=12):
     return out
 
 
+def _youtube_video_date(vid_or_url, timeout=20):
+    """单条视频精确取发布日期：yt-dlp 拿单视频 info 的 upload_date（YYYYMMDD）。
+    用于 RSS 没覆盖到的较老视频。失败返回空串。"""
+    try:
+        import yt_dlp
+        u = vid_or_url
+        if not str(u).startswith("http"):
+            u = "https://www.youtube.com/watch?v=" + str(u)
+        opts = {
+            "quiet": True, "no_warnings": True, "skip_download": True,
+            "nocheckcertificate": True, "socket_timeout": timeout,
+            "logger": _SilentLogger(), "playlist_items": "0",
+        }
+        p = _proxy()
+        if p:
+            opts["proxy"] = p
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(u, download=False)
+        if not info:
+            return ""
+        ud = info.get("upload_date") or info.get("release_date") or ""
+        if ud and re.match(r"^\d{8}$", str(ud)):
+            return str(ud)
+        for k in ("timestamp", "release_timestamp"):
+            ts = info.get(k)
+            if ts:
+                try:
+                    return datetime.datetime.fromtimestamp(int(ts)).strftime("%Y%m%d")
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    return ""
+
+
 def _list_youtube(url, limit):
     target = _norm_youtube_channel(url)
     data = _ytdlp_list(target, limit, use_proxy=True, platform="youtube")
     entries = data["entries"]
-    # 只有真在列视频时才去取 RSS 补日期；名字探测（limit=1）不必多打一次请求
-    rss = _youtube_rss_dates(data.get("channel_id")) if len(entries) > 1 else {}
+    author = data.get("name", "")   # YouTube 作者就是频道名
+    # 只有真在列视频时才去补日期；名字探测（limit=1）不必多打请求
+    rss = {}
+    real_cid = ""
+    if len(entries) > 1:
+        # ① 先把真实 UC 频道 ID 拿稳（uploader_id 经常是 @handle，不是 UC，会让 RSS 失效）
+        real_cid = _resolve_youtube_channel_id(target, data.get("channel_id"))
+        rss = _youtube_rss_dates(real_cid) if real_cid else {}
+
     out = []
     for e in entries:
         if not isinstance(e, dict):
@@ -360,10 +443,28 @@ def _list_youtube(url, limit):
             vid = mm.group(1) if mm else link
         if not vid:
             continue
+        # 日期来源优先级：扁平条目自带 > RSS（最近~15条）
         when = _entry_when(e) or rss.get(str(vid), "")
+        # 作者：条目自带 uploader/channel，没有就用频道名兜底
+        up = (e.get("uploader") or e.get("channel") or "").strip() or author
         out.append({"vid": str(vid), "url": link,
-                    "title": (e.get("title") or "").strip(), "when": when})
-    return {"name": data.get("name", ""), "videos": out,
+                    "title": (e.get("title") or "").strip(),
+                    "when": when, "uploader": up})
+
+    # ② RSS 没覆盖到的视频（较老的）逐条精确补日期。为避免一次性打太多请求，
+    #    最多补 _YT_DATE_PROBE_MAX 条（按列表顺序，通常就是最新那些用户最关心的）。
+    need = [v for v in out if not v.get("when")]
+    if need:
+        probed = 0
+        for v in need:
+            if probed >= _YT_DATE_PROBE_MAX:
+                break
+            d = _youtube_video_date(v.get("url") or v.get("vid"))
+            if d:
+                v["when"] = d
+            probed += 1
+
+    return {"name": author, "videos": out,
             "total": data.get("count") or len(out)}
 
 
@@ -508,6 +609,9 @@ def list_recent(platform, url, limit=_DEFAULT_PER_SCAN):
         return _list_bilibili(url, limit)
     if plat == "douyin":
         return _list_douyin(url, limit)
+    if plat == "x":
+        import x_watch
+        return x_watch.list_recent(url, limit)
     raise RuntimeError("不支持的平台：%s" % plat)
 
 
@@ -515,6 +619,9 @@ def detect_name(platform, url):
     """只为「自动识别博主名字」用：尽量快地拿到博主昵称。拿不到返回空串，绝不抛异常。"""
     plat = platform if platform in _PLATFORM_LABEL else _detect_platform(url)
     try:
+        if plat == "x":
+            import x_watch
+            return x_watch.detect_name(url)
         if plat == "douyin":
             # 抖音作品列表常取不到，但主页 HTML 里通常有昵称
             n = _douyin_name_from_page(url)
@@ -587,6 +694,9 @@ def list_videos(cid, limit=40):
               "platform": c.get("platform"),
               "platform_label": _PLATFORM_LABEL.get(c.get("platform"), c.get("platform") or "?"),
               "videos": out, "total": total, "shown": len(out)}
+    # X 等平台抓取失败时，把具体原因带回前端（而不是只显示「没列到」）
+    if not out and data.get("error"):
+        result["empty_reason"] = data.get("error")
     # 改动4（秒开）：联网成功后把这份结果落盘缓存，下次点开先用它秒显示。
     _save_video_cache(cid, result)
     return result
@@ -787,6 +897,8 @@ def scan_one(cid):
                     "platform": c.get("platform"),
                     "vid": v["vid"], "url": v["url"],
                     "title": v.get("title") or "", "when": v.get("when") or "",
+                    "uploader": v.get("uploader") or "",
+                    "text": v.get("text") or "",   # X 推文全文（视频平台为空）
                     "found_at": _now_iso(),
                 })
                 new_count += 1
@@ -922,7 +1034,25 @@ def get_findings():
                 t = (it.get("title") or "").strip()
                 if t and t in tmap:
                     it["title_zh"] = tmap[t]
+    # 标注「已提取」：界面据此显示「已提取」并禁用提取按钮
+    _annotate_extracted(f)
     return f
+
+
+def get_finding_meta(creator_id=None, vid=None, url=""):
+    """按 creator_id+vid 或 url 找回一条待办的附加信息（text/platform/uploader/title）。
+    供 X 推文「直接存笔记」时取回推文全文用。找不到返回 {}。"""
+    store = _load()
+    url = (url or "").strip()
+    for f in store.get("findings", []):
+        if vid is not None and f.get("vid") == vid and (
+                creator_id is None or f.get("creator_id") == creator_id):
+            return {"text": f.get("text") or "", "platform": f.get("platform") or "",
+                    "uploader": f.get("uploader") or "", "title": f.get("title") or ""}
+        if url and (f.get("url") or "").strip() == url:
+            return {"text": f.get("text") or "", "platform": f.get("platform") or "",
+                    "uploader": f.get("uploader") or "", "title": f.get("title") or ""}
+    return {}
 
 
 def remove_findings(keys):
@@ -953,6 +1083,130 @@ def clear_findings():
     store["findings"] = []
     _save(store)
     return {"ok": True}
+
+
+# ──────────────────────── 已提取记录（去重，避免重复送队列）────────────────────────
+def _extract_key(creator_id, vid, url=""):
+    """生成「已提取」表的统一键：优先 creator_id|vid；没有 vid 就退用 url。"""
+    v = ("" if vid is None else str(vid)).strip()
+    if v:
+        return (("" if creator_id is None else str(creator_id)) + "|" + v)
+    u = (url or "").strip()
+    return ("url|" + u) if u else ""
+
+
+def get_extracted_map():
+    """返回 {key: record} 的已提取表（只读副本）。"""
+    store = _load()
+    m = store.get("extracted")
+    return dict(m) if isinstance(m, dict) else {}
+
+
+def is_extracted(creator_id, vid, url=""):
+    """这条视频是否已经送过提取队列。creator_id|vid 命中，或同 url 命中，都算已提取。"""
+    m = get_extracted_map()
+    if not m:
+        return False
+    k = _extract_key(creator_id, vid, url)
+    if k and k in m:
+        return True
+    # 兜底：有时同一视频换了渠道拿到的 creator_id 不同，但 url 一样 → 也认为已提取
+    u = (url or "").strip()
+    if u:
+        for rec in m.values():
+            if (rec or {}).get("url") == u:
+                return True
+    return False
+
+
+def mark_extracted(items):
+    """把若干视频记进「已提取」表。items = [{creator_id, vid, url, title?}]。
+    返回 {ok, added, total}。同一条重复调用只会更新时间，不会重复占位。"""
+    store = _load()
+    m = store.get("extracted")
+    if not isinstance(m, dict):
+        m = {}
+    added = 0
+    for it in (items or []):
+        if not isinstance(it, dict):
+            # 允许直接传 url 字符串
+            it = {"url": str(it)}
+        cid = it.get("creator_id")
+        vid = it.get("vid")
+        url = (it.get("url") or "").strip()
+        k = _extract_key(cid, vid, url)
+        if not k:
+            continue
+        if k not in m:
+            added += 1
+        m[k] = {
+            "creator_id": cid,
+            "vid": ("" if vid is None else str(vid)),
+            "url": url,
+            "title": it.get("title") or "",
+            "at": _now_iso(),
+        }
+    store["extracted"] = m
+    _save(store)
+    return {"ok": True, "added": added, "total": len(m)}
+
+
+def unmark_extracted(items):
+    """从「已提取」表里删除若干条（想重新提取某些视频时用）。
+    items = [{creator_id, vid, url}] 或 [url,...]；items 为空/None 时清空整张表。"""
+    store = _load()
+    m = store.get("extracted")
+    if not isinstance(m, dict):
+        return {"ok": True, "removed": 0, "total": 0}
+    if not items:
+        n = len(m)
+        store["extracted"] = {}
+        _save(store)
+        return {"ok": True, "removed": n, "total": 0}
+    rm_keys, rm_urls = set(), set()
+    for it in items:
+        if isinstance(it, str):
+            rm_urls.add(it.strip())
+            continue
+        if not isinstance(it, dict):
+            continue
+        k = _extract_key(it.get("creator_id"), it.get("vid"), it.get("url") or "")
+        if k:
+            rm_keys.add(k)
+        if it.get("url"):
+            rm_urls.add((it.get("url") or "").strip())
+    removed = 0
+    for k in list(m.keys()):
+        rec = m.get(k) or {}
+        if k in rm_keys or (rec.get("url") and rec.get("url") in rm_urls):
+            del m[k]
+            removed += 1
+    store["extracted"] = m
+    _save(store)
+    return {"ok": True, "removed": removed, "total": len(m)}
+
+
+def _annotate_extracted(items):
+    """给一批 dict（含 creator_id/vid/url）逐条加上 extracted 布尔字段。原地改并返回。"""
+    m = get_extracted_map()
+    if not items:
+        return items
+    # 预备一个 url 集合，加速 url 兜底匹配
+    url_set = set()
+    for rec in m.values():
+        u = (rec or {}).get("url")
+        if u:
+            url_set.add(u)
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        k = _extract_key(it.get("creator_id"), it.get("vid"), it.get("url") or "")
+        hit = bool(k and k in m)
+        if not hit:
+            u = (it.get("url") or "").strip()
+            hit = bool(u and u in url_set)
+        it["extracted"] = hit
+    return items
 
 
 # ──────────────────────── 多博主近 N 天汇总（新版块）────────────────────────
@@ -1162,6 +1416,10 @@ def gather_recent(days=7, refresh=False, per_creator=30, only_enabled=True,
 
     # 排序：窗口内按天数升序（越新越靠前），无日期的排最后
     in_window.sort(key=lambda x: (x["days_ago"], x["creator_title"]))
+
+    # 标注「已提取」：让「按时间看全部」/汇总里，已送过队列的视频显示「已提取」并禁用按钮
+    _annotate_extracted(in_window)
+    _annotate_extracted(undated)
 
     return {
         "ok": True,

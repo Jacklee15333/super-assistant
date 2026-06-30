@@ -1,0 +1,16 @@
+{
+  "id": "auto-20260629-184609-r8g7",
+  "title": "🤖 自动 · 06-29 18:46",
+  "created_at": "2026-06-29T18:47:01",
+  "updated_at": "2026-06-29T18:47:01",
+  "messages": [
+    {
+      "role": "user",
+      "content": "查最新 github 最新的，最热门的开源项目"
+    },
+    {
+      "role": "assistant",
+      "content": "已思考 19s\n截至 **2026-06-29 18:46 PT**，我按两个源交叉看：**GitHub Trending 今日榜** 和 **Trendshift Daily**。GitHub Trending 是 GitHub 官方“今天社区最关注项目”页面；Trendshift 是实时动量榜，偏“正在快速冒头”的项目。[GitHub\n+1](https://github.com/trending)\n\n项目方向热度信号判断\n**DeusData/codebase-memory-mcp**MCP / 代码库记忆 / AI Coding 基建GitHub：20.3k stars，今日 +2,190；Trendshift 也列入今日榜**最值得看**。解决 AI 编程时“代码库上下文太长、token 成本高、检索慢”的核心痛点。[GitHub\n+1](https://github.com/trending)\n**xbtlin/ai-berkshire**AI 投资研究 AgentGitHub：5.9k stars，今日 +1,445；Trendshift 今日榜第 7 附近中文圈爆发很明显。适合观察“垂直领域 Agent 模板化”，但金融 Agent 要谨慎看回测和合规。[GitHub\n+1](https://github.com/trending)\n**simplex-chat/simplex-chat**隐私通信GitHub：15.5k stars，今日 +1,180；Trendshift 今日榜第 4非 AI，但长期价值强。卖点是无用户标识的隐私通信网络。[GitHub\n+1](https://github.com/trending)\n**ripienaar/free-for-dev**开发者免费资源清单GitHub：125.9k stars，今日 +495；Trendshift 今日榜第 1老项目反复上榜，说明开发者对低成本工具、免费额度、基础设施资源仍有强需求。[GitHub\n+1](https://github.com/trending)\n**HKUDS/Vibe-Trading**交易 AgentGitHub：14.6k stars，今日 +492；Trendshift 也列入 AI Agent / Fintech热点强，但金融交易类项目容易被 demo 热度放大，不能只看 stars。[GitHub\n+1](https://github.com/trending)\n**opendatalab/MinerU**PDF / Office 文档解析GitHub：71.9k stars，今日 +380；Trendshift 标注 Document processing很实用。把复杂文档转成 LLM-ready Markdown/JSON，是 RAG、企业知识库、Agent 工作流底座。[GitHub\n+1](https://github.com/trending)\n**browser-use/video-use**AI 视频编辑GitHub：11.3k stars，今日 +196；Trendshift 今日榜第 5对你的视频创作方向有参考价值。核心思路是“让 coding agent 编辑视频”。[GitHub\n+1](https://github.com/trending)\n**usestrix/strix**AI 安全 AgentGitHub：26.9k stars，今日 +122；Trendshift 标注 AI agent / Pentesting防御型安全工具有价值，但要注意边界：授权测试、审计留痕、不要走灰产化。[GitHub\n+1](https://github.com/trending)\n**Robbyant/lingbot-map**3D 重建 / 视觉基础模型GitHub：8.3k stars，今日 +372偏研究和空间智能。适合关注机器人、3D 场景理解、实时重建方向。[GitHub](https://github.com/trending)\n**altic-dev/FluidVoice**本地离线语音转文字GitHub：3.9k stars，今日 +365；Trendshift 也出现本地化语音输入需求明确，尤其适合隐私场景；目前看是 macOS 方向，Windows 侧可能还有空间。[GitHub\n+1](https://github.com/trending)\n**calesthio/OpenMontage**Agentic 视频生产系统Trendshift 今日榜显示：12 pipelines、52 tools、500+ agent skills比 video-use 更偏“完整视频生产系统”。值得和短视频自动剪辑、素材管理、批量生成工作流一起看。[Trendshift](https://trendshift.io/)\n**deepseek-ai/DeepSpec**推理加速 / speculative decodingTrendshift 今日榜偏底层推理优化。不是直接应用项目，但如果做本地模型/推理成本优化，值得跟。[Trendshift](https://trendshift.io/)\n\n我的判断：\n\n今天 GitHub 热门项目的主线很清楚：**AI Coding 基建、Agent 工作流、文档处理、AI 视频生产、AI 安全、金融 Agent**。\n\n最值得优先研究的是 **codebase-memory-mcp、MinerU、browser-use/video-use、OpenMontage、strix**。前两个是基础设施，容易嵌进企业工作流；video-use / OpenMontage 跟内容生产结合紧；strix 属于安全刚需，但商业化要守住授权边界。\n\n如果看创业机会，优先级我排这样：\n\n一句话结论：**今天 GitHub 最热的不是单纯模型项目，而是让 AI 真正接管工作流的基础设施项目。**"
+    }
+  ]
+}
