@@ -290,6 +290,7 @@
                 <option value="accurate" selected>精准（慢）</option>
               </select>
               <button id="videoLocalBtn" class="send-btn" title="从电脑里选一个音频/视频文件，直接提取文字（无需链接、无需下载）" style="background:var(--surface-2,#fff);color:var(--text,#222);border:0.5px solid var(--border,#3a3a3a)">📁 导入本地文件</button>
+              <button id="videoFolderBtn" class="send-btn" title="选一个文件夹，自动找出里面所有音/视频文件（包括子文件夹），逐个提取；还可以顺手统一填作者、把笔记归进同名文件夹" style="background:var(--surface-2,#fff);color:var(--text,#222);border:0.5px solid var(--border,#3a3a3a)">📂 导入文件夹</button>
               <button id="videoGoBtn" class="send-btn">提取并分析</button>
             </div>
 
@@ -298,7 +299,7 @@
               <div class="v-adv-head" id="advHead" role="button" tabindex="0">
                 <span id="advCaret">▸</span>
                 <span>⚙ 高级选项</span>
-                <span style="color:var(--text-dim,#9aa);font-weight:400">（插图 · 跳转原片 · 字幕模式，可先「测一下」看能不能用）</span>
+                <span style="color:var(--text-dim,#9aa);font-weight:400">（插图 · 跳转原片 · 字幕模式 · 是否AI分析，可先「测一下」看能不能用）</span>
               </div>
               <div class="v-adv-body" id="advBody">
 
@@ -342,6 +343,18 @@
                   <button type="button" class="v-test-btn" data-test="sub">测一下</button>
                   <span class="v-badge" id="badge-sub"></span>
                   <div class="v-info-pop" id="info-sub" style="position:static;display:none;max-width:none;margin-top:6px;box-shadow:none">有字幕的视频（B站/YouTube）能直接用现成字幕，又快又准；抖音等没字幕的会自动听写。「自动」最省心；「只用字幕」最快但没字幕时回退听写；「字幕+视频听写」最准最全。粘好链接点「测一下」可真实探测这个视频有没有字幕。</div>
+                </div>
+
+                <!-- 提取后是否自动 AI 分析（新增）-->
+                <div class="v-opt-row">
+                  <span class="v-opt-main">
+                    <label class="video-opt" style="margin:0">
+                      <input type="checkbox" id="videoAnalyze" checked /> 🤖 提取后自动 AI 分析
+                    </label>
+                    <button type="button" class="v-info-btn" data-info="info-analyze" title="说明">ⓘ</button>
+                  </span>
+                  <span class="v-badge" id="badge-analyze"></span>
+                  <div class="v-info-pop" id="info-analyze" style="position:static;display:none;max-width:none;margin-top:6px;box-shadow:none">默认勾选：提取完立刻让 AI 总结成笔记（和以前一样）。<b>取消勾选</b>则只提取并保存文字稿、完全不调用 AI——适合 AI 正被别的软件占用的时候；之后随时到「已存的视频笔记」里点该条右侧的「🤖 AI 分析」补做，效果和当场分析一样。注意：不勾选时「插图」不可用（视频画面用完即删，事后补不了图）；「跳转原片」不受影响，补分析时会自动带上。</div>
                 </div>
 
               </div>
@@ -843,13 +856,22 @@
 
             /* ===== 稳定布局：左右两卡等高、右侧两个子标签切换尺寸不变 =====
                （修复问题1：右卡高度由两 tab 共用、不再写死一个值；小屏自适应）*/
-            .view-sniff .cw-rightcard{height:720px;display:flex;flex-direction:column;overflow:hidden}
+            .view-sniff .cw-rightcard{height:calc(100vh - 130px);min-height:600px;display:flex;flex-direction:column;overflow:hidden}
             .view-sniff .cw-worktab-pane{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
             .view-sniff .cw-worktab-pane[hidden]{display:none!important}
             .view-sniff #cwDigestView,.view-sniff #cwVideoView{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
             .view-sniff #cwDigestView[hidden],.view-sniff #cwVideoView[hidden]{display:none!important}
             .view-sniff .cw-rightcard .cw-scroll{flex:1 1 auto;min-height:0;max-height:none;overflow-y:auto;overflow-x:hidden;padding-right:4px}
-            @media (max-height:820px){.view-sniff .cw-rightcard{height:calc(100vh - 150px);min-height:480px}}
+            @media (max-height:820px){.view-sniff .cw-rightcard{height:calc(100vh - 130px);min-height:480px}}
+
+            /* ===== 「按时间看全部」每个博主分组：可点击折叠/展开 ===== */
+            .view-sniff .dg-group-head{cursor:pointer;user-select:none}
+            .view-sniff .dg-group-head:hover{background:var(--sn-hover)}
+            .view-sniff .dg-group-caret{margin-left:auto;font-size:11px;color:var(--text-dim);transition:transform .2s;flex:0 0 auto;padding-left:8px}
+            .view-sniff .dg-group.collapsed .dg-group-caret{transform:rotate(-90deg)}
+            .view-sniff .dg-group.collapsed .dg-group-body{display:none}
+            .view-sniff .dg-group-cnt{flex:0 0 auto}
+            .view-sniff .dg-group-cnt-none{background:transparent;border:1px solid var(--line);color:var(--text-dim);font-weight:400}
 
             /* ===== 左侧「博主列表」折叠卡（修复问题4：折叠头与列表断开）=====
                把折叠头 + 列表包成一张连续的卡，头在上、体在下，视觉连为一体 */

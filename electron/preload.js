@@ -12,6 +12,10 @@ contextBridge.exposeInMainWorld("crayfish", {
   // 导入本地音/视频文件：弹原生选择框，返回选中文件的绝对路径数组
   pickMediaFiles: () => ipcRenderer.invoke("pick-media-files"),
 
+  // 导入本地文件夹：弹目录选择框，自动递归找出里面所有音/视频文件
+  // 返回 { name, folder, files } 或 null（用户取消）
+  pickMediaFolder: () => ipcRenderer.invoke("pick-media-folder"),
+
   // 主窗里也能控制桌宠（设置面板用）：改形象 / 开关 / 让它说话 / 切换显示
   petApplyConfig: (patch) => ipcRenderer.invoke("pet-apply-config", patch),
   petToggle: () => ipcRenderer.invoke("pet-toggle"),

@@ -701,3 +701,43 @@ ipcMain.handle("pick-media-files", async () => {
     return [];
   }
 });
+
+// 导入整个文件夹：弹目录选择框，递归扫描里面的音/视频文件后返回列表。
+// 下载的视频经常是「一个视频一个子文件夹」，所以必须往下钻子目录（最多 4 层），
+// 上限 500 个文件防失控。返回 { name: 文件夹名, folder: 绝对路径, files: [绝对路径…] }，
+// 用户取消则返回 null。
+ipcMain.handle("pick-media-folder", async () => {
+  const MEDIA_EXTS = new Set([
+    ".mp4", ".mov", ".mkv", ".avi", ".flv", ".webm", ".wmv", ".m4v", ".ts",
+    ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".wma", ".amr",
+  ]);
+  try {
+    const r = await dialog.showOpenDialog(mainWindow, {
+      title: "选择一个文件夹（会自动找出里面所有音/视频，包括子文件夹）",
+      properties: ["openDirectory"],
+    });
+    if (r.canceled || !r.filePaths || !r.filePaths.length) return null;
+    const root = r.filePaths[0];
+    const files = [];
+    const walk = (dir, depth) => {
+      if (depth > 4 || files.length >= 500) return;
+      let ents = [];
+      try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch (_) { return; }
+      for (const ent of ents) {
+        if (files.length >= 500) return;
+        const p = path.join(dir, ent.name);
+        if (ent.isDirectory()) {
+          walk(p, depth + 1);
+        } else if (ent.isFile()
+                   && MEDIA_EXTS.has(path.extname(ent.name).toLowerCase())) {
+          files.push(p);
+        }
+      }
+    };
+    walk(root, 0);
+    files.sort();
+    return { name: path.basename(root), folder: root, files };
+  } catch (e) {
+    return null;
+  }
+});

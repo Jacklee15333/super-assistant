@@ -1512,6 +1512,41 @@ document.getElementById("videoUrl")?.addEventListener("input", (e) => {
   }
 });
 
+// ── 「提取后自动 AI 分析」开关（高级选项）：记住上次选择 + 联动禁用「插图」──
+// 取消勾选 = 只提取并保存文字稿、完全不调 AI（适合 AI 正被别的软件占用时）；
+// 此时「插图」置灰（视频画面用完即删，事后补不了图），「跳转原片」不受影响。
+(function initVideoAnalyzeOpt() {
+  const an = document.getElementById("videoAnalyze");
+  if (!an) return;
+  const shot = document.getElementById("videoShot");
+  try {
+    const v = localStorage.getItem("videoAutoAnalyze");
+    if (v !== null) an.checked = (v === "1");
+  } catch (_) {}
+  function sync() {
+    try { localStorage.setItem("videoAutoAnalyze", an.checked ? "1" : "0"); } catch (_) {}
+    if (shot) {
+      if (!an.checked) {
+        shot.checked = false;
+        shot.disabled = true;
+        if (shot.parentElement) {
+          shot.parentElement.style.opacity = "0.45";
+          shot.parentElement.title =
+            "「仅提取文字稿」模式下插图不可用（视频画面用完即删，事后补不了图）";
+        }
+      } else {
+        shot.disabled = false;
+        if (shot.parentElement) {
+          shot.parentElement.style.opacity = "";
+          shot.parentElement.title = "";
+        }
+      }
+    }
+  }
+  an.addEventListener("change", sync);
+  sync();
+})();
+
 let _statusLockUntil = 0;   // 在此时间戳前，低优先级状态更新（如轮询）不覆盖横幅
 function setVideoStatus(text, kind, opts) {
   opts = opts || {};
@@ -1716,7 +1751,11 @@ async function startVideoJob(url, level) {
     // 读「插图 / 跳转原片」开关（不存在就当未勾选）
     const shotEl = document.getElementById("videoShot");
     const linkEl = document.getElementById("videoLink");
-    const screenshot = !!(shotEl && shotEl.checked);
+    // 读「提取后自动 AI 分析」开关（不存在就当勾选=老行为）；
+    // 不勾时只提取文字稿、完全不调 AI，插图也随之不可用。
+    const anEl = document.getElementById("videoAnalyze");
+    const analyze = !anEl || !!anEl.checked;
+    const screenshot = analyze && !!(shotEl && shotEl.checked);
     const link = !!(linkEl && linkEl.checked);
     // 读字幕模式（auto / subtitle_only / transcribe），默认 auto
     const modeEl = document.getElementById("videoSubMode");
@@ -1755,7 +1794,7 @@ async function startVideoJob(url, level) {
     const resp = await fetch(BACKEND + "/video_transcribe", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url, level, use_local: s.use_local, model: s.model,
-                             screenshot, link, mode }),
+                             screenshot, link, mode, analyze }),
     });
     const data = await resp.json();
 
@@ -1786,22 +1825,34 @@ async function startVideoJob(url, level) {
 }
 
 // ── 本地文件导入：从电脑里选音/视频文件，直接提取文字（无需链接、无需下载）──
-async function startLocalVideoJob(filePath) {
+// author：本地文件没有作者信息，导入时用户可统一填一个（可空）；
+// noteFolder：提取出的笔记自动归进这个笔记文件夹（可空 = 不归组）；
+// opts：{level, analyze, screenshot, link} 覆盖面板设置（导入设置弹层传入，只对这批生效）。
+async function startLocalVideoJob(filePath, author, noteFolder, opts) {
+  opts = opts || {};
   const resultEl = document.getElementById("videoResult");
   setVideoStatus("正在提交本地文件…");
   try {
     const s = settings();
-    const level = (document.getElementById("videoLevel") || {}).value || "balanced";
+    const level = opts.level ||
+      (document.getElementById("videoLevel") || {}).value || "balanced";
     const shotEl = document.getElementById("videoShot");
     const linkEl = document.getElementById("videoLink");
-    const screenshot = !!(shotEl && shotEl.checked);
-    const link = !!(linkEl && linkEl.checked);
+    const anEl = document.getElementById("videoAnalyze");
+    const analyze = (typeof opts.analyze === "boolean")
+      ? opts.analyze : (!anEl || !!anEl.checked);
+    const screenshot = analyze && ((typeof opts.screenshot === "boolean")
+      ? opts.screenshot : !!(shotEl && shotEl.checked));
+    const link = (typeof opts.link === "boolean")
+      ? opts.link : !!(linkEl && linkEl.checked);
 
     const resp = await fetch(BACKEND + "/video_transcribe", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ local_path: filePath, level,
                              use_local: s.use_local, model: s.model,
-                             screenshot, link }),
+                             screenshot, link, analyze,
+                             author: (author || "").trim(),
+                             note_folder: (noteFolder || "").trim() }),
     });
     const data = await resp.json();
 
@@ -1829,8 +1880,199 @@ async function startLocalVideoJob(filePath) {
   }
 }
 
-// 点「📁 导入本地文件」：弹原生文件选择框，可一次选多个，逐个入队
-async function pickAndImportLocal() {
+// ── 页面内输入弹层 ──
+// Electron 里 window.prompt() 被禁用（confirm/alert 可用，prompt 不行），
+// 所以自己做一个。返回 Promise：点确定 → 输入的字符串（可为空串）；
+// 点取消 / Esc / 点遮罩 → null。用法和 prompt 一致，只是要 await。
+function askText(opts) {
+  opts = opts || {};
+  return new Promise((resolve) => {
+    const old = document.getElementById("cxAskText");
+    if (old) old.remove();
+    const wrap = document.createElement("div");
+    wrap.id = "cxAskText";
+    wrap.style.cssText =
+      "position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.35);" +
+      "display:flex;align-items:center;justify-content:center";
+    const box = document.createElement("div");
+    box.style.cssText =
+      "background:var(--surface-2,#fff);color:var(--text,#222);" +
+      "border:0.5px solid var(--border,#3a3a3a);border-radius:12px;" +
+      "box-shadow:0 12px 40px rgba(0,0,0,.25);padding:16px 18px;" +
+      "width:min(420px,86vw)";
+    const title = document.createElement("div");
+    title.style.cssText = "font-size:14px;font-weight:600;margin:0 0 6px";
+    title.textContent = opts.title || "请输入";
+    box.appendChild(title);
+    if (opts.desc) {
+      const desc = document.createElement("div");
+      desc.style.cssText =
+        "font-size:12.5px;color:var(--text-dim,#9aa);line-height:1.6;" +
+        "margin:0 0 10px;white-space:pre-line";
+      desc.textContent = opts.desc;
+      box.appendChild(desc);
+    }
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "text-input";
+    input.style.cssText = "width:100%;box-sizing:border-box";
+    input.value = opts.value || "";
+    input.placeholder = opts.placeholder || "";
+    box.appendChild(input);
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;justify-content:flex-end;gap:8px;margin-top:12px";
+    const cancel = document.createElement("button");
+    cancel.textContent = opts.cancelText || "取消";
+    cancel.style.cssText =
+      "border:0.5px solid var(--border,#3a3a3a);background:transparent;" +
+      "color:var(--text,#222);border-radius:8px;padding:6px 14px;" +
+      "font-size:13px;cursor:pointer";
+    const ok = document.createElement("button");
+    ok.className = "send-btn";
+    ok.textContent = opts.okText || "确定";
+    row.appendChild(cancel); row.appendChild(ok);
+    box.appendChild(row);
+    wrap.appendChild(box);
+    const done = (val) => { try { wrap.remove(); } catch (_) {} resolve(val); };
+    cancel.addEventListener("click", () => done(null));
+    ok.addEventListener("click", () => done(input.value));
+    wrap.addEventListener("click", (e) => { if (e.target === wrap) done(null); });
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); done(input.value); }
+      else if (e.key === "Escape") { e.preventDefault(); done(null); }
+    });
+    document.body.appendChild(wrap);
+    setTimeout(() => { input.focus(); input.select(); }, 0);
+  });
+}
+
+// ── 导入设置弹层 ──
+// 选好文件/文件夹后先弹这个设置界面：作者、归档文件夹、质量、是否自动 AI 分析、插图，
+// 都确认好了点「开始提取」才真正开工。默认值取自面板里的高级选项，
+// 但这里改的只对这一批导入生效，不会动面板设置。
+// 返回 Promise：确定 → {author, noteFolder, level, analyze, screenshot}；取消 → null。
+function askImportOptions(cfg) {
+  cfg = cfg || {};
+  return new Promise((resolve) => {
+    const old = document.getElementById("cxImportOpts");
+    if (old) old.remove();
+    const wrap = document.createElement("div");
+    wrap.id = "cxImportOpts";
+    wrap.style.cssText =
+      "position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.35);" +
+      "display:flex;align-items:center;justify-content:center";
+    const box = document.createElement("div");
+    box.style.cssText =
+      "background:var(--surface-2,#fff);color:var(--text,#222);" +
+      "border:0.5px solid var(--border,#3a3a3a);border-radius:12px;" +
+      "box-shadow:0 12px 40px rgba(0,0,0,.25);padding:16px 18px;" +
+      "width:min(470px,88vw)";
+    const h = document.createElement("div");
+    h.style.cssText = "font-size:14px;font-weight:600;margin:0 0 6px";
+    h.textContent = "导入设置 · 共 " + (cfg.count || 0) + " 个文件";
+    box.appendChild(h);
+    const d = document.createElement("div");
+    d.style.cssText =
+      "font-size:12.5px;color:var(--text-dim,#9aa);line-height:1.6;" +
+      "margin:0 0 12px;white-space:pre-line";
+    d.textContent =
+      (cfg.source ? ("来自文件夹「" + cfg.source + "」（含子文件夹）。\n") : "") +
+      "确认下面的设置后点「开始提取」。这些设置只对这一批生效，不会改动面板里的高级选项。";
+    box.appendChild(d);
+
+    const row = (label, ctrl) => {
+      const r = document.createElement("div");
+      r.style.cssText = "display:flex;align-items:center;gap:10px;margin:0 0 10px";
+      const l = document.createElement("span");
+      l.style.cssText = "flex:0 0 96px;font-size:13px;color:var(--text-dim,#9aa)";
+      l.textContent = label;
+      r.appendChild(l); r.appendChild(ctrl);
+      box.appendChild(r);
+    };
+    const mkInput = (val, ph) => {
+      const i = document.createElement("input");
+      i.type = "text"; i.className = "text-input";
+      i.style.cssText = "flex:1 1 auto;min-width:0;box-sizing:border-box";
+      i.value = val || ""; i.placeholder = ph || "";
+      return i;
+    };
+    const authorIn = mkInput(cfg.targetFolder || cfg.source || "", "作者名（可留空）");
+    row("👤 作者", authorIn);
+    const folderIn = mkInput(cfg.targetFolder || cfg.source || "",
+                             "笔记文件夹（留空 = 不归组）");
+    row("📂 归入文件夹", folderIn);
+
+    const levelSel = document.createElement("select");
+    levelSel.className = "text-input";
+    levelSel.style.cssText = "flex:1 1 auto";
+    [["speed", "快速（糙）"], ["balanced", "均衡（推荐）"],
+     ["accurate", "精准（慢）"]].forEach(([v, t]) => {
+      const o = document.createElement("option");
+      o.value = v; o.textContent = t; levelSel.appendChild(o);
+    });
+    levelSel.value = (document.getElementById("videoLevel") || {}).value || "accurate";
+    row("🎚 质量", levelSel);
+
+    const mkCheck = (label, checked) => {
+      const lab = document.createElement("label");
+      lab.style.cssText =
+        "display:flex;align-items:center;gap:7px;font-size:13px;cursor:pointer;flex:1 1 auto";
+      const c = document.createElement("input");
+      c.type = "checkbox"; c.checked = !!checked;
+      const sp = document.createElement("span");
+      sp.textContent = label;
+      lab.appendChild(c); lab.appendChild(sp);
+      return { lab, c };
+    };
+    const anEl0 = document.getElementById("videoAnalyze");
+    const an = mkCheck("提取后自动 AI 分析（取消 = 只存文字稿，之后可在笔记列表补做）",
+                       !anEl0 || anEl0.checked);
+    row("🤖 AI 分析", an.lab);
+    const shotEl0 = document.getElementById("videoShot");
+    const shot = mkCheck("插图（自动截取关键画面，稍慢）", !!(shotEl0 && shotEl0.checked));
+    row("🖼 插图", shot.lab);
+    const syncShot = () => {
+      if (!an.c.checked) {
+        shot.c.checked = false; shot.c.disabled = true; shot.lab.style.opacity = "0.45";
+        shot.lab.title = "不做 AI 分析就没有截图标记，插图不可用";
+      } else {
+        shot.c.disabled = false; shot.lab.style.opacity = ""; shot.lab.title = "";
+      }
+    };
+    an.c.addEventListener("change", syncShot);
+    syncShot();
+
+    const btns = document.createElement("div");
+    btns.style.cssText = "display:flex;justify-content:flex-end;gap:8px;margin-top:14px";
+    const cancel = document.createElement("button");
+    cancel.textContent = "取消";
+    cancel.style.cssText =
+      "border:0.5px solid var(--border,#3a3a3a);background:transparent;" +
+      "color:var(--text,#222);border-radius:8px;padding:6px 14px;" +
+      "font-size:13px;cursor:pointer";
+    const ok = document.createElement("button");
+    ok.className = "send-btn"; ok.textContent = "开始提取";
+    btns.appendChild(cancel); btns.appendChild(ok);
+    box.appendChild(btns);
+    wrap.appendChild(box);
+    const done = (val) => { try { wrap.remove(); } catch (_) {} resolve(val); };
+    cancel.addEventListener("click", () => done(null));
+    wrap.addEventListener("click", (e) => { if (e.target === wrap) done(null); });
+    ok.addEventListener("click", () => done({
+      author: (authorIn.value || "").trim().slice(0, 40),
+      noteFolder: (folderIn.value || "").trim().slice(0, 30),
+      level: levelSel.value || "balanced",
+      analyze: !!an.c.checked,
+      screenshot: !!(an.c.checked && shot.c.checked),
+    }));
+    document.body.appendChild(wrap);
+    setTimeout(() => { authorIn.focus(); authorIn.select(); }, 0);
+  });
+}
+
+// 点「📁 导入本地文件」：弹原生文件选择框 → 导入设置弹层 → 确认后逐个入队。
+// targetFolder：从某个笔记文件夹的 📥 进来时传入，归档文件夹默认填它。
+async function pickAndImportLocal(targetFolder) {
   try {
     if (!window.crayfish || typeof window.crayfish.pickMediaFiles !== "function") {
       setVideoStatus("当前版本不支持本地导入（请更新 main.js / preload.js 后重启）。", "warn");
@@ -1838,14 +2080,57 @@ async function pickAndImportLocal() {
     }
     const paths = await window.crayfish.pickMediaFiles();
     if (!paths || !paths.length) return;   // 用户取消
+    const o = await askImportOptions({
+      count: paths.length, source: "", targetFolder: targetFolder || "" });
+    if (!o) return;   // 取消 = 不导入
+    if (o.noteFolder) vnSetFolderOpen(o.noteFolder, true);   // 展开，方便看到成品进来
     for (const p of paths) {
-      await startLocalVideoJob(p);
+      await startLocalVideoJob(p, o.author, o.noteFolder, o);
     }
+    setVideoStatus("📁 已提交 " + paths.length + " 个文件进队列，将逐个提取"
+                   + (o.noteFolder ? ("，完成的笔记会自动归进「" + o.noteFolder + "」") : "")
+                   + (o.analyze ? "" : "（仅提取文字稿，不做 AI 分析）") + "。",
+                   "ok", { priority: true, holdMs: 6000 });
   } catch (e) {
     setVideoStatus("选文件出错：" + (e && e.message ? e.message : e), "warn");
   }
 }
-document.getElementById("videoLocalBtn")?.addEventListener("click", pickAndImportLocal);
+document.getElementById("videoLocalBtn")?.addEventListener("click", () => pickAndImportLocal());
+
+// 点「📂 导入文件夹」：选磁盘文件夹 → 自动递归找出所有音/视频（含子文件夹，
+// 抖音下载工具常常一个视频一个子文件夹）→ 导入设置弹层 → 确认后逐个入队。
+// targetFolder：从某个笔记文件夹的 📥 进来时传入，归档文件夹默认填它。
+async function pickAndImportFolder(targetFolder) {
+  try {
+    if (!window.crayfish || typeof window.crayfish.pickMediaFolder !== "function") {
+      setVideoStatus("当前版本不支持导入文件夹（请更新 main.js / preload.js 后重启软件）。", "warn");
+      return;
+    }
+    const r = await window.crayfish.pickMediaFolder();
+    if (!r) return;   // 用户取消
+    if (!r.files || !r.files.length) {
+      setVideoStatus("「" + (r.name || "这个文件夹") + "」里没找到音/视频文件（已自动搜过子文件夹）。", "warn");
+      return;
+    }
+    const o = await askImportOptions({
+      count: r.files.length, source: r.name || "",
+      targetFolder: targetFolder || "" });
+    if (!o) return;   // 取消 = 整个不导入
+    if (o.noteFolder) vnSetFolderOpen(o.noteFolder, true);   // 展开，方便看到成品进来
+    let n = 0;
+    for (const p of r.files) {
+      await startLocalVideoJob(p, o.author, o.noteFolder, o);
+      n++;
+    }
+    setVideoStatus("📂 已提交 " + n + " 个文件进队列，将逐个提取"
+                   + (o.noteFolder ? ("，完成的笔记会自动归进「" + o.noteFolder + "」") : "")
+                   + (o.analyze ? "" : "（仅提取文字稿，不做 AI 分析）") + "。",
+                   "ok", { priority: true, holdMs: 6000 });
+  } catch (e) {
+    setVideoStatus("导入文件夹出错：" + (e && e.message ? e.message : e), "warn");
+  }
+}
+document.getElementById("videoFolderBtn")?.addEventListener("click", () => pickAndImportFolder());
 
 function parseVideoPercent(detail) {
   const m = (detail || "").match(/(\d+)\s*%/);
@@ -1875,9 +2160,14 @@ function expandableLabel(full, limit) {
     '" title="点击展开/折叠完整名称，或鼠标悬停查看">' + safeShort + "</span>";
 }
 
+let _videoQueueExpanded = false;   // 排队列表是否展开（默认折叠，只显示前几个）
+let _lastVideoTasksP = null;       // 最近一次进度数据：点展开/收起时立即用它重绘
+const VQ_SHOW_N = 3;               // 折叠状态下显示的排队条数
+
 function renderVideoTasks(p) {
   const el = document.getElementById("videoTasks");
   if (!el) return;
+  _lastVideoTasksP = p;
   // 内容指纹：任务状态/进度/队列没变化时跳过重渲染，避免每 1.2 秒重建 DOM、
   // 把用户正在悬停或点开的视频名重置掉。注意：不含 elapsed（它每秒变），
   // 已用时秒数改为单独更新那个 span，不重建整块。
@@ -1885,6 +2175,7 @@ function renderVideoTasks(p) {
     const sig = JSON.stringify({
       r: !!p.running, s: p.stage, d: p.detail,
       c: p.current_label || p.current_url,
+      e: _videoQueueExpanded,
       q: (p.queue || []).map((x) => (x && typeof x === "object") ? (x.title || x.url) : x),
     });
     if (el.dataset.sig === sig) {
@@ -1909,12 +2200,28 @@ function renderVideoTasks(p) {
       '<div class="vtask-top"><span class="vt-badge">生成中</span> ' +
       escapeHtml(stage + detail) +
       ' <span class="vt-time">已用时 ' + (p.elapsed || 0) + ' 秒</span>' +
-      '<button class="vt-cancel" id="vtCancelBtn" title="取消当前任务并清空队列">✕ 取消</button>' +
+      '<button class="vt-cancel" id="vtCancelBtn" title="停止正在进行的任务并清空全部排队（几秒内生效；已识别的进度会保留，同一链接下次可续传）">✕ 全部取消</button>' +
       '</div>' +
       bar +
       '<div class="vt-namewrap">🎬 ' + expandableLabel(curName, 40) + '</div></div>';
   }
-  (p.queue || []).forEach((item, i) => {
+  // ── 排队列表：条数多时默认折叠（只显示前 VQ_SHOW_N 个），点一行提示展开/收起，
+  //    免得导入一个文件夹进来几十条，把下面「已存的视频笔记」顶到看不见。──
+  const queue = p.queue || [];
+  if (queue.length === 0) _videoQueueExpanded = false;   // 队列清空 → 下一批默认折叠
+  const collapsible = queue.length > VQ_SHOW_N;
+  const collapsedNow = collapsible && !_videoQueueExpanded;
+  const shown = collapsedNow ? queue.slice(0, VQ_SHOW_N) : queue;
+  const toggleRow = (label) =>
+    '<div class="vq-toggle" style="text-align:center;padding:7px 10px;margin:2px 0 6px;' +
+    'border:0.5px dashed var(--border,#3a3a3a);border-radius:9px;' +
+    'color:var(--text-dim,#9aa);font-size:12.5px;cursor:pointer;user-select:none">' +
+    label + '</div>';
+  if (collapsible && _videoQueueExpanded) {
+    // 展开状态：顶部先给一个收起入口（几十条时不用拖到最底下才能收）
+    h += toggleRow("▴ 收起排队列表（只显示前 " + VQ_SHOW_N + " 个）");
+  }
+  shown.forEach((item, i) => {
     // 队列项现在是 {url, title} 对象；兼容老格式（纯字符串）
     let name = "", hasTitle = false;
     if (item && typeof item === "object") {
@@ -1933,9 +2240,22 @@ function renderVideoTasks(p) {
       '<div class="vbar"><div class="vbar-fill q"></div></div>' +
       '<div class="vt-namewrap">🎬 ' + expandableLabel(name, 36) + tip + '</div></div>';
   });
+  if (collapsedNow) {
+    h += toggleRow("▾ 还有 " + (queue.length - VQ_SHOW_N) + " 个在排队，点击展开全部");
+  } else if (collapsible) {
+    h += toggleRow("▴ 收起");
+  }
   el.innerHTML = h;
   const cancelBtn = document.getElementById("vtCancelBtn");
   if (cancelBtn) cancelBtn.addEventListener("click", cancelVideoJobs);
+  // 排队列表的展开/收起：点提示行切换，并立刻用最近一次数据重绘
+  el.querySelectorAll(".vq-toggle").forEach((t) => {
+    t.addEventListener("click", () => {
+      _videoQueueExpanded = !_videoQueueExpanded;
+      el.dataset.sig = "";
+      renderVideoTasks(_lastVideoTasksP || p);
+    });
+  });
   // 给可展开的视频名绑定交互：
   //  · 点击 = 锁定展开/折叠（再点取消锁定）
   //  · 悬停 = 临时展开；移开 = 折叠回去（但若已点击锁定展开，则保持）
@@ -1955,14 +2275,15 @@ function renderVideoTasks(p) {
   });
 }
 
-// 取消当前视频任务 + 清空队列
+// 全部取消：中断当前正在跑的任务 + 清空排队
 async function cancelVideoJobs() {
   const btn = document.getElementById("vtCancelBtn");
   if (btn) { btn.disabled = true; btn.textContent = "取消中…"; }
   try {
     await fetch(BACKEND + "/video_cancel", { method: "POST",
       headers: { "Content-Type": "application/json" }, body: "{}" });
-    setVideoStatus("已请求取消，正在停止当前任务…", "warn");
+    setVideoStatus("🛑 已请求全部取消：排队已清空，正在中断当前任务（几秒内生效）…", "warn",
+                   { priority: true, holdMs: 5000 });
   } catch (e) {
     setVideoStatus("取消出错：" + e.message, "warn");
   }
@@ -1988,6 +2309,11 @@ function pollVideoProgress() {
           mountVideoResult(res);
           loadVideoNotes();
           _lastDoneTitle = (res.title || "").trim();
+        } else if (res.cancelled) {
+          // 用户主动取消的：不当成失败吓人
+          _lastDoneTitle = "";
+          setVideoStatus("🛑 已全部取消（已识别的进度会保留，同一链接下次可续传）。", "ok",
+                         { priority: true, holdMs: 6000 });
         } else if (res.error) {
           // 失败的也要让用户知道，而不是悄无声息
           _lastDoneTitle = "";
@@ -2027,7 +2353,9 @@ function pollVideoProgress() {
         renderVideoTasks({ running: false, queue: [] });
         _lastRunningUrl = "";
         const res = p.result || {};
-        if (res.ok || _lastDoneTitle) {
+        if (res.cancelled) {
+          setVideoStatus("🛑 已全部取消（已识别的进度会保留，同一链接下次可续传）。", "ok");
+        } else if (res.ok || _lastDoneTitle) {
           const t = _lastDoneTitle ? `：《${_lastDoneTitle.slice(0, 24)}》` : "";
           setVideoStatus(`🎉 全部完成，已自动存档${t}`, "ok");
         } else if (res.error) {
@@ -3078,55 +3406,372 @@ async function loadVideoNotes() {
     const resp = await fetch(BACKEND + "/video_notes");
     const data = await resp.json();
     const notes = data.notes || [];
-    if (notes.length === 0) {
-      list.innerHTML = "<div class='dash-empty'>还没有视频笔记。在上面粘个链接试试。</div>";
+    const folders = data.folders || [];
+    list.innerHTML = "";
+
+    // 顶部小工具条：新建文件夹（把同一作者/同一主题的笔记归到一起）
+    const bar = document.createElement("div");
+    bar.style.cssText = "display:flex;justify-content:flex-end;margin:0 0 8px";
+    const nf = document.createElement("button");
+    nf.textContent = "＋ 新建文件夹";
+    nf.title = "建一个文件夹，把同一作者 / 同一主题的笔记归到一起（笔记右侧的 📂 可移入）";
+    nf.style.cssText =
+      "border:0.5px solid var(--border,#3a3a3a);background:transparent;" +
+      "color:var(--text-dim,#9aa);border-radius:7px;padding:3px 10px;" +
+      "font-size:12px;cursor:pointer";
+    nf.addEventListener("click", async () => {
+      const v = await askText({
+        title: "新建文件夹",
+        desc: "给新文件夹起个名字（比如作者名 / 主题）。建好后点笔记右侧的 📂 就能把笔记移进来。",
+        placeholder: "文件夹名",
+        okText: "创建",
+      });
+      if (v === null) return;
+      const name = v.trim();
+      if (!name) return;
+      const d = await vnFolderOp({ op: "create", name });
+      if (d && d.ok) { vnSetFolderOpen(name, true); loadVideoNotes(); }
+    });
+    bar.appendChild(nf);
+    list.appendChild(bar);
+
+    if (notes.length === 0 && folders.length === 0) {
+      const em = document.createElement("div");
+      em.className = "dash-empty";
+      em.textContent = "还没有视频笔记。在上面粘个链接试试。";
+      list.appendChild(em);
       return;
     }
-    list.innerHTML = "";
+
+    // 按文件夹分组：mapping 指向的文件夹必须真实存在，否则算未分组
+    const byFolder = {};
+    const ungrouped = [];
     notes.forEach((n) => {
-      const item = document.createElement("div");
-      item.className = "video-note-item";
-      const name = document.createElement("span");
-      name.className = "vn-name";
-      name.textContent = n.title || n.name;
-      name.title = n.title || n.name;   // 鼠标悬停看完整标题
-      name.addEventListener("click", () => openVideoNote(n.name));
-      item.appendChild(name);
-      // 作者名（蓝色醒目，和标题平级、永不被截断；有真实昵称才显示，纯数字 ID/空 后端已过滤）
-      if (n.author) {
-        const au = document.createElement("span");
-        au.className = "vn-author";
-        au.textContent = "👤 " + n.author;
-        au.title = "作者：" + n.author;
-        au.addEventListener("click", () => openVideoNote(n.name));
-        item.appendChild(au);
+      if (n.folder && folders.indexOf(n.folder) >= 0) {
+        (byFolder[n.folder] = byFolder[n.folder] || []).push(n);
       } else {
-        // 没存到作者：显示灰色占位，保持每条右侧整齐
-        const au = document.createElement("span");
-        au.className = "vn-author vn-author-none";
-        au.textContent = "（无作者）";
-        au.title = "这条笔记当初提取时没抓到作者";
-        item.appendChild(au);
+        ungrouped.push(n);
       }
-      const del = document.createElement("button");
-      del.className = "vn-del"; del.textContent = "🗑"; del.title = "删除这条笔记";
-      del.addEventListener("click", async (e) => {
-        e.stopPropagation();
-        if (!confirm("删除这条视频笔记？")) return;
-        try {
-          await fetch(BACKEND + "/video_note_delete", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: n.name }),
-          });
-          loadVideoNotes();
-        } catch (_) {}
-      });
-      item.appendChild(del);
-      list.appendChild(item);
     });
+
+    // 先渲染各文件夹（可折叠，默认收起，记住展开状态），再渲染未分组的散笔记
+    folders.forEach((f) => {
+      const items = byFolder[f] || [];
+      const open = vnFolderIsOpen(f);
+
+      const box = document.createElement("div");
+      box.style.cssText = "margin:2px 0 6px 16px" + (open ? "" : ";display:none");
+
+      const head = document.createElement("div");
+      head.className = "video-note-item";
+      head.style.cssText = "cursor:pointer;background:rgba(120,120,130,.07);font-weight:600";
+      const caret = document.createElement("span");
+      caret.textContent = open ? "▾" : "▸";
+      caret.style.cssText = "flex:0 0 auto;color:var(--text-dim,#9aa)";
+      const fn = document.createElement("span");
+      fn.className = "vn-name";
+      fn.textContent = "📂 " + f;
+      fn.title = "点击展开 / 收起";
+      const cnt = document.createElement("span");
+      cnt.style.cssText = "flex:0 0 auto;color:var(--text-dim,#9aa);font-weight:400;font-size:12px";
+      cnt.textContent = "（" + items.length + " 条）";
+      const im = document.createElement("button");
+      im.className = "vn-del"; im.textContent = "📥";
+      im.title = "导入到这个文件夹：选文件或选整个文件夹，提取出的笔记自动归进「" + f + "」";
+      im.addEventListener("click", (e) => {
+        e.stopPropagation();
+        showVnImportMenu(im, f);
+      });
+      const rn = document.createElement("button");
+      rn.className = "vn-del"; rn.textContent = "✎"; rn.title = "重命名文件夹";
+      rn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const v = await askText({
+          title: "重命名文件夹",
+          value: f,
+          placeholder: "新名字",
+          okText: "改名",
+        });
+        if (v === null) return;
+        const nn = v.trim();
+        if (!nn || nn === f) return;
+        const d = await vnFolderOp({ op: "rename", name: f, new_name: nn });
+        if (d && d.ok) { vnRenameOpenState(f, nn); loadVideoNotes(); }
+      });
+      const fd = document.createElement("button");
+      fd.className = "vn-del"; fd.textContent = "🗑";
+      fd.title = "删除文件夹（里面的笔记不会被删，只是回到外面的列表）";
+      fd.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (!confirm("删除文件夹「" + f + "」？\n里面的 " + items.length +
+                     " 条笔记不会被删，只是回到外面的列表。")) return;
+        await vnFolderOp({ op: "delete", name: f });
+        loadVideoNotes();
+      });
+      head.appendChild(caret); head.appendChild(fn); head.appendChild(cnt);
+      head.appendChild(im); head.appendChild(rn); head.appendChild(fd);
+      head.addEventListener("click", () => {
+        const nowOpen = box.style.display === "none";
+        box.style.display = nowOpen ? "" : "none";
+        caret.textContent = nowOpen ? "▾" : "▸";
+        vnSetFolderOpen(f, nowOpen);
+      });
+
+      items.forEach((n) => box.appendChild(makeVideoNoteItem(n, folders)));
+      if (!items.length) {
+        const em = document.createElement("div");
+        em.className = "dash-empty";
+        em.style.cssText = "padding:6px 10px;font-size:12px";
+        em.textContent = "（空文件夹：点上方的 📥 可以直接导入视频到这里，"
+          + "或点笔记右侧的 📂 把已有笔记移进来）";
+        box.appendChild(em);
+      }
+      list.appendChild(head);
+      list.appendChild(box);
+    });
+
+    ungrouped.forEach((n) => list.appendChild(makeVideoNoteItem(n, folders)));
   } catch (e) {
     list.innerHTML = "<div class='dash-empty'>加载失败：" + escapeHtml(e.message) + "</div>";
   }
+}
+
+// 生成一条视频笔记行（标题 + 作者 + 未分析补做 + 移动到文件夹 + 改作者 + 删除）
+function makeVideoNoteItem(n, folders) {
+  const item = document.createElement("div");
+  item.className = "video-note-item";
+  const name = document.createElement("span");
+  name.className = "vn-name";
+  name.textContent = n.title || n.name;
+  name.title = n.title || n.name;   // 鼠标悬停看完整标题
+  name.addEventListener("click", () => openVideoNote(n.name));
+  item.appendChild(name);
+  // 作者名（蓝色醒目，和标题平级、永不被截断；有真实昵称才显示，纯数字 ID/空 后端已过滤）
+  if (n.author) {
+    const au = document.createElement("span");
+    au.className = "vn-author";
+    au.textContent = "👤 " + n.author;
+    au.title = "作者：" + n.author + "（点右侧 ✎ 可修改）";
+    au.addEventListener("click", () => openVideoNote(n.name));
+    item.appendChild(au);
+  } else {
+    // 没存到作者（本地导入的常见）：占位改成可点击的「＋ 填写作者」
+    const au = document.createElement("span");
+    au.className = "vn-author vn-author-none";
+    au.textContent = "＋ 填写作者";
+    au.title = "这条笔记没有作者（本地导入的常见），点这里填一个";
+    au.style.cursor = "pointer";
+    au.addEventListener("click", (e) => { e.stopPropagation(); editNoteAuthor(n); });
+    item.appendChild(au);
+  }
+  // 「仅提取」模式存的未分析笔记：右侧给一个「AI 分析」补做按钮
+  if (n.analyzed === false) {
+    const an = document.createElement("button");
+    an.className = "vn-analyze";
+    an.textContent = "🤖 AI 分析";
+    an.title = "这条当时只提取了文字稿，点这里补做 AI 分析";
+    an.style.cssText =
+      "flex:0 0 auto;border:0.5px solid var(--accent,#1a73e8);" +
+      "background:transparent;color:var(--accent,#1a73e8);border-radius:7px;" +
+      "padding:2px 9px;font-size:12px;cursor:pointer;white-space:nowrap";
+    an.addEventListener("click", (e) => {
+      e.stopPropagation();
+      an.disabled = true; an.textContent = "已提交…";
+      startNoteAnalyze(n.name);
+    });
+    item.appendChild(an);
+  }
+  // 移动到文件夹
+  const mv = document.createElement("button");
+  mv.className = "vn-del"; mv.textContent = "📂"; mv.title = "移动到文件夹";
+  mv.addEventListener("click", (e) => {
+    e.stopPropagation();
+    showVnFolderMenu(mv, n, folders);
+  });
+  item.appendChild(mv);
+  // 填写 / 修改作者
+  const ed = document.createElement("button");
+  ed.className = "vn-del"; ed.textContent = "✎"; ed.title = "填写 / 修改作者";
+  ed.addEventListener("click", (e) => { e.stopPropagation(); editNoteAuthor(n); });
+  item.appendChild(ed);
+  // 删除
+  const del = document.createElement("button");
+  del.className = "vn-del"; del.textContent = "🗑"; del.title = "删除这条笔记";
+  del.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    if (!confirm("删除这条视频笔记？")) return;
+    try {
+      await fetch(BACKEND + "/video_note_delete", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: n.name }),
+      });
+      loadVideoNotes();
+    } catch (_) {}
+  });
+  item.appendChild(del);
+  return item;
+}
+
+// 填写 / 修改一条笔记的作者（本地导入的笔记通常没有作者）
+async function editNoteAuthor(n) {
+  const v = await askText({
+    title: "填写 / 修改作者",
+    desc: (n.title || n.name || "").slice(0, 40),
+    value: n.author || "",
+    placeholder: "作者名（留空可清除）",
+    okText: "保存",
+  });
+  if (v === null) return;
+  const author = v.trim().slice(0, 40);
+  try {
+    const r = await fetch(BACKEND + "/video_note_set_author", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: n.name, author }),
+    });
+    const d = await r.json();
+    if (!d.ok) { setVideoStatus("作者没改成：" + (d.error || "未知原因"), "warn"); return; }
+    loadVideoNotes();
+  } catch (e) {
+    setVideoStatus("改作者出错：" + e.message, "warn");
+  }
+}
+
+// ── 笔记文件夹：操作请求 + 展开状态记忆 + 「移动到…」小菜单 ──
+async function vnFolderOp(payload) {
+  try {
+    const r = await fetch(BACKEND + "/video_folder", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload || {}),
+    });
+    const d = await r.json();
+    if (!d.ok) setVideoStatus("文件夹操作没成功：" + (d.error || "未知原因"), "warn");
+    return d;
+  } catch (e) {
+    setVideoStatus("文件夹操作出错：" + e.message, "warn");
+    return { ok: false };
+  }
+}
+
+function vnFolderIsOpen(f) {
+  try {
+    const s = JSON.parse(localStorage.getItem("vnFolderOpen") || "{}");
+    return !!s[f];
+  } catch (_) { return false; }
+}
+function vnSetFolderOpen(f, open) {
+  try {
+    const s = JSON.parse(localStorage.getItem("vnFolderOpen") || "{}");
+    if (open) s[f] = 1; else delete s[f];
+    localStorage.setItem("vnFolderOpen", JSON.stringify(s));
+  } catch (_) {}
+}
+function vnRenameOpenState(oldName, newName) {
+  try {
+    const s = JSON.parse(localStorage.getItem("vnFolderOpen") || "{}");
+    if (s[oldName]) { s[newName] = 1; delete s[oldName];
+      localStorage.setItem("vnFolderOpen", JSON.stringify(s)); }
+  } catch (_) {}
+}
+
+function closeVnFolderMenu() {
+  const m = document.getElementById("vnFolderMenu");
+  if (m) m.remove();
+}
+
+// 点文件夹标题行的 📥：弹小菜单选择「导入文件」还是「导入整个文件夹」，
+// 提取出的笔记都会自动归进这个笔记文件夹。
+function showVnImportMenu(anchor, folderName) {
+  closeVnFolderMenu();
+  const m = document.createElement("div");
+  m.id = "vnFolderMenu";
+  m.style.cssText =
+    "position:fixed;z-index:9999;background:var(--surface-2,#fff);" +
+    "border:0.5px solid var(--border,#3a3a3a);border-radius:9px;" +
+    "box-shadow:0 6px 24px rgba(0,0,0,.18);padding:6px;min-width:220px;" +
+    "max-height:280px;overflow:auto";
+  const mk = (label, fn) => {
+    const b = document.createElement("div");
+    b.textContent = label;
+    b.style.cssText = "padding:6px 10px;border-radius:6px;cursor:pointer;font-size:13px";
+    b.addEventListener("mouseenter", () => { b.style.background = "rgba(26,115,232,.10)"; });
+    b.addEventListener("mouseleave", () => { b.style.background = ""; });
+    b.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      closeVnFolderMenu();
+      await fn();
+    });
+    m.appendChild(b);
+  };
+  mk("📁 导入本地文件 → 归入「" + folderName + "」",
+     () => pickAndImportLocal(folderName));
+  mk("📂 导入整个文件夹 → 归入「" + folderName + "」",
+     () => pickAndImportFolder(folderName));
+  document.body.appendChild(m);
+  const r = anchor.getBoundingClientRect();
+  m.style.left = Math.max(8, Math.min(window.innerWidth - 250, r.left - 160)) + "px";
+  m.style.top = Math.max(8, Math.min(window.innerHeight - m.offsetHeight - 8, r.bottom + 4)) + "px";
+  setTimeout(() => {
+    document.addEventListener("click", closeVnFolderMenu, { once: true });
+  }, 0);
+}
+// 点笔记行的 📂：弹一个小菜单选择目标文件夹（或移出 / 新建）
+function showVnFolderMenu(anchor, note, folders) {
+  closeVnFolderMenu();
+  const m = document.createElement("div");
+  m.id = "vnFolderMenu";
+  m.style.cssText =
+    "position:fixed;z-index:9999;background:var(--surface-2,#fff);" +
+    "border:0.5px solid var(--border,#3a3a3a);border-radius:9px;" +
+    "box-shadow:0 6px 24px rgba(0,0,0,.18);padding:6px;min-width:170px;" +
+    "max-height:280px;overflow:auto";
+  const mk = (label, fn, dim) => {
+    const b = document.createElement("div");
+    b.textContent = label;
+    b.style.cssText = "padding:6px 10px;border-radius:6px;cursor:pointer;font-size:13px;" +
+      (dim ? "color:var(--text-dim,#9aa);" : "");
+    b.addEventListener("mouseenter", () => { b.style.background = "rgba(26,115,232,.10)"; });
+    b.addEventListener("mouseleave", () => { b.style.background = ""; });
+    b.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      closeVnFolderMenu();
+      await fn();
+    });
+    m.appendChild(b);
+  };
+  (folders || []).forEach((f) => {
+    if (f === note.folder) return;
+    mk("📂 " + f, async () => {
+      const d = await vnFolderOp({ op: "move", note: note.name, name: f });
+      if (d && d.ok) loadVideoNotes();
+    });
+  });
+  if (note.folder) {
+    mk("↩ 移出文件夹", async () => {
+      const d = await vnFolderOp({ op: "move", note: note.name, name: "" });
+      if (d && d.ok) loadVideoNotes();
+    });
+  }
+  mk("＋ 新建文件夹并移入…", async () => {
+    const v = await askText({
+      title: "新建文件夹并移入",
+      desc: "这条笔记会移进新建的文件夹里。",
+      placeholder: "新文件夹的名字",
+      okText: "创建并移入",
+    });
+    if (v === null) return;
+    const name = v.trim();
+    if (!name) return;
+    const d = await vnFolderOp({ op: "move", note: note.name, name });
+    if (d && d.ok) { vnSetFolderOpen(name, true); loadVideoNotes(); }
+  }, true);
+  document.body.appendChild(m);
+  const r = anchor.getBoundingClientRect();
+  m.style.left = Math.max(8, Math.min(window.innerWidth - 200, r.left - 130)) + "px";
+  m.style.top = Math.max(8, Math.min(window.innerHeight - m.offsetHeight - 8, r.bottom + 4)) + "px";
+  // 点菜单外任意处关闭
+  setTimeout(() => {
+    document.addEventListener("click", closeVnFolderMenu, { once: true });
+  }, 0);
 }
 
 async function openVideoNote(name) {
@@ -3142,10 +3787,79 @@ async function openVideoNote(name) {
     parsed._noteName = name;     // 视频板块的笔记，归类为 video，可在页面内加标签
     parsed._noteCat = "video";
     mountVideoResult(parsed);
+    // 「仅提取」模式存的未分析笔记：在「AI 分析」页里给一个就地补做的按钮
+    if (/-\s*状态[：:]\s*未分析/.test(data.content || "")) {
+      const pane = resultEl.querySelector("#vAnalysis");
+      if (pane) {
+        const b = document.createElement("button");
+        b.className = "send-btn";
+        b.textContent = "🤖 立即 AI 分析这条笔记";
+        b.style.cssText = "display:block;margin:12px 0 4px";
+        b.addEventListener("click", () => {
+          b.disabled = true; b.textContent = "已提交，分析中…";
+          startNoteAnalyze(name, { reopen: true });
+        });
+        pane.appendChild(b);
+      }
+    }
     resultEl.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (e) {
     resultEl.innerHTML = "<div class='dash-empty'>出错：" + escapeHtml(e.message) + "</div>";
   }
+}
+
+// ── 给「未分析」的已存笔记补做 AI 分析（后台跑，这里轮询进度）──
+let _noteAnPollTimer = null;
+async function startNoteAnalyze(name, opts) {
+  opts = opts || {};
+  try {
+    const s = settings();
+    const r = await fetch(BACKEND + "/video_note_analyze", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, use_local: s.use_local, model: s.model }),
+    });
+    const d = await r.json();
+    if (!d.ok) {
+      setVideoStatus("补分析没开始：" + (d.error || "未知原因"), "warn",
+                     { priority: true, holdMs: 6000 });
+      loadVideoNotes();   // 把按钮的「已提交…」状态恢复回来
+      return;
+    }
+    setVideoStatus("🤖 正在给这条笔记补做 AI 分析…（可能要一两分钟，完成后自动刷新）",
+                   "", { priority: true, holdMs: 3000 });
+    pollNoteAnalyze(name, !!opts.reopen);
+  } catch (e) {
+    setVideoStatus("补分析出错：" + e.message, "warn", { priority: true, holdMs: 6000 });
+  }
+}
+
+function pollNoteAnalyze(name, reopen) {
+  if (_noteAnPollTimer) return;   // 已经在轮询了
+  _noteAnPollTimer = setInterval(async () => {
+    try {
+      const r = await fetch(BACKEND + "/video_note_analyze_progress");
+      const p = await r.json();
+      if (p.running) {
+        setVideoStatus("🤖 补分析中：" + (p.stage || "处理中…"), "",
+                       { priority: true, holdMs: 1800 });
+        return;
+      }
+      clearInterval(_noteAnPollTimer); _noteAnPollTimer = null;
+      if (p.ok) {
+        setVideoStatus("✅ 这条笔记的 AI 分析已补好并保存。", "ok",
+                       { priority: true, holdMs: 8000 });
+        loadVideoNotes();
+        if (reopen && name) openVideoNote(name);
+      } else {
+        setVideoStatus("⚠ 补分析没成功：" + (p.error || "未知原因"), "warn",
+                       { priority: true, holdMs: 8000 });
+        loadVideoNotes();
+      }
+    } catch (e) {
+      clearInterval(_noteAnPollTimer); _noteAnPollTimer = null;
+      setVideoStatus("补分析状态查询出错：" + e.message, "warn");
+    }
+  }, 1500);
 }
 
 // 把存档的 markdown 拆回 标题/作者/链接/标签/分析/原文，喂给标签页视图
@@ -6895,6 +7609,8 @@ async function _cwExtractSingle(it, btn) {
     }
     _markItemsExtractedLocal([{ creator_id: it.creator_id, vid: it.vid, url: it.url }]);
     _dgSelected.delete(it.vid);
+    // 刚在这个博主下操作过，保持它展开（不要因为新视频数变 0 就自动折叠）
+    if (it.creator_id != null) _dgExpandedGroups.add(String(it.creator_id));
     renderDigest([]);
     loadCreatorFindings();
   } catch (e) {
@@ -6912,6 +7628,8 @@ let _dgItems = [];                  // 当前窗口内（带日期）的视频
 let _dgUndated = [];               // 无日期的视频（可选显示）
 let _dgSelected = new Set();        // 选中的 vid（跨博主）
 let _dgShowUndated = false;
+let _dgCollapsedGroups = new Set();  // 用户手动「折叠」的博主分组 key
+let _dgExpandedGroups = new Set();    // 用户手动「展开」的博主分组 key（覆盖默认折叠）
 
 // 数字状态行
 function _dgSetStat(html) {
@@ -7017,10 +7735,11 @@ function renderDigest(errors) {
     return da - db;
   }));
 
-  // 哪些视频是「扫描发现的新视频」（出现在本次新增清单里）→ 给它们打「新」角标
-  const newKeys = new Set();
-  if (Array.isArray(_cwFindings)) {
-    _cwFindings.forEach((f) => { if (f && f.vid != null) newKeys.add((f.creator_id || "") + "|" + f.vid); });
+  // 「新视频」的定义：在时间窗口内（已经过滤过）+ 还没被提取过。
+  // 已提取的不再算作「新」，但仍保留在列表里（标「已提取」）。
+  for (const g of groups) {
+    // 这个博主有几条「未提取」的——这才是真正的新视频数
+    g._newCount = g.items.filter((it) => !it.extracted).length;
   }
 
   for (const g of groups) {
@@ -7029,14 +7748,29 @@ function renderDigest(errors) {
     const letter = escapeHtml((gname[0] || "?").toUpperCase());
     // 平台放到名字下方那行（YouTube / B站 / 抖音），头像只表示「这是个博主」
     const platTxt = escapeHtml(g.plabel || "");
-    html += '<div class="dg-group">';
-    html += '<div class="dg-group-head">' +
+    const gkey = String(g.key);
+    const newCount = g._newCount || 0;
+    // 默认折叠规则：有未提取的新视频→默认展开；没有（全已提取/无新）→默认折叠。
+    // 用户手动点过的以 _dgCollapsedGroups / _dgExpandedGroups 记忆为准。
+    let collapsed;
+    if (_dgExpandedGroups.has(gkey)) collapsed = false;
+    else if (_dgCollapsedGroups.has(gkey)) collapsed = true;
+    else collapsed = (newCount === 0);   // 没手动操作过 → 看有没有新视频
+    // 角标：只在有未提取新视频时显示「X 条新视频」；否则不显示
+    const cntHtml = newCount > 0
+      ? '<span class="dg-group-cnt">' + newCount + " 条新视频</span>"
+      : '<span class="dg-group-cnt dg-group-cnt-none">已全部提取</span>';
+    html += '<div class="dg-group' + (collapsed ? ' collapsed' : '') +
+            '" data-gkey="' + escapeHtml(gkey) + '">';
+    html += '<div class="dg-group-head" data-gtoggle="' + escapeHtml(gkey) + '">' +
       '<div class="dg-group-ava dg-creator-ava">' + letter + "</div>" +
       '<div class="dg-group-info">' +
         '<div class="dg-group-name"><span class="dg-creator-tag">博主</span>' + escapeHtml(gname) + "</div>" +
         '<div class="dg-group-meta">' + platTxt + "</div></div>" +
-      '<span class="dg-group-cnt">' + g.items.length + " 条新视频</span>" +
+      cntHtml +
+      '<span class="dg-group-caret">▼</span>' +
       "</div>";
+    html += '<div class="dg-group-body">';
     html += g.items.map((it) => {
       const checked = _dgSelected.has(it.vid) ? " checked" : "";
       const when = it.when_human ? ('<span class="cw-date">' + escapeHtml(it.when_human) + "</span>")
@@ -7046,10 +7780,10 @@ function renderDigest(errors) {
       const zh = (it.title_zh && it.title_zh !== it.title)
         ? ('<div class="cw-v-zh">🌐 ' + escapeHtml(it.title_zh) + "</div>")
         : '<div class="cw-v-zh"></div>';
-      const isNew = newKeys.has((it.creator_id || "") + "|" + it.vid);
-      const newBadge = isNew ? '<span class="cw-new-badge">新</span>' : "";
       // 已提取：标绿色「已提取」角标 + 把「提取」按钮置灰、改文案、禁用
       const done = !!it.extracted;
+      // 「新」标签：只有「未提取」的才算新（已提取的不再标新）
+      const newBadge = !done ? '<span class="cw-new-badge">新</span>' : "";
       const doneBadge = done ? '<span class="cw-done-badge">已提取</span>' : "";
       const getBtn = done
         ? '<button class="sn-btn sm dg-get is-done" data-vid="' + escapeHtml(it.vid) + '" disabled>已提取</button>'
@@ -7070,9 +7804,25 @@ function renderDigest(errors) {
           getBtn +
         "</div>";
     }).join("");
-    html += "</div>";
+    html += "</div>";   // /dg-group-body
+    html += "</div>";   // /dg-group
   }
   box.innerHTML = html;
+
+  // 点博主头：折叠/展开这一组（并记住用户的手动选择，覆盖默认规则）
+  box.querySelectorAll(".dg-group-head[data-gtoggle]").forEach((head) => {
+    head.addEventListener("click", (e) => {
+      // 点头部里的链接/按钮不触发折叠
+      if (e.target.closest("a,button,input")) return;
+      const k = head.dataset.gtoggle;
+      const grp = head.closest(".dg-group");
+      const willCollapse = !grp.classList.contains("collapsed");
+      grp.classList.toggle("collapsed", willCollapse);
+      // 记住手动选择：折叠则进 collapsed 集、展开则进 expanded 集（互斥）
+      if (willCollapse) { _dgCollapsedGroups.add(k); _dgExpandedGroups.delete(k); }
+      else { _dgExpandedGroups.add(k); _dgCollapsedGroups.delete(k); }
+    });
+  });
 
   // 勾选 → Set
   box.querySelectorAll(".dg-cb").forEach((cb) => cb.addEventListener("change", (e) => {
@@ -7187,6 +7937,10 @@ async function _dgExtractSelected() {
       }, 2600);
     }
     _dgSetStat('<span style="color:#16a34a">✓ ' + escapeHtml(okMsg) + '</span>');
+    // 刚提取过的那些博主，保持展开（别因为新视频数变 0 就自动折叠）
+    (items || []).forEach((it) => {
+      if (it && it.creator_id != null) _dgExpandedGroups.add(String(it.creator_id));
+    });
     // 同步刷新视图里的勾选态（已清空）+ 重渲染让「已提取」角标显示出来
     _dgSyncSelAll();
     renderDigest([]);

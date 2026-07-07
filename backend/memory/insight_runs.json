@@ -1,5 +1,176 @@
 [
   {
+    "time": "2026-07-07 20:54",
+    "ok": false,
+    "source": "auto",
+    "files": 411,
+    "learned": 41,
+    "model": "web",
+    "summary": "本轮没读到有效内容"
+  },
+  {
+    "time": "2026-07-07 18:13",
+    "ok": true,
+    "source": "auto",
+    "files": 374,
+    "learned": 28,
+    "model": "web",
+    "summary": "主人是一个正在用主动学习和 AI 工具放大个人商业能力的人，想以低成本试错、独立判断和系统方法抓住新技术带来的机会。"
+  },
+  {
+    "time": "2026-07-03 12:04",
+    "ok": true,
+    "source": "auto",
+    "files": 350,
+    "learned": 4,
+    "model": "web",
+    "summary": "主人是一个正在用 AI、结构化笔记、情报追踪和工作流方法，把英语学习、社会观察、AI 工具和商业机会整合成可复用生产力系统的人。"
+  },
+  {
+    "time": "2026-07-03 11:04",
+    "ok": true,
+    "source": "auto",
+    "files": 350,
+    "learned": 4,
+    "model": "web",
+    "summary": "主人是一个正在用 AI、结构化笔记、情报追踪和工作流方法，把英语学习、社会观察、AI 工具和商业机会整合成可复用生产力系统的人。"
+  },
+  {
+    "time": "2026-07-03 10:05",
+    "ok": true,
+    "source": "auto",
+    "files": 350,
+    "learned": 4,
+    "model": "web",
+    "summary": "主人是一个正在用 AI、结构化笔记、情报追踪和工作流方法，把英语学习、社会观察、AI 工具和商业机会整合成可复用生产力系统的人。"
+  },
+  {
+    "time": "2026-07-03 09:05",
+    "ok": true,
+    "source": "auto",
+    "files": 350,
+    "learned": 4,
+    "model": "web",
+    "summary": "主人是一个正在用 AI、结构化笔记和工作流方法，把英语学习、社会观察、AI 工具和个人商业化路径整合成可复用生产力系统的人。"
+  },
+  {
+    "time": "2026-07-03 08:05",
+    "ok": true,
+    "source": "auto",
+    "files": 350,
+    "learned": 4,
+    "model": "web",
+    "summary": "主人是一个正在用 AI、结构化笔记和工作流方法，把英语学习、社会观察、AI 工具和个人商业化路径整合成可复用生产力系统的人。"
+  },
+  {
+    "time": "2026-07-03 07:05",
+    "ok": true,
+    "source": "auto",
+    "files": 350,
+    "learned": 4,
+    "model": "web",
+    "summary": "主人是一个正在用 AI、结构化笔记和工作流方法，把英语学习、社会观察、AI 工具和个人商业化路径整合成可复用生产力系统的人。"
+  },
+  {
+    "time": "2026-07-03 06:05",
+    "ok": true,
+    "source": "auto",
+    "files": 350,
+    "learned": 3,
+    "model": "web",
+    "summary": "主人是一个正在用 AI、结构化笔记和工作流方法，把英语学习、社会观察、AI 工具和个人商业化路径整合成可复用生产力系统的人。"
+  },
+  {
+    "time": "2026-07-03 05:05",
+    "ok": true,
+    "source": "auto",
+    "files": 350,
+    "learned": 4,
+    "model": "web",
+    "summary": "主人是一个正在用 AI、结构化笔记和工作流方法，把英语学习、社会观察、AI 工具和个人商业化路径整合成可复用生产力系统的人。"
+  },
+  {
+    "time": "2026-07-03 04:05",
+    "ok": true,
+    "source": "auto",
+    "files": 350,
+    "learned": 3,
+    "model": "web",
+    "summary": "主人是一个正在用 AI、结构化笔记和工作流方法，把英语学习、社会观察、AI 工具和个人商业化能力整合成可复用生产力系统的人。"
+  },
+  {
+    "time": "2026-07-03 03:05",
+    "ok": true,
+    "source": "auto",
+    "files": 350,
+    "learned": 2,
+    "model": "web",
+    "summary": "主人是一个正在用 AI、结构化笔记和可复用工作流，把学习、内容生产、热点分析和个人商业化能力整合成个人生产力系统的人。"
+  },
+  {
+    "time": "2026-07-03 02:05",
+    "ok": true,
+    "source": "auto",
+    "files": 350,
+    "learned": 6,
+    "model": "web",
+    "summary": "已思考若干秒\n\n中文标题：用 Codex + HyperFrames 搞定你的口播剪辑\n\n一句话概括\n\n这期视频讲的是如"
+  },
+  {
+    "time": "2026-07-03 01:05",
+    "ok": true,
+    "source": "auto",
+    "files": 348,
+    "learned": 5,
+    "model": "web",
+    "summary": "主人是一个正在用 AI 和结构化笔记系统，把英语学习、AI工具、社会观察和个人商业化路径沉淀成可复用知识资产的人。"
+  },
+  {
+    "time": "2026-07-03 00:05",
+    "ok": true,
+    "source": "auto",
+    "files": 343,
+    "learned": 3,
+    "model": "web",
+    "summary": "已思考 1 秒\n\n中文标题：032、第二十八节：学习比较与分类词汇，具备抽象思维表达能力\n\n一句话概括\n\n这一节通过复习"
+  },
+  {
+    "time": "2026-07-02 23:05",
+    "ok": true,
+    "source": "auto",
+    "files": 340,
+    "learned": 4,
+    "model": "web",
+    "summary": "已思考若干秒\n\n中文标题：029、第二十五节下：描述烹饪中的沸腾、蒸汽等，并引入固体、液体概念\n\n一句话概括\n\n这一节通"
+  },
+  {
+    "time": "2026-06-30 17:32",
+    "ok": true,
+    "source": "auto",
+    "files": 336,
+    "learned": 7,
+    "model": "web",
+    "summary": "已思考 5s\n\n中文标题：024、第二十二节：用 before after when理清事件顺序\n\n一句话概括\n\n这一节"
+  },
+  {
+    "time": "2026-06-30 16:32",
+    "ok": true,
+    "source": "auto",
+    "files": 333,
+    "learned": 9,
+    "model": "web",
+    "summary": "已思考 7s\n\n中文标题：021、第二十节 时态篇：讲述一个完整有因果关系的过去事件\n\n一句话概括\n\n这一课通过 Joh"
+  },
+  {
+    "time": "2026-06-30 15:25",
+    "ok": true,
+    "source": "auto",
+    "files": 328,
+    "learned": 13,
+    "model": "web",
+    "summary": "已思考几秒\n\n中文标题：016、第十六节 整体与部分：描述事物的组成部分\n\n一句话概括\n\n这一课通过“书放回书架”“房间"
+  },
+  {
     "time": "2026-06-30 11:36",
     "ok": true,
     "source": "auto",
@@ -277,77 +448,5 @@
     "learned": 5,
     "model": "web",
     "summary": "主人正在把 AI 从“信息工具”升级为“可控执行系统”，并用同一套标准审视技术、商业和公共叙事：流程能否复现、成本由谁承担、风险能否隔离、结论是否经得起验证。"
-  },
-  {
-    "time": "2026-06-22 13:33",
-    "ok": true,
-    "source": "auto",
-    "files": 187,
-    "learned": 6,
-    "model": "web",
-    "summary": "主人在把 AI、产业链、商业机会、组织治理和公共叙事统一放进一套“能否落地、谁付代价、风险怎么控、长期能否成立”的现实判断框架里。"
-  },
-  {
-    "time": "2026-06-22 12:33",
-    "ok": true,
-    "source": "auto",
-    "files": 181,
-    "learned": 4,
-    "model": "web",
-    "summary": "主人正在把 AI、商业机会、组织治理和公共叙事放进同一套“能否落地、谁承担成本、证据是否成立、风险如何控制”的判断体系里。"
-  },
-  {
-    "time": "2026-06-22 11:33",
-    "ok": true,
-    "source": "auto",
-    "files": 177,
-    "learned": 7,
-    "model": "web",
-    "summary": "你是一个把 AI、商业机会、公共规则和社会叙事放进同一套“证据—利益—风险—执行”框架里反复验证的人，想要的不是热闹观点，而是能帮助你判断现实、抓住机会并避免被"
-  },
-  {
-    "time": "2026-06-20 15:37",
-    "ok": true,
-    "source": "manual",
-    "files": 170,
-    "learned": 5,
-    "model": "qwen3:14b",
-    "summary": "### **AI行业动态总览（2026年6月16日-6月19日）**  \n以下信息按时间顺序整理，按主题分类，涵盖AI技"
-  },
-  {
-    "time": "2026-06-20 15:30",
-    "ok": true,
-    "source": "manual",
-    "files": 165,
-    "learned": 19,
-    "model": "qwen3:14b",
-    "summary": "以下是关于当前全球AI发展、监管政策及技术趋势的综合分析：\n\n---\n\n### **一、核心技术突破与挑战**\n1. *"
-  },
-  {
-    "time": "2026-06-20 11:59",
-    "ok": true,
-    "source": "manual",
-    "files": 146,
-    "learned": 7,
-    "model": "qwen3:14b",
-    "summary": "根据用户提供的信息，我将整理为以下分类总结，便于高效获取关键内容：\n\n---\n\n### **一、AI与科技领域**\n1."
-  },
-  {
-    "time": "2026-06-20 09:56",
-    "ok": true,
-    "source": "manual",
-    "files": 139,
-    "learned": 4,
-    "model": "qwen3:14b",
-    "summary": "根据您提供的内容，我将从**AI技术趋势**、**法律与商业案例**、**个人成长与创业建议**三个维度进行系统化整理，"
-  },
-  {
-    "time": "2026-06-19 16:35",
-    "ok": true,
-    "source": "manual",
-    "files": 135,
-    "learned": 135,
-    "model": "qwen3:14b",
-    "summary": "### 一人公司OPC复盘：从失败到领悟的完整路径\n\n---\n\n#### **一、业务回顾：一人公司的初始阶段**\n**"
   }
 ]

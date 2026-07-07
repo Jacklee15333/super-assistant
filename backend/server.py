@@ -66,6 +66,7 @@ def _clog(tag, msg):
 # 一旦打印就会把控制台刷爆、淹没真正有用的操作日志，所以一律静音、不记。
 _LOG_QUIET_PATHS = {
     "/ping", "/video_progress", "/video_health", "/video_notes",
+    "/video_note_analyze_progress",
     "/chat_progress", "/heartbeat/status", "/lumi/status", "/lumi/evolve_status",
     "/web_model/state", "/web_model/config", "/loop/status", "/insight/status",
     "/insight/config", "/system_access", "/claude_config", "/harness/config",
@@ -84,6 +85,9 @@ _LOG_PATH_LABEL = {
     "/video_install": "安装/更新视频依赖",
     "/video_move_models": "迁移语音模型",
     "/video_note_delete": "删除视频笔记",
+    "/video_note_analyze": "补做笔记 AI 分析",
+    "/video_note_set_author": "修改笔记作者",
+    "/video_folder": "视频笔记文件夹操作",
     "/video_shot": "抓取视频截图",
     "/chat": "发送对话消息",
     "/tts": "语音播报",
@@ -192,6 +196,18 @@ def _cx_video_dir():
     return d
 
 
+def _cx_segments_dir():
+    """「仅提取文字稿」笔记的时间戳分段侧车目录：video_notes/segments/。
+    每条未分析笔记存一个 <笔记名>.json（含 segments/url/是否要跳转原片），
+    等以后补做 AI 分析时用它打「跳转原片」时间标记，补完即删。"""
+    d = _cx_video_dir() / "segments"
+    try:
+        d.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+    return d
+
+
 def _cx_shots_dir():
     """视频笔记截图的根目录：video_notes/shots/。每条笔记一个子目录（按笔记名）。"""
     d = _cx_video_dir() / "shots"
@@ -200,6 +216,64 @@ def _cx_shots_dir():
     except Exception:
         pass
     return d
+
+
+# ════════════════ 视频笔记「文件夹」（虚拟分组）════════════════
+# 用户可以建文件夹，把同一作者/同一主题的笔记归到一起。
+# 笔记文件本身仍然平铺在 video_notes/ 里不动，分组关系单独存
+# video_notes/_folders.json：{"folders":[名字…], "map":{笔记文件名: 文件夹名}}。
+# 好处：列表/打开/删除/截图等所有按文件名找笔记的逻辑都不用动，分组坏了也不伤笔记。
+_vn_lock = _threading.Lock()
+
+
+def _vn_folders_path():
+    return _cx_video_dir() / "_folders.json"
+
+
+def _vn_load_folders():
+    """读分组表 → (文件夹名列表, {笔记文件名: 文件夹名})。文件不存在/坏了就当空。"""
+    try:
+        d = json.loads(_vn_folders_path().read_text(
+            encoding="utf-8", errors="replace"))
+        folders = [str(f).strip() for f in (d.get("folders") or [])
+                   if str(f).strip()]
+        mapping = {str(k): str(v) for k, v in (d.get("map") or {}).items()}
+        return folders, mapping
+    except Exception:
+        return [], {}
+
+
+def _vn_save_folders(folders, mapping):
+    try:
+        _vn_folders_path().write_text(
+            json.dumps({"folders": folders, "map": mapping}, ensure_ascii=False),
+            encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _vn_ok_folder_name(name):
+    """文件夹名合法性：非空、不超过 30 字、不含路径字符。合法返回清理后的名字，否则空串。"""
+    name = (name or "").strip()
+    if not name or len(name) > 30:
+        return ""
+    if ("/" in name) or ("\\" in name) or (".." in name):
+        return ""
+    return name
+
+
+def _vn_assign_folder(note_name, folder):
+    """把一条笔记归进某个文件夹（文件夹不存在就顺手创建）。folder 为空 = 移出分组。"""
+    with _vn_lock:
+        folders, mapping = _vn_load_folders()
+        folder = _vn_ok_folder_name(folder)
+        if folder:
+            if folder not in folders:
+                folders.append(folder)
+            mapping[note_name] = folder
+        else:
+            mapping.pop(note_name, None)
+        _vn_save_folders(folders, mapping)
 
 
 def _bold_point_titles(md):
@@ -922,12 +996,94 @@ def _video_worker():
                                                progress_cb=cb,
                                                need_video=do_screenshot,
                                                mode=sub_mode)
-            if res.get("ok"):
+            # ★用户点了「全部取消」：提取被中断（或恰好刚结束）→ 不再做
+            #   AI 分析和保存，直接把结果标记为"已取消"。
+            if _video_cancel.get("all") or (isinstance(res, dict) and res.get("cancelled")):
+                res = {"ok": False, "cancelled": True, "error": "已取消"}
+            if res.get("ok") and not job.get("analyze", True):
+                # ★「仅提取文字稿」模式（新增）：完全不调用 AI——分析、补标签、
+                #   翻标题三处 AI 全部跳过（避免和别的软件抢占同一个 AI），只保存
+                #   文字稿；带时间戳的分段另存 video_notes/segments/<笔记名>.json
+                #   侧车文件，等以后在笔记列表点「AI 分析」补做时，仍能照常生成
+                #   「跳转原片」时间标记（插图补不了：视频画面下面就清掉了）。
+                cb("保存", "按设置跳过 AI 分析，直接保存文字稿…")
+                transcript = res["transcript"]
+                segments = res.get("segments") or []
+                title = res.get("title") or "（无标题）"
+                # 作者：平台抓到的优先；本地文件没有作者 → 用导入时用户填的
+                uploader = (res.get("uploader") or job.get("author") or "").strip()
+                clean_url = res.get("url") or job["url"]
+                video_path = res.get("video_path")
+                # 标签：只保留平台自带的话题标签（爬取所得，不走 AI）
+                tags = []
+                for _t in (res.get("platform_tags") or []):
+                    _t = (_t or "").strip().lstrip("#").strip()
+                    if _t and _t not in tags:
+                        tags.append(_t)
+                tags = tags[:6]
+                ts = datetime.datetime.now()
+                safe = "".join(c for c in title[:20]
+                               if c.isalnum() or c in " 　-_") or "video"
+                fname = (f"{ts.strftime('%Y%m%d-%H%M%S')}-{safe}.md"
+                         .replace(" ", "_"))
+                note_stem = fname[:-3]
+                # segments 侧车：补分析时打「跳转原片」标记要靠它（方案 B）
+                try:
+                    if segments:
+                        _payload = {
+                            "url": clean_url,
+                            "link": bool(job.get("link")),
+                            "segments": [
+                                {"start": s.get("start", 0),
+                                 "text": (s.get("text") or "")}
+                                for s in segments],
+                        }
+                        _cx_segments_dir().joinpath(note_stem + ".json").write_text(
+                            json.dumps(_payload, ensure_ascii=False),
+                            encoding="utf-8")
+                except Exception:
+                    pass
+                # 用完即清：与正常流程一致，删掉为提取下载的视频文件（本地文件除外）
+                try:
+                    is_local_job = bool(res.get("local_path")) or bool(job.get("local_path"))
+                    if video_path and not is_local_job:
+                        import shutil as _shutil
+                        _vp = video_transcribe._video_file_dir(clean_url)
+                        _shutil.rmtree(str(_vp), ignore_errors=True)
+                except Exception:
+                    pass
+                placeholder = ("（这条按你的设置**只提取了文字稿，尚未进行 AI 分析**。\n"
+                               "想补做分析：到「已存的视频笔记」列表里，点这条右侧的"
+                               "「🤖 AI 分析」按钮即可。）")
+                tag_line = ("- 标签：" + "、".join(tags) + "\n") if tags else ""
+                doc = (f"# {title}\n\n"
+                       f"- 来源链接：{clean_url}\n"
+                       f"- 作者：{uploader}\n"
+                       f"- 提取时间：{ts.strftime('%Y-%m-%d %H:%M')}\n"
+                       f"- 状态：未分析\n"
+                       f"{tag_line}\n"
+                       f"## 🤖 AI 分析\n\n{placeholder}\n\n"
+                       f"---\n\n## 📝 完整文字稿\n\n{transcript}\n")
+                try:
+                    _cx_video_dir().joinpath(fname).write_text(doc, encoding="utf-8")
+                except Exception:
+                    pass
+                res["analysis"] = placeholder
+                res["saved_as"] = fname
+                res["title_original"] = title
+                res["unanalyzed"] = True
+                # 若任务指定了归档文件夹（导入文件夹时可选），这条笔记自动归进去
+                try:
+                    if (job.get("note_folder") or "").strip():
+                        _vn_assign_folder(fname, job.get("note_folder"))
+                except Exception:
+                    pass
+            elif res.get("ok"):
                 cb("AI 分析", "让模型把文字稿总结成笔记…")
                 transcript = res["transcript"]
                 segments = res.get("segments") or []
                 title = res.get("title") or "（无标题）"
-                uploader = res.get("uploader") or ""
+                uploader = (res.get("uploader") or job.get("author") or "").strip()
                 clean_url = res.get("url") or job["url"]
                 video_path = res.get("video_path")
                 analysis = _cx_analyze_transcript(
@@ -1023,6 +1179,12 @@ def _video_worker():
                 # 让「提取完成」的结果卡 / 视频列表也直接显示中文标题（原标题另存一份备查）
                 res["title_original"] = title
                 res["title"] = display_title
+                # 若任务指定了归档文件夹（导入文件夹时可选），这条笔记自动归进去
+                try:
+                    if (job.get("note_folder") or "").strip():
+                        _vn_assign_folder(fname, job.get("note_folder"))
+                except Exception:
+                    pass
             _video_state["result"] = res
         except Exception as e:
             _video_state["result"] = {"ok": False, "error": str(e)}
@@ -1052,7 +1214,9 @@ def _video_worker():
                     else:
                         _note = "✅ 已完成《%s》，队列已清空，等待新任务" % (_vtitle[:20])
                 else:
-                    if _remain > 0:
+                    if isinstance(_res, dict) and _res.get("cancelled"):
+                        _note = "🛑 已按你的要求取消（队列已清空）"
+                    elif _remain > 0:
                         _note = "⚠ 这条没成功，继续处理下一个（还剩 %d 个）" % _remain
                     else:
                         _note = "⚠ 这条没成功，队列已清空，等待新任务"
@@ -1089,6 +1253,169 @@ def _video_worker():
                 _video_current["job"] = None
                 _save_video_queue()
         # 继续处理下一个
+
+
+# ════════════════ 已存笔记「补做 AI 分析」（仅提取模式的后半程）════════════════
+# 「仅提取文字稿」存下来的笔记（md 里带「- 状态：未分析」），可以随时在笔记列表
+# 点「AI 分析」补做。补做在后台线程跑，前端轮询 /video_note_analyze_progress 看进度。
+_note_an_lock = _threading.Lock()
+_note_an_state = {"running": False, "name": "", "stage": "",
+                  "error": "", "ok": False, "done_id": 0}
+
+
+def _parse_saved_note(text):
+    """从已存档的笔记 md 里拆出（标题, 元信息行列表, 文字稿, 已有标签列表）。
+    元信息行 = 开头那些 '- 来源链接/作者/提取时间…'；
+    「- 状态：未分析」这行会被剔除（补完分析它就不成立了）；
+    「- 标签：…」单独抽成列表（补分析后要和 AI 标签合并重写）。"""
+    lines = (text or "").split("\n")
+    title = lines[0].lstrip("# ").strip() if lines else ""
+    meta, tags = [], []
+    for ln in lines[1:15]:
+        s = ln.strip()
+        if not s:
+            continue
+        if not s.startswith("-"):
+            break
+        bare = s.lstrip("-").strip()
+        if bare.startswith("状态：") or bare.startswith("状态:"):
+            continue
+        m = re.match(r"^标签[：:]\s*(.+)$", bare)
+        if m:
+            tags = [t.strip() for t in re.split(r"[、，,\s]+", m.group(1))
+                    if t.strip()]
+            continue
+        meta.append("- " + bare)
+    # 文字稿：'## 📝 完整文字稿' 之后的所有内容
+    tmark = (text or "").find("完整文字稿")
+    transcript = ""
+    if tmark >= 0:
+        tstart = text.find("\n", tmark)
+        if tstart >= 0:
+            transcript = text[tstart:].strip()
+    return title, meta, transcript, tags
+
+
+def _note_analyze_worker(name, use_local, model):
+    """后台线程：读一条「未分析」笔记 → AI 分析 / 补标签 / 翻标题 → 原地重写 md。
+    与提取流水线里的 AI 分析共用同一套函数，产出格式完全一致；
+    若存在 segments 侧车文件、且当初勾了「跳转原片」，会照常打时间标记（方案 B）。
+    插图无法补做（视频画面在提取时就已清理）。"""
+    import time as _time
+    start = _time.time()
+
+    def stage(s, detail=""):
+        _note_an_state["stage"] = s + (("：" + detail) if detail else "")
+
+    ok, err = False, ""
+    try:
+        p = _cx_video_dir() / name
+        text = p.read_text(encoding="utf-8", errors="replace")
+        title, meta_lines, transcript, old_tags = _parse_saved_note(text)
+        if not transcript:
+            raise RuntimeError("这条笔记里没找到文字稿，补不了分析")
+        title = title or "（无标题）"
+        note_stem = name[:-3] if name.endswith(".md") else name
+
+        # segments 侧车：有就读出来，「跳转原片」标记照常可用
+        segments, want_link, clean_url = [], False, ""
+        try:
+            sp = _cx_segments_dir() / (note_stem + ".json")
+            if sp.exists():
+                _d = json.loads(sp.read_text(encoding="utf-8", errors="replace"))
+                segments = _d.get("segments") or []
+                want_link = bool(_d.get("link"))
+                clean_url = (_d.get("url") or "").strip()
+        except Exception:
+            segments, want_link = [], False
+        if not clean_url:
+            for ln in meta_lines:
+                m = re.search(r"来源链接[：:]\s*(\S+)", ln)
+                if m:
+                    clean_url = m.group(1).strip()
+                    break
+
+        _clog("视频", "▶ 开始补做 AI 分析：%s" % name[:50])
+        stage("AI 分析", "让模型把文字稿总结成笔记…")
+        analysis = _cx_analyze_transcript(
+            transcript, title, use_local, model,
+            on_progress=lambda m: stage("AI 分析", m),
+            segments=segments, do_screenshot=False,
+            do_link=bool(want_link and segments))
+        title_from_ai, analysis = _split_title_from_analysis(analysis)
+
+        stage("AI 分析", "归纳标签…")
+        try:
+            ai_tags = _cx_suggest_tag(title, analysis, use_local, model)
+        except Exception:
+            ai_tags = []
+        # 已有标签（平台话题标签/用户手动加的）在前，AI 标签在后，去重取 6 个
+        tags = []
+        for _t in list(old_tags) + list(ai_tags):
+            _t = (_t or "").strip().lstrip("#").strip()
+            if _t and _t not in tags:
+                tags.append(_t)
+        tags = tags[:6]
+
+        # 跳转原片标记 → 真实跳转链接（不截图：视频画面早已清理）
+        if want_link and segments and clean_url:
+            try:
+                import video_screenshot
+                shots_dir = _cx_shots_dir() / note_stem
+                img_base = ("http://127.0.0.1:%d/video_shot?n=%s&f="
+                            % (PORT, urllib.parse.quote(note_stem)))
+                analysis, _ = video_screenshot.post_process(
+                    analysis, url=clean_url, video_path=None,
+                    shots_dir=shots_dir, image_url_base=img_base,
+                    do_screenshot=False, do_link=True)
+            except Exception:
+                pass
+
+        # 中文标题：优先用分析里顺手翻好的；没有且原标题像英文，再单独翻一次
+        title_zh = ""
+        if title_from_ai and title_from_ai.strip() and title_from_ai.strip() != title.strip():
+            title_zh = title_from_ai.strip()
+        elif _looks_english(title):
+            try:
+                stage("AI 分析", "翻译标题…")
+                _zh_list, _ = _translate_lines(
+                    [title], use_local=use_local, model=model)
+                _cand = (_zh_list[0] if _zh_list else "").strip()
+                if _cand and _cand != title:
+                    title_zh = _cand
+            except Exception:
+                title_zh = ""
+        display_title = title_zh or title
+
+        stage("保存", "写回笔记文件…")
+        meta = "\n".join(meta_lines)
+        orig_line = (f"\n- 原标题：{title}" if title_zh else "")
+        tag_line = ("\n- 标签：" + "、".join(tags)) if tags else ""
+        doc = (f"# {display_title}\n\n"
+               f"{meta}{orig_line}{tag_line}\n\n"
+               f"## 🤖 AI 分析\n\n{analysis}\n\n"
+               f"---\n\n## 📝 完整文字稿\n\n{transcript}\n")
+        p.write_text(doc, encoding="utf-8")
+        # 侧车文件用完即删
+        try:
+            sp = _cx_segments_dir() / (note_stem + ".json")
+            if sp.exists():
+                sp.unlink()
+        except Exception:
+            pass
+        ok = True
+        _clog("视频", "✅ 补分析完成：《%s》（用时 %d 秒）"
+              % (display_title[:24], int(_time.time() - start)))
+    except Exception as e:
+        err = str(e)
+        _clog("视频", "⚠ 补分析没成功：%s" % err[:120])
+    finally:
+        with _note_an_lock:
+            _note_an_state["running"] = False
+            _note_an_state["stage"] = ""
+            _note_an_state["ok"] = ok
+            _note_an_state["error"] = "" if ok else (err or "补分析未成功")
+            _note_an_state["done_id"] += 1
 
 
 def _normalize_video_url(url):
@@ -1229,8 +1556,9 @@ def _enqueue_video(job):
 
 
 def _cancel_video_jobs():
-    """取消视频任务：清空待处理队列 + 给当前任务打取消标记（worker 在阶段间会停下）。
-    正在进行的那条会尽快停止（下载/听写子进程结束后不再继续后续步骤）。"""
+    """全部取消：清空待处理队列 + 给当前任务打取消标记。
+    正在跑的下载/听写会在几秒内被中断（video_transcribe 的逐句循环和下载钩子
+    都会检查 CANCEL 标记）；已识别的进度早已落盘，下次同链接可续传。"""
     with _video_lock:
         _video_q.clear()
         _video_cancel["all"] = True
@@ -1241,6 +1569,13 @@ def _cancel_video_jobs():
             _save_video_queue()
         except Exception:
             pass
+    # ★让正在进行的下载/听写立刻停下（不只等阶段之间才检查）
+    try:
+        import video_transcribe as _vtc
+        _vtc.CANCEL["on"] = True
+    except Exception:
+        pass
+    _clog("视频", "🛑 收到「全部取消」：队列已清空，正在中断当前任务…")
     return {"ok": True, "cancelled_current": bool(cur)}
 
 
@@ -1493,6 +1828,9 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/video_notes":
             return self._handle_video_notes_list()
+        if path == "/video_note_analyze_progress":
+            with _note_an_lock:
+                return self._send(dict(_note_an_state))
         if path == "/video_progress":
             return self._send(self._video_progress_merged())
         if path == "/video_shot":
@@ -1958,6 +2296,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_video_install(body)
         if path == "/video_note_delete":
             return self._handle_video_note_delete(body)
+        if path == "/video_note_analyze":
+            return self._handle_video_note_analyze(body)
+        if path == "/video_note_set_author":
+            return self._handle_video_note_set_author(body)
+        if path == "/video_folder":
+            return self._handle_video_folder(body)
         if path == "/library_set_tags":
             return self._handle_library_set_tags(body)
         if path == "/library_autotag":
@@ -3526,6 +3870,15 @@ class Handler(BaseHTTPRequestHandler):
         mode = body.get("mode") or "auto"
         if mode not in ("auto", "subtitle_only", "transcribe"):
             mode = "auto"
+        # 新增：提取后是否自动 AI 分析（默认 True = 和以前一样）。
+        # False = 仅提取并保存文字稿，完全不调 AI；之后可在笔记列表补做分析。
+        do_analyze = bool(body.get("analyze", True))
+        if not do_analyze:
+            do_screenshot = False   # 不分析就没有截图标记，插图无从谈起（防御性关掉）
+        # 新增：自定义作者名（本地文件没有作者信息，导入时可由用户统一填一个）
+        author = (body.get("author") or "").strip()[:40]
+        # 新增：自动归档文件夹（导入文件夹时可选）——提取完的笔记自动归进这个笔记文件夹
+        note_folder = (body.get("note_folder") or "").strip()[:30]
 
         try:
             import video_transcribe
@@ -3551,6 +3904,8 @@ class Handler(BaseHTTPRequestHandler):
                 "title": title,
                 "level": level, "use_local": use_local, "model": model,
                 "screenshot": do_screenshot, "link": do_link, "mode": mode,
+                "analyze": do_analyze,
+                "author": author, "note_folder": note_folder,
             })
             return self._send({"queued": True, "position": pos})
 
@@ -3588,7 +3943,8 @@ class Handler(BaseHTTPRequestHandler):
         pos = _enqueue_video({"url": url, "level": level,
                               "use_local": use_local, "model": model,
                               "screenshot": do_screenshot, "link": do_link,
-                              "mode": mode})
+                              "mode": mode, "analyze": do_analyze,
+                              "author": author, "note_folder": note_folder})
         return self._send({"queued": True, "position": pos})
 
     def _handle_video_move_models(self, _body):
@@ -3630,8 +3986,12 @@ class Handler(BaseHTTPRequestHandler):
     def _handle_video_notes_list(self):
         try:
             d = self._video_dir()
+            with _vn_lock:
+                folders, mapping = _vn_load_folders()
+            existing = set()
             items = []
             for p in sorted(d.glob("*.md"), reverse=True):
+                existing.add(p.name)
                 txt = p.read_text(encoding="utf-8", errors="replace")
                 lines = txt.splitlines()
                 title = lines[0].lstrip("# ").strip() if lines else p.stem
@@ -3650,10 +4010,146 @@ class Handler(BaseHTTPRequestHandler):
                             break
                     if hit:
                         break
-                items.append({"name": p.name, "title": title, "author": author})
-            return self._send({"ok": True, "notes": items})
+                # 「仅提取」模式存的笔记带「- 状态：未分析」标记 → 前端据此
+                # 显示「AI 分析」补做按钮
+                analyzed = True
+                for ln in lines[1:10]:
+                    s = ln.strip().lstrip("-").strip()
+                    if s.startswith("状态：未分析") or s.startswith("状态:未分析"):
+                        analyzed = False
+                        break
+                items.append({"name": p.name, "title": title, "author": author,
+                              "analyzed": analyzed,
+                              "folder": mapping.get(p.name, "")})
+            # 顺手清理：分组表里指向已删除笔记的残留条目
+            stale = [k for k in mapping if k not in existing]
+            if stale:
+                with _vn_lock:
+                    _f2, _m2 = _vn_load_folders()
+                    for k in stale:
+                        _m2.pop(k, None)
+                    _vn_save_folders(_f2, _m2)
+            return self._send({"ok": True, "notes": items, "folders": folders})
         except Exception as e:
-            return self._send({"ok": False, "notes": [], "error": str(e)})
+            return self._send({"ok": False, "notes": [], "folders": [],
+                               "error": str(e)})
+
+    def _handle_video_folder(self, body):
+        """视频笔记「文件夹」操作：create / rename / delete / move。
+        文件夹是虚拟分组（存 video_notes/_folders.json），删除文件夹不会删笔记，
+        里面的笔记只是回到未分组列表。"""
+        op = (body.get("op") or "").strip()
+        with _vn_lock:
+            folders, mapping = _vn_load_folders()
+            if op == "create":
+                name = _vn_ok_folder_name(body.get("name"))
+                if not name:
+                    return self._send({"ok": False,
+                                       "error": "文件夹名不能为空、太长（>30字）或含 / \\ .. 字符"})
+                if name not in folders:
+                    folders.append(name)
+                    _vn_save_folders(folders, mapping)
+                return self._send({"ok": True, "folders": folders})
+            if op == "rename":
+                old = (body.get("name") or "").strip()
+                new = _vn_ok_folder_name(body.get("new_name"))
+                if old not in folders:
+                    return self._send({"ok": False, "error": "找不到这个文件夹"})
+                if not new:
+                    return self._send({"ok": False,
+                                       "error": "新名字不能为空、太长（>30字）或含 / \\ .. 字符"})
+                if new != old and new in folders:
+                    return self._send({"ok": False, "error": "已有同名文件夹"})
+                folders[folders.index(old)] = new
+                for k, v in list(mapping.items()):
+                    if v == old:
+                        mapping[k] = new
+                _vn_save_folders(folders, mapping)
+                return self._send({"ok": True, "folders": folders})
+            if op == "delete":
+                name = (body.get("name") or "").strip()
+                if name in folders:
+                    folders.remove(name)
+                    for k, v in list(mapping.items()):
+                        if v == name:
+                            mapping.pop(k, None)
+                    _vn_save_folders(folders, mapping)
+                return self._send({"ok": True, "folders": folders})
+            if op == "move":
+                note = (body.get("note") or "").strip()
+                if not note or "/" in note or "\\" in note or ".." in note:
+                    return self._send({"ok": False, "error": "非法文件名"})
+                if not (self._video_dir() / note).exists():
+                    return self._send({"ok": False, "error": "找不到这条笔记"})
+                target = _vn_ok_folder_name(body.get("name"))
+                if target:
+                    if target not in folders:
+                        folders.append(target)
+                    mapping[note] = target
+                else:
+                    mapping.pop(note, None)
+                _vn_save_folders(folders, mapping)
+                return self._send({"ok": True})
+            return self._send({"ok": False, "error": "未知操作：" + op})
+
+    def _handle_video_note_set_author(self, body):
+        """填写 / 修改一条笔记的作者（本地导入的笔记通常没有作者）。
+        直接改写 md 里的「- 作者：」行；没有这行就在开头元信息区补一行。"""
+        name = (body.get("name") or "").strip()
+        if not name or "/" in name or "\\" in name or ".." in name:
+            return self._send({"ok": False, "error": "非法文件名"})
+        p = self._video_dir() / name
+        if not p.exists():
+            return self._send({"ok": False, "error": "找不到这条笔记"})
+        author = (body.get("author") or "").strip()[:40]
+        try:
+            lines = p.read_text(encoding="utf-8", errors="replace").split("\n")
+            done = False
+            for i in range(1, min(12, len(lines))):
+                s = lines[i].strip().lstrip("-").strip()
+                if s.startswith("作者：") or s.startswith("作者:"):
+                    lines[i] = "- 作者：" + author
+                    done = True
+                    break
+            if not done:
+                # 没有作者行：插到开头元信息区（第一段以 - 开头的行）的末尾
+                idx = None
+                for i in range(1, min(12, len(lines))):
+                    if lines[i].strip().startswith("-"):
+                        idx = i
+                    elif idx is not None:
+                        break
+                if idx is not None:
+                    lines.insert(idx + 1, "- 作者：" + author)
+                else:
+                    lines.insert(1, "")
+                    lines.insert(2, "- 作者：" + author)
+            p.write_text("\n".join(lines), encoding="utf-8")
+            return self._send({"ok": True, "author": author})
+        except Exception as e:
+            return self._send({"ok": False, "error": str(e)})
+
+    def _handle_video_note_analyze(self, body):
+        """给一条「未分析」的视频笔记补做 AI 分析。分析在后台线程跑（可能要
+        一两分钟），这里立刻返回；前端轮询 /video_note_analyze_progress 看进度。
+        同一时间只允许一条笔记在补分析（AI 一次也只干得动一件事）。"""
+        name = (body.get("name") or "").strip()
+        if not name or "/" in name or "\\" in name or ".." in name:
+            return self._send({"ok": False, "error": "非法文件名"})
+        p = self._video_dir() / name
+        if not p.exists():
+            return self._send({"ok": False, "error": "找不到这条笔记"})
+        use_local = body.get("use_local", True)
+        model = body.get("model", "qwen2.5")
+        with _note_an_lock:
+            if _note_an_state["running"]:
+                return self._send({"ok": False,
+                                   "error": "已有一条笔记正在补分析，请等它完成后再点。"})
+            _note_an_state.update({"running": True, "name": name,
+                                   "stage": "准备", "error": "", "ok": False})
+        _threading.Thread(target=_note_analyze_worker,
+                          args=(name, use_local, model), daemon=True).start()
+        return self._send({"ok": True, "started": True})
 
     def _handle_video_note_get(self, name):
         try:
@@ -3675,12 +4171,21 @@ class Handler(BaseHTTPRequestHandler):
             p = self._video_dir() / name
             if p.exists():
                 p.unlink()
+            # 分组表里也把这条移除（不然文件夹里会留个"幽灵"计数）
+            try:
+                _vn_assign_folder(name, "")
+            except Exception:
+                pass
             # 一并清掉这条笔记的截图子目录（video_notes/shots/<笔记stem>/）
+            # 以及「仅提取」模式留下的 segments 侧车文件
             try:
                 import shutil as _shutil
                 stem = name[:-3] if name.endswith(".md") else name
                 if stem and "/" not in stem and "\\" not in stem and ".." not in stem:
                     _shutil.rmtree(str(_cx_shots_dir() / stem), ignore_errors=True)
+                    sp = _cx_segments_dir() / (stem + ".json")
+                    if sp.exists():
+                        sp.unlink()
             except Exception:
                 pass
             return self._send({"ok": True})

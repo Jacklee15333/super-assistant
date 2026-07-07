@@ -41,6 +41,25 @@ _model_cache = {}
 # Semaphore(1) 等价于一把可重复 acquire/release 的锁，但 release 多了不会抛硬错。
 extract_gate = threading.BoundedSemaphore(1)
 
+# ════════════════════ 取消支持（「全部取消」按钮）════════════════════
+# server.py 在用户点「全部取消」时把 CANCEL["on"] 置 True：
+#   · 听写逐句循环里每句都会检查它 → 几秒内中断（已转进度早已随手落盘，可续传）；
+#   · yt-dlp 下载的进度钩子里也会检查它 → 下载中途也能停；
+#   · extract()/extract_local() 开跑时会先把它复位，所以取消只影响"当下这一个"任务，
+#     之后新提交的任务不受旧取消标记影响。
+CANCEL = {"on": False}
+
+
+class ExtractCancelled(RuntimeError):
+    """用户主动取消当前提取任务。"""
+    pass
+
+
+def _check_cancel():
+    if CANCEL.get("on"):
+        raise ExtractCancelled("已取消")
+
+
 # ════════════════════ 转写进度续传（断点续传）支持 ════════════════════
 # 目标：转写到一半时换代码/关软件，下次打开**从上次的秒数接着转**，不再从 0% 开始。
 # 做法：按 URL 建一个持久目录，里面放下载好的音频 + progress.json（已转文字 + 已到秒数）。
@@ -555,6 +574,18 @@ def _run_extract(url, base_opts, download):
         所以失败的尝试不会留下半成品文件，逐个重试是安全的。"""
     import yt_dlp
 
+    # ★取消支持：真正要下载时，挂一个进度钩子——用户点了「全部取消」，
+    #   钩子在下一次进度回调时抛 ExtractCancelled，yt-dlp 会立即中止下载。
+    #   （只取信息 download=False 的探测秒级完成，不需要挂）
+    if download:
+        def _cancel_hook(_d):
+            if CANCEL.get("on"):
+                raise ExtractCancelled("已取消")
+        base_opts = dict(base_opts)
+        _hooks = list(base_opts.get("progress_hooks") or [])
+        _hooks.append(_cancel_hook)
+        base_opts["progress_hooks"] = _hooks
+
     # ★从最底层堵住「Unsupported URL」：iesdouyin.com/share/video/{id}/?一堆参数
     #   是抖音分享页地址，yt-dlp 不认。统一转成它认识的 douyin.com/video/{id}。
     #   不管上层哪条路径传进来的脏长链，到了这里都会被规范化。
@@ -575,6 +606,8 @@ def _run_extract(url, base_opts, download):
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 return ydl.extract_info(url, download=download)
+        except ExtractCancelled:
+            raise          # 用户取消：直接往外抛，不再试下一个方案
         except Exception as e:
             # 抖音这边：任何方案失败都安静退到下一个方案，绝不中途抛错，
             # 这样一定能走到最后那层「老办法」兜底，不会比改之前更差。
@@ -1129,6 +1162,9 @@ def _transcribe(path, level="balanced", progress_cb=None, job_dir=None):
                 "segments": new_seg_list})
 
     for seg in segments:
+        # ★取消检查：用户点了「全部取消」→ 立刻中断听写。
+        #   已识别的进度上面每隔几秒就落盘了一次，下次同一个链接/文件再提取会自动续传。
+        _check_cancel()
         t = (seg.text or "").strip()
         seg_start = (getattr(seg, "start", 0) or 0) + offset
         seg_end = (getattr(seg, "end", 0) or 0) + offset
@@ -1206,6 +1242,9 @@ def extract(url, level="balanced", progress_cb=None, need_video=False, mode="aut
     def step(s, d=""):
         if progress_cb:
             progress_cb(s, d)
+
+    # 新任务开跑：复位取消标记（取消只作用于"点取消那一刻正在跑的任务"）
+    CANCEL["on"] = False
 
     raw = (url or "").strip()
     if not raw:
@@ -1301,6 +1340,7 @@ def extract(url, level="balanced", progress_cb=None, need_video=False, mode="aut
                     pass
         else:
             step("下载音频", "正在从平台下载视频的音频…")
+            _check_cancel()   # 下载开始前看一眼是否已被取消
             media, title, uploader, _dl_tags = _download_audio(url, str(job))
             step("下载音频", f"下载完成：{(title or '')[:30]}")
             # 下载这步若已顺带拿到抖音话题标签，先收下（这是最常见、最可靠的来源）
@@ -1353,6 +1393,7 @@ def extract(url, level="balanced", progress_cb=None, need_video=False, mode="aut
         video_path = _grab_video_for_shots()
 
         # _transcribe 现在返回 (文字稿, 带时间戳的分段列表)
+        _check_cancel()   # 听写开始前再看一眼是否已被取消
         transcript, segments = _transcribe(
             media, level, progress_cb=progress_cb, job_dir=job)
 
@@ -1372,6 +1413,10 @@ def extract(url, level="balanced", progress_cb=None, need_video=False, mode="aut
                 "url": url, "transcript": transcript,
                 "segments": segments, "source": "local_whisper",
                 "video_path": video_path, "platform_tags": dy_tags}
+    except ExtractCancelled:
+        # 用户主动取消：不算失败、不写诊断。job 目录（音频 + 已转进度）保留，
+        # 下次同一个链接再提取会自动续传，前面识别的功夫不白费。
+        return {"ok": False, "cancelled": True, "error": "已取消"}
     except Exception as e:
         # 注意：这里**不删** job 目录——很可能是被中途打断/出错，
         # 保留音频和已转进度，下次打开能接着转。只有彻底识别不出/成功才清理。
@@ -1454,6 +1499,8 @@ def extract_local(file_path, level="balanced", progress_cb=None):
     title = os.path.splitext(base)[0] or "本地文件"
 
     step("读取文件", f"准备听写本地文件：{base[:40]}")
+    # 新任务开跑：复位取消标记（取消只作用于"点取消那一刻正在跑的任务"）
+    CANCEL["on"] = False
     try:
         # 本地文件没有断点续传目录（不像在线任务按 url 建 job 目录），
         # 直接整段听写即可；文件通常已在本地，重跑成本低。
@@ -1478,6 +1525,9 @@ def extract_local(file_path, level="balanced", progress_cb=None):
             "platform_tags": [],
             "local_path": p,
         }
+    except ExtractCancelled:
+        # 用户主动取消：不算失败、不写诊断（本地文件重跑成本低，无需续传）
+        return {"ok": False, "cancelled": True, "error": "已取消"}
     except Exception as e:
         msg = _clean_err(e)
         try:
