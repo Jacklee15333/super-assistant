@@ -210,6 +210,7 @@ class _WebWorker:
         self._login_url = LOGIN_URL
         self._carlist_url = CARLIST_URL
         self._landing_url = ""
+        self._chat_epoch = 0      # 每进入一个全新的网页对话线程 +1（客户端据此判断能否发增量）
 
     # ---- 公共：投递一个 job，阻塞等结果 ----
     def submit(self, fn_name, kwargs, timeout=720):
@@ -765,6 +766,7 @@ class _WebWorker:
                 self._log("选卡异常: " + str(e))
             ready = self._wait_chat_page_ready(25)
             if ready is True:
+                self._chat_epoch += 1
                 return True
             if ready == "login_redirect":
                 self._log("↻ session 失效，重新登录...")
@@ -933,6 +935,12 @@ class _WebWorker:
         # ★ 2026-06 新增：forceNewCard —— 主动换一张新卡再问。
         #   用于 agent 工具循环里碰到「轴卡」（死活不肯输出工具块、一直用文字推辞）时，
         #   由上层（web_model_client）请求换一张卡重抽，直到碰到肯配合的卡。
+        if opts.get("newChat") and not opts.get("forceNewCard"):
+            prog("开一个新对话…")
+            if not self._new_chat() and opts.get("newChatStrict"):
+                self._log("[新对话] 页面上开不了新对话，改为重新选卡")
+                opts = dict(opts, forceNewCard=True)
+
         if opts.get("forceNewCard"):
             self._log("[换卡] 上层请求换一张新卡重试…")
             prog("换一张 AI 卡片重试…")
@@ -964,6 +972,61 @@ class _WebWorker:
                 self._state = "ready"
                 raise e
         raise last_err or RuntimeError("未知错误")
+
+    _HAS_CONVO_JS = r"""() => {
+        const sels = ['[data-message-author-role]', '[class*="markdown"]', '[class*="prose"]',
+                      '[class*="message-content"]', '[class*="msg-content"]'];
+        let n = 0;
+        for (const s of sels) {
+            for (const el of document.querySelectorAll(s)) {
+                const r = el.getBoundingClientRect();
+                if (r.width > 100 && r.height > 0 && (el.innerText || '').trim()) n++;
+            }
+        }
+        return n;
+    }"""
+
+    def _has_conversation(self):
+        return (self._safe(lambda: self._page.evaluate(self._HAS_CONVO_JS), 0) or 0) > 0
+
+    def _new_chat(self):
+        """在当前卡上开一个空白新对话，避免不同任务/请求的内容堆在同一个对话线程里互相干扰。
+        成功返回 True（并让 chat_epoch +1）。"""
+        if not self._page or self._page.is_closed():
+            return False
+        if not self._has_conversation():
+            self._chat_epoch += 1          # 本来就是空对话
+            return True
+
+        def ok():
+            for _ in range(10):
+                time.sleep(0.6)
+                if not self._has_conversation() and self._safe(lambda: self._page.evaluate(
+                        "() => [...document.querySelectorAll('textarea,[contenteditable=\"true\"]')]"
+                        ".some(e => e.getBoundingClientRect().width > 200)"), False):
+                    self._chat_epoch += 1
+                    self._log("✓ 已开新对话")
+                    time.sleep(1.0)
+                    return True
+            return False
+
+        for sel in ('[data-testid="create-new-chat-button"]',
+                    'a[aria-label*="New chat" i]', 'button[aria-label*="New chat" i]',
+                    'a[aria-label*="新聊天"]', 'button[aria-label*="新聊天"]',
+                    'a[aria-label*="新对话"]', 'button[aria-label*="新对话"]'):
+            loc = self._page.locator(sel).first
+            if self._safe(lambda: loc.count(), 0) and self._safe(lambda: loc.is_visible(), False):
+                if self._safe(lambda: (loc.click(timeout=3000), True)[1], False) and ok():
+                    return True
+        for txt in ("新聊天", "新对话", "New chat"):
+            if self._click_text(txt) and ok():
+                return True
+        # ChatGPT 的「新聊天」快捷键
+        self._safe(lambda: self._page.keyboard.press("Control+Shift+O"))
+        if ok():
+            return True
+        self._log("⚠ 没能开新对话（找不到「新聊天」入口）")
+        return False
 
     def _capture_baseline(self):
         js = """() => {
@@ -2021,6 +2084,14 @@ def _worker():
 
 def set_logger(fn):
     _worker().set_logger(fn)
+
+
+def chat_epoch():
+    """当前网页对话线程的编号；变了就说明已经不是之前那个对话了。"""
+    try:
+        return _worker()._chat_epoch
+    except Exception:
+        return -1
 
 
 def web_complete(prompt, on_progress=None, **opts):

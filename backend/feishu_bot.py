@@ -22,6 +22,15 @@ from agent_core import (
 )
 
 
+
+def _fit_hist(hist):
+    """手机渠道的历史只留最近一段（含系统提示），避免越聊越长把上下文撑爆。"""
+    try:
+        import prompt_utils as _pu
+        return _pu.fit_messages(hist, 24000)
+    except Exception:
+        return hist[:1] + hist[-30:]
+
 def load_config():
     cfg = {"app_id": "", "app_secret": "", "verification_token": ""}
     raw = read_memory_file("feishu.md")
@@ -120,14 +129,14 @@ def handle_event(cfg, body, use_local, model):
     # 跑 agent
     hist = _histories.setdefault(sender, [])
     if not hist:
-        hist.append({"role": "system", "content": build_system_prompt()})
+        hist.append({"role": "system", "content": build_system_prompt(request=content, unattended=True)})
     else:
-        hist[0] = {"role": "system", "content": build_system_prompt()}
+        hist[0] = {"role": "system", "content": build_system_prompt(request=content, unattended=True)}
     hist.append({"role": "user", "content": content})
     try:
         client = make_client(use_local)
         reply, hist = run_agent_autodeny(client, model, hist)
-        _histories[sender] = hist
+        _histories[sender] = _fit_hist(hist)
     except Exception as e:
         reply = f"出错了：{e}"
 

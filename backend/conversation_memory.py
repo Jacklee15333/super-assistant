@@ -53,10 +53,13 @@ def _conversation_text(messages):
 
 
 SUMMARY_PROMPT = (
-    "下面是一段你和用户的对话。请提炼出值得长期记住的要点，"
-    "比如：用户的偏好、习惯、正在做的事、做过的决定、需要后续跟进的事。\n"
-    "用简短的中文 bullet（每条一行，以 - 开头）输出，不要寒暄、不要复述全文。"
-    "如果这段对话没什么值得长期记的，只回复一个词：无。\n\n"
+    "下面是一段你和用户的对话。请提炼出值得**长期**记住的要点：用户的偏好、习惯、"
+    "正在做的事、做过的决定、需要后续跟进的事。\n"
+    "· 只记**新的**信息：下面「已有记忆」里已经有的（哪怕换个说法）不要再写；\n"
+    "· 不记一次性的操作流水（如「清理了临时文件」「查看了桌面」），除非它反映了长期偏好；\n"
+    "· 用简短的中文 bullet（每条一行，以 - 开头），不要寒暄、不要复述全文；\n"
+    "· 没有值得长期记的新东西，只回复一个词：无。\n\n"
+    "=== 已有记忆（最近部分）===\n{known}\n\n"
     "=== 对话 ===\n{conv}\n"
 )
 
@@ -66,17 +69,32 @@ def update_long_term_memory(client, model, messages):
     conv = _conversation_text(messages)
     if not conv.strip():
         return None
+    if len(conv) > 8000:                       # 太长只看最近的部分（本地模型上下文有限）
+        conv = "（前面的对话已省略）\n" + conv[-8000:]
+    known = (read_memory_file(MEMORY_FILE) or "").strip()[-1500:] or "（暂无）"
     try:
         resp = client.chat.completions.create(
             model=model,
             messages=[{"role": "user",
-                       "content": SUMMARY_PROMPT.format(conv=conv)}],
+                       "content": SUMMARY_PROMPT.format(conv=conv, known=known)}],
         )
         summary = (resp.choices[0].message.content or "").strip()
     except Exception:
         return None
 
-    if not summary or summary.strip() == "无":
+    try:
+        import prompt_utils as _pu
+        summary = _pu.strip_think(summary)
+    except Exception:
+        pass
+    if not summary or summary.strip().strip("。.") == "无":
+        return None
+    # 兜底去重：和已有记忆完全重复的行不再追加
+    import re as _re0
+    _norm = lambda l: _re0.sub(r"[（(]\d{4}-\d{2}-\d{2}[）)]|\s|[，。、；,.;-]", "", l)
+    _old = {_norm(l) for l in (read_memory_file(MEMORY_FILE) or "").splitlines()}
+    summary = "\n".join(l for l in summary.splitlines() if l.strip() and _norm(l) not in _old)
+    if not summary.strip():
         return None
 
     today = datetime.date.today().isoformat()

@@ -324,12 +324,25 @@ def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None
     # 要插图或跳转时，给模型「带时间戳的文字稿」，它才能把标记时间打准；
     # 否则维持原样（纯文字稿），行为和以前完全一致。
     want_markers = bool(do_screenshot or do_link) and bool(segments)
+    # 文字稿上限：网页模型 / Claude 能吃长文，给 30000 字；本地小模型 10000 字。
+    try:
+        _ul, _m = core.resolve_model("video_summary", fallback_use_local=use_local,
+                                     fallback_model=model)
+    except Exception:
+        _ul, _m = use_local, model
+    _limit = 10000 if _ul else 30000
     if want_markers:
-        body_text = _build_timestamped_transcript(segments, limit=10000)
+        body_text = _build_timestamped_transcript(segments, limit=_limit)
         if not body_text:
-            body_text = (transcript or "")[:10000]
+            body_text = (transcript or "")[:_limit]
     else:
-        body_text = (transcript or "")[:10000]
+        body_text = (transcript or "")[:_limit]
+    _full_len = len(transcript or "")
+    _cut_note = ""
+    if _full_len > len(body_text) + 200:
+        _cut_note = ("（注意：文字稿太长，下面只给出了前 %d%% 的内容。请只总结给出的部分，"
+                     "并在「一句话概括」后面注明「本笔记只覆盖视频前 %d%% 的内容」。）\n"
+                     % (len(body_text) * 100 // _full_len, len(body_text) * 100 // _full_len))
 
     prompt = (
         "下面是一段视频的文字稿（语音识别得到，可能有个别错别字，请结合上下文理解）。"
@@ -380,7 +393,7 @@ def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None
         prompt += (
             "标记里的时间一定要用文字稿里真实出现的 [mm:ss]，不要瞎编。\n")
 
-    prompt += f"\n视频标题：{title}\n\n=== 文字稿 ===\n{body_text}\n"
+    prompt += f"\n视频标题：{title}\n\n{_cut_note}=== 文字稿 ===\n{body_text}\n"
 
     # 视频总结的设计：原文已用本地听写提取，这一步默认交给「网页模型」分析总结。
     try:
@@ -1692,7 +1705,7 @@ def _run_one_automation(slug, task_id):
         model = "qwen2.5" if use_local else "web"   # 任务和分身都没指定时的兜底
     now = _dt.datetime.now()
     try:
-        sys_prompt = core.build_system_prompt() + "\n\n" + \
+        sys_prompt = core.build_system_prompt(request=prompt, unattended=True) + "\n\n" + \
             agents_store.build_agent_system_prompt(slug)
         messages = [{"role": "system", "content": sys_prompt},
                     {"role": "user", "content": prompt}]
@@ -3273,8 +3286,11 @@ class Handler(BaseHTTPRequestHandler):
         # 让微信/飞书渠道也用同一套模型设置
         Handler._channel_cfg = {"use_local": use_local, "model": model}
 
-        # 每次都用最新的记忆文件重建系统提示
-        sys_prompt = core.build_system_prompt()
+        # 每次都用最新的记忆文件重建系统提示；带上用户最近说的话，按相关性取舍专项设定
+        _req = "\n".join(
+            (m.get("content") if isinstance(m.get("content"), str) else "")
+            for m in messages[-6:] if m.get("role") == "user")
+        sys_prompt = core.build_system_prompt(request=_req)
         # ── 分身：若本次带了 agent_slug，把这个分身的「判断标准/风格样本」拼到系统提示之后 ──
         #    （只增不改：原 prompt 带着软件的记忆/人格，分身片段追加在末尾，让它带着用户的判断做事）
         #    特殊 slug "__interview__" 走的是"访谈引导"提示——让模型采访用户、最后吐出分身草稿。

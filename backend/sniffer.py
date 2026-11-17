@@ -436,7 +436,7 @@ def _scan_one(client, model, src, report):
 #  —— 工作模式与「生成情报简报」完全一致。
 # ============================================================
 SNIFF_WEB_PROMPT = (
-    "请帮我盯一下「{title}」这个站点（{url}）的最新动态。\n"
+    "今天是 {today}。请帮我盯一下「{title}」这个站点（{url}）的最新动态（重点看最近一两周）。\n"
     "**如果你现在能联网，请打开/搜索这个网站及其官方来源**，找出它**最近新发布、新更新**的内容"
     "（新模型 / 新版本 / 新功能 / 新基准 / 新概念 / 重要公告等），用中文整理成情报。\n"
     "【正文】\n"
@@ -514,7 +514,9 @@ def generate_sniff_report(use_local=False, model="web", verbose=False,
                 resp = client.chat.completions.create(
                     model=model,
                     messages=[{"role": "user",
-                               "content": SNIFF_WEB_PROMPT.format(title=title, url=url)}],
+                               "content": SNIFF_WEB_PROMPT.format(
+                                   title=title, url=url,
+                                   today=datetime.date.today().isoformat())}],
                 )
                 summary = _clean_web_summary(resp.choices[0].message.content or "")
             else:

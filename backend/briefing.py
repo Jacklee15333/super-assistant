@@ -40,7 +40,7 @@ def _load_watchlist():
 
 
 KW_PROMPT = (
-    "你是市场情报分析助手。下面是专门针对关键词「{kw}」抓取到的网页资料。\n"
+    "你是市场情报分析助手。今天是 {today}。下面是专门针对关键词「{kw}」抓取到的网页资料。\n"
     "请**只围绕这个关键词**，提炼一段内容充实的中文情报：\n"
     "- 给出 5-8 条要点，覆盖最新动态、关键数据/事实、不同来源的说法、值得注意的细节；\n"
     "- 每条要点写 1-2 句，把事情说清楚，不要写空泛的一句话；\n"
@@ -53,7 +53,7 @@ KW_PROMPT = (
 # 网页大模型专用：让 ChatGPT 自己联网搜索这个关键词的最新消息再总结，
 # 不需要软件去喂网页材料（那样又脏又旧）。
 KW_SEARCH_PROMPT = (
-    "请帮我整理「{kw}」的最新情报。**如果你现在能联网，请先联网搜索最新、权威的信息**，"
+    "今天是 {today}。请帮我整理「{kw}」的最新情报（重点看最近一两周，旧闻不算新）。**如果你现在能联网，请先联网搜索最新、权威的信息**，"
     "再用中文给出一份简明情报。\n"
     "【信息源】优先权威、官方、专业来源：政府或监管机构官网、官方/权威媒体、公司官方公告、"
     "知名研究机构等；尽量不用内容农场、自媒体二次转载。\n"
@@ -76,7 +76,9 @@ def _summarize_keyword(client, model, kw, material):
         resp = client.chat.completions.create(
             model=model,
             messages=[{"role": "user",
-                       "content": KW_PROMPT.format(kw=kw, material=material)}],
+                       "content": KW_PROMPT.format(
+                           kw=kw, material=material,
+                           today=__import__("datetime").date.today().isoformat())}],
         )
         txt = (resp.choices[0].message.content or "").strip()
         return txt or "（这个关键词暂时没提炼出内容，可看下面的来源链接。）"
@@ -107,7 +109,8 @@ def _search_keyword_web(client, model, kw):
         resp = client.chat.completions.create(
             model=model,
             messages=[{"role": "user",
-                       "content": KW_SEARCH_PROMPT.format(kw=kw)}],
+                       "content": KW_SEARCH_PROMPT.format(
+                           kw=kw, today=__import__("datetime").date.today().isoformat())}],
         )
         txt = (resp.choices[0].message.content or "").strip()
         return _clean_summary(txt) or "（这个关键词暂时没查到内容。）"

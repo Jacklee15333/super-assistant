@@ -37,7 +37,8 @@ def run_one_beat(use_local=True, model="qwen2.5", verbose=True):
              f"=== 定时提醒 reminders.md ===\n{reminders}\n"
              "如果有提醒到点了，就通知用户并说明；没到点的不要动。")
     messages = [
-        {"role": "system", "content": build_system_prompt()},
+        {"role": "system", "content": build_system_prompt(request=heartbeat + reminders,
+                                                          unattended=True)},
         {"role": "user", "content": HEARTBEAT_PROMPT.format(heartbeat=heartbeat) + extra},
     ]
 

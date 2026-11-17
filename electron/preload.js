@@ -6,6 +6,8 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("crayfish", {
   getBackendPort: () => ipcRenderer.invoke("get-backend-port"),
+  popupAppMenu: (pos) => ipcRenderer.invoke("app-menu-popup", pos),
+  setTitlebarTheme: (dark) => ipcRenderer.invoke("titlebar-theme", !!dark),
   onBackendStatus: (cb) =>
     ipcRenderer.on("backend-status", (_e, ok) => cb(ok)),
 

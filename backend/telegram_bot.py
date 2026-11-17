@@ -24,6 +24,15 @@ from agent_core import (
 API = "https://api.telegram.org/bot{token}/{method}"
 
 
+
+def _fit_hist(hist):
+    """手机渠道的历史只留最近一段（含系统提示），避免越聊越长把上下文撑爆。"""
+    try:
+        import prompt_utils as _pu
+        return _pu.fit_messages(hist, 24000)
+    except Exception:
+        return hist[:1] + hist[-30:]
+
 def _load_config():
     token = os.environ.get("TELEGRAM_TOKEN", "")
     chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
@@ -93,13 +102,13 @@ def run_bot(use_local=True, model="qwen2.5", stop_flag=None):
 
             hist = histories.setdefault(chat_id, [])
             if not hist:
-                hist.append({"role": "system", "content": build_system_prompt()})
+                hist.append({"role": "system", "content": build_system_prompt(request=text, unattended=True)})
             else:
-                hist[0] = {"role": "system", "content": build_system_prompt()}
+                hist[0] = {"role": "system", "content": build_system_prompt(request=text, unattended=True)}
             hist.append({"role": "user", "content": text})
             try:
                 reply, hist = run_agent_autodeny(client, model, hist)
-                histories[chat_id] = hist
+                histories[chat_id] = _fit_hist(hist)
             except Exception as e:
                 reply = f"出错了：{e}"
             _send_message(token, chat_id, reply or "（无回复）")

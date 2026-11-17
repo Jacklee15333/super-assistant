@@ -145,7 +145,13 @@ function createWindow() {
     minHeight: 520,
     title: "超能小助",
     icon: appIcon.isEmpty() ? undefined : appIcon,
-    backgroundColor: "#f3f3f3",
+    backgroundColor: "#faf9f5",
+    // 仿 Claude 桌面端：隐藏系统标题栏，窗口按钮（最小化/最大化/关闭）浮在页面右上角；
+    // 菜单改由侧栏左上角的 ☰ 按钮弹出（快捷键照常可用）。
+    ...(process.platform === "win32" ? {
+      titleBarStyle: "hidden",
+      titleBarOverlay: { color: "#faf9f5", symbolColor: "#3d3c38", height: 44 },
+    } : {}),
     show: false,            // 先不显示，定好大小后再显示，避免闪一下
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -158,6 +164,32 @@ function createWindow() {
   mainWindow.show();
 
   mainWindow.loadFile(path.join(__dirname, "renderer", "index.html"));
+
+  // ☰ 按钮：弹出应用菜单（标题栏隐藏后菜单栏不再显示）
+  ipcMain.removeHandler("app-menu-popup");
+  ipcMain.handle("app-menu-popup", (_e, pos) => {
+    const m = Menu.getApplicationMenu();
+    if (m && mainWindow) {
+      const opt = { window: mainWindow };
+      if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
+        opt.x = Math.round(pos.x); opt.y = Math.round(pos.y);
+      }
+      m.popup(opt);
+    }
+    return true;
+  });
+  // 深浅色切换时，同步右上角窗口按钮区域的颜色
+  ipcMain.removeHandler("titlebar-theme");
+  ipcMain.handle("titlebar-theme", (_e, dark) => {
+    try {
+      if (mainWindow && process.platform === "win32" && mainWindow.setTitleBarOverlay) {
+        mainWindow.setTitleBarOverlay(dark
+          ? { color: "#262624", symbolColor: "#d6d4cc" }
+          : { color: "#faf9f5", symbolColor: "#3d3c38" });
+      }
+    } catch (e) { /* 老版本 Electron 不支持就算了 */ }
+    return true;
+  });
 
   // 外部链接用系统浏览器打开，不在应用内乱跳
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {

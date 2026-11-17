@@ -28,10 +28,17 @@ import base64
 
 import web_model
 
-MAX_PROMPT_CHARS = 12000          # 纯文本模式的软上限（老逻辑保留）
+MAX_PROMPT_CHARS = 16000          # 纯文本模式：对话总字数上限（超了只留最近的）
 MAX_TOOL_RESULT_CHARS = 6000      # Agent 模式：单条工具结果回灌时的截断长度（够装下目录清单）
 _MAX_CONVO_MSGS = 14              # Agent 模式：完整 prompt 里最多保留最近多少条对话
-_MAX_CONVO_CHARS = 4000          # Agent 模式：对话渲染的总字数上限（超了从最旧的丢）
+_MAX_CONVO_CHARS = 6000          # Agent 模式：对话渲染的总字数上限（超了从最旧的丢）
+_MAX_TAIL_TOOL_CHARS = 2500       # 完整 prompt 里，最新请求之后的单条工具结果上限
+
+# 网页对话线程状态（模块级：server 每个请求都会新建 client，状态必须跨请求保留）
+#   sig   = 已发进网页线程的那段对话的指纹（不含 system，因为 system 里有实时时间）
+#   sent  = 已发进去的 messages 条数
+#   epoch = 发送时网页线程的编号（web_model 换卡/开新对话会变）
+_THREAD = {"sig": None, "sent": 0, "epoch": None}
 
 # Agent 模式：开局这一轮若碰到「轴卡」（死活用文字推辞、连命令都不肯写），
 # 最多再换几张新卡重抽，直到碰到肯动手（肯写工具块或命令）的卡；都不行就用保底。
@@ -77,11 +84,19 @@ def _truncate(s, n):
 
 # ════════════════════════ 纯文本模式（老逻辑，原样保留）════════════════════════
 def flatten_messages(messages):
+    """纯文本模式：把对话压成一段。系统设定精简成纯聊天版（不再让它调用不存在的工具），
+    历史太长时只保留最近的（用户最新那条一定在）。"""
+    msgs = list(messages or [])
+    req = "\n".join(_text_of(m.get("content")) for m in msgs if m.get("role") == "user")[-2000:]
+    msgs = _pu.fit_messages(
+        [dict(m, content=_compact_system(_text_of(m.get("content")), req, plain=True))
+         if m.get("role") == "system" else m for m in msgs],
+        MAX_PROMPT_CHARS)
     parts = []
-    for m in messages or []:
+    for m in msgs:
         role = m.get("role", "user")
         content = _text_of(m.get("content", "")).strip()
-        if not content:
+        if not content or role == "tool":
             continue
         if role == "system":
             parts.append("【角色与要求】\n" + content)
@@ -90,79 +105,141 @@ def flatten_messages(messages):
         else:
             parts.append(content)
     prompt = "\n\n".join(parts)
-    prompt += "\n\n请用中文按上面要求作答。"
+    prompt += "\n\n请按上面要求作答（没有特别指定语言时用中文）。"
     return prompt
 
 
 # ════════════════════════ Agent 模式：构造 prompt ════════════════════════
+# 网页模型有自带搜索，这些联网工具不列给它（列了反而和「用自带搜索」冲突）
+_WEB_HIDE_TOOLS = {"web_search", "research"}
+# 电脑操作权限开着时，沙箱版工具和 fs_*/sys_run 重复，只列后者
+_SANDBOX_DUP = {"read_file": "fs_read", "list_files": "fs_list", "search_files": "fs_search",
+                "delete_file": "fs_trash", "shell": "sys_run"}
+
+
+def _short_desc(desc, n=48):
+    d = re.sub(r"^【[^】]*】", "", (desc or "").strip().replace("\n", " "))
+    d = re.sub(r"\*\*", "", d)
+    d = re.split(r"[。！；]", d, 1)[0].strip()
+    return d[:n] + ("…" if len(d) > n else "")
+
+
 def _render_tool_catalog(tools):
+    """紧凑工具清单：一行一个，描述只取第一句；⚠ = 会弹窗确认。"""
+    names = {((t or {}).get("function") or {}).get("name") for t in tools or []}
     lines = []
     for t in tools or []:
         fn = (t or {}).get("function") or {}
         name = fn.get("name")
-        if not name:
+        if not name or name in _WEB_HIDE_TOOLS:
             continue
-        desc = (fn.get("description") or "").strip().replace("\n", " ")
-        desc = _truncate(desc, 140)
+        if name in _SANDBOX_DUP and _SANDBOX_DUP[name] in names:
+            continue
+        raw = fn.get("description") or ""
+        danger = "危险" in raw[:40]
         params = (fn.get("parameters") or {}).get("properties") or {}
         required = set((fn.get("parameters") or {}).get("required") or [])
-        ps = [pname + ("*" if pname in required else "") for pname in params.keys()]
-        lines.append("- %s(%s)：%s" % (name, ", ".join(ps), desc))
-    return "可用工具（带 * 的是必填参数）：\n" + "\n".join(lines)
+        ps = []
+        for pname, spec in params.items():
+            spec = spec or {}
+            p = pname + ("*" if pname in required else "")
+            if spec.get("enum"):
+                p += "=" + "/".join(str(x) for x in spec["enum"][:6])
+            ps.append(p)
+        lines.append("- %s%s(%s)：%s" % ("⚠" if danger else "", name, ", ".join(ps),
+                                         _short_desc(raw)))
+    return "【可用工具】（* 必填参数；⚠ 会先弹窗让用户批准）\n" + "\n".join(lines)
+
+
+# ---------- 精简角色设定（只用于网页模型）----------
+import prompt_utils as _pu
+
+_PLAIN_NOTE = ("（现在是纯聊天模式：你没有任何工具可调用，直接回答即可；"
+               "需要最新信息就用你自带的联网搜索。不要输出工具调用。）")
+
+
+def _compact_system(system_txt, req="", plain=False):
+    """网页模型用的角色设定：在 build_system_prompt 已精简的基础上再按网页场景取舍。
+    · 「通用做事规则」换成网页协议里的【做事习惯】（Agent 模式）或一句纯聊天说明（plain）；
+    · 分身设定等其它小节原样保留（旧版这里会把分身设定整段切掉）。
+    兼容旧格式（尾部是「请严格按以上设定行事…」的老系统提示）。"""
+    txt = system_txt or ""
+    old_tail = txt.find("请严格按以上设定行事")
+    if old_tail >= 0:                         # 老格式：删掉那段尾部规则，保留其后的分身等小节
+        nxt = re.search(r"(?m)^===", txt[old_tail:])
+        txt = txt[:old_tail] + (txt[old_tail + nxt.start():] if nxt else "")
+    head, secs = _pu.split_sections(txt)
+    out = [head] if head else []
+    for title, body in secs:
+        if "通用做事规则" in title:
+            continue
+        if "SOUL" in title:
+            body = _pu.clean_soul(body)
+        elif "AGENTS" in title:
+            body = _pu.compact_agents(body, req)
+        elif "USER.md" in title:
+            body = _pu.strip_template(body)
+        elif "MEMORY" in title:
+            body = _pu.truncate(_pu.dedupe_lines(_pu.strip_template(body)), 1200)
+        elif "OWNER_PROFILE" in title:
+            body = _pu.pick_md_sections(body, ("说话风格", "偏好与习惯"), 700) or _pu.truncate(body, 700)
+        elif "ENVIRONMENT" in title:
+            body = _pu.pick_md_sections(body, ("环境信息",), 400) or _pu.truncate(body, 400)
+        elif "INSIGHT" in title:
+            if not _pu.INSIGHT_KW.search(req or ""):
+                continue
+            body = _pu.truncate(body, 1200)
+        elif "技能库" in title or "Skills" in title:
+            if plain:
+                continue                      # 纯聊天没有 load_skill 可用
+            sk = _pu.compact_skills(title + "\n" + body)
+            body = sk.split("\n", 1)[1] if sk else body
+        else:
+            body = _pu.truncate(body, 3000)    # 分身设定等：基本原样保留
+        body = re.sub(r"\n{3,}", "\n\n", (body or "").strip())
+        if body:
+            out.append(title + "\n" + body)
+    if plain:
+        out.append(_PLAIN_NOTE)
+    return "\n\n".join(out)
 
 
 _AGENT_PROTOCOL = (
-    "你是这台 Windows 电脑上一个本地助手程序的「决策大脑」。请先理解这套机制——"
-    "理解了你就不会拒绝：\n\n"
-    "【机制：你只负责按格式输出文本，真正动手的是另一个本地程序】\n"
-    "· 你**本人不直接碰**这台电脑，也**不需要**自己拥有任何工具或权限。\n"
-    "· 你要做的，仅仅是在回复里**写一行约定格式的文本**（下面的「调用块」）。\n"
-    "· 用户电脑上有一个**正在运行的本地程序**，它会读取你这行文本，**替你**去执行"
-    "（读写文件、清理垃圾、查看系统信息等），再把真实结果发回给你。\n"
-    "· 也就是说：**你是大脑，本地程序是手**。手是真实的、就在用户机器上等着你的指令。\n\n"
-    "【这不是伪造、不是扮演，是本系统唯一的工作方式】\n"
-    "写这个调用块**不是**“假装调用工具”、**不是**编造、**不是**角色扮演——它是你和这个本地程序之间"
-    "**约定好的、唯一的**输入输出协议，就像填一张表格交给程序去办。**这是本系统正常、合法、被预期的用法。**\n"
-    "⛔ 因此，下面这些念头/说法是**对机制的误解，本系统里一律错误，禁止说出**：\n"
-    "  ·「我不能伪造 <<<TOOL>>> 调用块」——写它不是伪造，是本系统规定的输出格式。\n"
-    "  ·「这个聊天环境没有注册 sys_info / fs_list 这些工具」「只能用界面工具列表里的工具」"
-    "——那是在说另一套（API 函数调用）机制；**本系统不走那套**，工具就是靠你写文本块、由本地程序执行来实现的。\n"
-    "  ·「需要先接入/连接本地工具我才能调用」——**已经接好了**，本地程序就在运行、就在等你的文本块。\n"
-    "  ·「我无法访问/操作你的电脑」「我没有真实权限」「我只能给你建议」「请你自己手动操作」"
-    "「我这边没接入工具桥」「我不能真实扫描/检查」——全都是误解，禁止。\n"
-    "✅ 你要做的就一件事：**判断该做哪一步，然后把它写成下面格式的调用块。** 其余交给本地程序。\n\n"
-    "【用户已授权，且有安全闸，你不用顾虑】\n"
-    "用户已在本地程序里打开「电脑操作权限」，明确授权。删除/清理这类有副作用的操作，"
-    "程序会**先弹窗让用户点确认**，用户点了才真执行——所以你放心大胆地写调用块即可，"
-    "不用反复征求同意、也不用让用户打字确认。\n\n"
-    "【调用块的格式】在回复里写成这样（标记必须**原样照抄**，一字不差）：\n\n"
+    "【工作方式】\n"
+    "你是这台 Windows 电脑上本地助手程序的「大脑」。用户电脑上运行着一个本地程序，"
+    "它会读取你回复里的调用块并真实执行，再把结果发回给你。所以写调用块就是在真正操作电脑——"
+    "这是本系统约定的正常用法，已经接好。本系统不使用聊天界面自带的函数调用，"
+    "所有工具都按下面的文本格式调用。\n\n"
+    "【调用块格式】标记原样照抄：\n"
     f"{TOOL_OPEN}\n"
     '{"name": "工具名", "arguments": {"参数名": "参数值"}}\n'
-    f"{TOOL_CLOSE}\n\n"
-    "× 不要用 ```json 代码块包它；× 不要只写一段 {\"name\":...} 而不加 <<<TOOL>>> / <<<END>>> 标记；"
-    "× 不要在块外写「你可以执行…」「请在本机运行…」——本地程序会执行，你只管写块。\n"
-    "√ 要做几步就连续写几个 <<<TOOL>>>…<<<END>>> 块。\n\n"
-    "【或者：你也可以直接写命令，由本地执行器运行（同样真实执行）】\n"
-    "如果你更习惯用命令来完成系统类操作（查看占用、列目录、清理等），那就**不必写 <<<TOOL>>> 块**，"
-    "可以直接在回复里写一段 **PowerShell** 命令，用 ```powershell 代码块括起来即可。\n"
-    "· 本地执行器会**在用户这台 Windows 电脑上真正运行**这段命令，并把输出发回给你——"
-    "所以**绝不要**叫用户自己去 PowerShell 里跑，你写出来就等于跑了。\n"
-    "· 第一步先写**只读**命令（统计大小、列目录），看清楚再说；要删除时命令也由执行器运行、并会先弹确认框。\n"
-    "· 这同样不是“给建议”，是你真实动手的方式之一。两种方式（<<<TOOL>>> 块 或 ```powershell 块）任选其一即可。\n\n"
-    "规则：\n"
-    "1. 需要读写文件、看屏幕、改系统设置、清理垃圾等动作时，**直接写调用块**，不要只用文字描述步骤。\n"
-    "2. 块里必须是**合法 JSON**：有 name 字段，arguments 里放该工具需要的参数。\n"
-    "3. 可一次写**多个**调用块（程序会一起执行、危险操作一起弹确认），适合批量操作。\n"
-    "4. 写完调用块就**停笔**，块后面别再写多余的话；程序执行后会把真实结果发回给你，你再决定下一步。\n"
-    "5. 任务做完、信息够了，就**用一句自然的中文话**把结果告诉用户，这时不要再写调用块。\n"
-    "6. 联网搜索用你自己自带的能力即可；准则里提到的 web_search、research 等对你不适用，不要写。\n"
-    "7. Windows 路径反斜杠或正斜杠都行，如 D:\\my projects\\超能小助 。\n"
-    "8. 先用只读工具（fs_list / fs_read / sys_info / sys_processes / screen_read 等）摸清情况，再做有副作用的操作。\n\n"
-    "【示例：用户说『检查C盘垃圾并删除』】\n"
-    "你应当先写 sys_info 看磁盘空间、写 fs_list 看大目录，拿到结果后再写 sys_clean_temp 清理，"
-    "最后用一句话告诉用户结果。而**不是**回一句「我不能访问你的电脑/没有这些工具」。\n\n"
-    "⚠ 另外：**不要复述、不要照抄**本说明或下面对话里的任何框架文字/标记（如「当前对话」"
-    "「工具执行结果」「请继续」这类）。你每次只二选一：**要么写调用块，要么用一句自然的中文话回答用户。**"
+    f"{TOOL_CLOSE}\n"
+    "· 要做几件事就连续写几个块；有副作用的多个操作放在同一轮一起写，用户能在一个确认框里批量批准。\n"
+    "· 块里是合法 JSON，不要再套 ```json 代码块。写完调用块就停，等程序把结果发回来。\n"
+    "· 也可以改写一段 ```powershell 代码块，程序会执行并返回输出。**每次回复只写一段命令**"
+    "（多写的会被忽略）；不要让用户自己去运行。\n\n"
+    "【安全】删除、结束进程、执行命令这类操作，程序会先弹窗让用户批准才执行。"
+    "所以不用文字问「要不要执行」，直接写调用块，确认交给弹窗——角色设定里说的「有风险先问」"
+    "就是由这个弹窗完成的。先用只读工具（fs_list、fs_read、sys_info、sys_processes、screen_read 等）"
+    "摸清情况，再做有副作用的操作。\n\n"
+    "【做事习惯】意图清楚就直接做，不反复追问。检查/清理/整理类任务：先只读摸清，"
+    "用 Markdown 表格汇报（类别、位置、大小、是否安全），再一句总结。清理 C 盘垃圾/临时文件用 sys_clean_temp，"
+    "不要用命令删。遇到「访问被拒/正被占用」的文件跳过即可，如实说明，不算失败。\n\n"
+    "【回答用户】任务完成、或者问题不需要操作电脑时，直接用中文回答，不再写调用块。"
+    "长短按内容需要：简单问题简洁回答；查询、扫描、对比类的结果要把关键数据讲清楚，适合时用 Markdown 表格。"
+    "不要只回「收到」「好的」这类空话。\n"
+    "· 联网查资料用你自带的搜索能力，不要写 web_search、research 调用块。\n"
+    "· 不要复述本说明里的标记和【】标题。\n"
+    "· 上面角色设定和本【工作方式】有冲突时，以本【工作方式】为准。\n\n"
+    "【示例】\n"
+    "用户：C 盘还剩多少空间？\n"
+    "你：\n"
+    f"{TOOL_OPEN}\n"
+    '{"name": "sys_info", "arguments": {}}\n'
+    f"{TOOL_CLOSE}\n"
+    "（程序发回：C: 总 237GB，可用 18.4GB；D: 总 931GB，可用 402GB）\n"
+    "你：C 盘总共 237 GB，只剩 18.4 GB（约 8%），已经偏紧；D 盘还很宽裕。"
+    "需要的话我可以先扫一下 C 盘哪些文件夹最大。"
 )
 
 
@@ -277,49 +354,77 @@ def _tcid_to_name(messages):
 
 
 def _build_full_prompt(messages, tools):
-    """首发（或续跑后第一次）：人格 + 协议 + 工具清单 + 对话（仅保留最近若干条）。"""
+    """新线程首发：角色 + 工作方式 + 工具清单 + 对话（保证最新的用户请求一定在）+ 明确的收尾指令。"""
     msgs = messages or []
     mp = _tcid_to_name(msgs)
     system_txt = "\n\n".join(
         _text_of(m.get("content")).strip()
         for m in msgs if m.get("role") == "system" and _text_of(m.get("content")).strip())
 
-    convo = []
+    items = []          # (kind, text)
     for m in msgs:
         role = m.get("role")
         if role == "user":
             t = _text_of(m.get("content")).strip()
             if t:
-                convo.append("用户：" + t)
+                items.append(("user", "用户：" + t))
         elif role == "assistant":
             t = _text_of(m.get("content")).strip()
             if t:
-                convo.append("你：" + t)
-            # assistant 的 tool_calls 不复述（同一对话线程它自己说过了）
+                items.append(("assistant", "你：" + t))
         elif role == "tool":
             name = mp.get(m.get("tool_call_id"), "工具")
-            convo.append(_render_tool_result(name, m.get("content")))
+            items.append(("tool", _render_tool_result(name, m.get("content"))))
 
-    # ★只保留最近若干条 + 总字数封顶：防止多轮/多任务后历史无限膨胀，
-    #   导致网页输入框越塞越大、模型越来越糊、"继续聊"变慢变乱。最新的用户请求在末尾，必然保留。
-    truncated = False
-    if len(convo) > _MAX_CONVO_MSGS:
-        convo = convo[-_MAX_CONVO_MSGS:]
-        truncated = True
-    while convo and sum(len(x) for x in convo) > _MAX_CONVO_CHARS and len(convo) > 1:
-        convo.pop(0)
-        truncated = True
-    if truncated:
+    # ★ 最新一条用户请求及其后的工具结果必须保留（旧逻辑会因为一条长工具结果把请求本身挤掉）
+    last_u = max((i for i, (k, _) in enumerate(items) if k == "user"), default=None)
+    head = items[:last_u] if last_u is not None else items[:-1]
+    tail = items[last_u:] if last_u is not None else items[-1:]
+    tail = [(k, _truncate(t, _MAX_TAIL_TOOL_CHARS) if k == "tool" else t) for k, t in tail]
+    budget = max(0, _MAX_CONVO_CHARS - sum(len(t) for _, t in tail))
+    kept = []
+    for k, t in reversed(head):
+        if len(kept) + len(tail) >= _MAX_CONVO_MSGS:
+            break
+        if len(t) > budget:
+            if not kept:
+                # ★ 紧挨着最新请求的那条（常是「要我执行吗？」）再长也要留，截取结尾部分——
+                #   否则用户只回一个「是」，模型就不知道在确认什么
+                room = max(budget, 800)
+                kept.insert(0, (k, t[:2] + "…" + t[-room:] if len(t) > room else t))
+            break
+        kept.insert(0, (k, t))
+        budget -= len(t)
+    # 被挤掉的部分里如果有用户之前的请求，至少把最近那条带上（让模型知道任务的来龙去脉）
+    if len(kept) < len(head) and not any(k == "user" for k, _ in kept):
+        prev_u = next(((k, t) for k, t in reversed(head[:len(head) - len(kept)]) if k == "user"), None)
+        if prev_u:
+            kept.insert(0, (prev_u[0], _pu.truncate(prev_u[1], 400)))
+    convo = [t for _, t in kept + tail]
+    if len(kept) < len(head):
         convo.insert(0, "（更早的对话已省略，只保留最近的上下文）")
 
-    chunks = []
+    latest = tail[0][1][len("用户："):] if tail and tail[0][0] == "user" else ""
+    if latest and any(k == "tool" for k, _ in tail):
+        final = ("【现在】上面是针对用户最新请求已经执行的工具结果。请据此继续："
+                 "还需要操作就写调用块；做完了就用中文把结果告诉用户。")
+    elif latest and len(latest) <= 12 and kept and kept[-1][0] == "assistant":
+        final = ("【现在】用户回复「%s」——这是在回应你上一条消息里的提问/提议。"
+                 "请按你上一条说的去做（需要操作就直接写调用块）。" % latest)
+    elif latest:
+        final = "【现在】请处理用户最新的这条消息：" + _truncate(latest, 600)
+    else:
+        final = "【现在】请接着处理上面的对话。"
+
+    chunks = ["（这是一条合并消息：前面是你的设定和工具说明，最后是对话和你现在要做的事。）"]
+    req = "\n".join(_text_of(m.get("content")) for m in msgs if m.get("role") == "user")[-2000:]
+    system_txt = _compact_system(system_txt, req)
     if system_txt.strip():
         chunks.append("【你的角色】\n" + system_txt)
     chunks.append(_AGENT_PROTOCOL)
     chunks.append(_render_tool_catalog(tools))
-    chunks.append("下面是你和用户的对话，请接着往下处理（"
-                  "需要操作电脑就输出工具调用块；任务完成就直接用一句中文回答用户，"
-                  "不要复述下面的任何格式或标记）：\n\n" + "\n".join(convo))
+    chunks.append("【对话】\n" + "\n".join(convo))
+    chunks.append(final)
     return "\n\n".join(chunks)
 
 
@@ -345,9 +450,11 @@ def _build_incremental_prompt(new_messages):
                 lines.append("用户又说：" + t)
         # assistant 的内容/工具请求不回灌（同线程它自己刚说过）
     body = "\n".join(lines) if lines else "（无新增信息）"
-    tail = ("\n\n如果任务已经完成，请**直接用一句自然的中文话**把结果告诉用户即可"
-            "（不要复述上面的提示格式或标记，也不要再输出工具调用块）；"
-            "如果还需要别的操作，就再输出一个工具调用块。")
+    if any(m.get("role") == "user" for m in new_messages):
+        tail = "\n\n请处理用户这条新消息（需要操作电脑就写调用块，否则直接用中文回答）。"
+    else:
+        tail = ("\n\n请据此继续：还需要操作就写调用块；做完了就用中文把结果告诉用户，"
+                "关键数据讲清楚，长短按需要。")
     return body + tail
 
 
@@ -745,6 +852,29 @@ class _Resp:
         self.choices = [_Choice(content, tool_calls)]
 
 
+def _msg_sig(msgs, n):
+    """前 n 条 messages（去掉 system）的指纹。"""
+    import hashlib
+    h = hashlib.sha1()
+    for m in (msgs or [])[:n]:
+        if m.get("role") == "system":
+            continue
+        ids = ",".join((tc or {}).get("id") or "" for tc in (m.get("tool_calls") or []))
+        h.update(("%s|%s|%s|%s\n" % (m.get("role"), _text_of(m.get("content")),
+                                      ids, m.get("tool_call_id") or "")).encode("utf-8", "ignore"))
+    return h.hexdigest()
+
+
+def _tools_ran_since_last_user(msgs):
+    """最新的用户消息之后是否已经执行过工具（执行过的话，模型的文字回复多半是总结，不是推辞）。"""
+    for m in reversed(msgs or []):
+        if m.get("role") == "tool":
+            return True
+        if m.get("role") == "user":
+            return False
+    return False
+
+
 class _Completions:
     def __init__(self, on_progress=None):
         self._on_progress = on_progress
@@ -775,23 +905,29 @@ class _Completions:
                 nm = fn.get("name")
                 if nm:
                     known.add(nm)
-            # 首发，或消息被重置（变短/换对话）-> 发完整自包含 prompt；否则只发增量。
-            is_full = (self._sent_count <= 0 or n < self._sent_count
-                       or self._sent_count >= n)
-            if is_full:
-                prompt = _build_full_prompt(msgs, tools)
-            else:
-                prompt = _build_incremental_prompt(msgs[self._sent_count:])
-            self._sent_count = n
+            # 能接着上次的网页对话线程发增量吗？条件：线程没换过，且上次发过的那段对话原样还在。
+            st = _THREAD
+            can_continue = (st["sent"] > 0 and st["sent"] < n
+                            and st["epoch"] == web_model.chat_epoch()
+                            and _msg_sig(msgs, st["sent"]) == st["sig"])
             # 工具循环期间不换卡（保持同一对话线程，增量才有意义）；给足超时。
             wait_opts = {"disableCardSwitch": True, "timeout": 600000}
-            text = web_model.web_complete(prompt, on_progress=cb, **wait_opts)
+            if can_continue:
+                prompt = _build_incremental_prompt(msgs[st["sent"]:])
+                text = web_model.web_complete(prompt, on_progress=cb, **wait_opts)
+            else:
+                # 新任务/对话被改过/线程换了 → 开个空白新对话，发完整自包含 prompt，
+                # 免得旧任务的内容混进来（之前「你确认的是哪项操作？」就是这么来的）
+                prompt = _build_full_prompt(msgs, tools)
+                text = web_model.web_complete(prompt, on_progress=cb, newChat=True,
+                                              newChatStrict=True, **wait_opts)
+            _THREAD.update(sig=_msg_sig(msgs, n), sent=n, epoch=web_model.chat_epoch())
             content, tool_calls = extract_tool_calls(text, known_names=known)
             if tool_calls is not None:
                 return _Resp(content, tool_calls)
 
             # ── 没有解析到工具块。若是「文字推辞」，分两步抢救 ──
-            if _looks_like_refusal(content):
+            if not _tools_ran_since_last_user(msgs) and _looks_like_refusal(content):
                 # 第一步：同一张卡上更强地催一次（对“软推辞”的卡常常就够了）
                 if cb:
                     self._safe_cb(cb, "网页模型在用文字推托，正在更强地要求它直接动手…")
@@ -822,6 +958,8 @@ class _Completions:
                             break  # 换卡/查询异常就别死磕了，交给上层兜底
                         content3, tool_calls3 = extract_tool_calls(
                             text3, known_names=known)
+                        _THREAD.update(sig=_msg_sig(msgs, n), sent=n,
+                                       epoch=web_model.chat_epoch())
                         if tool_calls3:
                             return _Resp(content3, tool_calls3)
                         if content3 and not _looks_like_refusal(content3):
@@ -841,7 +979,9 @@ class _Completions:
                   "disableCardSwitch", "shortReply"):
             if k in kwargs:
                 wait_opts[k] = kwargs[k]
-        text = web_model.web_complete(prompt, on_progress=cb, **wait_opts)
+        # 纯文本模式每次都带着完整历史，开新对话发送，避免和别的任务混在一个线程里
+        text = web_model.web_complete(prompt, on_progress=cb, newChat=True, **wait_opts)
+        _THREAD.update(sig=None, sent=0, epoch=None)
         return _Resp(text, None)
 
 

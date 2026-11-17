@@ -409,10 +409,10 @@ def _synthesize(digests, prog):
     for it in items:
         blk = "【%s】%s\n%s" % (it.get("label", ""), it.get("title", ""),
                                (it.get("digest", "") or "").strip())
+        if total + len(blk) > 11000:          # 给指令和已有画像留足空间（_ask 会在 16000 字处硬截断）
+            break
         parts.append(blk)
         total += len(blk)
-        if total >= 16000:
-            break
     corpus = "\n\n".join(parts)
     if not corpus.strip():
         return ""
@@ -435,7 +435,10 @@ def _synthesize(digests, prog):
     if (prev_profile or "").strip():
         prompt += ("=== 已有画像（OWNER_PROFILE.md，供对比，不要照抄）===\n"
                    + prev_profile[:1500] + "\n\n")
-    prompt += "=== 逐篇精读要点 ===\n" + corpus + "\n\n直接输出分析："
+    prompt += "=== 逐篇精读要点 ===\n" + corpus + (
+        "\n\n（以上是材料。）现在请严格按开头要求的五个「## 」小节输出 Markdown："
+        "最近在关注什么 / 在学·在做什么 / 我对主人的理解 / 给小助的相处建议 / 一句话理解。"
+        "不要写成给主人的建议信，不要寒暄、不要结尾客套话。直接输出：")
 
     cfg = get_config()
     ul = prog.get("use_local", cfg.get("use_local", False))
@@ -461,7 +464,10 @@ def _save_report(report):
         LATEST_PATH.write_text(full, encoding="utf-8")
     except Exception:
         pass
-    if get_config().get("apply_to_agent", True):
+    # 只有按要求结构输出的报告才注入系统提示；跑偏的（如泛泛的建议信）不覆盖旧的
+    _ok_shape = sum(1 for h in ("最近在关注", "在学", "理解", "相处建议", "一句话")
+                    if h in (report or "")) >= 3
+    if get_config().get("apply_to_agent", True) and _ok_shape:
         try:
             DIGEST_PATH.write_text(
                 "# 小助对你的洞察理解\n\n> 由「洞察」逐篇精读你的成长库得出，"

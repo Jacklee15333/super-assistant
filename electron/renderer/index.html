@@ -113,31 +113,41 @@
     .v-badge.maybe{background:rgba(200,150,30,.14);color:#b0851e}
     .v-badge.testing{background:rgba(120,120,130,.12);color:var(--text-dim,#8a8a93)}
   </style>
+  <link rel="stylesheet" href="theme-claude.css" />
 </head>
 <body>
   <div class="app">
     <!-- 左侧栏 -->
     <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-mark">🦞</div>
-        <div class="brand-text">
-          <div class="brand-name">超能小助</div>
-          <div class="brand-sub" id="statusLine">连接中…</div>
+      <div class="sb-top">
+        <button type="button" class="sb-iconbtn" id="appMenuBtn" title="菜单（设置 / 编辑 / 视图 / 窗口）">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <div class="brand">
+          <div class="brand-mark">🦞</div>
+          <div class="brand-text">
+            <div class="brand-name">超能小助</div>
+            <div class="brand-sub" id="statusLine">连接中…</div>
+          </div>
         </div>
       </div>
+      <button type="button" class="sb-new" id="newConvoBtn" title="新建会话">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        <span>新对话</span>
+      </button>
 
       <nav class="nav">
         <div class="nav-group-label">功能</div>
-        <button class="nav-item active" data-view="chat">💬 对话</button>
-        <button class="nav-item" data-view="sniff">📡 嗅探</button>
-        <button class="nav-item" data-view="video">🎬 视频</button>
+        <button class="nav-item active" data-view="chat"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 0 1 3 11.5 8.5 8.5 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z"/></svg><span>对话</span></button>
+        <button class="nav-item" data-view="sniff"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.5M7.8 16.2a6 6 0 0 1 0-8.5M19.1 4.9a10 10 0 0 1 0 14.2M4.9 19.1a10 10 0 0 1 0-14.2"/></svg><span>嗅探</span></button>
+        <button class="nav-item" data-view="video"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="13.5" height="12" rx="2.5"/><path d="m21.5 8.5-5.5 3.5 5.5 3.5z"/></svg><span>视频</span></button>
         <div class="nav-group-label">展示</div>
-        <button class="nav-item" data-view="datadb">🗄️ 数据库</button>
+        <button class="nav-item" data-view="datadb"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13"/><path d="M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8"/></svg><span>数据库</span></button>
         <div class="nav-group-label">懂你</div>
-        <button class="nav-item" data-view="lumi" data-lumi-sub="profile">👤 画像</button>
-        <button class="nav-item" data-view="lumi" data-lumi-sub="insight">🔍 洞察</button>
-        <button class="nav-item" data-view="lumi" data-lumi-sub="evolution">🌱 人格</button>
-        <button class="nav-item" data-view="memory">🧠 记忆</button>
+        <button class="nav-item" data-view="lumi" data-lumi-sub="profile"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></svg><span>画像</span></button>
+        <button class="nav-item" data-view="lumi" data-lumi-sub="insight"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20.5 20.5-4.8-4.8"/></svg><span>洞察</span></button>
+        <button class="nav-item" data-view="lumi" data-lumi-sub="evolution"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 20.5h10M12 20.5v-9"/><path d="M12 11.5c0-3.6-2.6-6.3-7.2-6.3 0 3.6 2.6 6.3 7.2 6.3z"/><path d="M12 13.5c0-3 2.1-5.3 6.2-5.3 0 3-2.1 5.3-6.2 5.3z"/></svg><span>人格</span></button>
+        <button class="nav-item" data-view="memory"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5.5a3 3 0 0 0-5.6-1.4A3 3 0 0 0 4 8.6a3.2 3.2 0 0 0 .6 5.4 3 3 0 0 0 3.2 4.6A3 3 0 0 0 12 19.5z"/><path d="M12 5.5a3 3 0 0 1 5.6-1.4A3 3 0 0 1 20 8.6a3.2 3.2 0 0 1-.6 5.4 3 3 0 0 1-3.2 4.6A3 3 0 0 1 12 19.5z"/></svg><span>记忆</span></button>
         <!-- 隐藏的旧子菜单：仅供 crawler.js / evolution.js 的切页逻辑复用，不显示给用户 -->
         <div class="nav-sub nav-sub-hidden" id="lumiSubNav">
           <button class="nav-subitem active" data-lumi="profile">画像</button>
@@ -145,29 +155,28 @@
           <button class="nav-subitem" data-lumi="evolution">人格</button>
         </div>
         <div class="nav-group-label">工具</div>
-        <button class="nav-item" data-view="skills">🧩 技能</button>
-        <button class="nav-item" data-view="agents">🎭 分身</button>
-        <button class="nav-item" data-view="loop">🔁 目标循环</button>
-        <button class="nav-item" data-view="harness">🛠️ 运行台</button>
+        <button class="nav-item" data-view="skills"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 16.5v4M17 18.5h4"/></svg><span>技能</span></button>
+        <button class="nav-item" data-view="agents"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8"/><path d="M18.2 14.2A6.5 6.5 0 0 1 21.5 20"/></svg><span>分身</span></button>
+        <button class="nav-item" data-view="loop"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2.5 3.5 3.5L17 9.5"/><path d="M3.5 11V10a4 4 0 0 1 4-4h13"/><path d="m7 21.5-3.5-3.5L7 14.5"/><path d="M20.5 13v1a4 4 0 0 1-4 4h-13"/></svg><span>目标循环</span></button>
+        <button class="nav-item" data-view="harness"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="16" rx="2.5"/><path d="m7 9.5 3 2.5-3 2.5M12.5 15h4.5"/></svg><span>运行台</span></button>
         <div class="nav-group-label">系统</div>
-        <button class="nav-item" data-view="knowledge">🌌 知识云图</button>
-        <button class="nav-item" data-view="pet">🦊 桌宠</button>
-        <button class="nav-item" data-view="settings">⚙️ 设置</button>
+        <button class="nav-item" data-view="knowledge"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="5" r="2.2"/><circle cx="5" cy="18.5" r="2.2"/><circle cx="19" cy="18.5" r="2.2"/><path d="M12 7.2V12m0 0-5.4 4.8M12 12l5.4 4.8"/></svg><span>知识云图</span></button>
+        <button class="nav-item" data-view="pet"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 9.5 6 3.5l4 3h4l4-3 1.5 6"/><path d="M4.5 9.5c0 6 3.4 10 7.5 10s7.5-4 7.5-10"/><path d="M9.5 12.5h.01M14.5 12.5h.01M11 15.5h2"/></svg><span>桌宠</span></button>
+        <button class="nav-item" data-view="settings"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>设置</span></button>
       </nav>
 
       <div class="convo-section">
         <div class="convo-head">
           <span>会话</span>
-          <button class="new-convo-btn" id="newConvoBtn" title="新建会话">＋</button>
         </div>
         <div class="convo-list" id="convoList"></div>
       </div>
 
       <div class="sidebar-foot">
-        <button class="ghost-btn" id="briefingBtn">📊 生成情报简报</button>
-        <button class="ghost-btn" id="watchBtn">🔍 检查竞品变化</button>
-        <button class="ghost-btn" id="heartbeatBtn">💓 触发一次心跳</button>
-        <button class="ghost-btn" id="endConvoBtn">🔚 结束对话</button>
+        <button class="ghost-btn" id="briefingBtn"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V4M4 20h16"/><path d="M8.5 16v-5M13 16V8M17.5 16v-3"/></svg><span>生成情报简报</span></button>
+        <button class="ghost-btn" id="watchBtn"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg><span>检查竞品变化</span></button>
+        <button class="ghost-btn" id="heartbeatBtn"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.5 12h-4l-3 8.5-5-17-3 8.5h-4"/></svg><span>触发一次心跳</span></button>
+        <button class="ghost-btn" id="endConvoBtn"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 20.5H5.5a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2H9"/><path d="m16 16.5 4.5-4.5L16 7.5M20.5 12H9"/></svg><span>结束对话</span></button>
       </div>
     </aside>
 
@@ -214,7 +223,7 @@
                 <button type="button" id="micBtn" class="composer-icon-btn" title="语音输入（点一下开始说话，再点停止）">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
                 </button>
-                <button id="sendBtn" class="send-btn" title="发送（Enter）">发送</button>
+                <button id="sendBtn" class="send-btn" title="发送（Enter）" aria-label="发送"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/></svg></button>
               </div>
             </div>
           </div>
@@ -1838,6 +1847,7 @@
   <script src="evolution.js"></script>
   <script src="datadb.js"></script>
   <script src="agents.js"></script>
+  <script src="theme-claude.js"></script>
   <!-- 视频页「处理进度」卡片：内部三个容器都空时整张收起，不占地方；
        一旦有任务/结果/状态文字就自动显示。独立运行，不依赖 renderer.js。 -->
   <script>
