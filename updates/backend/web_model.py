@@ -105,6 +105,9 @@ def _default_config():
         "serviceName": "ChatGPT",        # 登录后若先进「选服务」页，点这个名字进入卡片列表
         # 每个新任务怎么开始：card＝回首页换一张新的 AI 卡（最干净，默认）；chat＝同一张卡上开新聊天（更快）
         "newTaskMode": "card",
+        # 分析类任务（视频总结/思维导图）用哪个模型：留空＝自动选菜单里最高级的；
+        # 也可以填模型名里的关键字固定下来，比如 "Pro"、"High"、"Thinking"
+        "preferredModel": "",
     }
 
 
@@ -242,6 +245,7 @@ class _WebWorker:
         self._landing_url = ""
         self._chat_epoch = 0      # 每进入一个全新的网页对话线程 +1（客户端据此判断能否发增量）
         self._chat_used = True    # 当前对话里是否已经发过东西（刚换卡/开新聊天后为 False）
+        self._best_epoch = -1     # 在哪个对话线程上已经切过最高级模型
 
     # ---- 公共：投递一个 job，阻塞等结果 ----
     def submit(self, fn_name, kwargs, timeout=720):
@@ -1004,6 +1008,11 @@ class _WebWorker:
                 self._new_chat()
             self._state = "ready"
 
+        if opts.get("bestModel") and self._best_epoch != self._chat_epoch:
+            prog("切换到最高级模型…")
+            self._select_best_model()
+            self._best_epoch = self._chat_epoch
+
         disable_switch = bool(opts.get("disableCardSwitch"))
         max_attempts = 1 if disable_switch else 2
         last_err = None
@@ -1084,6 +1093,138 @@ class _WebWorker:
             return True
         self._log("⚠ 没能开新对话（找不到「新聊天」入口）")
         return False
+
+    # ──────────── 切换到最高级模型（分析类任务用）────────────
+    _MODEL_BTN_JS = r"""() => {
+        const re = /(\b\d+(\.\d+)?\b|instant|mini|low|medium|high|pro|thinking|auto|heavy|extended|light|standard|即时|思考|专业|标准|进阶)/i;
+        const ins = [...document.querySelectorAll('textarea,[contenteditable="true"]')]
+            .filter(e => e.getBoundingClientRect().width > 200);
+        let scope = ins.length ? (ins[ins.length - 1].closest('form') || ins[ins.length - 1].parentElement) : null;
+        for (let i = 0; i < 5 && scope && scope.parentElement && scope.querySelectorAll('button').length < 3; i++)
+            scope = scope.parentElement;
+        const cands = [];
+        const consider = (b, bonus) => {
+            const r = b.getBoundingClientRect();
+            const t = (b.innerText || '').trim().split('\n')[0];
+            const al = b.getAttribute('aria-label') || '';
+            if (r.width === 0 || r.height === 0) return;
+            if (/发送|send|附件|attach|语音|voice|dictat|上传|upload|麦克风|mic/i.test(t + ' ' + al)) return;
+            if (!(re.test(t) || /model|模型/i.test(al))) return;
+            if (t.length > 30) return;
+            const pop = b.hasAttribute('aria-haspopup') || b.hasAttribute('aria-expanded');
+            cands.push({b, t, score: bonus + (pop ? 5 : 0) + (b.querySelector('svg') ? 1 : 0)});
+        };
+        document.querySelectorAll('[data-testid*="model-switcher"],[data-testid*="model-picker"],button[aria-label*="模型"],button[aria-label*="model" i]')
+            .forEach(b => consider(b, 10));
+        if (scope) scope.querySelectorAll('button,[role="button"]').forEach(b => consider(b, 3));
+        document.querySelectorAll('[data-cx-model-btn]').forEach(e => e.removeAttribute('data-cx-model-btn'));
+        if (!cands.length) return null;
+        cands.sort((a, b) => b.score - a.score);
+        cands[0].b.setAttribute('data-cx-model-btn', '1');
+        return cands[0].t || (cands[0].b.getAttribute('aria-label') || '');
+    }"""
+
+    _MODEL_MENU_JS = r"""() => {
+        const els = [...document.querySelectorAll('[role="menuitem"],[role="menuitemradio"],[role="option"]')]
+            .filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
+        return els.map((e, i) => {
+            e.setAttribute('data-cx-mi', String(i));
+            const full = (e.innerText || '').trim().replace(/\s+\n/g, '\n');
+            return {i, label: full.split('\n')[0].trim().slice(0, 60), full: full.replace(/\s+/g, ' ').slice(0, 90),
+                    disabled: e.getAttribute('aria-disabled') === 'true' || e.hasAttribute('data-disabled'),
+                    checked: e.getAttribute('aria-checked') === 'true' || e.getAttribute('data-state') === 'checked'
+                             || e.getAttribute('aria-selected') === 'true',
+                    sub: e.getAttribute('aria-haspopup') === 'menu' || e.hasAttribute('data-has-submenu')};
+        });
+    }"""
+
+    @staticmethod
+    def _model_rank(label):
+        """给菜单里的模型/思考强度打分，越高越强。只看第一行名称，不看说明文字。"""
+        import re as _re
+        t = (label or "").lower()
+        if not t or _re.search(r"upgrade|升级|unavailable|不可用|legacy|旧版|temporary|临时", t):
+            return -1
+        tiers = [(r"\bpro\b|专业", 100), (r"extra.?high|xhigh|heavy|\bmax\b|extended|极高|超高|深度", 90),
+                 (r"\bhigh\b|(?<!极|超)高", 80), (r"thinking|思考|reason|推理", 70),
+                 (r"medium|standard|标准|中", 50), (r"\bauto\b|自动", 40),
+                 (r"\blow\b|light|低|轻", 20), (r"instant|mini|fast|nano|即时|极速|快", 10)]
+        score = 0
+        for pat, sc in tiers:
+            if _re.search(pat, t):
+                score = max(score, sc)
+        nums = [float(x) for x in _re.findall(r"(\d+(?:\.\d+)?)", t) if float(x) < 50]
+        return score + (max(nums) if nums else 0) / 10.0       # 同档位里版本号大的优先
+
+    def _open_model_menu(self):
+        loc = self._page.locator('[data-cx-model-btn="1"]').first
+        for how in ("click", "pointer"):
+            if how == "click":
+                self._safe(lambda: loc.click(timeout=4000))
+            else:   # Radix 一类的下拉是按下鼠标（pointerdown）就打开，补发一组指针事件
+                self._safe(lambda: loc.evaluate("""b => {
+                    for (const t of ['pointerdown','mousedown','pointerup','mouseup','click'])
+                        b.dispatchEvent(new (t.startsWith('pointer') ? PointerEvent : MouseEvent)(t,
+                            {bubbles: true, cancelable: true, button: 0, pointerType: 'mouse'}));
+                }"""))
+            for _ in range(6):
+                time.sleep(0.25)
+                items = self._safe(lambda: self._page.evaluate(self._MODEL_MENU_JS), []) or []
+                if items:
+                    return items
+        return []
+
+    def _select_best_model(self):
+        """分析类任务开始前，把 AI 池聊天框里的模型切到最高级（或配置里指定的那个）。
+        找不到模型按钮/菜单就保持原样继续，不影响任务；每一步都写日志，方便对照修。"""
+        try:
+            self._close_overlays()
+            before = self._safe(lambda: self._page.evaluate(self._MODEL_BTN_JS), None)
+            if not before:
+                self._log("[模型] 没找到聊天框里的模型选择按钮，按页面默认模型继续")
+                return False
+            items = self._open_model_menu()
+            if not items:
+                self._log("[模型] 点了「%s」但没弹出模型菜单，按默认模型继续" % before)
+                self._safe(lambda: self._page.keyboard.press("Escape"))
+                return False
+            self._log("[模型] 当前「%s」，可选：%s" % (before, " / ".join(
+                ("✓" if it["checked"] else "") + it["label"] for it in items)))
+            want = (load_config().get("preferredModel") or "").strip().lower()
+            pick = None
+            if want:
+                pick = next((it for it in items if want in it["label"].lower() and not it["disabled"]), None)
+                if not pick:
+                    self._log("[模型] 菜单里没有含「%s」的选项，改为自动选最高级" % want)
+            if not pick:
+                ranked = sorted((it for it in items if not it["disabled"] and self._model_rank(it["label"]) >= 0),
+                                key=lambda it: self._model_rank(it["label"]), reverse=True)
+                pick = ranked[0] if ranked else None
+            if not pick:
+                self._safe(lambda: self._page.keyboard.press("Escape"))
+                return False
+            if pick["checked"] and not pick["sub"]:
+                self._log("[模型] 已经是「%s」" % pick["label"])
+                self._safe(lambda: self._page.keyboard.press("Escape"))
+                return True
+            self._safe(lambda: self._page.locator('[data-cx-mi="%d"]' % pick["i"]).first.click(timeout=4000))
+            time.sleep(0.6)
+            if pick["sub"]:                       # 选中的是二级菜单入口：再从展开的子菜单里挑最高级
+                sub = [it for it in (self._safe(lambda: self._page.evaluate(self._MODEL_MENU_JS), []) or [])
+                       if it["label"] not in {x["label"] for x in items}]
+                sub = sorted((it for it in sub if not it["disabled"]),
+                             key=lambda it: self._model_rank(it["label"]), reverse=True)
+                if sub:
+                    self._safe(lambda: self._page.locator('[data-cx-mi="%d"]' % sub[0]["i"]).first.click(timeout=4000))
+                    time.sleep(0.6)
+            if self._safe(lambda: self._page.evaluate(self._MODEL_MENU_JS), []):
+                self._safe(lambda: self._page.keyboard.press("Escape"))
+            after = self._safe(lambda: self._page.evaluate(self._MODEL_BTN_JS), None) or "?"
+            self._log("[模型] 已切换：「%s」→「%s」" % (before, after))
+            return True
+        except Exception as e:
+            self._log("[模型] 切换出错（%s），按默认模型继续" % str(e)[:80])
+            return False
 
     def _park_mouse(self):
         """把鼠标挪到页面左上方的空白处，免得悬停触发右下角的悬浮菜单。"""
@@ -1558,7 +1699,7 @@ class _WebWorker:
         SETTLE_REPS = 4
         POLL = 0.5
         STUCK_WARN_MS = 60000
-        STUCK_FATAL_MS = 240000
+        STUCK_FATAL_MS = opts.get("stuckFatalMs") or 240000
         warned = False
         last_log = time.time()
         last_full_len = 0
