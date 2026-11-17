@@ -78,11 +78,20 @@ CHANGE_PROMPT = (
 
 def check_one(url, note, use_local, model):
     """检查单个网址，返回 (有无值得提醒的变化?, 说明文本)。"""
+    if "example.com" in (url or ""):
+        return False, (f"[{note or url}] 这还是示例网址（example.com），不是真正的竞品。"
+                       "请到「记忆」里打开 competitors.md，把它换成你要盯的竞品页面，一行一个："
+                       "「- 网址 | 备注」。")
     try:
         page = W._fetch(url, timeout=20)
         text = _normalize(W._extract_text(page))
     except Exception as e:
-        return False, f"[{note or url}] 抓取失败：{e}"
+        try:
+            import sniffer as _sn
+            why = _sn._humanize_err(e)
+        except Exception:
+            why = str(e)[:80]
+        return False, f"[{note or url}] 抓取失败：{why}"
 
     if not text:
         return False, f"[{note or url}] 读不到正文（可能是动态页面或需登录），跳过。"

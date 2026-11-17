@@ -1109,5 +1109,71 @@
     "category": "AI动态",
     "key": "4d1780af013e5e77",
     "ts": "2026-11-17 12:09"
+  },
+  {
+    "kind": "发布",
+    "title": "Introducing Salesforce SOV-Transcribe-1: #1 Open-Weight Model Built for Real-World Speech",
+    "summary": "Salesforce 推出 SOV-Transcribe-1，这是一个专为真实世界语音场景设计的开源权重语音识别模型。该模型可能在嘈杂环境或多方言场景下表现更优，属于自然语言处理中的语音识别方向，对实际应用中的语音转文字任务具有重要意义。",
+    "importance": "高",
+    "source_title": "Hugging Face 博客",
+    "link": "https://huggingface.co/blog",
+    "category": "AI动态",
+    "key": "fdffadc6b4c4ad1b",
+    "ts": "2026-11-17 12:19"
+  },
+  {
+    "kind": "功能",
+    "title": "MotionGraphicsBench: Evaluating Motion Graphics Generation with Programmatic Verification",
+    "summary": "MotionGraphicsBench 是一个用于评估动态图形生成能力的新基准，通过程序化验证确保评估的客观性与准确性。该工具属于计算机视觉和生成模型领域，有助于推动动态图形生成技术的发展与性能提升。",
+    "importance": "中",
+    "source_title": "Hugging Face 博客",
+    "link": "https://huggingface.co/blog",
+    "category": "AI动态",
+    "key": "12f01af5f82dbe8a",
+    "ts": "2026-11-17 12:19"
+  },
+  {
+    "kind": "发布",
+    "title": "Nemotron-Personas-Finance-Japan: A Synthetic Dataset Capturing Japan's Demographics and Financial Context",
+    "summary": "NVIDIA 发布了 Nemotron-Personas-Finance-Japan 数据集，这是一个合成数据集，旨在捕捉日本的人口分布与金融背景信息。该数据集属于人工智能与金融领域的交叉应用，可用于训练更贴合日本市场情境的模型。",
+    "importance": "中",
+    "source_title": "Hugging Face 博客",
+    "link": "https://huggingface.co/blog",
+    "category": "AI动态",
+    "key": "7458135a1c427265",
+    "ts": "2026-11-17 12:19"
+  },
+  {
+    "kind": "功能",
+    "title": "Harness adapters: Safe RL for efficient agentic development",
+    "summary": "Harness adapters 是一种用于强化学习的安全工具，旨在提升智能体开发过程中的效率与安全性。该工具属于人工智能中的强化学习领域，有助于构建更稳健、高效的智能代理系统。",
+    "importance": "中",
+    "source_title": "Hugging Face 博客",
+    "link": "https://huggingface.co/blog",
+    "category": "AI动态",
+    "key": "e34b869b8dcce2dd",
+    "ts": "2026-11-17 12:19"
+  },
+  {
+    "kind": "发布",
+    "title": "ZONOS3-Mini: Open-Source Real-Time Voice Cloning & Steerable TTS in 100M Active Parameters",
+    "summary": "ZONOS3-Mini 是一个开源的实时语音克隆与可操控文本到语音模型，仅使用 1 亿活跃参数即可实现高质量语音生成。该模型属于语音合成与语音克隆领域，对轻量级语音应用和边缘设备部署具有重要意义。",
+    "importance": "高",
+    "source_title": "Hugging Face 博客",
+    "link": "https://huggingface.co/blog",
+    "category": "AI动态",
+    "key": "087db1838f2d77a2",
+    "ts": "2026-11-17 12:19"
+  },
+  {
+    "kind": "发布",
+    "title": "New NVIDIA Cosmos 3 Open Models for Interactive World Simulation",
+    "summary": "NVIDIA 推出 Cosmos 3 开源模型，用于交互式世界模拟，能够支持复杂的虚拟环境构建与交互。该模型属于人工智能与计算机图形学的交叉领域，对游戏开发、虚拟现实和机器人仿真等应用具有重要价值。",
+    "importance": "高",
+    "source_title": "Hugging Face 博客",
+    "link": "https://huggingface.co/blog",
+    "category": "AI动态",
+    "key": "01dabaf94cd0d34c",
+    "ts": "2026-11-17 12:19"
   }
 ]

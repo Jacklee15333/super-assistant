@@ -352,6 +352,8 @@ def _humanize_err(e):
         return "页面不存在（404），检查下网址对不对"
     if "401" in s:
         return "需要登录（401），抓不了"
+    if "certificate" in low or "cert_verify" in low:
+        return "证书校验失败—网站证书链不完整或本机缺根证书（已自动用标准证书库重试）"
     if "timed out" in low or "timeout" in low or "handshake" in low or "ssl" in low:
         return "连接超时—境外站点通常要走代理（设置→联网与代理 填上加速器地址）"
     if "getaddrinfo" in low or "name or service" in low or "name resolution" in low:
@@ -377,7 +379,22 @@ def _fetch_smart(url):
             return page, ("proxy" if use_proxy else "direct"), None
         except Exception as e:
             last_err = e
+    # 主页面打不开：试一下这个站的备用地址（RSS / 国内镜像），能读到就用
+    for key, alts in _ALT_URLS.items():
+        if key in (url or ""):
+            for alt in alts:
+                try:
+                    page = W._fetch(alt, timeout=20)
+                    return page, "alt:" + alt, None
+                except Exception as e:
+                    last_err = e
     return None, None, last_err
+
+
+# 个别站点主页面重/不稳时的备用地址
+_ALT_URLS = {
+    "huggingface.co/blog": ["https://huggingface.co/blog/feed.xml", "https://hf-mirror.com/blog"],
+}
 
 
 def _scan_one(client, model, src, report):
