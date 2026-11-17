@@ -1,51 +1,5 @@
 [
   {
-    "id": "video-1783575611311",
-    "ts": "07-09 13:40:11",
-    "kind": "video",
-    "title": "赚点小钱从哪儿开始 赚钱的方法其实很简单，关键在于你擅长的领域和别人需要的交集点。这是你赚钱的起点。",
-    "tools": [
-      "读取文件",
-      "加载语音模型",
-      "语音转文字",
-      "保存"
-    ],
-    "tool_count": {
-      "读取文件": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "保存": 1
-    },
-    "steps": 4,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 226,
-    "note": "✅ 已完成《赚点小钱从哪儿开始 赚钱的方法其实很简单》，继续处理下一个（还剩 41 个）"
-  },
-  {
-    "id": "video-1783575837593",
-    "ts": "07-09 13:43:57",
-    "kind": "video",
-    "title": "视频提取：是不够的，关键在于实践。 礼物交换实验的启示第一个环节，我让每位学员准备.mp4",
-    "tools": [
-      "读取文件",
-      "语音转文字"
-    ],
-    "tool_count": {
-      "读取文件": 1,
-      "语音转文字": 1
-    },
-    "steps": 2,
-    "error": "",
-    "outcome": "",
-    "status": "running",
-    "tokens_est": 0,
-    "seconds": 0,
-    "_start": 1783575837.5937717
-  },
-  {
     "id": "video-1783576009695",
     "ts": "07-09 13:46:49",
     "kind": "video",
@@ -1189,6 +1143,52 @@
     },
     "steps": 3,
     "error": "提取失败：ERROR: [Douyin] 7695440948033064227: Fresh cookies (not necessarily logged in) are needed; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U\n\n提示：本软件已先尝试「抖音分享页直链解析」、再用 yt-dl",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 1,
+    "note": "⚠ 这条没成功，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1794881813918",
+    "ts": "11-17 10:16:53",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/pqNd-ChxVco/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1
+    },
+    "steps": 3,
+    "error": "提取失败：ERROR: [Douyin] 7683085358866779407: Fresh cookies (not necessarily logged in) are needed; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U\n\n提示：本软件已先尝试「抖音分享页直链解析」、再用 yt-dl",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 3,
+    "note": "⚠ 这条没成功，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1794881930212",
+    "ts": "11-17 10:18:50",
+    "kind": "video",
+    "title": "视频提取：.com/pqNd-ChxVco/ 复制此链接，打开Dou音搜索，直接观看视频！",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1
+    },
+    "steps": 3,
+    "error": "提取失败：ERROR: [Douyin] 7683085358866779407: Fresh cookies (not necessarily logged in) are needed; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U\n\n提示：本软件已先尝试「抖音分享页直链解析」、再用 yt-dl",
     "outcome": "stopped",
     "status": "done",
     "tokens_est": 0,

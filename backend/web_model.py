@@ -103,6 +103,8 @@ def _default_config():
         "aiUrl": "https://sorryios.ai/",
         "sitePath": DEFAULT_SITE_PATH,   # 网站路径：sorryios.ai/<sitePath>#/login，改版时改这里
         "serviceName": "ChatGPT",        # 登录后若先进「选服务」页，点这个名字进入卡片列表
+        # 每个新任务怎么开始：card＝回首页换一张新的 AI 卡（最干净，默认）；chat＝同一张卡上开新聊天（更快）
+        "newTaskMode": "card",
     }
 
 
@@ -211,6 +213,7 @@ class _WebWorker:
         self._carlist_url = CARLIST_URL
         self._landing_url = ""
         self._chat_epoch = 0      # 每进入一个全新的网页对话线程 +1（客户端据此判断能否发增量）
+        self._chat_used = True    # 当前对话里是否已经发过东西（刚换卡/开新聊天后为 False）
 
     # ---- 公共：投递一个 job，阻塞等结果 ----
     def submit(self, fn_name, kwargs, timeout=720):
@@ -767,6 +770,7 @@ class _WebWorker:
             ready = self._wait_chat_page_ready(25)
             if ready is True:
                 self._chat_epoch += 1
+                self._chat_used = False
                 return True
             if ready == "login_redirect":
                 self._log("↻ session 失效，重新登录...")
@@ -879,6 +883,9 @@ class _WebWorker:
         self._page.mouse.click(coords["cx"], coords["cy"])
         time.sleep(1.5)
         self._adopt_new_page(before)
+        # ★ 鼠标停在原地，进了聊天页正好压在右下角的悬浮菜单上 → 菜单被悬停展开，
+        #   它的半透明遮罩会挡住输入框（之前「卡住不发提示词」就是这个原因）。点完马上挪开。
+        self._park_mouse()
         return True
 
     def _wait_chat_page_ready(self, timeout_sec=25):
@@ -916,6 +923,8 @@ class _WebWorker:
             if (not info["isCarlist"]) and (info["inputCount"] > 0 or info["hasChatHint"]):
                 self._log("✓ 聊天页就绪")
                 time.sleep(4)     # 冷启动 hydration 缓冲
+                self._park_mouse()
+                self._close_overlays()
                 return True
             if time.time() - last_log > 6:
                 self._log("还在等聊天页... inputCount=%s isCarlist=%s"
@@ -936,18 +945,29 @@ class _WebWorker:
         #   用于 agent 工具循环里碰到「轴卡」（死活不肯输出工具块、一直用文字推辞）时，
         #   由上层（web_model_client）请求换一张卡重抽，直到碰到肯配合的卡。
         if opts.get("newChat") and not opts.get("forceNewCard"):
-            prog("开一个新对话…")
-            if not self._new_chat() and opts.get("newChatStrict"):
-                self._log("[新对话] 页面上开不了新对话，改为重新选卡")
+            if not self._chat_used and not self._has_conversation():
+                self._log("[新任务] 当前就是一个刚打开的空白对话，直接用")
+            elif (load_config().get("newTaskMode") or "card") == "card":
+                # 用户要求：每个新任务回首页换一张新的 AI，上一个任务的内容一点都带不进来
+                self._log("[新任务] 回首页换一张新的 AI 卡")
+                prog("新任务：回首页换一张新的 AI…")
                 opts = dict(opts, forceNewCard=True)
+            else:
+                prog("开一个新对话…")
+                if not self._new_chat():
+                    self._log("[新对话] 页面上开不了新对话，改为回首页换卡")
+                    opts = dict(opts, forceNewCard=True)
 
         if opts.get("forceNewCard"):
-            self._log("[换卡] 上层请求换一张新卡重试…")
-            prog("换一张 AI 卡片重试…")
+            self._log("[换卡] 回首页换一张新卡…")
+            prog("换一张 AI 卡片…")
             self._safe(lambda: self._page.goto(self._carlist_url,
                        wait_until="domcontentloaded", timeout=30000))
             time.sleep(3)
             self._select_card_and_enter_chat()
+            # 有的卡一进去是上次的对话：再开个新聊天，确保是空白的
+            if self._has_conversation():
+                self._new_chat()
             self._state = "ready"
 
         disable_switch = bool(opts.get("disableCardSwitch"))
@@ -1005,6 +1025,7 @@ class _WebWorker:
                         "() => [...document.querySelectorAll('textarea,[contenteditable=\"true\"]')]"
                         ".some(e => e.getBoundingClientRect().width > 200)"), False):
                     self._chat_epoch += 1
+                    self._chat_used = False
                     self._log("✓ 已开新对话")
                     time.sleep(1.0)
                     return True
@@ -1027,6 +1048,119 @@ class _WebWorker:
             return True
         self._log("⚠ 没能开新对话（找不到「新聊天」入口）")
         return False
+
+    def _park_mouse(self):
+        """把鼠标挪到页面左上方的空白处，免得悬停触发右下角的悬浮菜单。"""
+        try:
+            vp = self._page.viewport_size or {"width": 1280, "height": 900}
+            self._page.mouse.move(int(vp["width"] * 0.45), 70)
+        except Exception:
+            pass
+
+    _OVERLAY_OPEN_JS = r"""() => [...document.querySelectorAll(
+        '.radial-menu-backdrop.open, #main-menu-backdrop.open')].filter(e => {
+            const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; }).length"""
+
+    def _close_overlays(self):
+        """关掉 AI 池页面上展开的悬浮菜单（右下角齿轮那一圈按钮）。它展开时会盖一层
+        半透明遮罩，挡住输入框和发送键。返回是否处理过。"""
+        if not (self._safe(lambda: self._page.evaluate(self._OVERLAY_OPEN_JS), 0) or 0):
+            return False
+        self._log("检测到悬浮菜单展开（遮挡输入框），正在关闭…")
+        self._park_mouse()
+        # 1) 点遮罩本身（一般就是「点空白处关闭」）
+        self._safe(lambda: self._page.evaluate(r"""() => {
+            for (const b of document.querySelectorAll('.radial-menu-backdrop.open, #main-menu-backdrop.open'))
+                b.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+        }"""))
+        time.sleep(0.4)
+        # 2) 还开着就按 Esc
+        if self._safe(lambda: self._page.evaluate(self._OVERLAY_OPEN_JS), 0):
+            self._safe(lambda: self._page.keyboard.press("Escape"))
+            time.sleep(0.4)
+        # 3) 仍然开着：直接让遮罩失效（不影响页面其它功能）
+        if self._safe(lambda: self._page.evaluate(self._OVERLAY_OPEN_JS), 0):
+            self._safe(lambda: self._page.evaluate(r"""() => {
+                for (const b of document.querySelectorAll('.radial-menu-backdrop, #main-menu-backdrop')) {
+                    b.classList.remove('open'); b.style.pointerEvents = 'none';
+                }
+                for (const c of document.querySelectorAll('.radial-menu-container, #main-menu-container'))
+                    c.classList.remove('open');
+            }"""))
+        return True
+
+    def _focus_input(self, inp):
+        """聚焦输入框：正常点击 → 关遮挡后再点 → 强制点击 → JS focus，一级级兜底。"""
+        try:
+            inp.click(timeout=3000)
+            return
+        except Exception as e:
+            self._log("点输入框被挡住（%s），关遮挡后重试" % str(e).split("\n")[0][:80])
+        self._close_overlays()
+        try:
+            inp.click(timeout=3000)
+            return
+        except Exception:
+            pass
+        try:
+            inp.click(timeout=3000, force=True)
+            return
+        except Exception:
+            pass
+        inp.evaluate("el => { el.focus(); }")
+
+    # 本次提问之后的那条助手回复（按页面顺序定位在「我刚发的提问气泡」后面），
+    # 用来校验抓到的回复确实属于本次任务，而不是对话里更早的内容。
+    _ANCHORED_REPLY_JS = r"""(head) => {
+        const norm = s => (s || '').replace(/[\s\u00a0]+/g, '');
+        const key = norm(head).slice(0, 30);
+        const users = [...document.querySelectorAll('[data-message-author-role="user"]')];
+        if (!users.length) return {found: false};
+        let anchor = null;
+        for (let i = users.length - 1; i >= 0; i--) {
+            if (key && norm(users[i].innerText).includes(key)) { anchor = users[i]; break; }
+        }
+        if (!anchor) return {found: false};
+        const outs = [];
+        for (const a of document.querySelectorAll('[data-message-author-role="assistant"]')) {
+            if (anchor.compareDocumentPosition(a) & Node.DOCUMENT_POSITION_FOLLOWING) {
+                const t = (a.innerText || '').trim();
+                if (t) outs.push(t);
+            }
+        }
+        return {found: true, text: outs.join('\n\n')};
+    }"""
+
+    def _anchored_reply(self, prompt):
+        return self._safe(lambda: self._page.evaluate(self._ANCHORED_REPLY_JS, prompt or ""),
+                          {"found": False}) or {"found": False}
+
+    def _wait_anchored_stable(self, prompt, timeout_sec, prog=None):
+        """等「本次提问之后的回复」出现并且连续几秒不再变化，返回它的文字。"""
+        end = time.time() + timeout_sec
+        last, same_n = "", 0
+        while time.time() < end:
+            t = ((self._anchored_reply(prompt) or {}).get("text") or "").strip()
+            if t and t == last:
+                same_n += 1
+                if same_n >= 3:
+                    return t
+            else:
+                same_n = 0
+                last = t
+            time.sleep(1.5)
+        return last
+
+    @staticmethod
+    def _same_reply(a, b):
+        """两段文字是否像是同一条回复（去掉空白和 Markdown 符号后，开头一段互相包含）。"""
+        import re as _re
+        na = _re.sub(r"[\s\u00a0*_#`>|\-\[\]()!]+", "", a or "")
+        nb = _re.sub(r"[\s\u00a0*_#`>|\-\[\]()!]+", "", b or "")
+        if not na or not nb:
+            return False
+        k = min(40, len(na), len(nb))
+        return na[:k] in nb or nb[:k] in na
 
     def _capture_baseline(self):
         js = """() => {
@@ -1098,6 +1232,8 @@ class _WebWorker:
         timeout_ms = opts.get("timeout") or 600000
         self._log("发送 prompt (len=%d, 第%d次)..." % (len(prompt), attempt))
 
+        self._park_mouse()
+        self._close_overlays()
         baseline = self._capture_baseline()
         inp = self._find_input()
         self._log("已定位输入框，准备填入…")
@@ -1108,7 +1244,7 @@ class _WebWorker:
         filled = False
         for how in ("insert_text", "fill", "type"):
             try:
-                inp.click(timeout=5000)
+                self._focus_input(inp)
                 self._page.keyboard.press("Control+A")
                 self._page.keyboard.press("Delete")
                 if how == "insert_text":
@@ -1162,12 +1298,26 @@ class _WebWorker:
             # 抛 _Stuck，让上层 web_complete 自动换一张卡重试（比直接失败更稳）
             raise _Stuck("发送未触发：按钮/Enter/坐标/指针事件都没把消息发出去（换卡重试）")
 
+        self._chat_used = True
         reply = self._wait_for_reply(timeout_ms, baseline, prompt, opts, prog)
+        # ★ 校验：回复必须是「本次提问之后」的那条。对话里有旧内容时，按位置找最底部的块
+        #   可能抓到上一个任务的回复（之前视频笔记里出现整篇新闻简报就是这样来的）。
+        anc = self._anchored_reply(prompt)
+        if anc.get("found"):
+            atext = (anc.get("text") or "").strip()
+            if not atext or not self._same_reply(reply, atext):
+                # 本次提问之后还没有（完整的）回复：多等一会儿，等它写完再取
+                atext = self._wait_anchored_stable(prompt, 180, prog) or atext
+            if atext and not self._same_reply(reply, atext):
+                self._log("⚠ 抓到的回复不是本次提问的（%d 字），改用本次提问之后的回复（%d 字）"
+                          % (len(reply or ""), len(atext)))
+                reply = atext
         # 把回复重新抓成 Markdown：把 <a href> 还原成可点击链接 [文字](网址)，
         # 并去掉 ChatGPT 的引用角标杂质（如 "OpenAI +1"、"Anthropic +2"）。
         # 仅当抓取结果可信（长度不大幅缩水）才采用，否则保留纯文本。
-        md = self._safe(lambda: self._page.evaluate(_GRAB_MARKDOWN_JS), "") or ""
-        if md and len(md) >= max(40, int(len(reply or "") * 0.6)):
+        md = self._safe(lambda: self._page.evaluate(_GRAB_MARKDOWN_JS, prompt), "") or ""
+        # 只有和刚才确认过的回复是同一条时才用 Markdown 版（之前只比长度，旧的长消息会顶替掉正确回复）
+        if md and len(md) >= max(40, int(len(reply or "") * 0.6)) and self._same_reply(md, reply):
             reply = md
         self._state = "ready"
         return reply
@@ -1180,7 +1330,7 @@ class _WebWorker:
 
     def _press_send_key(self, inp):
         """聚焦输入框后按 Enter 发送（标准 ChatGPT：Enter=发送，Shift+Enter=换行）。"""
-        inp.click(timeout=4000)
+        self._focus_input(inp)
         self._page.keyboard.press("Enter")
         return True
 
@@ -1679,7 +1829,19 @@ class _WebWorker:
 
 # 把"最新一条 AI 回复"抓成 Markdown：保留 <a href> 为可点击链接 [文字](网址)，
 # 去掉 ChatGPT 的引用角标/来源芯片（"+1""+2"、citation/footnote 之类）这些杂质。
-_GRAB_MARKDOWN_JS = r"""() => {
+_GRAB_MARKDOWN_JS = r"""(anchorText) => {
+    // 只看「本次提问气泡」之后的内容：找到最后一个包含提问开头的用户气泡，作为锚点
+    let __cxAnchor = null;
+    try {
+        const __n = s => (s || '').replace(/[\s\u00a0]+/g, '');
+        const __k = __n(anchorText || '').slice(0, 30);
+        if (__k) {
+            const __us = [...document.querySelectorAll('[data-message-author-role="user"]')];
+            for (let i = __us.length - 1; i >= 0; i--) {
+                if (__n(__us[i].innerText).includes(__k)) { __cxAnchor = __us[i]; break; }
+            }
+        }
+    } catch (e) { __cxAnchor = null; }
     // 同一条回复常被网站拆成多个兄弟块（如正文段落 +（另起的）序号列表）。
     // 从最底部命中块向上爬到「整条回复」的容器，把被拆开的块合起来，但不跨越到上一条消息。
     const __cxClimb = (el) => {
@@ -1795,6 +1957,7 @@ _GRAB_MARKDOWN_JS = r"""() => {
         for(const el of els){
             const r=el.getBoundingClientRect();
             const t=(el.innerText||'').trim();
+            if(__cxAnchor && !(__cxAnchor.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)) continue;
             if(r.width>200 && t.length>20 && r.bottom>bestBottom){ best=el; bestBottom=r.bottom; }
         }
     }

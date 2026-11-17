@@ -21,6 +21,38 @@
     if (!b.title) b.title = (b.textContent || "").trim();
   });
 
+  // ---- 侧栏分组折叠（记住每组的展开/折叠状态）----
+  const NAV_KEY = "cx.navCollapsed";
+  let navState = null;
+  try { navState = JSON.parse(localStorage.getItem(NAV_KEY) || "null"); } catch (e) { navState = null; }
+  if (!navState) navState = { you: true, auto: true };   // 默认：常用的两组展开，其余折叠
+  document.querySelectorAll(".nav-group").forEach((g) => {
+    const key = g.dataset.group;
+    const label = g.querySelector(".nav-group-label");
+    const apply = (collapsed) => {
+      g.classList.toggle("collapsed", collapsed);
+      if (label) label.setAttribute("aria-expanded", String(!collapsed));
+    };
+    apply(!!navState[key]);
+    if (label) label.addEventListener("click", () => {
+      const collapsed = !g.classList.contains("collapsed");
+      apply(collapsed);
+      navState[key] = collapsed;
+      try { localStorage.setItem(NAV_KEY, JSON.stringify(navState)); } catch (e) {}
+    });
+  });
+  // 跳到的页面所在分组是折叠的（比如从别处一键跳过去），自动展开那一组
+  const navEl = document.querySelector(".nav");
+  if (navEl) new MutationObserver(() => {
+    const act = document.querySelector(".nav-group.collapsed .nav-item.active");
+    if (act) {
+      const g = act.closest(".nav-group");
+      g.classList.remove("collapsed");
+      const l = g.querySelector(".nav-group-label");
+      if (l) l.setAttribute("aria-expanded", "true");
+    }
+  }).observe(navEl, { subtree: true, attributes: true, attributeFilter: ["class"] });
+
   // ---- 2) 窗口按钮占位 ----
   const wco = navigator.windowControlsOverlay;
   function layoutWco() {
