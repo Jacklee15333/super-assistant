@@ -103,8 +103,44 @@ def needs_proxy(url):
                    for s in _DOMESTIC_SUFFIX)
 
 
+_ENV_STATE = {"v": None}
+_PROXY_ENV_KEYS = ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy")
+
+
+def apply_proxy_env(force=False):
+    """把「智能局部代理」设成整个后台进程的默认规则（requests / httpx / curl / yt-dlp / urllib 都认）：
+      · HTTP(S)_PROXY = 设置里填的代理（没填就用系统代理的地址）→ 境外站自动走代理；
+      · NO_PROXY      = 国内站 + 本机地址                         → 国内站自动直连。
+    注意：千万不能设 NO_PROXY=*——Python 和 curl 会连「显式指定的代理」也一起绕过，
+    之前就是这样导致境外站全变成了直连（OpenAI 403、Google/Meta 超时）。
+    代理设置改了会自动重新应用（proxy_for 每次都会检查）。返回当前生效的代理。"""
+    p = _read_proxy()
+    if not p:
+        try:
+            reg = urllib.request.getproxies_registry()
+            p = reg.get("https") or reg.get("http") or ""
+        except Exception:
+            p = ""
+    if not force and _ENV_STATE["v"] == p:
+        return p
+    _ENV_STATE["v"] = p
+    import os as _os
+    for k in _PROXY_ENV_KEYS:
+        _os.environ.pop(k, None)
+    if p:
+        for k in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
+            _os.environ[k] = p
+    no = ["localhost", "127.0.0.1", "::1"] + [s.lstrip(".") for s in _DOMESTIC_SUFFIX]
+    _os.environ["NO_PROXY"] = _os.environ["no_proxy"] = ",".join(no)
+    return p
+
+
 def proxy_for(url):
     """给这个网址用的代理地址；不需要代理返回空串。"""
+    try:
+        apply_proxy_env()          # 设置里的代理改过就同步到全局规则
+    except Exception:
+        pass
     if not needs_proxy(url):
         return ""
     p = _read_proxy()

@@ -19,9 +19,11 @@ import re
 
 # ★ 软件不跟随系统代理（Clash 等的「系统代理」）：requests / httpx / curl / yt-dlp 默认都会读系统代理，
 #   这里统一关掉；需要代理的地方（境外站）由代码显式传入「设置 → 联网与代理」里的地址（智能局部代理）。
-for _k in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
-    os.environ.pop(_k, None)
-os.environ["NO_PROXY"] = os.environ["no_proxy"] = "*"
+try:
+    import web_tools as _wt_proxy
+    _wt_proxy.apply_proxy_env(force=True)   # 境外站走「设置」里的代理、国内站和本机直连
+except Exception:
+    pass
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 

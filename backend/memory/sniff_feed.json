@@ -1175,5 +1175,159 @@
     "category": "AI动态",
     "key": "01dabaf94cd0d34c",
     "ts": "2026-11-17 12:19"
+  },
+  {
+    "kind": "功能",
+    "title": "Nemotron-Personas-Finance-Japan: 日本の人口分布と金融コンテキストを捉える合成ペルソナデータセット",
+    "summary": "Nemotron-Personas-Finance-Japan 是一个合成的日本人口分布与金融背景数据集，可用于训练和测试金融相关的 AI 模型。该数据集为日本市场定制，有助于提升 AI 在本地金融场景中的表现和适用性。",
+    "importance": "中",
+    "source_title": "Hugging Face 博客",
+    "link": "https://huggingface.co/blog",
+    "category": "AI动态",
+    "key": "d02d28638f09cc7e",
+    "ts": "2026-11-17 12:37"
+  },
+  {
+    "kind": "概念",
+    "title": "LLMON: An LLM-Native Markup Language, now in Granite 4.1 3B and 8B",
+    "summary": "LLMON 是一种专为大语言模型设计的原生标记语言，现已集成到 Granite 4.1 的 3B 和 8B 模型中。该语言可能提升模型在结构化数据处理、代码生成和多模态任务中的表现，是大模型领域的一项新趋势。",
+    "importance": "中",
+    "source_title": "Hugging Face 博客",
+    "link": "https://huggingface.co/blog",
+    "category": "AI动态",
+    "key": "f35b9555a9930fa8",
+    "ts": "2026-11-17 12:37"
+  },
+  {
+    "kind": "发布",
+    "title": "Muse Spark 1.1",
+    "summary": "Meta 推出 Muse Spark 1.1 版本，属于 AI 生成工具的升级。该版本可能增强了多模态生成能力，适用于内容创作、虚拟角色交互等场景，表明 Meta 在 AI 创作工具领域的持续投入。",
+    "importance": "高",
+    "source_title": "Meta AI 博客",
+    "link": "https://ai.meta.com/blog/",
+    "category": "AI动态",
+    "key": "f6e02613f9109edc",
+    "ts": "2026-11-17 12:37"
+  },
+  {
+    "kind": "发布",
+    "title": "Muse Image and Muse Video",
+    "summary": "Meta 推出 Muse Image 和 Muse Video 两个新工具，属于视觉生成领域的扩展。这两款工具可能支持更精准的图像与视频生成，推动 AI 在创意产业和多媒体应用中的落地，反映 Meta 在生成式 AI 产品线的扩张。",
+    "importance": "高",
+    "source_title": "Meta AI 博客",
+    "link": "https://ai.meta.com/blog/",
+    "category": "AI动态",
+    "key": "772ad298a16f7ae5",
+    "ts": "2026-11-17 12:37"
+  },
+  {
+    "kind": "功能",
+    "title": "Brain2Qwerty",
+    "summary": "Brain2Qwerty 是 Meta 提出的一项脑机接口技术，属于神经科学与 AI 融合的前沿方向。该技术试图通过脑电波实现非手术的自然语言通信，可能为残障人士提供新沟通方式，代表 AI 在医疗康复和人机交互领域的突破。",
+    "importance": "高",
+    "source_title": "Meta AI 博客",
+    "link": "https://ai.meta.com/blog/",
+    "category": "AI动态",
+    "key": "d0e154f876355e79",
+    "ts": "2026-11-17 12:37"
+  },
+  {
+    "kind": "概念",
+    "title": "Agentic AI",
+    "summary": "Meta 正在探讨 Agentic AI（智能体 AI）概念，属于 AI 代理技术的范畴。这种技术强调 AI 具备自主决策和任务执行能力，可能推动 AI 在复杂场景下的自主运行，成为未来智能系统的重要发展趋势。",
+    "importance": "中",
+    "source_title": "Meta AI 博客",
+    "link": "https://ai.meta.com/blog/",
+    "category": "AI动态",
+    "key": "ede324e0d2fd95cb",
+    "ts": "2026-11-17 12:37"
+  },
+  {
+    "kind": "发布",
+    "title": "Genesis Mission Projects",
+    "summary": "Meta 的 AI 模型正在参与 Genesis Mission 项目，属于太空探索与 AI 应用的结合。这表明 Meta 的 AI 技术可能被用于航天领域的工程挑战，拓宽 AI 技术的应用边界，具有跨行业合作的示范意义。",
+    "importance": "中",
+    "source_title": "Meta AI 博客",
+    "link": "https://ai.meta.com/blog/",
+    "category": "AI动态",
+    "key": "58bb512b35cdcfbb",
+    "ts": "2026-11-17 12:37"
+  },
+  {
+    "kind": "功能",
+    "title": "Assistive Robotics",
+    "summary": "Meta 与匹兹堡大学合作开发的助残机器人项目，属于 AI 与康复工程的融合。该项目利用 AI 强化机器人辅助功能，可能提升行动障碍者的生活质量，反映 AI 在社会福祉领域的实际价值。",
+    "importance": "中",
+    "source_title": "Meta AI 博客",
+    "link": "https://ai.meta.com/blog/",
+    "category": "AI动态",
+    "key": "2552ece944a76622",
+    "ts": "2026-11-17 12:37"
+  },
+  {
+    "kind": "发布",
+    "title": "OpenCode Browse",
+    "summary": "一个新型代码浏览工具，可能提供代码仓库的智能查询和可视化分析功能，属于软件开发工具领域。此类工具通常用于提升开发者在大型代码库中的导航效率，值得关注其是否引入了新的代码理解技术或交互方式。",
+    "importance": "中",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "5c2e51bb2ed68d54",
+    "ts": "2026-11-17 12:38"
+  },
+  {
+    "kind": "功能",
+    "title": "Jiff 1.0: A datetime library for Rust",
+    "summary": "Rust语言的时间日期库Jiff 1.0版本发布，属于开发工具类创新。时间处理是系统编程中的基础需求，新版本可能优化了跨时区计算或引入了更精确的时钟实现，对需要高精度时间处理的Rust项目具有实用价值。",
+    "importance": "中",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "f69c7e35e7992c7a",
+    "ts": "2026-11-17 12:38"
+  },
+  {
+    "kind": "概念",
+    "title": "Formal Verification Is Not Verifiable",
+    "summary": "探讨形式验证方法论局限性的技术文章，属于软件工程领域的方法论创新。该方向可能揭示当前形式验证技术在实际应用中的可验证性挑战，对安全关键系统开发有重要参考价值。",
+    "importance": "高",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "40a2c27fe7bae81e",
+    "ts": "2026-11-17 12:38"
+  },
+  {
+    "kind": "发布",
+    "title": "Sutra-OS – A self-hosted ontology platform",
+    "summary": "开源本体平台Sutra-OS的发布，属于知识图谱和语义网技术领域。该平台可能提供自主知识管理能力，对需要构建领域特定知识库的开发者和研究者具有潜在价值。",
+    "importance": "中",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "c2d7421889cc03d1",
+    "ts": "2026-11-17 12:38"
+  },
+  {
+    "kind": "概念",
+    "title": "Running coding agents without handing them my credentials",
+    "summary": "提出无需共享凭证即可运行代码代理的新方法，属于开发工具安全领域。该技术可能涉及零信任架构或新型代码执行沙箱技术，对提升开发环境安全性有重要意义。",
+    "importance": "高",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "e7b8dd65bb012c51",
+    "ts": "2026-11-17 12:38"
+  },
+  {
+    "kind": "发布",
+    "title": "Aristotle Expands into Rust",
+    "summary": "Aristotle框架扩展支持Rust语言，属于编程语言工具生态建设。该扩展可能带来新的开发范式或性能优化，对Rust生态系统的完善具有推动作用。",
+    "importance": "中",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "8c5e27e80750a2b0",
+    "ts": "2026-11-17 12:38"
   }
 ]
