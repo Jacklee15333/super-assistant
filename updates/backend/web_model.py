@@ -183,6 +183,34 @@ def _clear_session():
         pass
 
 
+# 不用鼠标、不需要窗口在前台，直接把文字写进输入框：
+#   · textarea/input：用原生 setter 写值再发 input 事件（React 认得）；
+#   · contenteditable（新版 ChatGPT 的 ProseMirror）：选中全部内容后派发一个「粘贴」事件，
+#     编辑器自己会把文字插进去；编辑器没接住时再用 execCommand('insertText') 兜底。
+_DOM_FILL_JS = r"""(el, text) => {
+    try { el.focus({preventScroll: true}); } catch (e) { try { el.focus(); } catch (e2) {} }
+    const tag = (el.tagName || '').toUpperCase();
+    if (tag === 'TEXTAREA' || tag === 'INPUT') {
+        const proto = tag === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+        Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, text);
+        el.dispatchEvent(new Event('input', {bubbles: true}));
+        return 'value';
+    }
+    const sel = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    sel.removeAllRanges(); sel.addRange(range);
+    try {
+        const dt = new DataTransfer();
+        dt.setData('text/plain', text);
+        const ev = new ClipboardEvent('paste', {clipboardData: dt, bubbles: true, cancelable: true});
+        el.dispatchEvent(ev);
+        if (ev.defaultPrevented) return 'paste';
+    } catch (e) {}
+    return document.execCommand('insertText', false, text) ? 'insertText' : '';
+}"""
+
+
 def is_available():
     return sync_playwright is not None
 
@@ -282,6 +310,12 @@ class _WebWorker:
                 opts = dict(
                     headless=bool(headless),
                     args=["--disable-blink-features=AutomationControlled",
+                          # 窗口被别的程序挡住/最小化时也照常渲染，不然页面「冻住」，
+                          # 点击和发送会一直等，非得把鼠标移回浏览器才继续
+                          "--disable-background-timer-throttling",
+                          "--disable-backgrounding-occluded-windows",
+                          "--disable-renderer-backgrounding",
+                          "--disable-features=CalculateNativeWinOcclusion",
                           "--no-sandbox", "--disable-dev-shm-usage"],
                 )
                 if channel:
@@ -1037,7 +1071,9 @@ class _WebWorker:
                     'a[aria-label*="新对话"]', 'button[aria-label*="新对话"]'):
             loc = self._page.locator(sel).first
             if self._safe(lambda: loc.count(), 0) and self._safe(lambda: loc.is_visible(), False):
-                if self._safe(lambda: (loc.click(timeout=3000), True)[1], False) and ok():
+                clicked = self._safe(lambda: (loc.evaluate("el => el.click()"), True)[1], False) \
+                    or self._safe(lambda: (loc.click(timeout=3000), True)[1], False)
+                if clicked and ok():
                     return True
         for txt in ("新聊天", "新对话", "New chat"):
             if self._click_text(txt) and ok():
@@ -1242,7 +1278,15 @@ class _WebWorker:
         # ── 填入：新版 ChatGPT 是 ProseMirror contenteditable。依次试 insert_text / fill / type ──
         pre = ""
         filled = False
-        for how in ("insert_text", "fill", "type"):
+        # ① 首选：直接在页面里写入输入框（不用鼠标、不需要窗口在前台）
+        how_dom = self._safe(lambda: inp.evaluate(_DOM_FILL_JS, prompt), "")
+        if how_dom:
+            time.sleep(0.5)
+            pre = self._read_input_text(inp)
+            if len(pre) >= min(int(len(prompt) * 0.8), 8):
+                filled = True
+                self._log("已填入（方式=页面直写/%s，框内 %d 字）" % (how_dom, len(pre)))
+        for how in (() if filled else ("insert_text", "fill", "type")):
             try:
                 self._focus_input(inp)
                 self._page.keyboard.press("Control+A")
@@ -1284,6 +1328,7 @@ class _WebWorker:
         self._log("发送前页面文字 %d 字，开始发送…" % pre_page_len)
         sent = False
         for label, action in (
+            ("发送按钮·页面直点", lambda: self._dom_click_send()),
             ("发送按钮·可操作点击", lambda: self._click_send_btn()),
             ("Enter", lambda: self._press_send_key(inp)),
             ("发送键·坐标兜底", lambda: self._click_send(mechanism="mouse")),
@@ -1333,6 +1378,22 @@ class _WebWorker:
         self._focus_input(inp)
         self._page.keyboard.press("Enter")
         return True
+
+    def _dom_click_send(self):
+        """在页面里直接触发发送按钮的 click（不动鼠标、不需要窗口在前台）。找不到/按钮不可用返回 False。"""
+        return bool(self._safe(lambda: self._page.evaluate(r"""() => {
+            const sels = ['button[data-testid="send-button"]', '#composer-submit-button',
+                          'button[aria-label*="发送"]', 'button[aria-label*="Send" i]', 'button[type="submit"]'];
+            for (const s of sels) {
+                for (const b of document.querySelectorAll(s)) {
+                    const r = b.getBoundingClientRect();
+                    if (r.width > 0 && r.height > 0 && !b.disabled && b.getAttribute('aria-disabled') !== 'true') {
+                        b.click(); return true;
+                    }
+                }
+            }
+            return false;
+        }"""), False))
 
     def _click_send_btn(self):
         """
