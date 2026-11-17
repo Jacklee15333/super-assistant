@@ -1,0 +1,11 @@
+超能小助 · 视频提取诊断
+==============================
+时间：2026-11-15 21:19:41
+链接：https://example.com/x
+失败阶段：extract
+yt-dlp 版本：2026.06.09
+curl_cffi 版本：(未装)
+系统：Windows-11-10.0.26200-SP0
+
+详细错误：
+ERROR: [generic] Unable to download webpage: HTTP Error 404: Not Found (caused by <HTTPError 404: Not Found>)

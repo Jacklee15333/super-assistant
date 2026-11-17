@@ -1,0 +1,16 @@
+{
+  "id": "auto-20260708-090009-47be",
+  "title": "🤖 自动 · 最新AI动态 · 07-08 09:00",
+  "created_at": "2026-07-08T09:00:43",
+  "updated_at": "2026-07-08T09:00:43",
+  "messages": [
+    {
+      "role": "user",
+      "content": "查最新 OpenAI ； Anthropic； 英伟达的最新动态"
+    },
+    {
+      "role": "assistant",
+      "content": "## 最新简报｜2026-07-08 09:00\n\n### OpenAI\n\n- **重点**：OpenAI 官网最新动态集中在 **GPT-5.6 Sol 预览、系统卡、企业 Agent 落地、HP 企业案例**。说明主线仍是“更强模型 + 企业工作流 + Agent 化”。[OpenAI](https://openai.com/news/?utm_source=chatgpt.com)\n- **可关注**：ChatGPT 里旧模型正在退场，GPT-4.5 已于 2026-06-26 退休，o3 将在 2026-08-26 退休；API 暂不受影响。[OpenAI Help Center](https://help.openai.com/en/articles/6825453-chatgpt-release-notes?utm_source=chatgpt.com)\n- **机会点**：适合盯“企业 Agent 案例”和“模型迁移窗口”，可以做内容：**旧模型退场后，普通用户/创业者该怎么选模型**。\n\n### Anthropic\n\n- **重点**：Anthropic 7 月 6 日发布研究《A global workspace in language models》，继续强化“可解释性/类认知机制”方向。[Anthropic](https://www.anthropic.com/research/global-workspace?utm_source=chatgpt.com)\n- **产品动向**：Claude Cowork 正在往手机端延伸，Max 用户优先体验，方向是“手机指挥 AI 代理继续工作”。[Engadget\n+1](https://www.engadget.com/2209495/now-you-can-direct-anthropic-claude-cowork-ai-from-your-phone/?utm_source=chatgpt.com)\n- **风险/变量**：近期有关于 Anthropic 高级模型访问限制、政府安全审查、恢复访问的报道；这类信息涉及监管和国家安全，需继续核实官方口径。[AP News\n+1](https://apnews.com/article/028db5135128fce6b38c873bf9cb5e09?utm_source=chatgpt.com)\n- **机会点**：可写主题：**Claude Cowork 手机化后，AI Agent 会不会变成远程员工？**\n\n### 英伟达 NVIDIA\n\n- **重点**：NVIDIA 官方最新新闻集中在 **Vera CPU、Hugging Face + LeRobot、开放机器人、国家级 AI 基础设施**。[NVIDIA Newsroom\n+1](https://nvidianews.nvidia.com/?utm_source=chatgpt.com)\n- **产业方向**：NVIDIA 与 Hugging Face 推动 LeRobot 生态，说明“开源机器人 + 物理 AI”正在成为新战场。[NVIDIA Newsroom](https://nvidianews.nvidia.com/news/latest?utm_source=chatgpt.com)\n- **基础设施方向**：NVIDIA 还与核能/数据中心项目相关，AI 算力正在和能源、水资源、冷却系统深度绑定。[Reuters](https://www.reuters.com/business/energy/valar-nuclear-startup-partners-with-nvidia-data-center-aiming-conserve-water-2026-07-01/?utm_source=chatgpt.com)\n- **风险点**：市场担心 DeepSeek 等公司自研推理芯片，可能削弱对 NVIDIA GPU 的依赖，但这目前更多是竞争压力信号，不等于 NVIDIA 需求立刻下滑。[Barron's](https://www.barrons.com/articles/nvidia-stock-price-ai-chip-competition-9a6ce62d?utm_source=chatgpt.com)\n\n## 我建议你重点追的 3 个方向\n\n[AP News\nTrump administration lifts restrictions on Anthropic's Claude models after cybersecurity alarm\n6天前](https://apnews.com/article/028db5135128fce6b38c873bf9cb5e09?utm_source=chatgpt.com)\n\n[Reuters\nValar nuclear startup partners with Nvidia on data center aiming to conserve water\n6天前](https://www.reuters.com/business/energy/valar-nuclear-startup-partners-with-nvidia-data-center-aiming-conserve-water-2026-07-01/?utm_source=chatgpt.com)\n\n[Barron's\nNvidia Stock Falls Again as AI Chip Competition Fears Mount\n今天](https://www.barrons.com/articles/nvidia-stock-price-ai-chip-competition-9a6ce62d?utm_source=chatgpt.com)"
+    }
+  ]
+}

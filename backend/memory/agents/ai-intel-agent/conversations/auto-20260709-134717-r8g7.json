@@ -1,0 +1,16 @@
+{
+  "id": "auto-20260709-134717-r8g7",
+  "title": "🤖 自动 · 最新github开源项目 · 07-09 13:47",
+  "created_at": "2026-07-09T13:48:43",
+  "updated_at": "2026-07-09T13:48:43",
+  "messages": [
+    {
+      "role": "user",
+      "content": "查最新 github 最新的，最热门的开源项目"
+    },
+    {
+      "role": "assistant",
+      "content": "按 2026-07-09 GitHub Trending 今天榜看，热点很明显：**AI Agent 工具链、MCP、AI 办公自动化、本地 AI、Agent 安全沙箱**。\n\nGitHub Trending 本身的口径是“今天 GitHub 社区最兴奋/最关注的项目”，所以它适合看短期热度，不等于长期价值。[GitHub](https://github.com/trending)\n\n| 热度 | 项目 | 今日新增星标 | 方向 | 判断 |\n| --- | --- | --- | --- | --- |\n| 1 | iOfficeAI / OfficeCLI | 1,717 | AI 读写 Word/Excel/PPT | 很值得盯，AI 办公自动化刚需强 |\n| 2 | Zackriya-Solutions / meetily | 1,299 | 本地 AI 会议纪要 | 值得盯，隐私优先、本地转写方向热 |\n| 3 | asgeirtj / system_prompts_leaks | 1,218 | 系统提示词泄露合集 | 热度高，但偏猎奇/灰色，不建议作为正经项目方向 |\n| 4 | Diolinux / PhotoGIMP | 1,125 | GIMP 类 Photoshop 体验补丁 | 非 AI，但大众需求稳定 |\n| 5 | obra / superpowers | 1,116 | Agentic skills 框架 | 值得盯，属于“技能库/Agent 工作流”方向 |\n| 6 | Graphify-Labs / graphify | 856 | 代码/文档转知识图谱 | 很值得盯，适合做代码理解、RAG、团队知识库 |\n| 7 | ruvnet / RuView | 793 | WiFi 空间感知/生命体征监测 | 技术噱头强，需核实真实性 |\n| 8 | Leonxlnx / taste-skill | 654 | 给 AI Agent 提供“审美/品味”技能 | 偏内容生成和 Agent 提示词生态 |\n| 9 | TencentCloud / CubeSandbox | 555 | AI Agent 安全沙箱 | 很值得盯，Agent 执行环境安全是刚需 |\n| 10 | yt-dlp / yt-dlp | 488 | 音视频下载工具 | 老牌项目仍热，工具生态稳定 |\n\n来源上，OfficeCLI、system_prompts_leaks、superpowers、zvec、PhotoGIMP 等出现在 GitHub 全站今日 Trending 片段里；其中 OfficeCLI 今日 1,717 stars、system_prompts_leaks 今日 1,218 stars、superpowers 今日 1,116 stars。[GitHub](https://github.com/trending) Python 分类里，Graphify 今日 856 stars，claude-code 今日 215 stars，LMCache 今日 68 stars。[GitHub](https://github.com/trending/python) Rust 分类里，meetily 今日 1,299 stars，RuView 今日 793 stars，CubeSandbox 今日 555 stars，herdr 今日 868 stars。[GitHub](https://github.com/trending/rust) JavaScript 分类里，taste-skill 今日 654 stars，marketingskills 今日 228 stars。[GitHub](https://github.com/trending/javascript) Go 分类里，pentagi 今日 454 stars，crush 今日 70 stars，larksuite/cli 今日 58 stars。[GitHub](https://github.com/trending/go)\n\n我认为**真正值得跟进的不是“系统提示词泄露”这种流量型项目**，而是这几条线：\n\n机会点是让 Agent 真正操作文档、表格、PPT、飞书/企业协作工具。这个方向离商业化最近。\n\n现在 Agent 要读文件、跑命令、改代码，企业最怕越权和误操作，安全沙箱会变成基础设施。\n\n趋势是从“写一个提示词”变成“沉淀可复用技能包”。这和你之前关注的本地助手、记忆、工作流自动化很贴。\n\n这个方向适合做企业知识库、代码问答、代码审计、研发助手，比普通 RAG 更有护城河。\n\n本地会议纪要、本地医疗脱敏、本地 KV Cache 优化，都指向一个趋势：AI 应用开始从云端 Demo 转向本地部署和成本优化。\n\n结论：今天 GitHub 热点不是单纯“新模型”，而是**让 Agent 真正接管工具、文件、办公、代码、安全环境**。最值得重点盯的 5 个：**OfficeCLI、CubeSandbox、Graphify、superpowers、meetily**。"
+    }
+  ]
+}

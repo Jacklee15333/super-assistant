@@ -1,0 +1,16 @@
+{
+  "id": "auto-20260708-092143-r8g7",
+  "title": "🤖 自动 · 最新github开源项目 · 07-08 09:21",
+  "created_at": "2026-07-08T09:22:17",
+  "updated_at": "2026-07-08T09:22:17",
+  "messages": [
+    {
+      "role": "user",
+      "content": "查最新 github 最新的，最热门的开源项目"
+    },
+    {
+      "role": "assistant",
+      "content": "## GitHub 最新热门开源项目｜2026-07-08\n\n| 项目 | 热点 | 值不值得看 |\n| --- | --- | --- |\n| Zackriya-Solutions / meetily | 本地优先 AI 会议记录工具，支持 Whisper/Parakeet 转写、说话人分离、Ollama 总结；GitHub 今日 Trending 第 1。 | 值得。隐私、本地 AI、会议总结，适合做产品拆解。 GitHub |\n| kenn-io / agentsview | Claude Code、Codex 等编码 Agent 的本地会话搜索、统计、成本分析工具。 | 很适合你。AI Agent 使用越来越多，配套“管理工具”会有机会。 GitHub |\n| bethington / ghidra-mcp | Ghidra MCP Server，用 AI 做逆向工程，提供 200+ MCP 工具。 | 偏技术硬核。MCP + 安全/逆向，是 Agent 工具链方向。 GitHub |\n| 521xueweihan / HelloGitHub | 中文 GitHub 项目发现类仓库，今日中文 Trending 高位。 | 适合长期订阅。能快速发现适合学习/二创的开源项目。 GitHub |\n| sngyai / Sequoia-X | A 股自动选股系统，自动扫描技术形态并推送飞书。 | 可观察，不建议盲用。适合研究“自动化 + 金融工具”产品形态。 GitHub |\n| isjiamu / gzh-design-skill | 把 Markdown 转成可粘贴到公众号编辑器的精致 HTML。 | 很贴合内容变现。能服务公众号/私域内容生产。 Trendshift |\n\n## 我建议你优先看这 3 个\n\n**meetily**：本地 AI 会议助手，产品完成度高，可学习“隐私优先 AI 工具”怎么包装。\n\n**agentsview**：围绕 Claude Code / Codex 的配套工具，适合判断 AI Agent 生态机会。\n\n**gzh-design-skill**：直接服务内容创作者，和你关注的“公开学习、写作、内容资产化”很匹配。"
+    }
+  ]
+}

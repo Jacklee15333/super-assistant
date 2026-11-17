@@ -1,0 +1,16 @@
+{
+  "id": "auto-20260708-092317-st6b",
+  "title": "🤖 自动 · 特朗普动态 · 07-08 09:23",
+  "created_at": "2026-07-08T09:23:45",
+  "updated_at": "2026-07-08T09:23:45",
+  "messages": [
+    {
+      "role": "user",
+      "content": "查看特朗普最新动态"
+    },
+    {
+      "role": "assistant",
+      "content": "已思考 4s\n\n## 特朗普最新动态\n\n| 方向 | 最新情况 | 判断 |\n| --- | --- | --- |\n| 外交 / NATO | 特朗普已抵达土耳其参加 NATO 峰会，并与土耳其总统举行双边会晤。白宫 7 月 7 日公开视频显示相关行程。 | 这是当前最重要的官方行程。 The White House |\n| 伊朗局势 | AP 报道称，美国对伊朗目标发动更大规模打击；特朗普同时在 NATO 峰会上批评盟友没有支持美国。 | 高风险热点，后续要盯军事升级和盟友反应。 AP News |\n| 欧洲关系 | 路透报道，特朗普批评意大利总理梅洛尼未在伊朗问题上帮助美国，引发意大利方面降温回应。 | 说明特朗普与部分右翼盟友也出现摩擦。 Reuters |\n| 国内政治 | 路透称，医疗问题正在成为民主党攻击特朗普政府的中期选举议题，尤其是乡村医疗关闭问题。 | 这是 2026 中期选举的重要风险点。 Reuters |\n| 白宫项目 | 白宫南草坪正在建设花岗岩直升机坪，报道称由洛克希德·马丁旗下 Sikorsky 出资。 | 有利益关系争议，值得继续看是否被国会/媒体追问。 People.com |\n\n## 我建议重点盯\n\n特朗普现在的主线不是单一新闻，而是三条线叠在一起：**伊朗军事升级、NATO 盟友关系、国内中期选举压力**。其中伊朗和 NATO 最容易在这几天继续出大新闻。\n\n——— 画布内容 ———\n\n| 项目 | 热点 | 值不值得看 |\n| --- | --- | --- |\n| Zackriya-Solutions / meetily | 本地优先 AI 会议记录工具，支持 Whisper/Parakeet 转写、说话人分离、Ollama 总结；GitHub 今日 Trending 第 1。 | 值得。隐私、本地 AI、会议总结，适合做产品拆解。GitHub |\n| kenn-io / agentsview | Claude Code、Codex 等编码 Agent 的本地会话搜索、统计、成本分析工具。 | 很适合你。AI Agent 使用越来越多，配套“管理工具”会有机会。GitHub |\n| bethington / ghidra-mcp | Ghidra MCP Server，用 AI 做逆向工程，提供 200+ MCP 工具。 | 偏技术硬核。MCP + 安全/逆向，是 Agent 工具链方向。GitHub |\n| 521xueweihan / HelloGitHub | 中文 GitHub 项目发现类仓库，今日中文 Trending 高位。 | 适合长期订阅。能快速发现适合学习/二创的开源项目。GitHub |\n| sngyai / Sequoia-X | A 股自动选股系统，自动扫描技术形态并推送飞书。 | 可观察，不建议盲用。适合研究“自动化 + 金融工具”产品形态。GitHub |\n| isjiamu / gzh-design-skill | 把 Markdown 转成可粘贴到公众号编辑器的精致 HTML。 | 很贴合内容变现。能服务公众号/私域内容生产。Trendshift |"
+    }
+  ]
+}

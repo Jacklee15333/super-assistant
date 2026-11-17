@@ -1,5 +1,221 @@
 [
   {
+    "time": "2026-10-12 13:48",
+    "ok": true,
+    "source": "manual",
+    "files": 875,
+    "learned": 29,
+    "model": "qwen2.5",
+    "summary": "从你的内容看来，你似乎在整理和分类各个视频的内容，总结出各种赚钱的方法、系统，以及一些关于如何有效工作的建议。这类结构化"
+  },
+  {
+    "time": "2026-07-10 14:53",
+    "ok": true,
+    "source": "auto",
+    "files": 850,
+    "learned": 5,
+    "model": "web",
+    "summary": "主人是一个正在把知识、AI、内容创作和问题解决能力，组合成可积累、可复制、可变现的个人商业系统的人。"
+  },
+  {
+    "time": "2026-07-09 15:10",
+    "ok": true,
+    "source": "auto",
+    "files": 830,
+    "learned": 28,
+    "model": "web",
+    "summary": "你是一个正在把 **自学能力、AI 工具、内容表达和真实问题解决经验**整合成个人影响力与低成本商业系统的人，想要的是一条 **可验证、可复制、能长期积累信任和"
+  },
+  {
+    "time": "2026-07-08 18:03",
+    "ok": true,
+    "source": "auto",
+    "files": 806,
+    "learned": 26,
+    "model": "web",
+    "summary": "你是一个正在把自学能力、AI 工具和真实经验整合成内容资产与低成本事业系统的人，想要的是可验证、可复用、能长期积累信任和收入的路径。"
+  },
+  {
+    "time": "2026-07-08 17:02",
+    "ok": false,
+    "source": "auto",
+    "files": 780,
+    "learned": 17,
+    "model": "web",
+    "summary": "本轮没读到有效内容"
+  },
+  {
+    "time": "2026-07-08 15:53",
+    "ok": false,
+    "source": "auto",
+    "files": 763,
+    "learned": 19,
+    "model": "web",
+    "summary": "本轮没读到有效内容"
+  },
+  {
+    "time": "2026-07-08 14:52",
+    "ok": false,
+    "source": "auto",
+    "files": 744,
+    "learned": 14,
+    "model": "web",
+    "summary": "本轮没读到有效内容"
+  },
+  {
+    "time": "2026-07-08 13:53",
+    "ok": false,
+    "source": "auto",
+    "files": 730,
+    "learned": 24,
+    "model": "web",
+    "summary": "本轮没读到有效内容"
+  },
+  {
+    "time": "2026-07-08 12:52",
+    "ok": false,
+    "source": "auto",
+    "files": 706,
+    "learned": 12,
+    "model": "web",
+    "summary": "本轮没读到有效内容"
+  },
+  {
+    "time": "2026-07-08 12:02",
+    "ok": false,
+    "source": "auto",
+    "files": 694,
+    "learned": 20,
+    "model": "web",
+    "summary": "本轮没读到有效内容"
+  },
+  {
+    "time": "2026-07-08 10:53",
+    "ok": true,
+    "source": "auto",
+    "files": 678,
+    "learned": 24,
+    "model": "web",
+    "summary": "主人正在尝试用AI、内容输出和持续实践，把自己的知识、经验和解决问题能力转化为长期影响力与收入系统。"
+  },
+  {
+    "time": "2026-07-08 09:53",
+    "ok": true,
+    "source": "auto",
+    "files": 658,
+    "learned": 17,
+    "model": "web",
+    "summary": "主人是一个想用 AI、公开学习和内容输出，把自己的经验与能力做成产品、影响力和收入系统的人。"
+  },
+  {
+    "time": "2026-07-08 08:57",
+    "ok": true,
+    "source": "auto",
+    "files": 645,
+    "learned": 14,
+    "model": "web",
+    "summary": "主人是一个正在用 AI、内容输出和低成本验证，把学习能力转化为个人影响力与副业收入的人。"
+  },
+  {
+    "time": "2026-07-08 08:02",
+    "ok": false,
+    "source": "auto",
+    "files": 631,
+    "learned": 10,
+    "model": "web",
+    "summary": "本轮没读到有效内容"
+  },
+  {
+    "time": "2026-07-08 07:02",
+    "ok": false,
+    "source": "auto",
+    "files": 621,
+    "learned": 29,
+    "model": "web",
+    "summary": "本轮没读到有效内容"
+  },
+  {
+    "time": "2026-07-08 05:53",
+    "ok": true,
+    "source": "auto",
+    "files": 596,
+    "learned": 16,
+    "model": "web",
+    "summary": "主人是一个正在用 AI、自学、公开表达和低成本验证，把知识、技能与用户需求连接成可测试、可交付、可复购商业闭环的人。"
+  },
+  {
+    "time": "2026-07-08 04:53",
+    "ok": true,
+    "source": "auto",
+    "files": 584,
+    "learned": 24,
+    "model": "web",
+    "summary": "主人是一个正在用 AI、公开学习、内容表达和低成本副业验证，把学习成果转化为可交付、可复购、可持续资产的人。"
+  },
+  {
+    "time": "2026-07-08 03:53",
+    "ok": true,
+    "source": "auto",
+    "files": 564,
+    "learned": 34,
+    "model": "web",
+    "summary": "主人是一个正在用 AI、内容资产、搜索型获客和低成本验证，把个人能力逐步做成可复制、可交付、可复购副业系统的人。"
+  },
+  {
+    "time": "2026-07-08 02:53",
+    "ok": true,
+    "source": "auto",
+    "files": 534,
+    "learned": 18,
+    "model": "web",
+    "summary": "主人是一个正在用 AI、内容资产、信息差和低成本验证，把个人能力转化为可获客、可交付、可复购的一人公司系统的人。"
+  },
+  {
+    "time": "2026-07-08 01:53",
+    "ok": true,
+    "source": "auto",
+    "files": 520,
+    "learned": 18,
+    "model": "web",
+    "summary": "主人是一个正在用 AI、写作、知识库和短视频，把自我认知、工作经验与市场需求连接起来，逐步搭建一人公司和可复用资产系统的人。"
+  },
+  {
+    "time": "2026-07-08 00:53",
+    "ok": true,
+    "source": "auto",
+    "files": 506,
+    "learned": 27,
+    "model": "web",
+    "summary": "主人是一个正在用 AI、知识库、读书和短视频，把个人能力、工作经验与真实问题转化为可积累资产和一人公司机会的人。"
+  },
+  {
+    "time": "2026-07-07 23:53",
+    "ok": true,
+    "source": "auto",
+    "files": 483,
+    "learned": 29,
+    "model": "web",
+    "summary": "主人是一个正在用 AI、知识库和自媒体，把工作经验、个人技能与真实问题转化为可复用资产和一人公司机会的人。"
+  },
+  {
+    "time": "2026-07-07 22:53",
+    "ok": true,
+    "source": "auto",
+    "files": 458,
+    "learned": 22,
+    "model": "web",
+    "summary": "主人是一个正在用 AI、知识库、自媒体和作品思维，把个人学习、经历与解决问题能力转化为可见资产和一人公司机会的人。"
+  },
+  {
+    "time": "2026-07-07 21:54",
+    "ok": true,
+    "source": "auto",
+    "files": 440,
+    "learned": 29,
+    "model": "web",
+    "summary": "主人是一个正在用 AI、知识库和自媒体方法，把学习、观察和解决问题能力转化为个人资产与一人公司雏形的人。"
+  },
+  {
     "time": "2026-07-07 20:54",
     "ok": false,
     "source": "auto",
@@ -232,221 +448,5 @@
     "learned": 8,
     "model": "web",
     "summary": "主人是一个用 AI 搭建个人知识与执行系统、同时观察宏观秩序和社会规则变化，想把信息优势转化为判断力、项目机会和风险控制的人。"
-  },
-  {
-    "time": "2026-06-24 16:43",
-    "ok": true,
-    "source": "auto",
-    "files": 234,
-    "learned": 19,
-    "model": "web",
-    "summary": "你是一个正在把AI、知识管理和商业验证整合成个人操作系统，同时持续研究社会规则、家庭责任与技术风险的务实型深度观察者。"
-  },
-  {
-    "time": "2026-06-24 13:12",
-    "ok": true,
-    "source": "manual",
-    "files": 215,
-    "learned": 10,
-    "model": "qwen3:14b",
-    "summary": "关于“女强人人设”的讨论，视频中提出了多个值得关注的观点，以下从不同角度梳理核心内容：\n\n### 1. **反对单一归因"
-  },
-  {
-    "time": "2026-06-24 10:15",
-    "ok": true,
-    "source": "auto",
-    "files": 205,
-    "learned": 3,
-    "model": "web",
-    "summary": "你是在搭建 AI 驱动的个人商业与知识系统、同时用证据和因果链审视技术、监管与社会叙事的人；你要的不是信息堆积，而是可验证、可复用、可落地的判断。"
-  },
-  {
-    "time": "2026-06-23 10:33",
-    "ok": true,
-    "source": "auto",
-    "files": 202,
-    "learned": 0,
-    "model": "web",
-    "summary": "主人正在把个人知识、操作经验、AI 自动化和行业经营判断整合成一套能持续获客、稳定交付、控制风险并沉淀复利的个人生产系统。"
-  },
-  {
-    "time": "2026-06-23 09:33",
-    "ok": true,
-    "source": "auto",
-    "files": 202,
-    "learned": 1,
-    "model": "web",
-    "summary": "主人正在把个人知识、操作经验、AI 自动化和行业经营判断整合成一套能持续获客、稳定交付、控制风险并沉淀复利的个人生产系统。"
-  },
-  {
-    "time": "2026-06-23 08:33",
-    "ok": true,
-    "source": "auto",
-    "files": 201,
-    "learned": 0,
-    "model": "web",
-    "summary": "主人正在把个人经验、知识资产、AI 自动化和经营判断整合成一套能持续获客、稳定交付、可验证复利且保留控制权的个人工作系统。"
-  },
-  {
-    "time": "2026-06-23 07:33",
-    "ok": true,
-    "source": "auto",
-    "files": 201,
-    "learned": 0,
-    "model": "web",
-    "summary": "主人正在把个人经验、知识资产、AI 自动化和经营判断整合成一套可持续获客、稳定交付、可验证复利且保留控制权的个人工作系统。"
-  },
-  {
-    "time": "2026-06-23 06:33",
-    "ok": true,
-    "source": "auto",
-    "files": 201,
-    "learned": 0,
-    "model": "web",
-    "summary": "主人正在把个人经验、知识资产、AI 自动化和经营判断连接成一套能持续获客、稳定交付、可验证复利且不失控制权的个人工作系统。"
-  },
-  {
-    "time": "2026-06-23 05:33",
-    "ok": true,
-    "source": "auto",
-    "files": 201,
-    "learned": 0,
-    "model": "web",
-    "summary": "主人正在把个人经验、知识资产、AI 自动化和经营判断连接成一套能持续获客、稳定交付、可验证复利且不失控制权的个人工作系统。"
-  },
-  {
-    "time": "2026-06-23 04:33",
-    "ok": true,
-    "source": "auto",
-    "files": 201,
-    "learned": 1,
-    "model": "web",
-    "summary": "主人正在把个人知识、工作经验、AI 自动化和经营判断组合成一套能持续获客、稳定交付、沉淀复利且保留人工控制权的个人生产系统。"
-  },
-  {
-    "time": "2026-06-23 03:33",
-    "ok": true,
-    "source": "auto",
-    "files": 200,
-    "learned": 0,
-    "model": "web",
-    "summary": "主人正在把个人知识、工作经验、AI 自动化和经营判断组合成一套低成本启动、持续复利、但始终保留人工控制权的个人生产系统。"
-  },
-  {
-    "time": "2026-06-23 02:33",
-    "ok": true,
-    "source": "auto",
-    "files": 200,
-    "learned": 0,
-    "model": "web",
-    "summary": "主人正在把个人知识、工作经验、AI 自动化和经营判断组合成一套低成本启动、持续复利、但始终保留人工控制权的个人生产系统。"
-  },
-  {
-    "time": "2026-06-23 01:33",
-    "ok": true,
-    "source": "auto",
-    "files": 200,
-    "learned": 1,
-    "model": "web",
-    "summary": "主人正在把个人知识、工作经验、AI 自动化和商业判断组合成一套能低成本启动、持续复利且保持人工控制权的个人生产系统。"
-  },
-  {
-    "time": "2026-06-23 00:35",
-    "ok": true,
-    "source": "auto",
-    "files": 199,
-    "learned": 1,
-    "model": "web",
-    "summary": "Something went wrong while generating the response. If this "
-  },
-  {
-    "time": "2026-06-22 23:33",
-    "ok": true,
-    "source": "auto",
-    "files": 198,
-    "learned": 1,
-    "model": "web",
-    "summary": "主人正在把知识、经验、AI Agent 和商业判断整合成一套可持续积累、可控执行、能经得起现实检验的个人生产系统。"
-  },
-  {
-    "time": "2026-06-22 22:33",
-    "ok": true,
-    "source": "auto",
-    "files": 197,
-    "learned": 0,
-    "model": "web",
-    "summary": "主人正在把知识资产、AI Agent、商业判断和风险控制整合成一套可持续积累、可验证、可维护且不轻易失控的个人生产系统。"
-  },
-  {
-    "time": "2026-06-22 21:33",
-    "ok": true,
-    "source": "auto",
-    "files": 197,
-    "learned": 0,
-    "model": "web",
-    "summary": "主人正在把知识资产、AI Agent、商业判断和风险控制组合成一套可持续积累、可验证、可维护且不轻易失控的个人生产系统。"
-  },
-  {
-    "time": "2026-06-22 20:33",
-    "ok": true,
-    "source": "auto",
-    "files": 197,
-    "learned": 0,
-    "model": "web",
-    "summary": "主人正在把知识资产、AI Agent、商业判断和风险控制整合成一个能持续复利、可验证且不失控的个人生产系统。"
-  },
-  {
-    "time": "2026-06-22 19:33",
-    "ok": true,
-    "source": "auto",
-    "files": 197,
-    "learned": 0,
-    "model": "web",
-    "summary": "主人正在构建一套由知识资产、AI Agent 和商业判断共同驱动的个人系统，并要求它既能持续增值，也必须可控、可验证、可回退。"
-  },
-  {
-    "time": "2026-06-22 18:33",
-    "ok": true,
-    "source": "auto",
-    "files": 197,
-    "learned": 0,
-    "model": "web",
-    "summary": "主人正在把个人经验、知识资产、AI Agent 和商业判断整合成一套可复用、可验证、可控风险、能长期迭代的个人生产系统。"
-  },
-  {
-    "time": "2026-06-22 17:33",
-    "ok": true,
-    "source": "auto",
-    "files": 197,
-    "learned": 0,
-    "model": "web",
-    "summary": "主人正在把个人经验、知识资产、AI Agent 和商业判断整合为一套可复用、可验证、可控风险、能长期迭代的个人生产系统。"
-  },
-  {
-    "time": "2026-06-22 16:33",
-    "ok": true,
-    "source": "auto",
-    "files": 197,
-    "learned": 3,
-    "model": "web",
-    "summary": "主人正在把个人知识、AI Agent、商业机会和公共判断整合成一套可持续迭代的系统，并持续追问：信息是否可靠、流程能否复用、风险由谁承担、成果能否长期积累。"
-  },
-  {
-    "time": "2026-06-22 15:33",
-    "ok": true,
-    "source": "auto",
-    "files": 194,
-    "learned": 2,
-    "model": "web",
-    "summary": "主人正在把 AI 当成可控的生产系统来搭建，同时用“责任是否真实、流程能否验证、风险谁来承担、长期是否成立”审视商业、技术和社会叙事。"
-  },
-  {
-    "time": "2026-06-22 14:33",
-    "ok": true,
-    "source": "auto",
-    "files": 192,
-    "learned": 5,
-    "model": "web",
-    "summary": "主人正在把 AI 从“信息工具”升级为“可控执行系统”，并用同一套标准审视技术、商业和公共叙事：流程能否复现、成本由谁承担、风险能否隔离、结论是否经得起验证。"
   }
 ]
