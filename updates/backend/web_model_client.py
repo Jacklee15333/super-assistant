@@ -102,32 +102,150 @@ def flatten_messages(messages):
 
 
 # ════════════════════════ Agent 模式：构造 prompt ════════════════════════
+# 网页模型有自带搜索，这些联网工具不列给它（列了反而和「用自带搜索」冲突）
+_WEB_HIDE_TOOLS = {"web_search", "research"}
+# 电脑操作权限开着时，沙箱版工具和 fs_*/sys_run 重复，只列后者
+_SANDBOX_DUP = {"read_file": "fs_read", "list_files": "fs_list", "search_files": "fs_search",
+                "delete_file": "fs_trash", "shell": "sys_run"}
+
+
+def _short_desc(desc, n=48):
+    d = re.sub(r"^【[^】]*】", "", (desc or "").strip().replace("\n", " "))
+    d = re.sub(r"\*\*", "", d)
+    d = re.split(r"[。！；]", d, 1)[0].strip()
+    return d[:n] + ("…" if len(d) > n else "")
+
+
 def _render_tool_catalog(tools):
+    """紧凑工具清单：一行一个，描述只取第一句；⚠ = 会弹窗确认。"""
+    names = {((t or {}).get("function") or {}).get("name") for t in tools or []}
     lines = []
     for t in tools or []:
         fn = (t or {}).get("function") or {}
         name = fn.get("name")
-        if not name:
+        if not name or name in _WEB_HIDE_TOOLS:
             continue
-        desc = (fn.get("description") or "").strip().replace("\n", " ")
-        if len(desc) > 160:
-            desc = desc[:160] + "…"
+        if name in _SANDBOX_DUP and _SANDBOX_DUP[name] in names:
+            continue
+        raw = fn.get("description") or ""
+        danger = "危险" in raw[:40]
         params = (fn.get("parameters") or {}).get("properties") or {}
         required = set((fn.get("parameters") or {}).get("required") or [])
         ps = []
         for pname, spec in params.items():
             spec = spec or {}
             p = pname + ("*" if pname in required else "")
-            if spec.get("type"):
-                p += ":" + str(spec["type"])
             if spec.get("enum"):
                 p += "=" + "/".join(str(x) for x in spec["enum"][:6])
-            pd = (spec.get("description") or "").strip().replace("\n", " ")
-            if pd:
-                p += "（%s）" % (pd[:30] + ("…" if len(pd) > 30 else ""))
             ps.append(p)
-        lines.append("- %s(%s)：%s" % (name, ", ".join(ps), desc))
-    return "【可用工具】（带 * 的是必填参数）\n" + "\n".join(lines)
+        lines.append("- %s%s(%s)：%s" % ("⚠" if danger else "", name, ", ".join(ps),
+                                         _short_desc(raw)))
+    return "【可用工具】（* 必填参数；⚠ 会先弹窗让用户批准）\n" + "\n".join(lines)
+
+
+# ---------- 精简角色设定（只用于网页模型）----------
+_INTEL_KW = re.compile(r"视频|链接|抖音|快手|小红书|b站|youtube|http|调研|评论|痛点|文案|广告|竞品|简报|情报|爬|抓取",
+                       re.I)
+_ENGLISH_KW = re.compile(r"英语|英文|单词|学生|教材|语法|听写|作业|辅导|unit", re.I)
+
+
+def _compact_agents(body, req):
+    """AGENTS.md 按 ## 小节取舍：心跳/工具使用 不需要；市场情报、英语辅导 只在相关时带上。"""
+    out = []
+    for sec in re.split(r"(?m)^(?=## )", body):
+        head = sec.split("\n", 1)[0]
+        if not head.startswith("## "):
+            sec = "\n".join(l for l in sec.splitlines()
+                            if l.strip() and not l.startswith("#") and "随时编辑" not in l)
+            if sec.strip():
+                out.append(sec)
+            continue
+        if "心跳" in head or "工具使用" in head:
+            continue
+        if ("高级技能" in head or "红线" in head or "情报" in head) and not _INTEL_KW.search(req):
+            continue
+        if "英语" in head and not _ENGLISH_KW.search(req):
+            continue
+        # 和弹窗机制冲突的那条「先告诉你、得到确认再做」改成弹窗表述
+        sec = re.sub(r"^.*危险操作先确认.*$",
+                     "2. **危险操作先确认**：由程序弹窗让用户批准，直接写调用块即可。", sec, flags=re.M)
+        out.append(sec.strip())
+    return "\n\n".join(out)
+
+
+def _strip_template(body):
+    """去掉模板占位行（「（还不了解…）」「- 」等），全是占位就返回空。"""
+    keep = []
+    for l in body.splitlines():
+        t = l.strip()
+        if not t or t == "-" or re.fullmatch(r"（[^）]*）", t) or t.startswith("我会把"):
+            continue
+        keep.append(l)
+    return "\n".join(keep) if any(not l.lstrip().startswith("#") for l in keep) else ""
+
+
+def _dedupe_lines(body):
+    seen, out = set(), []
+    for l in body.splitlines():
+        key = re.sub(r"[（(]\d{4}-\d{2}-\d{2}[）)]|\s|[，。、；]", "", l)
+        if key and key in seen:
+            continue
+        seen.add(key)
+        out.append(l)
+    return "\n".join(out)
+
+
+def _pick_md_section(body, wanted, cap):
+    for sec in re.split(r"(?m)^(?=## )", body):
+        if wanted in sec.split("\n", 1)[0]:
+            return _truncate_plain(sec.strip(), cap)
+    return ""
+
+
+def _truncate_plain(s, n):
+    return s if len(s) <= n else s[:n] + "…"
+
+
+def _compact_system(system_txt, req=""):
+    """把很长的系统设定精简成网页模型够用的版本（通常从 7~9k 字降到 2~3k 字）。"""
+    txt = system_txt or ""
+    # 尾部那段「请严格按以上设定行事…联网…呈现方式」与网页模式冲突，换成【做事习惯】（在协议里）
+    txt = txt.split("请严格按以上设定行事", 1)[0]
+    parts = re.split(r"(?m)^(===\s*.+?\s*===)\s*$", txt)
+    out = [parts[0].strip()] if parts[0].strip() else []
+    for i in range(1, len(parts), 2):
+        title, body = parts[i], parts[i + 1].strip()
+        if "SOUL" in title:
+            body = "\n".join(l for l in body.splitlines()
+                             if "改这个文件" not in l and not l.startswith("# "))
+            body = body.replace("（你可以改成任何你喜欢的名字）", "")
+        elif "AGENTS" in title:
+            body = _compact_agents(body, req)
+        elif "USER.md" in title:
+            body = _strip_template(body)
+        elif "MEMORY" in title:
+            body = _dedupe_lines(_strip_template(body))
+            body = _truncate_plain(body, 1200)
+        elif "OWNER_PROFILE" in title:
+            body = _pick_md_section(body, "偏好与习惯", 400)
+            title = "=== 关于用户的习惯 ==="
+        elif "ENVIRONMENT" in title:
+            body = _pick_md_section(body, "环境信息", 300)
+        elif "INSIGHT" in title:
+            continue                       # 内容分析报告，与操作电脑无关
+        elif "技能库" in title or "Skills" in title:
+            lines = []
+            for l in body.splitlines():
+                m = re.match(r"^- 「(.+?)」\(slug: ([\w-]+)\)：(.*)$", l.strip())
+                if m:
+                    lines.append("- %s（%s）：%s" % (m.group(1), m.group(2), _short_desc(m.group(3), 40)))
+            body = ("用户任务匹配某个技能时，先 load_skill 读入完整步骤再做：\n" + "\n".join(lines)) if lines else ""
+        else:
+            body = _truncate_plain(body, 800)
+        body = re.sub(r"\n{3,}", "\n\n", (body or "").strip())
+        if body:
+            out.append(title + "\n" + body)
+    return "\n\n".join(out)
 
 
 _AGENT_PROTOCOL = (
@@ -148,6 +266,9 @@ _AGENT_PROTOCOL = (
     "所以不用文字问「要不要执行」，直接写调用块，确认交给弹窗——角色设定里说的「有风险先问」"
     "就是由这个弹窗完成的。先用只读工具（fs_list、fs_read、sys_info、sys_processes、screen_read 等）"
     "摸清情况，再做有副作用的操作。\n\n"
+    "【做事习惯】意图清楚就直接做，不反复追问。检查/清理/整理类任务：先只读摸清，"
+    "用 Markdown 表格汇报（类别、位置、大小、是否安全），再一句总结。清理 C 盘垃圾/临时文件用 sys_clean_temp，"
+    "不要用命令删。遇到「访问被拒/正被占用」的文件跳过即可，如实说明，不算失败。\n\n"
     "【回答用户】任务完成、或者问题不需要操作电脑时，直接用中文回答，不再写调用块。"
     "长短按内容需要：简单问题简洁回答；查询、扫描、对比类的结果要把关键数据讲清楚，适合时用 Markdown 表格。"
     "不要只回「收到」「好的」这类空话。\n"
@@ -307,10 +428,22 @@ def _build_full_prompt(messages, tools):
     budget = max(0, _MAX_CONVO_CHARS - sum(len(t) for _, t in tail))
     kept = []
     for k, t in reversed(head):
-        if len(kept) + len(tail) >= _MAX_CONVO_MSGS or len(t) > budget:
+        if len(kept) + len(tail) >= _MAX_CONVO_MSGS:
+            break
+        if len(t) > budget:
+            if not kept:
+                # ★ 紧挨着最新请求的那条（常是「要我执行吗？」）再长也要留，截取结尾部分——
+                #   否则用户只回一个「是」，模型就不知道在确认什么
+                room = max(budget, 800)
+                kept.insert(0, (k, t[:2] + "…" + t[-room:] if len(t) > room else t))
             break
         kept.insert(0, (k, t))
         budget -= len(t)
+    # 被挤掉的部分里如果有用户之前的请求，至少把最近那条带上（让模型知道任务的来龙去脉）
+    if len(kept) < len(head) and not any(k == "user" for k, _ in kept):
+        prev_u = next(((k, t) for k, t in reversed(head[:len(head) - len(kept)]) if k == "user"), None)
+        if prev_u:
+            kept.insert(0, (prev_u[0], _truncate_plain(prev_u[1], 400)))
     convo = [t for _, t in kept + tail]
     if len(kept) < len(head):
         convo.insert(0, "（更早的对话已省略，只保留最近的上下文）")
@@ -319,12 +452,17 @@ def _build_full_prompt(messages, tools):
     if latest and any(k == "tool" for k, _ in tail):
         final = ("【现在】上面是针对用户最新请求已经执行的工具结果。请据此继续："
                  "还需要操作就写调用块；做完了就用中文把结果告诉用户。")
+    elif latest and len(latest) <= 12 and kept and kept[-1][0] == "assistant":
+        final = ("【现在】用户回复「%s」——这是在回应你上一条消息里的提问/提议。"
+                 "请按你上一条说的去做（需要操作就直接写调用块）。" % latest)
     elif latest:
         final = "【现在】请处理用户最新的这条消息：" + _truncate(latest, 600)
     else:
         final = "【现在】请接着处理上面的对话。"
 
     chunks = ["（这是一条合并消息：前面是你的设定和工具说明，最后是对话和你现在要做的事。）"]
+    req = "\n".join(_text_of(m.get("content")) for m in msgs if m.get("role") == "user")[-2000:]
+    system_txt = _compact_system(system_txt, req)
     if system_txt.strip():
         chunks.append("【你的角色】\n" + system_txt)
     chunks.append(_AGENT_PROTOCOL)
