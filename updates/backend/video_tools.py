@@ -226,7 +226,7 @@ def _analyze_transcript(transcript, title, use_local, model, on_progress=None):
 
     # 伪模型答完判定提示（总结类）：必含小标题 + 最小长度，大幅降低误判
     web_opts = dict(requiredMarkers=["一句话概括", "核心观点", "金句"],
-                    minExpectedLength=900)
+                    minExpectedLength=900, **agent_core.VIDEO_ANALYSIS_WEB_OPTS)
 
     def _complete(prompt, use_web_opts=True):
         client = agent_core.make_client_for(s_model, s_use_local, on_progress=_prog)
