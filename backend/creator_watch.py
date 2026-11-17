@@ -60,6 +60,37 @@ def _new_id():
     return "cw" + str(int(time.time() * 1000)) + str(os.getpid() % 1000)
 
 
+import re as _re_err
+
+_ANSI_RE = _re_err.compile(r"\x1b\[[0-9;]*[A-Za-z]|\[[0-9;]{1,8}m")
+
+
+def _clean_err(e):
+    """把 yt-dlp 等返回的错误整理成人能看懂的一句话：
+    去掉终端颜色码（之前界面上显示成「0[0;31…」）、ERROR 前缀，常见原因翻成中文提示。"""
+    t = _ANSI_RE.sub("", str(e or "")).replace("\x1b", "").strip()
+    t = _re_err.sub(r"^0?(ERROR|WARNING):\s*", "", t)
+    low = t.lower()
+    hint = ""
+    if "sign in to confirm" in low or "not a bot" in low:
+        hint = "YouTube 要求人机验证：当前代理/IP 被风控。换个代理节点，或点「视频」页「安装/更新依赖」升级 yt-dlp 再试"
+    elif "429" in low or "too many requests" in low:
+        hint = "请求太频繁被限流，过一会儿再扫"
+    elif "timed out" in low or "timeout" in low or "unable to connect" in low or "connection" in low \
+            or "getaddrinfo" in low or "proxy" in low:
+        hint = "网络连不上（YouTube 需要在「设置 → 联网与代理」配好代理）"
+    elif "unsupported url" in low:
+        hint = "这个链接格式不支持，请填博主主页链接"
+    elif "fresh cookies" in low or "cookies" in low:
+        hint = "平台要求 Cookie / 登录，暂时列不到作品"
+    elif "does not have a videos tab" in low or "no videos" in low:
+        hint = "这个频道没有公开视频"
+    elif "private" in low or "unavailable" in low or "removed" in low:
+        hint = "主页不可访问（私密/已删除/地区限制）"
+    t = t[:160]
+    return ("%s（%s）" % (hint, t)) if hint else t
+
+
 class _SilentLogger:
     """喂给 yt-dlp 的哑日志器：吞掉它往控制台刷的 ERROR/WARNING，
     避免「Unsupported URL」之类噪音刷屏。真正的失败我们靠异常/返回值判断。"""
@@ -190,7 +221,7 @@ def _public_creator(c):
         "last_checked": c.get("last_checked") or "",
         "last_count": int(c.get("last_count") or 0),
         "known": len(c.get("known_ids") or []),
-        "last_error": c.get("last_error") or "",
+        "last_error": _clean_err(c.get("last_error")) if c.get("last_error") else "",
     }
 
 
@@ -299,6 +330,7 @@ def _ytdlp_list(target_url, limit, use_proxy, platform=""):
         "extract_flat": True, "skip_download": True,
         "nocheckcertificate": True,
         "socket_timeout": 30, "logger": _SilentLogger(),
+        "no_color": True,
     }
     try:
         lim = int(limit)
@@ -859,10 +891,10 @@ def scan_one(cid):
             for c in store.get("creators", []):
                 if c.get("id") == cid:
                     c["last_checked"] = _now_iso()
-                    c["last_error"] = str(e)[:200]
+                    c["last_error"] = _clean_err(e)
                     break
             _save(store)
-        res["error"] = str(e)[:200]
+        res["error"] = _clean_err(e)
         return res
 
     with _LOCK:

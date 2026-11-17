@@ -407,27 +407,31 @@ def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None
             and not os.environ.get("OPENAI_ADMIN_KEY"):
         s_use_local, s_model = False, "web"
 
+    _web_kw = dict(core.VIDEO_ANALYSIS_WEB_OPTS) if core.is_web_model(s_model) else {}
     try:
         client = core.make_client_for(s_model, s_use_local, on_progress=on_progress)
         resp = client.chat.completions.create(
-            model=s_model, messages=[{"role": "user", "content": prompt}])
+            model=s_model, messages=[{"role": "user", "content": prompt}], **_web_kw)
         out = (resp.choices[0].message.content or "").strip()
         if out:
             return _bold_point_titles(out)
         raise RuntimeError("空回复")
     except Exception as e:
-        # ★总结失败 → 一律回退本地再试一次（不管是网页还是云端模型）
+        # ★ 分析只用网页 AI 池（用户要求：本地模型分析不到位）。失败就换一张卡再试一次，不退回本地。
         try:
             if on_progress:
-                try: on_progress("总结模型不可用，回退本地总结…")
+                try: on_progress("AI 池这次没成功（%s），换一张卡重试…" % str(e)[:40])
                 except Exception: pass
-            client = core.make_client(True)
+            client = core.make_client_for("web", False, on_progress=on_progress)
             resp = client.chat.completions.create(
-                model="qwen2.5", messages=[{"role": "user", "content": prompt}])
-            return _bold_point_titles(
-                (resp.choices[0].message.content or "").strip()) or f"（分析出错：{e}）"
+                model="web", messages=[{"role": "user", "content": prompt}],
+                **dict(core.VIDEO_ANALYSIS_WEB_OPTS))
+            out = (resp.choices[0].message.content or "").strip()
+            if out:
+                return _bold_point_titles(out)
+            raise RuntimeError("空回复")
         except Exception as e2:
-            return f"（分析出错：{e2}）"
+            return f"（分析出错：AI 池两次都没成功（{e2}）。请稍后在这条笔记上点「AI 分析」重试）"
 
 
 def _split_title_from_analysis(text):
@@ -580,8 +584,9 @@ def _cx_mindmap_from_text(analysis, title, use_local, model, on_progress=None):
     )
 
     def _ask(_client, _model):
+        _kw = dict(core.VIDEO_ANALYSIS_WEB_OPTS) if core.is_web_model(_model) else {}
         resp = _client.chat.completions.create(
-            model=_model, messages=[{"role": "user", "content": prompt}])
+            model=_model, messages=[{"role": "user", "content": prompt}], **_kw)
         return (resp.choices[0].message.content or "").strip()
 
     # 与 video_summary 相同的模型解析逻辑：默认网页模型
@@ -601,13 +606,13 @@ def _cx_mindmap_from_text(analysis, title, use_local, model, on_progress=None):
         raw = _ask(client, s_model)
         tree = _mm_extract_json(raw)
     except Exception as e:
-        # 回退本地小模型再试一次
+        # 网页 AI 池换一张卡再试一次（分析类任务不退回本地）
         try:
             if on_progress:
-                try: on_progress("思维导图模型不可用，回退本地…")
+                try: on_progress("AI 池这次没成功，换一张卡重试思维导图…")
                 except Exception: pass
-            client = core.make_client(True)
-            raw = _ask(client, "qwen2.5")
+            client = core.make_client_for("web", False, on_progress=on_progress)
+            raw = _ask(client, "web")
             tree = _mm_extract_json(raw)
         except Exception as e2:
             raise RuntimeError(f"生成思维导图失败：{e2}") from e2

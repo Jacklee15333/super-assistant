@@ -596,6 +596,14 @@ def run_sniff(use_local=True, model="qwen2.5", verbose=False):
         model, use_local = "web", False
     elif engine == "claude":
         model, use_local = "claude", False
+    else:
+        # 「快速」就该快：本机有本地模型就用本地模型，不跟着聊天里的网页模型走
+        # （网页模型要逐站换卡、排队，8 个站能拖上好几分钟）
+        try:
+            import agent_core as _ac
+            use_local, model = _ac.prefer_local_model(use_local, model)
+        except Exception:
+            pass
     try:
         client = make_client_for(model, use_local)
     except Exception as e:

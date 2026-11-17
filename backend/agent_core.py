@@ -63,10 +63,21 @@ def resolve_local_model(name):
     return names[0]
 
 
+# 视频「分析」（总结 / 思维导图）固定交给网页 AI 池，并自动切到最高级模型：用户明确要求，
+# 本地模型分析得不到位。注意：提取声音、语音转文字仍然在本机（faster-whisper），不受影响。
+VIDEO_ANALYSIS_WEB_OPTS = dict(bestModel=True, timeout=2400000,       # 最多等 40 分钟
+                               thinkNoOutputMs=1800000,               # 最高级模型可能想很久，别误判卡死
+                               stuckFatalMs=1200000)
+
+
 def video_model(use_local=True, model="qwen2.5"):
-    """视频笔记（总结/思维导图/翻译标题）用哪个模型：默认用本机的本地模型，
-    不跟着聊天里当前选的网页模型走（用户要求，网页模型又慢又会和别的任务抢）。
-    本机没有可用的本地模型（Ollama 没开/没装模型）时，才退回原来的「video_summary」任务设置。"""
+    """视频分析用哪个模型：一律网页 AI 池（不跟聊天里选的模型走）。"""
+    return False, "web"
+
+
+def prefer_local_model(use_local=True, model="qwen2.5"):
+    """「要快」的轻任务（如快速嗅探）用哪个模型：本机有本地模型就用本地模型；
+    Ollama 没开/没装模型时，退回原来的「video_summary」任务设置。"""
     names = installed_local_models()
     if names:
         try:

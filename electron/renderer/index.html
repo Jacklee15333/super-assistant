@@ -728,7 +728,7 @@
 
       <!-- 嗅探视图（工具区）：① 博主视频更新监控 ② 网站动态嗅探 两个并列标签 -->
       <section class="view view-sniff" id="view-sniff">
-        <header class="topbar"><span>📡 嗅探</span></header>
+        <header class="topbar"><span>嗅探</span><span class="topbar-hint">盯住你关心的博主和网站，有新视频、新动态就告诉你</span></header>
         <div class="sniff-pane">
           <style>
             /* ============================================================
@@ -988,8 +988,8 @@
 
           <!-- 顶部并列标签：博主更新 / 网站动态 -->
           <div class="sn-tabs" id="snTabs">
-            <button class="sn-tab active" data-sntab="creators">🎯 博主更新</button>
-            <button class="sn-tab" data-sntab="web">📡 网站动态</button>
+            <button class="sn-tab active" data-sntab="creators">博主新视频</button>
+            <button class="sn-tab" data-sntab="web">网站新动态</button>
           </div>
 
           <!-- ══════════ 标签①：关注的博主（视频更新监控）══════════ -->
@@ -1000,7 +1000,7 @@
               <div>
                 <div class="sn-card">
                   <div class="sn-card-head">
-                    <span class="sn-card-title">🎯 我关注的博主</span>
+                    <span class="sn-card-title">关注的博主</span>
                     <span class="sn-pill" id="cwCount">0</span>
                     <span class="sn-info-wrap" style="position:relative;display:inline-flex">
                       <button class="sn-info" id="cwInfoBtn" title="点开看说明">i</button>
@@ -1018,7 +1018,9 @@
                   </div>
                   <div class="cw-state" id="cwScanState"></div>
                   <div id="cwScanLog" class="cw-scanlog" hidden></div>
-                  <div class="sn-row" style="margin-bottom:10px;margin-top:12px">
+                  <details class="sn-fold"><summary><svg class="sn-fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>添加博主</summary>
+<div class="sn-fold-body">
+<div class="sn-row" style="margin-bottom:10px;margin-top:12px">
                     <select id="cwAddPlatform" class="sn-input" style="flex:0 0 auto">
                       <option value="auto">自动识别</option>
                       <option value="douyin">抖音</option>
@@ -1032,14 +1034,18 @@
                     <input type="text" id="cwAddTitle" class="sn-input" style="flex:1;min-width:120px" placeholder="备注名（可留空）" />
                     <button class="sn-btn primary" id="cwAddBtn">添加博主</button>
                   </div>
-                  <div class="sn-row" style="gap:14px;padding:10px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-bottom:6px">
+                  </div></details>
+<details class="sn-fold"><summary><svg class="sn-fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>自动扫描设置</summary>
+<div class="sn-fold-body">
+<div class="sn-row" style="gap:14px;padding:10px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-bottom:6px">
                     <label class="sniff-switch"><input type="checkbox" id="cwAuto" /><span class="sniff-switch-track"></span><span class="sniff-switch-label">每天自动扫</span></label>
                     <span class="sn-field">每天 <input type="number" id="cwHour" class="sn-input sn-num" value="9" min="0" max="23" /> 点</span>
                     <span class="sn-field">每次最多 <input type="number" id="cwPerScan" class="sn-input sn-num" value="15" min="1" max="50" /> 条<span class="sn-info-wrap" style="position:relative;display:inline-flex"><span class="sn-q" id="cwPerScanQ" title="点看说明">?</span><div class="sn-pop" id="cwPerScanPanel" hidden style="width:300px"><span class="sn-pop-close" data-popclose="cwPerScanPanel">×</span><div class="sn-pop-title">「每次最多 N 条」是什么</div><b>每个博主每次扫描时，最多往回看他最近的 N 个视频。</b><br>比如设 15，软件只看每个博主<b>最新的 15 条</b>，从里面挑出还没见过的当「新增」。<br>· 调大（如 30）：博主更新很频繁、怕漏，但每次扫得稍慢。<br>· 调小（如 5）：扫得快、省流量，适合更新慢的博主。<br>它<b>只影响扫描找新增</b>；点进某个博主想看更多，用右侧的「重置 / 每页」可单独列更多。</div></span></span>
                     <button class="sn-btn sm" id="cwCfgSave">保存</button>
                   </div>
 
-                  <!-- 改动2：「我关注的博主」列表可折叠 -->
+                  </div></details>
+<!-- 改动2：「我关注的博主」列表可折叠 -->
                   <div class="cw-collapse-head" id="cwListToggle" title="点这里展开 / 折叠博主列表">
                     <span class="cw-collapse-caret">▼</span>
                     <span class="cw-collapse-title">博主列表</span>
@@ -1187,7 +1193,9 @@
             </div>
 
             <!-- 怎么用：两种玩法 -->
-            <div class="sniff-guide">
+            <details class="sn-fold sn-fold-guide"><summary><svg class="sn-fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>两种嗅探有什么区别？</summary>
+<div class="sn-fold-body">
+<div class="sniff-guide">
               <div class="sniff-guide-cards">
                 <div class="sniff-guide-card">
                   <div class="sniff-guide-icon">🔍</div>
@@ -1208,7 +1216,8 @@
               <div class="sniff-guide-note">两种用法<b>互相独立</b>，不用先点谁：想快速看变化点「快速嗅探」；想要成文报告点「深度嗅探」。</div>
             </div>
 
-            <!-- 实时嗅探进度（运行时显示）-->
+            </div></details>
+<!-- 实时嗅探进度（运行时显示）-->
             <div class="sniff-progress" id="sniffProgress" hidden>
               <div class="sniff-prog-head">
                 <span class="sniff-prog-spin"></span>
@@ -1223,11 +1232,13 @@
               <div>
                 <div class="sn-card">
                   <div class="sn-card-head">
-                    <span class="sn-card-title">📋 嗅探源</span>
+                    <span class="sn-card-title">盯着的网站</span>
                     <span class="sn-pill" id="sniffSrcCount">·</span>
                   </div>
                   <div class="sn-hint">你想盯哪些网站，在这里加/删/开关。上面两种用法都用这份清单。</div>
-                  <div class="sniff-add">
+                  <details class="sn-fold"><summary><svg class="sn-fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>添加网站</summary>
+<div class="sn-fold-body">
+<div class="sniff-add">
                     <input type="text" id="sniffAddTitle" class="sn-input" style="width:100%;margin-bottom:8px" placeholder="名称，如 OpenAI 新闻" />
                     <div class="sn-row" style="margin-bottom:8px">
                       <input type="text" id="sniffAddUrl" class="sn-input" style="flex:1;min-width:140px" placeholder="https://…" />
@@ -1239,21 +1250,25 @@
                       <datalist id="sniffCatList"></datalist>
                     </div>
                   </div>
-                  <div class="sn-field" style="margin-bottom:6px">
+                  </div></details>
+<details class="sn-fold"><summary><svg class="sn-fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>嗅探设置（模型 · 自动嗅探）</summary>
+<div class="sn-fold-body">
+<div class="sn-field" style="margin-bottom:6px">
                     <span style="white-space:nowrap">快速嗅探模型</span>
                     <select id="sniffEngine" class="sn-input" style="flex:1">
-                      <option value="follow">跟随对话模型（快）</option>
+                      <option value="follow">本地模型（快，推荐）</option>
                       <option value="web">网页模型（更强·更慢）</option>
                       <option value="claude">Claude（若已配·更强）</option>
                     </select>
                   </div>
-                  <div class="sn-hint" style="margin:0 0 10px">只影响①「快速嗅探」的总结质量；②「深度嗅探」固定用网页模型。改完点「保存」生效。</div>
+                  <div class="sn-hint" style="margin:0 0 10px">只影响「快速嗅探」：本地模型最快；网页模型 / Claude 总结更好但慢很多。「深度嗅探」固定用网页模型。改完点下面「保存」生效。</div>
                   <div class="sn-row" style="gap:12px;padding:10px 0;border-top:1px solid var(--line);margin-bottom:12px">
                     <label class="sniff-switch"><input type="checkbox" id="sniffAuto" /><span class="sniff-switch-track"></span><span class="sniff-switch-label">自动嗅探</span></label>
                     <span class="sn-field">每 <input type="number" id="sniffEvery" class="sn-input sn-num" value="6" min="1" max="100" /> 次心跳</span>
                     <button class="sn-btn sm" id="sniffAutoSave">保存</button>
                   </div>
-                  <div class="sniff-sources cw-scroll" id="sniffSources"><div class="sniff-empty">加载中…</div></div>
+                  </div></details>
+<div class="sniff-sources cw-scroll" id="sniffSources"><div class="sniff-empty">加载中…</div></div>
                 </div>
               </div>
 
@@ -1262,7 +1277,7 @@
                 <div class="sniff-cat-tiles" id="sniffCatTiles"></div>
                 <div class="sn-card">
                   <div class="sn-card-head">
-                    <span class="sn-card-title">📰 新动向</span>
+                    <span class="sn-card-title">新动向</span>
                     <span class="sniff-cat-active" id="sniffCatActive"></span>
                     <span class="sn-spacer"></span>
                     <div class="sniff-filters" id="sniffFilters">
