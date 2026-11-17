@@ -313,7 +313,8 @@ class _WebWorker:
             try:
                 opts = dict(
                     headless=bool(headless),
-                    args=["--disable-blink-features=AutomationControlled",
+                    args=(["--no-proxy-server"] if getattr(self, "_net_mode", "direct") == "direct" else []) +
+                         ["--disable-blink-features=AutomationControlled",
                           # 窗口被别的程序挡住/最小化时也照常渲染，不然页面「冻住」，
                           # 点击和发送会一直等，非得把鼠标移回浏览器才继续
                           "--disable-background-timer-throttling",
@@ -371,6 +372,13 @@ class _WebWorker:
 
         headless = cfg.get("headless") is True
         self._resolve_routes(cfg)
+        # AI 池默认直连（不跟随 Clash 等的系统代理）；直连打不开时自动改走系统代理，并记住
+        mode = (cfg.get("aiPoolProxy") or "auto").lower()
+        if mode in ("direct", "system"):
+            self._net_mode = mode
+        else:
+            self._net_mode = _load_routes().get("netMode") or "direct"
+        self._log("AI 池网络：%s" % ("直连" if self._net_mode == "direct" else "走系统代理"))
         self._state = "starting"
         self._log("starting (headless=%s)..." % headless)
         try:
@@ -420,6 +428,20 @@ class _WebWorker:
             self._state = "error"
             self._dump_diag("start", e)
             self._close()
+            msg = str(e)
+            net_err = any(k in msg for k in ("ERR_", "打开登录页失败", "Timeout", "timeout", "net::"))
+            if (net_err and getattr(self, "_net_mode", "direct") == "direct"
+                    and (load_config().get("aiPoolProxy") or "auto").lower() == "auto"
+                    and not getattr(self, "_net_retry", False)):
+                self._log("直连打不开 AI 池（%s），改走系统代理再试一次" % msg.split("\n")[0][:80])
+                self._net_retry = True
+                try:
+                    r = _load_routes()
+                    r["netMode"] = "system"
+                    _save_routes(r)
+                    return self._ensure_started()
+                finally:
+                    self._net_retry = False
             raise
 
     # ════════════════════ 登录 ════════════════════
@@ -465,7 +487,7 @@ class _WebWorker:
         if url != self._carlist_url:
             self._log("记住卡片列表地址: " + url)
         self._carlist_url = url
-        _save_routes({"sitePath": self._site_path, "carlistUrl": url,
+        _save_routes({**_load_routes(), "sitePath": self._site_path, "carlistUrl": url,
                       "learnedAt": time.strftime("%Y-%m-%d %H:%M:%S")})
 
     _PAGE_STATUS_JS = r"""() => {
