@@ -119,11 +119,13 @@ def proxy_for(url):
 
 def _opener(use_proxy=None, url=None):
     """返回 (urllib opener, 实际用的代理)。
-    use_proxy=None（默认）：按网址自动判断；True：境外站走代理（国内站仍直连）；False：直连。
-    直连时显式关掉系统代理，避免被 Clash 等「系统代理」接管。"""
-    p = ""
-    if use_proxy is not False:
-        p = proxy_for(url) if url else (_read_proxy() if use_proxy else "")
+    给了网址时完全按网址自动判断（用户要求「有外网就自动走代理，国内就不走」）：
+    境外站一律走代理、国内站一律直连，use_proxy 参数不再起作用。
+    没给网址时：use_proxy=True 用配置的代理，否则直连。直连时显式关掉系统代理。"""
+    if url:
+        p = proxy_for(url)
+    else:
+        p = _read_proxy() if use_proxy else ""
     https = urllib.request.HTTPSHandler(context=_ssl_ctx())
     if p:
         return urllib.request.build_opener(urllib.request.ProxyHandler({"http": p, "https": p}), https), p
@@ -131,6 +133,20 @@ def _opener(use_proxy=None, url=None):
 
 
 # ---------- 读网页正文 ----------
+def fetch_browserlike(url, timeout=25):
+    """用「真浏览器的网络指纹」再抓一次（curl_cffi 模拟 Chrome）。
+    Cloudflare 等防护常把普通程序的请求判成机器人回 403，换成浏览器指纹多半能过。
+    代理规则同上：境外站走代理、国内站直连。没装 curl_cffi 时抛错，由调用方兜底。"""
+    from curl_cffi import requests as creq
+    p = proxy_for(url)
+    r = creq.get(url, impersonate="chrome", timeout=timeout, allow_redirects=True,
+                 proxies=({"http": p, "https": p} if p else {"http": "", "https": ""}),
+                 headers={"Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"})
+    if r.status_code >= 400:
+        raise RuntimeError("HTTP Error %d（浏览器指纹重试）" % r.status_code)
+    return r.text
+
+
 def _fetch(url, timeout=20, use_proxy=None):
     headers = dict(_BROWSER_HEADERS)
     req = urllib.request.Request(url, headers=headers)

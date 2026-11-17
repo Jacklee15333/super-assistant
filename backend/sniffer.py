@@ -342,12 +342,30 @@ def _host_of(url):
         return url
 
 
-def _humanize_err(e):
-    """把 urllib 的报错翻成人话 + 给出怎么办。"""
+def _humanize_err(e, url=None):
+    """把 urllib 的报错翻成人话 + 给出怎么办。给了 url 时会说明这次走没走代理，避免误导。"""
     s = str(e)
     low = s.lower()
+    used_proxy = ""
+    if url:
+        try:
+            used_proxy = W.proxy_for(url)
+        except Exception:
+            used_proxy = ""
+    if used_proxy and ("timed out" in low or "timeout" in low or "handshake" in low
+                       or "10060" in low or "refused" in low or "10061" in low):
+        if "refused" in low or "10061" in low:
+            return "代理 %s 拒绝连接：代理软件没开，或端口不对" % used_proxy
+        return "已经走代理（%s）还是连接超时：当前代理节点访问这个站太慢或不通，换个节点再试" % used_proxy
+    if url and not used_proxy and ("timed out" in low or "timeout" in low or "10060" in low):
+        try:
+            foreign = W.needs_proxy(url)
+        except Exception:
+            foreign = True
+        if not foreign:
+            return "连接超时：这个网站响应太慢或暂时打不开，稍后再试"
     if "403" in s:
-        return "被网站反爬拦截（403）—这类站点（如 Cloudflare 保护）普通抓取打不开"
+        return "被网站反爬拦截（403）：已经走代理、也换浏览器方式重试过，这个站（Cloudflare 保护）暂时抓不了"
     if "404" in s:
         return "页面不存在（404），检查下网址对不对"
     if "401" in s:
@@ -366,19 +384,31 @@ def _humanize_err(e):
 def _fetch_smart(url):
     """更聪明的抓取：配了代理就优先走代理（境外站多数需要），失败再直连兜底；
     没配代理就直连。给慢/不稳的站点一次重试机会。返回 (page, via, err)。"""
+    # 代理按网址自动决定：境外站一律走代理（不再直连兜底——国内直连境外站只会失败，
+    # 还会把真正的错误盖掉，比如 OpenAI 对国内 IP 直接回 403）；国内站一律直连。
     try:
-        has_proxy = bool(W._read_proxy())
+        via_ok = "proxy" if W.proxy_for(url) else "direct"
     except Exception:
-        has_proxy = False
-    # (是否用代理, 超时秒数)；代理给两次机会（有些站第一次握手慢/偶发失败），再直连兜底
-    attempts = [(True, 25), (True, 18), (False, 12)] if has_proxy else [(False, 18), (False, 12)]
+        via_ok = "direct"
     last_err = None
-    for use_proxy, to in attempts:
+    for to in (25, 18):
         try:
-            page = W._fetch(url, timeout=to, use_proxy=use_proxy)
-            return page, ("proxy" if use_proxy else "direct"), None
+            page = W._fetch(url, timeout=to)
+            return page, via_ok, None
         except Exception as e:
             last_err = e
+            if "404" in str(e) or "401" in str(e):
+                break                      # 页面不存在/要登录：再试也没用
+    # 被 Cloudflare 之类拦（403）或握手失败：换「真浏览器网络指纹」再试一次
+    if last_err is not None and "404" not in str(last_err):
+        try:
+            page = W.fetch_browserlike(url, timeout=25)
+            return page, via_ok, None
+        except Exception as e:
+            if "403" in str(last_err) and "403" not in str(e):
+                pass                       # 保留更能说明问题的 403
+            else:
+                last_err = e
     # 主页面打不开：试一下这个站的备用地址（RSS / 国内镜像），能读到就用
     for key, alts in _ALT_URLS.items():
         if key in (url or ""):
@@ -407,7 +437,7 @@ def _scan_one(client, model, src, report):
     report("fetching", "正在打开链接…")
     page, via, err = _fetch_smart(url)
     if err is not None:
-        report("failed", "打不开：" + _humanize_err(err))
+        report("failed", "打不开：" + _humanize_err(err, url))
         return [], f"[{title}] 抓取失败：{err}"
     text = _normalize(W._extract_text(page))
     via_note = "（经代理）" if via == "proxy" else ""
@@ -542,7 +572,7 @@ def generate_sniff_report(use_local=False, model="web", verbose=False,
                 page, via, err = _fetch_smart(url)
                 text = _normalize(W._extract_text(page)) if page else ""
                 if not text:
-                    summary = f"（这个站点这次没抓到内容{('：' + _humanize_err(err)) if err else ''}。）"
+                    summary = f"（这个站点这次没抓到内容{('：' + _humanize_err(err, url)) if err else ''}。）"
                 else:
                     _detail("模型提炼中…")
                     resp = client.chat.completions.create(

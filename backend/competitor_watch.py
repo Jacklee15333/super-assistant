@@ -88,7 +88,7 @@ def check_one(url, note, use_local, model):
     except Exception as e:
         try:
             import sniffer as _sn
-            why = _sn._humanize_err(e)
+            why = _sn._humanize_err(e, url)
         except Exception:
             why = str(e)[:80]
         return False, f"[{note or url}] 抓取失败：{why}"
