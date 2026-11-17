@@ -352,7 +352,9 @@ def _humanize_err(e, url=None):
             used_proxy = W.proxy_for(url)
         except Exception:
             used_proxy = ""
-    if used_proxy and ("timed out" in low or "timeout" in low or "handshake" in low
+    is_curl_conn = ("failed to connect" in low or "curl: (28)" in low or "curl: (7)" in low
+                    or "timeout was reached" in low or "connection timed out" in low)
+    if used_proxy and ("timed out" in low or "timeout" in low or "handshake" in low or is_curl_conn
                        or "10060" in low or "refused" in low or "10061" in low):
         if "refused" in low or "10061" in low:
             return "代理 %s 拒绝连接：代理软件没开，或端口不对" % used_proxy
@@ -372,7 +374,7 @@ def _humanize_err(e, url=None):
         return "需要登录（401），抓不了"
     if "certificate" in low or "cert_verify" in low:
         return "证书校验失败—网站证书链不完整或本机缺根证书（已自动用标准证书库重试）"
-    if "timed out" in low or "timeout" in low or "handshake" in low or "ssl" in low:
+    if "timed out" in low or "timeout" in low or "handshake" in low or "ssl" in low or is_curl_conn:
         return "连接超时—境外站点通常要走代理（设置→联网与代理 填上加速器地址）"
     if "getaddrinfo" in low or "name or service" in low or "name resolution" in low:
         return "域名解析失败—多半也要走代理（设置→联网与代理）"
