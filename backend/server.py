@@ -16,6 +16,12 @@ server.py — 本地 HTTP 服务，把 Electron 窗口和 Python agent 连起来
 import json
 import os
 import re
+
+# ★ 软件不跟随系统代理（Clash 等的「系统代理」）：requests / httpx / curl / yt-dlp 默认都会读系统代理，
+#   这里统一关掉；需要代理的地方（境外站）由代码显式传入「设置 → 联网与代理」里的地址（智能局部代理）。
+for _k in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
+    os.environ.pop(_k, None)
+os.environ["NO_PROXY"] = os.environ["no_proxy"] = "*"
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -665,6 +671,19 @@ def _looks_english(s):
 
 
 def _translate_lines(texts, use_local=True, model="qwen2.5"):
+    """（2026-11）翻译标题是轻任务：本机有本地模型就一律用本地模型，不占用网页 AI 池。
+    之前跟着聊天模型走网页 AI 池，几百条英文标题的翻译请求排队，把界面的连接全占满，
+    导致「视频」页笔记列表一直「加载中」。"""
+    try:
+        _ul, _m = core.prefer_local_model(use_local, model)
+        if _ul:
+            use_local, model = True, _m
+    except Exception:
+        pass
+    return _translate_lines_impl(texts, use_local, model)
+
+
+def _translate_lines_impl(texts, use_local=True, model="qwen2.5"):
     """把多行短文本（如视频标题）批量翻译成简体中文。
     返回 (译文列表, 提示语)：列表与输入等长，翻不动的那条回退为空串（前端保持原文）；
     提示语为空表示一切正常，非空时前端可给个轻状态。

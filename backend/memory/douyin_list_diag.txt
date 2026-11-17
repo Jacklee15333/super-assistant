@@ -1,9 +1,9 @@
 {
-  "url": "https://v.douyin.com/B5C2TfZeA04/",
+  "url": "https://v.douyin.com/EWR_OA7Zp1o/",
   "curl_cffi": true,
   "abogus": false,
   "gmssl": false,
-  "sec_uid": "MS4wLjABAAAAxaSHyjKQyfWHKjIS1mYbpxxEQZpT8ogl_eyks2M_Twc",
+  "sec_uid": "MS4wLjABAAAARn5FMk1zrlO3cUYOH8VzKPDD4bL_5vOrItIfpcrb1ws",
   "cookies_keys": [
     "DiscoverFeedExposedAd",
     "FOLLOW_LIVE_POINT_INFO",
@@ -74,5 +74,5 @@
   "html_len": 72914,
   "html_has_render": false,
   "fail": "接口与主页都没解析到作品",
-  "time": "2026-11-17 11:54:00"
+  "time": "2026-11-17 12:08:20"
 }

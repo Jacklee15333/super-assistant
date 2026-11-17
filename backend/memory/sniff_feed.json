@@ -1076,5 +1076,38 @@
     "category": "AI动态",
     "key": "3f58701e67ae0d06",
     "ts": "2026-11-17 10:35"
+  },
+  {
+    "kind": "发布",
+    "title": "LVMH 与 OpenAI 合作",
+    "summary": "LVMH 集团媒体部门宣布与 OpenAI 合作，可能涉及 AI 技术在奢侈品行业内容创作、媒体管理等场景的应用。该合作属于商业生态扩展，或推动 AI 与传统行业更深度结合。",
+    "importance": "中",
+    "source_title": "OpenAI 新闻",
+    "link": "https://openai.com/news/",
+    "category": "AI动态",
+    "key": "99a884197fe42ce1",
+    "ts": "2026-11-17 12:09"
+  },
+  {
+    "kind": "功能",
+    "title": "第一阶段嵌入式评估",
+    "summary": "OpenAI 推出安全领域第一阶段嵌入式评估，可能用于检测或防御网络儿童性虐待内容。该功能属于 AI 安全防护体系的重要环节，对提升内容审核效率和伦理合规性具有参考意义。",
+    "importance": "中",
+    "source_title": "OpenAI 新闻",
+    "link": "https://openai.com/news/",
+    "category": "AI动态",
+    "key": "5a3d9f7b154835e0",
+    "ts": "2026-11-17 12:09"
+  },
+  {
+    "kind": "概念",
+    "title": "格点定义研究",
+    "summary": "OpenAI 在科学领域推进标准模型的格点定义研究，可能涉及理论物理或数学模型的 AI 模拟方法。该探索属于基础科学研究方向，或为复杂系统建模提供新思路。",
+    "importance": "低",
+    "source_title": "OpenAI 新闻",
+    "link": "https://openai.com/news/",
+    "category": "AI动态",
+    "key": "4d1780af013e5e77",
+    "ts": "2026-11-17 12:09"
   }
 ]

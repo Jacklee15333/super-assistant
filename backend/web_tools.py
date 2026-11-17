@@ -53,21 +53,67 @@ def _read_proxy():
     return ""
 
 
-def _opener(use_proxy=False):
-    """返回一个 urllib opener；use_proxy 时走 proxy.md 配置的代理。"""
-    if use_proxy:
-        p = _read_proxy()
-        if p:
-            handler = urllib.request.ProxyHandler({"http": p, "https": p})
-            return urllib.request.build_opener(handler), p
-    return urllib.request.build_opener(), None
+# ---------- 智能局部代理 ----------
+# 软件不跟随系统代理（Clash 等开了「系统代理」也不受影响）：
+#   · 国内站（抖音/B站/百度/AI 池…）永远直连；
+#   · 境外站才走「设置 → 联网与代理」里填的代理；没填时才退而用系统代理。
+_DOMESTIC_SUFFIX = (
+    ".cn", "douyin.com", "iesdouyin.com", "douyinvod.com", "douyinpic.com", "douyincdn.com",
+    "bytedance.com", "byteimg.com", "snssdk.com", "amemv.com", "zjcdn.com", "bytecdn.cn",
+    "bilibili.com", "bilivideo.com", "bilivideo.cn", "hdslb.com", "b23.tv", "biliapi.net",
+    "kuaishou.com", "gifshow.com", "xiaohongshu.com", "xhslink.com", "xhscdn.com",
+    "weibo.com", "weibo.cn", "sinaimg.cn", "sina.com", "zhihu.com", "zhimg.com",
+    "baidu.com", "bdstatic.com", "qq.com", "gtimg.com", "163.com", "126.net", "sohu.com",
+    "aliyun.com", "alicdn.com", "taobao.com", "tmall.com", "jd.com", "csdn.net", "juejin.cn",
+    "sorryios.ai", "dakeai.cc", "deepseek.com", "moonshot.cn", "kimi.com", "doubao.com",
+)
+
+
+def needs_proxy(url):
+    """这个网址要不要走代理：国内站和本机地址 → 直连；其余（境外站）→ 走代理。"""
+    from urllib.parse import urlparse
+    try:
+        host = (urlparse(url if "://" in (url or "") else "http://" + (url or "")).hostname or "").lower()
+    except Exception:
+        return False
+    if not host or host in ("localhost",) or host.startswith("127.") or host.startswith("192.168.") \
+            or host.startswith("10.") or host == "::1":
+        return False
+    return not any(host == s.lstrip(".") or host.endswith(s if s.startswith(".") else "." + s)
+                   for s in _DOMESTIC_SUFFIX)
+
+
+def proxy_for(url):
+    """给这个网址用的代理地址；不需要代理返回空串。"""
+    if not needs_proxy(url):
+        return ""
+    p = _read_proxy()
+    if p:
+        return p
+    try:   # 没在软件里配代理：境外站才退而用系统代理（Clash 的「系统代理」）
+        reg = urllib.request.getproxies_registry() if hasattr(urllib.request, "getproxies_registry") else {}
+        return reg.get("https") or reg.get("http") or ""
+    except Exception:
+        return ""
+
+
+def _opener(use_proxy=None, url=None):
+    """返回 (urllib opener, 实际用的代理)。
+    use_proxy=None（默认）：按网址自动判断；True：境外站走代理（国内站仍直连）；False：直连。
+    直连时显式关掉系统代理，避免被 Clash 等「系统代理」接管。"""
+    p = ""
+    if use_proxy is not False:
+        p = proxy_for(url) if url else (_read_proxy() if use_proxy else "")
+    if p:
+        return urllib.request.build_opener(urllib.request.ProxyHandler({"http": p, "https": p})), p
+    return urllib.request.build_opener(urllib.request.ProxyHandler({})), None
 
 
 # ---------- 读网页正文 ----------
-def _fetch(url, timeout=20, use_proxy=False):
+def _fetch(url, timeout=20, use_proxy=None):
     headers = dict(_BROWSER_HEADERS)
     req = urllib.request.Request(url, headers=headers)
-    opener, _ = _opener(use_proxy)
+    opener, _ = _opener(use_proxy, url)
     with opener.open(req, timeout=timeout) as resp:
         charset = resp.headers.get_content_charset() or "utf-8"
         raw = resp.read(2_000_000)  # 最多读 2MB，防超大页面

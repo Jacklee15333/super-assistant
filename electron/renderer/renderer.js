@@ -7108,6 +7108,16 @@ function renderFindings(list) {
 }
 
 // 翻译「扫出来的新视频」里的英文标题（和视频清单同一套后端接口）
+// 翻译标题请求「同一时间只发一个」：列表每次刷新都会触发翻译，以前会堆起很多个慢请求，
+// 占满界面到后端的连接（浏览器对同一地址最多 6 个），别的页面（如视频笔记列表）就一直「加载中」。
+// 正在翻译时再来的请求直接放弃（下次刷新列表会再补翻）。
+let _cxTrInflight = null;
+function _cxTranslateOnce(url, opts) {
+  if (_cxTrInflight) return Promise.reject(new Error("translate busy"));
+  _cxTrInflight = fetch(url, opts).finally(() => { _cxTrInflight = null; });
+  return _cxTrInflight;
+}
+
 async function _cwTranslateFindings() {
   const box = document.getElementById("cwFindings");
   if (!box || !Array.isArray(_cwFindings)) return;
@@ -7120,7 +7130,7 @@ async function _cwTranslateFindings() {
   if (!titles.length) return;
   const s = _cwSafeSettings();
   try {
-    const r = await fetch(BACKEND + "/creator/translate", {
+    const r = await _cxTranslateOnce(BACKEND + "/creator/translate", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ titles, use_local: s.use_local, model: s.model }),
     });
@@ -7332,7 +7342,7 @@ async function _cwTranslateTitles() {
   if (!titles.length) return;
   const s = _cwSafeSettings();
   try {
-    const r = await fetch(BACKEND + "/creator/translate", {
+    const r = await _cxTranslateOnce(BACKEND + "/creator/translate", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ titles, use_local: s.use_local, model: s.model }),
     });
@@ -7986,7 +7996,7 @@ async function _dgTranslate() {
   if (!todo.length) return;
   const s = _cwSafeSettings();
   try {
-    const r = await fetch(BACKEND + "/creator/translate", {
+    const r = await _cxTranslateOnce(BACKEND + "/creator/translate", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ titles: todo.map((x) => x.title), use_local: s.use_local, model: s.model }),
     });

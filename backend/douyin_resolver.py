@@ -429,7 +429,8 @@ def _resolve_via_browser(aid, timeout_s=30):
             for ch in ("chrome", "msedge", None):
                 try:
                     kw = dict(headless=True, args=["--disable-blink-features=AutomationControlled",
-                                                   "--mute-audio", "--autoplay-policy=no-user-gesture-required"])
+                                                   "--mute-audio", "--autoplay-policy=no-user-gesture-required",
+                                                   "--no-proxy-server"])      # 抖音是国内站：直连，不走系统代理
                     if ch:
                         kw["channel"] = ch
                     browser = pw.chromium.launch(**kw)
