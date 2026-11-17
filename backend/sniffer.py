@@ -39,7 +39,7 @@ FEED_PATH = MEMORY_DIR / "sniff_feed.json"
 CONFIG_PATH = MEMORY_DIR / "sniff_config.json"
 
 MAX_FEED = 200       # 时间线最多留这么多条
-MAX_SOURCES = 30     # 最多盯这么多站
+MAX_SOURCES = 50     # 最多盯这么多站（按关键词找信息源后，清单会变长）
 
 # 默认内置的 AI 资讯源（首次运行写入；用户可增删）
 _DEFAULT_SOURCES = [

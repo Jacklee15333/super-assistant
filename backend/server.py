@@ -74,7 +74,7 @@ def _clog(tag, msg):
 # 一旦打印就会把控制台刷爆、淹没真正有用的操作日志，所以一律静音、不记。
 _LOG_QUIET_PATHS = {
     "/ping", "/video_progress", "/video_health", "/video_notes",
-    "/video_note_analyze_progress",
+    "/video_note_analyze_progress", "/sniff/feed", "/sniff/discover",
     "/chat_progress", "/heartbeat/status", "/lumi/status", "/lumi/evolve_status",
     "/web_model/state", "/web_model/config", "/loop/status", "/insight/status",
     "/insight/config", "/system_access", "/claude_config", "/harness/config",
@@ -2116,6 +2116,13 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send({"runs": [], "metrics": {"count": 0}, "error": str(e)}, 200)
 
+        if path == "/sniff/discover":
+            # 「按关键词找信息源」的进度和结果（前端轮询）
+            try:
+                import source_discover
+                return self._send(source_discover.status())
+            except Exception as e:
+                return self._send({"running": False, "error": str(e), "results": []})
         if path == "/sniff/sources":
             try:
                 import sniffer
@@ -2575,6 +2582,14 @@ class Handler(BaseHTTPRequestHandler):
                 import harness
                 harness.clear_runs()
                 return self._send({"ok": True})
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/sniff/discover":
+            # 按关键词找行业信息源：后台开始查找，前端用 GET /sniff/discover 轮询
+            try:
+                import source_discover
+                return self._send(source_discover.start(body.get("keyword", ""), body.get("n", 15)))
             except Exception as e:
                 return self._send({"ok": False, "message": str(e)}, 200)
 

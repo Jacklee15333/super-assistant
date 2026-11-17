@@ -1236,7 +1236,25 @@
                     <span class="sn-pill" id="sniffSrcCount">·</span>
                   </div>
                   <div class="sn-hint">你想盯哪些网站，在这里加/删/开关。上面两种用法都用这份清单。</div>
-                  <details class="sn-fold"><summary><svg class="sn-fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>添加网站</summary>
+                  <details class="sn-fold sn-kw" open><summary><svg class="sn-fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>按关键词找信息源</summary>
+<div class="sn-fold-body">
+<div class="sn-hint" style="margin:0 0 8px">输入一个领域或关键词，让 AI 池联网找出这个行业最值得盯的信息源网站，检查能不能打开，勾选后一键加入下面的清单。</div>
+<div class="sn-row" style="margin-bottom:8px">
+<input type="text" id="sniffKw" class="sn-input" style="flex:1;min-width:140px" placeholder="如：AI 芯片 / 新能源汽车 / 跨境电商" />
+<select id="sniffKwN" class="sn-input" style="flex:0 0 auto" title="要找几个">
+<option value="10">前 10 个</option><option value="15" selected>前 15 个</option><option value="20">前 20 个</option>
+</select>
+<button class="sn-btn primary" id="sniffKwBtn">查找</button>
+</div>
+<div class="kw-state" id="sniffKwState" hidden></div>
+<div class="kw-list" id="sniffKwList" hidden></div>
+<div class="kw-actions" id="sniffKwActions" hidden>
+<label class="kw-all"><input type="checkbox" id="sniffKwAll" checked /> 全选可用的</label>
+<span class="sn-field" style="flex:1">归到类别 <input type="text" id="sniffKwCat" class="sn-input" style="flex:1;min-width:90px" /></span>
+<button class="sn-btn primary" id="sniffKwAdd">加入嗅探清单</button>
+</div>
+</div></details>
+<details class="sn-fold"><summary><svg class="sn-fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>添加网站</summary>
 <div class="sn-fold-body">
 <div class="sniff-add">
                     <input type="text" id="sniffAddTitle" class="sn-input" style="width:100%;margin-bottom:8px" placeholder="名称，如 OpenAI 新闻" />
@@ -1878,6 +1896,7 @@
   <script src="datadb.js"></script>
   <script src="agents.js"></script>
   <script src="theme-claude.js"></script>
+  <script src="sniff-discover.js"></script>
   <!-- 视频页「处理进度」卡片：内部三个容器都空时整张收起，不占地方；
        一旦有任务/结果/状态文字就自动显示。独立运行，不依赖 renderer.js。 -->
   <script>

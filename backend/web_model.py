@@ -302,6 +302,22 @@ class _WebWorker:
                     done.set()
 
     # ════════════════════ 浏览器生命周期 ════════════════════
+    @staticmethod
+    def _cfg_proxy():
+        try:
+            import web_tools
+            return web_tools._read_proxy() or ""
+        except Exception:
+            return ""
+
+    def _net_args(self):
+        mode = getattr(self, "_net_mode", "system")
+        if mode == "direct":
+            return ["--no-proxy-server"]
+        if mode == "proxy" and self._cfg_proxy():
+            return ["--proxy-server=%s" % self._cfg_proxy(), "--proxy-bypass-list=<-loopback>"]
+        return []        # system：跟随系统代理
+
     def _launch_browser(self, headless):
         tries = [
             ("Google Chrome", "chrome"),
@@ -313,7 +329,7 @@ class _WebWorker:
             try:
                 opts = dict(
                     headless=bool(headless),
-                    args=(["--no-proxy-server"] if getattr(self, "_net_mode", "direct") == "direct" else []) +
+                    args=self._net_args() +
                          ["--disable-blink-features=AutomationControlled",
                           # 窗口被别的程序挡住/最小化时也照常渲染，不然页面「冻住」，
                           # 点击和发送会一直等，非得把鼠标移回浏览器才继续
@@ -372,13 +388,18 @@ class _WebWorker:
 
         headless = cfg.get("headless") is True
         self._resolve_routes(cfg)
-        # AI 池默认直连（不跟随 Clash 等的系统代理）；直连打不开时自动改走系统代理，并记住
+        # AI 池网络方式：proxy＝走「设置」里的代理 / system＝跟随系统代理 / direct＝直连。
+        # 自动模式：用上次成功的方式；没有记录时，sorryios.ai 在境外 → 先走代理。
         mode = (cfg.get("aiPoolProxy") or "auto").lower()
-        if mode in ("direct", "system"):
+        if mode in ("direct", "system", "proxy"):
             self._net_mode = mode
-        else:
-            self._net_mode = _load_routes().get("netMode") or "direct"
-        self._log("AI 池网络：%s" % ("直连" if self._net_mode == "direct" else "走系统代理"))
+        elif not getattr(self, "_net_retry", False):
+            learned = _load_routes().get("netMode")
+            self._net_mode = learned if learned in ("direct", "system", "proxy") else (
+                "proxy" if self._cfg_proxy() else "system")
+            self._net_tried = set()
+        self._log("AI 池网络：%s" % {"proxy": "走代理 %s" % self._cfg_proxy(), "system": "跟随系统代理",
+                                    "direct": "直连"}.get(self._net_mode, self._net_mode))
         self._state = "starting"
         self._log("starting (headless=%s)..." % headless)
         try:
@@ -424,24 +445,34 @@ class _WebWorker:
             self._select_card_and_enter_chat()
             self._state = "ready"
             self._log("✓ 就绪")
+            try:
+                r = _load_routes()
+                if r.get("netMode") != self._net_mode:
+                    r["netMode"] = self._net_mode
+                    _save_routes(r)
+            except Exception:
+                pass
         except Exception as e:
             self._state = "error"
             self._dump_diag("start", e)
             self._close()
             msg = str(e)
             net_err = any(k in msg for k in ("ERR_", "打开登录页失败", "Timeout", "timeout", "net::"))
-            if (net_err and getattr(self, "_net_mode", "direct") == "direct"
-                    and (load_config().get("aiPoolProxy") or "auto").lower() == "auto"
-                    and not getattr(self, "_net_retry", False)):
-                self._log("直连打不开 AI 池（%s），改走系统代理再试一次" % msg.split("\n")[0][:80])
-                self._net_retry = True
-                try:
-                    r = _load_routes()
-                    r["netMode"] = "system"
-                    _save_routes(r)
-                    return self._ensure_started()
-                finally:
-                    self._net_retry = False
+            if net_err and (load_config().get("aiPoolProxy") or "auto").lower() == "auto":
+                tried = getattr(self, "_net_tried", set())
+                tried.add(self._net_mode)
+                self._net_tried = tried
+                order = (["proxy"] if self._cfg_proxy() else []) + ["system", "direct"]
+                nxt = next((m for m in order if m not in tried), None)
+                if nxt:
+                    self._log("AI 池用「%s」打不开（%s），换「%s」再试" % (
+                        self._net_mode, msg.split("\n")[0][:60], nxt))
+                    self._net_mode = nxt
+                    self._net_retry = True
+                    try:
+                        return self._ensure_started()
+                    finally:
+                        self._net_retry = False
             raise
 
     # ════════════════════ 登录 ════════════════════

@@ -65,7 +65,7 @@ _DOMESTIC_SUFFIX = (
     "weibo.com", "weibo.cn", "sinaimg.cn", "sina.com", "zhihu.com", "zhimg.com",
     "baidu.com", "bdstatic.com", "qq.com", "gtimg.com", "163.com", "126.net", "sohu.com",
     "aliyun.com", "alicdn.com", "taobao.com", "tmall.com", "jd.com", "csdn.net", "juejin.cn",
-    "sorryios.ai", "dakeai.cc", "deepseek.com", "moonshot.cn", "kimi.com", "doubao.com",
+    "dakeai.cc", "deepseek.com", "moonshot.cn", "kimi.com", "doubao.com",
     "hf-mirror.com",
 )
 
