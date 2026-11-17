@@ -1038,7 +1038,7 @@ class _WebWorker:
         if opts.get("newChat") and not opts.get("forceNewCard"):
             if not self._chat_used and not self._has_conversation():
                 self._log("[新任务] 当前就是一个刚打开的空白对话，直接用")
-            elif (load_config().get("newTaskMode") or "card") == "card":
+            elif opts.get("newTaskCard") or (load_config().get("newTaskMode") or "card") == "card":
                 # 用户要求：每个新任务回首页换一张新的 AI，上一个任务的内容一点都带不进来
                 self._log("[新任务] 回首页换一张新的 AI 卡")
                 prog("新任务：回首页换一张新的 AI…")

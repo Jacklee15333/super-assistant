@@ -65,7 +65,8 @@ def resolve_local_model(name):
 
 # 视频「分析」（总结 / 思维导图）固定交给网页 AI 池，并自动切到最高级模型：用户明确要求，
 # 本地模型分析得不到位。注意：提取声音、语音转文字仍然在本机（faster-whisper），不受影响。
-VIDEO_ANALYSIS_WEB_OPTS = dict(bestModel=True, timeout=2400000,       # 最多等 40 分钟
+VIDEO_ANALYSIS_WEB_OPTS = dict(bestModel=True, newTaskCard=True,       # 每条分析都换一张新的 AI 卡
+                               timeout=2400000,                       # 最多等 40 分钟
                                thinkNoOutputMs=1800000,               # 最高级模型可能想很久，别误判卡死
                                stuckFatalMs=1200000)
 

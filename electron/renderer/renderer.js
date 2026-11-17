@@ -3455,6 +3455,8 @@ async function loadVideoNotes() {
     });
 
     // 先渲染各文件夹（可折叠，默认收起，记住展开状态），再渲染未分组的散笔记
+    vnRenderBatchBar(list, notes);
+
     folders.forEach((f) => {
       const items = byFolder[f] || [];
       const open = vnFolderIsOpen(f);
@@ -3509,6 +3511,7 @@ async function loadVideoNotes() {
         loadVideoNotes();
       });
       head.appendChild(caret); head.appendChild(fn); head.appendChild(cnt);
+      vnAddGroupBatchBtn(head, items);
       head.appendChild(im); head.appendChild(rn); head.appendChild(fd);
       head.addEventListener("click", () => {
         const nowOpen = box.style.display === "none";
@@ -3517,7 +3520,7 @@ async function loadVideoNotes() {
         vnSetFolderOpen(f, nowOpen);
       });
 
-      items.forEach((n) => box.appendChild(makeVideoNoteItem(n, folders)));
+      vnAppendItems(box, items, folders);
       if (!items.length) {
         const em = document.createElement("div");
         em.className = "dash-empty";
@@ -3530,11 +3533,165 @@ async function loadVideoNotes() {
       list.appendChild(box);
     });
 
-    ungrouped.forEach((n) => list.appendChild(makeVideoNoteItem(n, folders)));
+    vnRenderUngrouped(list, ungrouped, folders);
   } catch (e) {
     list.innerHTML = "<div class='dash-empty'>加载失败：" + escapeHtml(e.message) + "</div>";
   }
 }
+
+// ───────── 长列表整理：分页 / 按作者自动分组 / 批量 AI 分析（2026-11）─────────
+const VN_PAGE = 30;
+
+// 往容器里放笔记：先放 30 条，剩下的点「再显示」才渲染（几百条一次性铺开又慢又乱）
+function vnAppendItems(box, items, folders) {
+  let shown = 0;
+  const more = document.createElement("button");
+  more.className = "vn-more";
+  const step = () => {
+    items.slice(shown, shown + VN_PAGE).forEach((n) => box.insertBefore(makeVideoNoteItem(n, folders), more));
+    shown = Math.min(items.length, shown + VN_PAGE);
+    const left = items.length - shown;
+    more.hidden = left <= 0;
+    more.textContent = "再显示 " + Math.min(VN_PAGE, left) + " 条（还剩 " + left + " 条）";
+  };
+  more.addEventListener("click", (e) => { e.stopPropagation(); step(); });
+  box.appendChild(more);
+  step();
+}
+
+function vnUnanalyzed(items) { return (items || []).filter((n) => n.analyzed === false); }
+
+// 分组标题上的「分析本组 N 条」
+function vnAddGroupBatchBtn(head, items) {
+  const todo = vnUnanalyzed(items);
+  if (!todo.length) return;
+  const b = document.createElement("button");
+  b.className = "vn-group-batch";
+  b.textContent = "分析本组 " + todo.length + " 条";
+  b.title = "把这一组里还没做 AI 分析的笔记排队，一条一条分析（每条换一张新的 AI 卡）";
+  b.addEventListener("click", (e) => { e.stopPropagation(); vnStartBatch(todo); });
+  head.appendChild(b);
+}
+
+// 文件夹外的笔记：不多就平铺；多了就按作者自动分组，组可折叠（默认收起，记住展开状态）
+function vnRenderUngrouped(list, ungrouped, folders) {
+  if (ungrouped.length <= 12) { vnAppendItems(list, ungrouped, folders); return; }
+  const groups = {};
+  ungrouped.forEach((n) => { const k = (n.author || "").trim() || "未填作者"; (groups[k] = groups[k] || []).push(n); });
+  const keys = Object.keys(groups).sort((a, b) =>
+    (a === "未填作者") - (b === "未填作者") || groups[b].length - groups[a].length);
+  const tip = document.createElement("div");
+  tip.className = "vn-auto-tip";
+  tip.textContent = "下面是还没放进文件夹的笔记，按作者自动分组（点组名展开 / 收起）";
+  list.appendChild(tip);
+  let openState = {};
+  try { openState = JSON.parse(localStorage.getItem("vnAuthorOpen") || "{}"); } catch (e) {}
+  keys.forEach((k) => {
+    const items = groups[k];
+    const head = document.createElement("div");
+    head.className = "video-note-item vn-group-head";
+    const caret = document.createElement("span"); caret.className = "vn-caret";
+    const nm = document.createElement("span"); nm.className = "vn-name"; nm.textContent = k;
+    const cnt = document.createElement("span"); cnt.className = "vn-count"; cnt.textContent = "（" + items.length + " 条）";
+    head.appendChild(caret); head.appendChild(nm); head.appendChild(cnt);
+    vnAddGroupBatchBtn(head, items);
+    const box = document.createElement("div"); box.className = "vn-group-box";
+    let filled = false;
+    const apply = (open) => {
+      box.style.display = open ? "" : "none"; caret.textContent = open ? "▾" : "▸";
+      if (open && !filled) { vnAppendItems(box, items, folders); filled = true; }
+    };
+    apply(!!openState[k]);
+    head.addEventListener("click", () => {
+      const open = box.style.display === "none";
+      apply(open);
+      openState[k] = open;
+      try { localStorage.setItem("vnAuthorOpen", JSON.stringify(openState)); } catch (e) {}
+    });
+    list.appendChild(head); list.appendChild(box);
+  });
+}
+
+// 顶部的批量分析条
+function vnRenderBatchBar(list, notes) {
+  const todo = vnUnanalyzed(notes);
+  const bar = document.createElement("div");
+  bar.className = "vn-batch-bar"; bar.id = "vnBatchBar";
+  const txt = document.createElement("span"); txt.className = "vn-batch-text";
+  txt.textContent = todo.length ? todo.length + " 条笔记还没做 AI 分析" : "所有笔记都已做过 AI 分析";
+  bar.appendChild(txt);
+  if (todo.length) {
+    const b = document.createElement("button");
+    b.className = "send-btn vn-batch-btn"; b.textContent = "批量 AI 分析";
+    b.title = "按列表顺序一条一条分析；每条都会在 AI 池换一张新的 AI 卡、开新对话";
+    b.addEventListener("click", () => vnStartBatch(todo));
+    bar.appendChild(b);
+  }
+  const prog = document.createElement("div"); prog.className = "vn-batch-prog"; prog.id = "vnBatchProg"; prog.hidden = true;
+  bar.appendChild(prog);
+  list.appendChild(bar);
+  vnPollBatch();          // 页面刷新时如果有批量在跑，接着显示进度
+}
+
+let _vnBatchTimer = null;
+async function vnStartBatch(items) {
+  if (!items || !items.length) return;
+  if (!confirm("批量分析 " + items.length + " 条笔记？\n\n" +
+               "· 一条接一条分析，每条都会在 AI 池换一张新的 AI 卡、开新对话，互不串内容；\n" +
+               "· 用最高级模型，单条可能要几分钟，整批会比较久，可以随时点「停止」；\n" +
+               "· 分析期间可以正常用软件的其他功能。")) return;
+  const s = (typeof settings === "function") ? settings() : {};
+  try {
+    const d = await (await fetch(BACKEND + "/video_note_analyze_batch", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ names: items.map((n) => n.name), use_local: s.use_local, model: s.model }),
+    })).json();
+    if (!d.ok) { alert(d.error || "没能开始"); return; }
+    vnPollBatch();
+  } catch (e) { alert("提交出错：" + e.message); }
+}
+
+async function vnPollBatch() {
+  let d;
+  try { d = await (await fetch(BACKEND + "/video_note_analyze_batch")).json(); } catch (e) { return; }
+  const prog = document.getElementById("vnBatchProg");
+  if (!prog) return;
+  // 正在批量分析时，隐藏「批量 AI 分析」和各组的「分析本组」按钮，避免重复提交
+  document.querySelectorAll(".vn-batch-btn, .vn-group-batch").forEach((b) => { b.hidden = !!d.running; });
+  if (!d.running && !d.finished) { prog.hidden = true; return; }
+  prog.hidden = false;
+  const pct = d.total ? Math.round(d.done * 100 / d.total) : 0;
+  prog.innerHTML =
+    '<div class="vn-batch-line">' +
+      (d.running ? "批量分析中 " : "批量分析结束 ") + d.done + " / " + d.total +
+      "（成功 " + d.ok + "，失败 " + d.fail + "）" +
+      (d.running && d.current ? '<span class="vn-batch-cur">正在分析：' + escapeHtml(d.current.replace(/\.md$/, "")) +
+        (d.stage ? " · " + escapeHtml(d.stage) : "") + "</span>" : "") +
+    "</div>" +
+    '<div class="vn-batch-track"><div class="vn-batch-fill" style="width:' + pct + '%"></div></div>' +
+    (d.errors && d.errors.length && !d.running
+      ? '<div class="vn-batch-errs">没成功的：' + d.errors.map((x) => escapeHtml(x.name.replace(/\.md$/, ""))).join("、") +
+        "（可以稍后再点一次批量分析，只会补没成功的）</div>" : "");
+  if (d.running) {
+    const stop = document.createElement("button");
+    stop.className = "vn-batch-stop"; stop.textContent = "停止";
+    stop.title = "分析完当前这一条后停止";
+    stop.addEventListener("click", async () => {
+      stop.disabled = true; stop.textContent = "停止中…";
+      await fetch(BACKEND + "/video_note_analyze_batch", { method: "POST",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stop: true }) });
+    });
+    prog.querySelector(".vn-batch-line").appendChild(stop);
+    if (!_vnBatchTimer) _vnBatchTimer = setInterval(vnPollBatch, 2500);
+    if (d.done !== vnPollBatch._lastDone) { vnPollBatch._lastDone = d.done; if (d.done) _vnRefreshSoon(); }
+  } else if (_vnBatchTimer) {
+    clearInterval(_vnBatchTimer); _vnBatchTimer = null;
+    loadVideoNotes();
+  }
+}
+// 每分析完一条，稍后刷新列表（那条的「AI 分析」按钮会消失）；不在刷新时打断阅读
+let _vnRefreshT = null;
+function _vnRefreshSoon() { clearTimeout(_vnRefreshT); _vnRefreshT = setTimeout(() => loadVideoNotes(), 1500); }
 
 // 生成一条视频笔记行（标题 + 作者 + 未分析补做 + 移动到文件夹 + 改作者 + 删除）
 function makeVideoNoteItem(n, folders) {

@@ -74,7 +74,7 @@ def _clog(tag, msg):
 # 一旦打印就会把控制台刷爆、淹没真正有用的操作日志，所以一律静音、不记。
 _LOG_QUIET_PATHS = {
     "/ping", "/video_progress", "/video_health", "/video_notes",
-    "/video_note_analyze_progress", "/sniff/feed", "/sniff/discover",
+    "/video_note_analyze_progress", "/sniff/feed", "/sniff/discover", "/video_note_analyze_batch",
     "/chat_progress", "/heartbeat/status", "/lumi/status", "/lumi/evolve_status",
     "/web_model/state", "/web_model/config", "/loop/status", "/insight/status",
     "/insight/config", "/system_access", "/claude_config", "/harness/config",
@@ -1298,6 +1298,54 @@ _note_an_lock = _threading.Lock()
 _note_an_state = {"running": False, "name": "", "stage": "",
                   "error": "", "ok": False, "done_id": 0}
 
+# 批量补分析：一条一条地分析（每条都会在 AI 池换一张新卡、开新对话，互不串）
+_note_batch = {"running": False, "total": 0, "done": 0, "ok": 0, "fail": 0,
+               "current": "", "stop": False, "errors": [], "started": 0, "finished": 0}
+
+
+def _time_now():
+    import time as _t
+    return _t.time()
+
+
+def _note_batch_worker(names, use_local, model):
+    import time as _time
+    try:
+        for name in names:
+            if _note_batch["stop"]:
+                break
+            # 等单条补分析（如果有人在点单条）先结束，再占用
+            while True:
+                with _note_an_lock:
+                    if not _note_an_state["running"]:
+                        _note_an_state.update({"running": True, "name": name, "stage": "准备",
+                                               "error": "", "ok": False})
+                        break
+                if _note_batch["stop"]:
+                    break
+                _time.sleep(1.5)
+            if _note_batch["stop"]:
+                break
+            _note_batch["current"] = name
+            _note_analyze_worker(name, use_local, model)     # 同步跑完这一条
+            with _note_an_lock:
+                ok = bool(_note_an_state.get("ok"))
+                err = _note_an_state.get("error") or ""
+            _note_batch["done"] += 1
+            if ok:
+                _note_batch["ok"] += 1
+            else:
+                _note_batch["fail"] += 1
+                _note_batch["errors"] = (_note_batch["errors"] + [{"name": name, "error": err[:160]}])[-20:]
+            _time.sleep(1)
+    finally:
+        _note_batch["running"] = False
+        _note_batch["current"] = ""
+        _note_batch["finished"] = _time.time()
+        _clog("视频", "📦 批量补分析结束：完成 %d / %d（成功 %d，失败 %d）%s" % (
+            _note_batch["done"], _note_batch["total"], _note_batch["ok"], _note_batch["fail"],
+            "，已手动停止" if _note_batch["stop"] else ""))
+
 
 def _parse_saved_note(text):
     """从已存档的笔记 md 里拆出（标题, 元信息行列表, 文字稿, 已有标签列表）。
@@ -1864,6 +1912,11 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/video_notes":
             return self._handle_video_notes_list()
+        if path == "/video_note_analyze_batch":
+            b = dict(_note_batch)
+            with _note_an_lock:
+                b["stage"] = _note_an_state.get("stage", "")
+            return self._send(b)
         if path == "/video_note_analyze_progress":
             with _note_an_lock:
                 return self._send(dict(_note_an_state))
@@ -2339,6 +2392,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_video_install(body)
         if path == "/video_note_delete":
             return self._handle_video_note_delete(body)
+        if path == "/video_note_analyze_batch":
+            return self._handle_video_note_analyze_batch(body)
         if path == "/video_note_analyze":
             return self._handle_video_note_analyze(body)
         if path == "/video_note_set_author":
@@ -4204,6 +4259,31 @@ class Handler(BaseHTTPRequestHandler):
         _threading.Thread(target=_note_analyze_worker,
                           args=(name, use_local, model), daemon=True).start()
         return self._send({"ok": True, "started": True})
+
+    def _handle_video_note_analyze_batch(self, body):
+        """批量补分析：前端传要分析的笔记文件名列表（一般是「全部未分析」或某个分组里未分析的）。
+        后台一条接一条跑；每条都是一个新任务，AI 池会换一张新卡、开新对话（不串上一条的内容）。"""
+        if body.get("stop"):
+            _note_batch["stop"] = True
+            return self._send({"ok": True, "stopping": True})
+        if _note_batch["running"]:
+            return self._send({"ok": False, "error": "已经有一批在分析了（%d/%d），等它结束或先点「停止」"
+                                                    % (_note_batch["done"], _note_batch["total"])})
+        d = self._video_dir()
+        names = []
+        for nm in body.get("names") or []:
+            nm = str(nm).strip()
+            if nm and "/" not in nm and "\\" not in nm and ".." not in nm and (d / nm).exists() and nm not in names:
+                names.append(nm)
+        if not names:
+            return self._send({"ok": False, "error": "没有可分析的笔记"})
+        _note_batch.update({"running": True, "total": len(names), "done": 0, "ok": 0, "fail": 0,
+                            "current": "", "stop": False, "errors": [], "started": _time_now(), "finished": 0})
+        _clog("视频", "📦 开始批量补分析：%d 条（每条换一张新的 AI 卡）" % len(names))
+        _threading.Thread(target=_note_batch_worker,
+                          args=(names, body.get("use_local", True), body.get("model", "qwen2.5")),
+                          daemon=True, name="note-batch").start()
+        return self._send({"ok": True, "total": len(names)})
 
     def _handle_video_note_get(self, name):
         try:
