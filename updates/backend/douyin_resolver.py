@@ -1261,11 +1261,101 @@ def list_user_posts(url, limit=40):
     except Exception as e:
         diag["html_exc"] = str(e)[:120]
 
+    # ④：真浏览器兜底（2026-11 抖音给作品列表接口加签名后加的）：后台打开博主主页，
+    #    让页面自己请求作品列表，我们只「听」返回的数据
+    try:
+        videos, name, why = _posts_via_browser(sec, limit)
+        diag["browser"] = why or ("ok:%d" % len(videos))
+        if videos:
+            return {"ok": True, "videos": videos, "name": name, "total": len(videos),
+                    "sec_uid": sec, "source": "browser"}
+    except Exception as e:
+        diag["browser_exc"] = str(e)[:120]
+
     diag["fail"] = "接口与主页都没解析到作品"
     _write_list_diag(diag)
     return {"ok": False, "error": "接口与主页都没解析到作品（多半是私密账号 / 风控拦截 / 结构又变了）。"
                                   "可在 backend/memory/douyin_cookie.txt 里粘贴浏览器抖音 Cookie 后重试。",
             "sec_uid": sec}
+
+
+_BROWSER_USER_PAGE = "https://www.douyin.com/user/%s"
+
+
+def _posts_via_browser(sec, limit=40, timeout_s=40):
+    """用本机 Chrome（后台、无界面、直连）打开博主主页，截获页面自己发出的作品列表请求
+    （/aweme/v1/web/aweme/post/），往下滚动加载更多，直到够数或没有更多。
+    返回 (videos, name, 失败原因)。只读公开主页，不登录、不批量抓别人的数据。"""
+    import time as _t
+    try:
+        from playwright.sync_api import sync_playwright
+    except Exception as e:
+        return [], "", "没装 Playwright（%s）" % str(e)[:40]
+    want = 1000 if (not limit or int(limit) <= 0) else int(limit)
+    pending, videos, seen = [], [], set()
+    name, has_more = "", True
+    with sync_playwright() as pw:
+        browser = None
+        for ch in ("chrome", "msedge", None):
+            try:
+                kw = dict(headless=True, args=["--disable-blink-features=AutomationControlled",
+                                               "--mute-audio", "--no-proxy-server"])
+                if ch:
+                    kw["channel"] = ch
+                browser = pw.chromium.launch(**kw)
+                break
+            except Exception:
+                continue
+        if browser is None:
+            return [], "", "没有可用的浏览器（Chrome/Edge）"
+        try:
+            ctx = browser.new_context(user_agent=_PC_UA, locale="zh-CN", viewport={"width": 1280, "height": 900})
+            ck = _load_user_cookie()
+            if ck:
+                ctx.add_cookies([{"name": k, "value": v, "domain": ".douyin.com", "path": "/"}
+                                 for k, v in ck.items() if k and v])
+            page = ctx.new_page()
+            page.on("response", lambda r: pending.append(r) if "aweme/post" in r.url else None)
+            page.goto(_BROWSER_USER_PAGE % sec, wait_until="domcontentloaded", timeout=25000)
+            end = _t.time() + timeout_s
+            idle_rounds = 0
+            while _t.time() < end and len(videos) < want:
+                page.wait_for_timeout(1200)
+                got_new = False
+                while pending:
+                    r = pending.pop(0)
+                    try:
+                        data = r.json()
+                    except Exception:
+                        continue
+                    for aw in (data.get("aweme_list") or []):
+                        it = _norm_post_item(aw)
+                        if it and it["vid"] not in seen:
+                            seen.add(it["vid"])
+                            videos.append(it)
+                            got_new = True
+                            if not name:
+                                name = ((aw.get("author") or {}).get("nickname") or "").strip()
+                    if "has_more" in data:
+                        has_more = bool(data.get("has_more"))
+                if not has_more:
+                    break
+                idle_rounds = 0 if got_new else idle_rounds + 1
+                if videos and idle_rounds >= 4:          # 滚了几次都没新作品：到底了
+                    break
+                try:                                      # 往下滚，触发加载下一页
+                    page.mouse.wheel(0, 2400)
+                    page.evaluate("() => window.scrollBy(0, 2400)")
+                except Exception:
+                    pass
+        finally:
+            try:
+                browser.close()
+            except Exception:
+                pass
+    if not videos:
+        return [], name, "浏览器打开主页也没等到作品列表（可能要登录/出验证码；可在 memory/douyin_cookie.txt 填登录 Cookie）"
+    return videos[:want], name, ""
 
 
 def user_name(url):
