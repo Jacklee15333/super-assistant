@@ -28,7 +28,7 @@ import base64
 
 import web_model
 
-MAX_PROMPT_CHARS = 12000          # 纯文本模式的软上限（老逻辑保留）
+MAX_PROMPT_CHARS = 16000          # 纯文本模式：对话总字数上限（超了只留最近的）
 MAX_TOOL_RESULT_CHARS = 6000      # Agent 模式：单条工具结果回灌时的截断长度（够装下目录清单）
 _MAX_CONVO_MSGS = 14              # Agent 模式：完整 prompt 里最多保留最近多少条对话
 _MAX_CONVO_CHARS = 6000          # Agent 模式：对话渲染的总字数上限（超了从最旧的丢）
@@ -84,11 +84,19 @@ def _truncate(s, n):
 
 # ════════════════════════ 纯文本模式（老逻辑，原样保留）════════════════════════
 def flatten_messages(messages):
+    """纯文本模式：把对话压成一段。系统设定精简成纯聊天版（不再让它调用不存在的工具），
+    历史太长时只保留最近的（用户最新那条一定在）。"""
+    msgs = list(messages or [])
+    req = "\n".join(_text_of(m.get("content")) for m in msgs if m.get("role") == "user")[-2000:]
+    msgs = _pu.fit_messages(
+        [dict(m, content=_compact_system(_text_of(m.get("content")), req, plain=True))
+         if m.get("role") == "system" else m for m in msgs],
+        MAX_PROMPT_CHARS)
     parts = []
-    for m in messages or []:
+    for m in msgs:
         role = m.get("role", "user")
         content = _text_of(m.get("content", "")).strip()
-        if not content:
+        if not content or role == "tool":
             continue
         if role == "system":
             parts.append("【角色与要求】\n" + content)
@@ -144,107 +152,55 @@ def _render_tool_catalog(tools):
 
 
 # ---------- 精简角色设定（只用于网页模型）----------
-_INTEL_KW = re.compile(r"视频|链接|抖音|快手|小红书|b站|youtube|http|调研|评论|痛点|文案|广告|竞品|简报|情报|爬|抓取",
-                       re.I)
-_ENGLISH_KW = re.compile(r"英语|英文|单词|学生|教材|语法|听写|作业|辅导|unit", re.I)
+import prompt_utils as _pu
+
+_PLAIN_NOTE = ("（现在是纯聊天模式：你没有任何工具可调用，直接回答即可；"
+               "需要最新信息就用你自带的联网搜索。不要输出工具调用。）")
 
 
-def _compact_agents(body, req):
-    """AGENTS.md 按 ## 小节取舍：心跳/工具使用 不需要；市场情报、英语辅导 只在相关时带上。"""
-    out = []
-    for sec in re.split(r"(?m)^(?=## )", body):
-        head = sec.split("\n", 1)[0]
-        if not head.startswith("## "):
-            sec = "\n".join(l for l in sec.splitlines()
-                            if l.strip() and not l.startswith("#") and "随时编辑" not in l)
-            if sec.strip():
-                out.append(sec)
-            continue
-        if "心跳" in head or "工具使用" in head:
-            continue
-        if ("高级技能" in head or "红线" in head or "情报" in head) and not _INTEL_KW.search(req):
-            continue
-        if "英语" in head and not _ENGLISH_KW.search(req):
-            continue
-        # 和弹窗机制冲突的那条「先告诉你、得到确认再做」改成弹窗表述
-        sec = re.sub(r"^.*危险操作先确认.*$",
-                     "2. **危险操作先确认**：由程序弹窗让用户批准，直接写调用块即可。", sec, flags=re.M)
-        out.append(sec.strip())
-    return "\n\n".join(out)
-
-
-def _strip_template(body):
-    """去掉模板占位行（「（还不了解…）」「- 」等），全是占位就返回空。"""
-    keep = []
-    for l in body.splitlines():
-        t = l.strip()
-        if not t or t == "-" or re.fullmatch(r"（[^）]*）", t) or t.startswith("我会把"):
-            continue
-        keep.append(l)
-    return "\n".join(keep) if any(not l.lstrip().startswith("#") for l in keep) else ""
-
-
-def _dedupe_lines(body):
-    seen, out = set(), []
-    for l in body.splitlines():
-        key = re.sub(r"[（(]\d{4}-\d{2}-\d{2}[）)]|\s|[，。、；]", "", l)
-        if key and key in seen:
-            continue
-        seen.add(key)
-        out.append(l)
-    return "\n".join(out)
-
-
-def _pick_md_section(body, wanted, cap):
-    for sec in re.split(r"(?m)^(?=## )", body):
-        if wanted in sec.split("\n", 1)[0]:
-            return _truncate_plain(sec.strip(), cap)
-    return ""
-
-
-def _truncate_plain(s, n):
-    return s if len(s) <= n else s[:n] + "…"
-
-
-def _compact_system(system_txt, req=""):
-    """把很长的系统设定精简成网页模型够用的版本（通常从 7~9k 字降到 2~3k 字）。"""
+def _compact_system(system_txt, req="", plain=False):
+    """网页模型用的角色设定：在 build_system_prompt 已精简的基础上再按网页场景取舍。
+    · 「通用做事规则」换成网页协议里的【做事习惯】（Agent 模式）或一句纯聊天说明（plain）；
+    · 分身设定等其它小节原样保留（旧版这里会把分身设定整段切掉）。
+    兼容旧格式（尾部是「请严格按以上设定行事…」的老系统提示）。"""
     txt = system_txt or ""
-    # 尾部那段「请严格按以上设定行事…联网…呈现方式」与网页模式冲突，换成【做事习惯】（在协议里）
-    txt = txt.split("请严格按以上设定行事", 1)[0]
-    parts = re.split(r"(?m)^(===\s*.+?\s*===)\s*$", txt)
-    out = [parts[0].strip()] if parts[0].strip() else []
-    for i in range(1, len(parts), 2):
-        title, body = parts[i], parts[i + 1].strip()
+    old_tail = txt.find("请严格按以上设定行事")
+    if old_tail >= 0:                         # 老格式：删掉那段尾部规则，保留其后的分身等小节
+        nxt = re.search(r"(?m)^===", txt[old_tail:])
+        txt = txt[:old_tail] + (txt[old_tail + nxt.start():] if nxt else "")
+    head, secs = _pu.split_sections(txt)
+    out = [head] if head else []
+    for title, body in secs:
+        if "通用做事规则" in title:
+            continue
         if "SOUL" in title:
-            body = "\n".join(l for l in body.splitlines()
-                             if "改这个文件" not in l and not l.startswith("# "))
-            body = body.replace("（你可以改成任何你喜欢的名字）", "")
+            body = _pu.clean_soul(body)
         elif "AGENTS" in title:
-            body = _compact_agents(body, req)
+            body = _pu.compact_agents(body, req)
         elif "USER.md" in title:
-            body = _strip_template(body)
+            body = _pu.strip_template(body)
         elif "MEMORY" in title:
-            body = _dedupe_lines(_strip_template(body))
-            body = _truncate_plain(body, 1200)
+            body = _pu.truncate(_pu.dedupe_lines(_pu.strip_template(body)), 1200)
         elif "OWNER_PROFILE" in title:
-            body = _pick_md_section(body, "偏好与习惯", 400)
-            title = "=== 关于用户的习惯 ==="
+            body = _pu.pick_md_sections(body, ("说话风格", "偏好与习惯"), 700) or _pu.truncate(body, 700)
         elif "ENVIRONMENT" in title:
-            body = _pick_md_section(body, "环境信息", 300)
+            body = _pu.pick_md_sections(body, ("环境信息",), 400) or _pu.truncate(body, 400)
         elif "INSIGHT" in title:
-            continue                       # 内容分析报告，与操作电脑无关
+            if not _pu.INSIGHT_KW.search(req or ""):
+                continue
+            body = _pu.truncate(body, 1200)
         elif "技能库" in title or "Skills" in title:
-            lines = []
-            for l in body.splitlines():
-                m = re.match(r"^- 「(.+?)」\(slug: ([\w-]+)\)：(.*)$", l.strip())
-                if m:
-                    lines.append("- %s（%s）：%s" % (m.group(1), m.group(2), _short_desc(m.group(3), 40)))
-            body = ("用户任务匹配某个技能时，先 load_skill 读入完整步骤再做：\n" + "\n".join(lines)) if lines else ""
+            if plain:
+                continue                      # 纯聊天没有 load_skill 可用
+            sk = _pu.compact_skills(title + "\n" + body)
+            body = sk.split("\n", 1)[1] if sk else body
         else:
-            body = _truncate_plain(body, 800)
+            body = _pu.truncate(body, 3000)    # 分身设定等：基本原样保留
         body = re.sub(r"\n{3,}", "\n\n", (body or "").strip())
         if body:
             out.append(title + "\n" + body)
+    if plain:
+        out.append(_PLAIN_NOTE)
     return "\n\n".join(out)
 
 
@@ -443,7 +399,7 @@ def _build_full_prompt(messages, tools):
     if len(kept) < len(head) and not any(k == "user" for k, _ in kept):
         prev_u = next(((k, t) for k, t in reversed(head[:len(head) - len(kept)]) if k == "user"), None)
         if prev_u:
-            kept.insert(0, (prev_u[0], _truncate_plain(prev_u[1], 400)))
+            kept.insert(0, (prev_u[0], _pu.truncate(prev_u[1], 400)))
     convo = [t for _, t in kept + tail]
     if len(kept) < len(head):
         convo.insert(0, "（更早的对话已省略，只保留最近的上下文）")
