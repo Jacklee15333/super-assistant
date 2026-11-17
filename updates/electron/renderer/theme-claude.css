@@ -122,20 +122,34 @@ body { font-size: 14px; background: var(--bg); }
 .sb-new:hover { background: var(--bg-active-strong); }
 
 .nav { gap: 1px; flex: none; }
+/* 分组：标题可点击折叠（仿 Claude Code 侧栏的分区），折叠状态会记住 */
+.nav-group { display: flex; flex-direction: column; gap: 1px; }
 .nav-group-label {
-  font-size: 12px; font-weight: 500; color: var(--text-dim);
-  padding: 10px 10px 3px; letter-spacing: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; margin-top: 10px; padding: 4px 10px;
+  background: none; border: none; border-radius: 6px; cursor: pointer;
+  font: 500 12px var(--sans); color: var(--text-dim); text-align: left;
+  letter-spacing: 0;
 }
-.nav-group-label:first-child { padding-top: 4px; }
-.nav-group-label:not(:first-child)::before { content: none; }
-.nav-item {
+.nav-group-label::before { content: none; }
+.nav-group-label:hover { color: var(--text); background: var(--bg-hover); }
+.nav-chev { width: 13px; height: 13px; flex: none; opacity: .55; transition: transform .15s; }
+.nav-group-label:hover .nav-chev { opacity: 1; }
+.nav-group.collapsed .nav-chev { transform: rotate(-90deg); }
+.nav-group.collapsed .nav-group-items { display: none; }
+.nav-group-items { display: flex; flex-direction: column; gap: 1px; }
+.nav-item, .nav-action {
   display: flex; align-items: center; gap: 10px;
   min-height: 30px; padding: 0 10px;
   font-size: 13.5px; color: var(--text);
   border-radius: 8px;
 }
+.nav-action {
+  background: transparent; border: none; cursor: pointer;
+  font-family: var(--sans); text-align: left;
+}
 .nav-ico { width: 16px; height: 16px; flex: none; color: var(--text-dim); }
-.nav-item:hover { background: var(--bg-hover); color: var(--text); }
+.nav-item:hover, .nav-action:hover { background: var(--bg-hover); color: var(--text); }
 .nav-item.active,
 body:not(.dark) .nav-item.active { background: var(--bg-active); color: var(--text); font-weight: 500; }
 body:not(.dark) .nav-item.active::before { content: none; }
@@ -172,15 +186,18 @@ body:not(.dark) .nav-item.active::before { content: none; }
   position: sticky; bottom: 0; z-index: 3;
   background: var(--bg-side);
 }
-.sidebar-foot .ghost-btn {
-  flex: 1; height: 34px; padding: 0;
+.sidebar-foot .ghost-btn,
+.sidebar-foot .foot-item {
+  flex: 1; height: 34px; min-height: 34px; padding: 0; gap: 0;
   display: inline-flex; align-items: center; justify-content: center;
   border: none; border-radius: 8px;
   color: var(--text-dim);
 }
+.sidebar-foot .foot-item span,
 .sidebar-foot .ghost-btn span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .sidebar-foot .ghost-btn:hover { background: var(--bg-hover); color: var(--text); border-color: transparent; }
 .sidebar-foot .nav-ico { width: 17px; height: 17px; }
+.sidebar-foot .foot-item.active .nav-ico { color: var(--text); }
 
 /* ════════════════════ 主区顶栏（可拖动窗口）════════════════════ */
 .topbar,
