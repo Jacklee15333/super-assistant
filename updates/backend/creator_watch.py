@@ -345,10 +345,14 @@ def _ytdlp_list(target_url, limit, use_proxy, platform=""):
     except Exception:
         lim = 0
     opts["playlistend"] = (1000 if lim <= 0 else min(1000, lim))
+    p = ""
     if use_proxy:
-        p = _proxy()
-        if p:
-            opts["proxy"] = p
+        try:
+            import web_tools
+            p = web_tools.proxy_for(target_url)       # 只有境外站（YouTube 等）才走代理
+        except Exception:
+            p = _proxy()
+    opts["proxy"] = p or ""                           # 空串 = 明确直连，不用系统代理
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(target_url, download=False)
     if not info:
