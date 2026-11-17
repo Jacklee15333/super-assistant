@@ -23,12 +23,82 @@ MEMORY_DIR.mkdir(exist_ok=True)
 
 
 # ---------- 模型客户端 ----------
+_LOCAL_MODELS = {"t": 0.0, "names": []}
+
+
+def installed_local_models():
+    """Ollama 本机已装的模型名（缓存 60 秒）。拿不到返回 []。"""
+    import time
+    import urllib.request
+    if time.time() - _LOCAL_MODELS["t"] < 60:
+        return _LOCAL_MODELS["names"]
+    names = []
+    try:
+        with urllib.request.urlopen("http://localhost:11434/api/tags", timeout=2) as r:
+            names = [m.get("name") for m in json.loads(r.read().decode("utf-8")).get("models", [])
+                     if m.get("name")]
+    except Exception:
+        names = []
+    _LOCAL_MODELS.update(t=time.time(), names=names)
+    return names
+
+
+def resolve_local_model(name):
+    """代码里很多地方写死了 "qwen2.5"。本机没装它时，换成用户配置的本地模型（如 qwen3:14b），
+    而不是直接报错。装了、或查不到已装列表时原样返回。"""
+    names = installed_local_models()
+    if not names or not name or name in names or str(name).endswith("cloud"):
+        return name
+    fam = str(name).split(":")[0]
+    for n in names:
+        if n.split(":")[0] == fam:
+            return n
+    try:
+        for task in ("local_action", "quick_chat", "default", "chat"):
+            ul, m = resolve_model(task, fallback_use_local=True, fallback_model="")
+            if ul and m in names:
+                return m
+    except Exception:
+        pass
+    return names[0]
+
+
+class _LocalChatCompletions:
+    def __init__(self, inner):
+        self._inner = inner
+
+    def create(self, model=None, **kwargs):
+        import prompt_utils as pu
+        resp = self._inner.create(model=resolve_local_model(model), **kwargs)
+        try:
+            msg = resp.choices[0].message
+            if isinstance(msg.content, str) and "think>" in msg.content:
+                msg.content = pu.strip_think(msg.content)   # qwen3 等思考型模型的推理段不外露
+        except Exception:
+            pass
+        return resp
+
+
+class _LocalClient:
+    """包一层 Ollama 客户端：自动换成已装的模型名 + 去掉 <think> 段。其余行为与 OpenAI 客户端一致。"""
+    _is_local = True
+
+    def __init__(self, inner):
+        self._inner = inner
+        self.base_url = getattr(inner, "base_url", "http://localhost:11434/v1")
+        self.chat = type("_Chat", (), {})()
+        self.chat.completions = _LocalChatCompletions(inner.chat.completions)
+
+    def __getattr__(self, item):
+        return getattr(self._inner, item)
+
+
 def make_client(use_local: bool):
     """根据开关返回一个 OpenAI 兼容客户端。"""
     from openai import OpenAI  # 延迟导入：没装 openai 时也能用工具/记忆逻辑
     if use_local:
         # Ollama 暴露的 OpenAI 兼容端点，key 随便填
-        return OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
+        return _LocalClient(OpenAI(base_url="http://localhost:11434/v1", api_key="ollama"))
     else:
         # 云端：默认读环境变量 OPENAI_API_KEY；想用 DeepSeek 等改 base_url 即可
         return OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
@@ -170,6 +240,10 @@ def append_note(text: str) -> str:
             f"不要用 read_file 去猜路径。")
 
 
+_UNATTENDED_DENY = ("这一步需要用户在电脑前确认，现在是无人值守（定时任务/手机渠道），已自动跳过。"
+                    "不要再尝试这个操作；在回复里说明需要用户回到电脑前处理什么。")
+
+
 def run_agent_autodeny(client, model, messages, on_tool=None, max_steps=8):
     """
     无人值守场景（心跳/手机渠道）用：危险操作一律自动拒绝，只跑安全工具。
@@ -179,7 +253,8 @@ def run_agent_autodeny(client, model, messages, on_tool=None, max_steps=8):
     for _ in range(max_steps + 3):
         reply, messages, pending = run_agent(
             client, model, messages, on_tool=on_tool,
-            max_steps=max_steps, approvals=approvals)
+            max_steps=max_steps, approvals=approvals,
+            deny_message=_UNATTENDED_DENY)
         if pending is None:
             return reply, messages
         # 自动拒绝这个危险调用，继续
@@ -187,19 +262,55 @@ def run_agent_autodeny(client, model, messages, on_tool=None, max_steps=8):
     return "（处理中断）", messages
 
 
-def build_system_prompt() -> str:
-    """把灵魂三件套拼成系统提示。"""
-    soul = read_memory_file("SOUL.md")
-    agents = read_memory_file("AGENTS.md")
-    user = read_memory_file("USER.md")
-    long_term = read_memory_file("MEMORY.md")  # 长期对话记忆
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    prompt = (
-        f"现在时间是 {now}。\n\n"
-        f"=== 你的人格 (SOUL.md) ===\n{soul}\n\n"
-        f"=== 你的行为准则 (AGENTS.md) ===\n{agents}\n\n"
-        f"=== 关于用户 (USER.md) ===\n{user}\n\n"
-    )
+_RULES_INTERACTIVE = (
+    "=== 通用做事规则 ===\n"
+    "- 需要实时信息（新闻、价格、天气、最近的事、拿不准的事实）时，调用 web_search 或 research 去查，"
+    "再根据结果回答；不要说自己不能联网，也不要把工具调用写成文字让用户去执行。"
+    "视频链接用 video_transcript，普通网页用 read_webpage。\n"
+    "- 需要做事就调用工具，不假装执行、不凭记忆编造结果。意图清楚就直接做，不反复确认；"
+    "真正缺关键信息时才问一句。\n"
+    "- 删除、清理、执行命令这类有风险的操作：直接调用对应工具，程序会弹出「批准/拒绝」让用户点。"
+    "不要用文字让用户回复「是/否」——人格和准则里说的「先问你/先确认」指的就是这个弹窗。\n"
+    "- 检查/清理/整理类任务：先用只读工具摸清情况，用 Markdown 表格汇报（类别、位置、大小/数量、是否安全），"
+    "再给一句总结；接下来要做的多个有风险操作在同一轮一起发起，让用户在一个确认框里批量批准。\n"
+    "- 清理 C 盘垃圾/临时文件用 sys_clean_temp，不要用命令删；遇到「访问被拒/正被占用」的文件跳过即可，"
+    "如实说明，不算失败。\n"
+    "- 回答长短按需要：简单问题简洁回答；查询、分析类结果把关键数据讲清楚。"
+)
+
+_RULES_UNATTENDED = (
+    "=== 通用做事规则（无人值守）===\n"
+    "- 现在用户不在电脑前（定时任务或手机消息渠道），没有人能点确认。删除、清理、执行命令、"
+    "写文件这类需要确认的操作都会被自动拦下——不要尝试；只做查询、搜索、读取、记笔记这类安全操作。\n"
+    "- 如果完成任务确实需要这类操作，就在回复里说清楚打算做什么、为什么，让用户回到电脑前再处理。\n"
+    "- 需要实时信息时调用 web_search 或 research 去查；不凭记忆编造结果。\n"
+    "- 回复简洁清楚，适合在手机上看。"
+)
+
+
+def build_system_prompt(request: str = "", unattended: bool = False) -> str:
+    """把人格/准则/记忆/画像/技能拼成系统提示（2026-11 精简版）。
+
+    request：用户这次说的话（可选）。给了就按相关性取舍 AGENTS.md 的专项小节、洞察报告；
+             不给就保守地都带上。
+    unattended：无人值守（心跳、定时任务、手机渠道）。这时没人能点确认弹窗，
+             规则改成「危险操作不要做，在回复里说明」。
+    """
+    import prompt_utils as pu
+    now = datetime.datetime.now()
+    parts = ["现在时间是 %s（星期%s）。" % (now.strftime("%Y-%m-%d %H:%M"), "一二三四五六日"[now.weekday()])]
+
+    soul = pu.clean_soul(read_memory_file("SOUL.md"))
+    if soul:
+        parts.append("=== 你的人格 (SOUL.md) ===\n" + soul)
+    agents = pu.compact_agents(read_memory_file("AGENTS.md"), request, unattended)
+    if agents:
+        parts.append("=== 你的行为准则 (AGENTS.md) ===\n" + agents)
+    user = pu.strip_template(read_memory_file("USER.md"))
+    if user:
+        parts.append("=== 关于用户 (USER.md) ===\n" + user)
+
+    long_term = pu.dedupe_lines(pu.strip_template(read_memory_file("MEMORY.md")))
     if long_term.strip():
         # 上下文预算（Harness 设置）：注入多少长期记忆。塞太多会「上下文腐烂」，让模型忘了原始目标。
         try:
@@ -209,51 +320,27 @@ def build_system_prompt() -> str:
             _budget = 4000
         if len(long_term) > _budget:
             long_term = "（早期记忆已省略）\n...\n" + long_term[-_budget:]
-        prompt += f"=== 你和用户过往的长期记忆 (MEMORY.md) ===\n{long_term}\n\n"
-    # 「懂你」四件套：人格演化画像 / 关系网络 / 环境画像（有才注入，失败安静跳过）
+        parts.append("=== 你和用户过往的长期记忆 (MEMORY.md) ===\n" + long_term)
+
+    # 「懂你」四件套：画像 / 关系网络 / 环境 / 洞察（精简后注入，失败安静跳过）
     try:
         import lumi_features
-        ctx = lumi_features.build_context_block()
-        if ctx and ctx.strip():
-            prompt += ctx + "\n\n"
+        ctx = pu.compact_lumi(lumi_features.build_context_block(), request)
+        if ctx.strip():
+            parts.append(ctx)
     except Exception:
         pass
-    # 技能库：把已启用技能的「名字+用途」注入提示，让模型知道有哪些技能、何时该加载（失败安静跳过）
+    # 技能库：只放名字+一句用途，要用时模型自己 load_skill
     try:
         import skills_store
-        sk = skills_store.build_skills_index()
-        if sk and sk.strip():
-            prompt += sk + "\n\n"
+        sk = pu.compact_skills(skills_store.build_skills_index())
+        if sk.strip():
+            parts.append(sk)
     except Exception:
         pass
-    prompt += (
-        "请严格按以上设定行事。\n"
-        "【关于联网】你**有**可用的联网工具：web_search（快速搜索）、research（深度调研+读网页）、"
-        "read_webpage（读某个网址）、video_transcript（取视频字幕）。这些工具能实时访问互联网。\n"
-        "- 遇到需要实时信息的问题（天气、新闻、价格、今天/最近的事、你不确定的事实），"
-        "**必须直接调用 web_search 或 research 工具**去查，然后用查到的结果回答。\n"
-        "- **绝对不要**说自己\"无法联网\"\"不能访问互联网\"\"没有联网功能\"——这是错的，你有联网工具。\n"
-        "- **绝对不要**把 `web_search(\"...\")` 这种代码打印给用户让他自己执行——你应该自己调用工具。\n"
-        "- 需要做事时调用工具，不要假装执行、不要凭记忆编造。\n"
-        "- **意图已经清楚时就直接调用工具去做，不要反复问「能再详细说明吗」「您是想…吗」。**"
-        "用户说「把回收站清空」「清理C盘垃圾」这类已经很明确，直接调用对应工具"
-        "（如 sys_clean_temp）；真正缺关键信息时才问一句，问完就做，不要绕圈。\n"
-        "- **需要用户确认危险操作时，直接调用那个工具**——程序会自动弹出「批准/拒绝」按钮让用户点。"
-        "**不要用文字写「请回复是或否」让用户打字确认**，那样用户还得手动输入，体验差。"
-        "【做事的呈现方式】当你要帮用户检查/清理/整理（比如查 C 盘垃圾、整理桌面）时：\n"
-        "- 先用只读工具（查看、扫描、统计）把情况摸清楚，**用 Markdown 表格**把结果整理给用户看，"
-        "列清楚类别、位置、大小/数量、是否安全等，再给一句总结。表格要点：用 `| 列1 | 列2 |` 语法，"
-        "表头下面要有 `| --- | --- |` 分隔行。\n"
-        "- 如果接下来要做有副作用的操作（删除、清理、移动等），**把所有要执行的操作在同一轮里一次性发起**"
-        "（同时调用多个工具），这样用户能在一个确认框里批量勾选批准，而不是一个一个地确认。"
-        "不要一次只提一个操作、做完再提下一个。\n"
-        "- **清理 C 盘垃圾 / 临时文件**：直接用 sys_clean_temp 工具（它会清临时目录+清空回收站），"
-        "不要用 sys_run 跑 PowerShell 删除命令——那样容易碰到访问被拒。\n"
-        "- 清理时如果有些文件提示「访问被拒 / 权限不足 / 正被占用」，这是**正常现象**"
-        "（系统保护文件或文件正在使用），跳过即可，不要反复重试、也不要说成失败。"
-        "如实告诉用户「这些文件正被占用或受保护，已跳过，其余已清理」即可。"
-    )
-    return prompt
+
+    parts.append(_RULES_UNATTENDED if unattended else _RULES_INTERACTIVE)
+    return "\n\n".join(parts)
 
 
 # ---------- 工具定义 ----------
@@ -384,9 +471,25 @@ def build_tools(shell_enabled: bool):
 
 
 # ---------- 核心循环 ----------
+def _context_budget(client, model):
+    """发给模型的对话总字数上限：本地小模型上下文有限，云端/Claude 宽松；网页模型自己管理。"""
+    if is_web_model(model):
+        return None
+    base = str(getattr(client, "base_url", "") or "")
+    if "11434" in base or getattr(client, "_is_local", False):
+        return 14000
+    return 60000
+
+
 def _call_model_with_retry(client, model, messages, schema, retries=2):
-    """调用模型，失败重试。返回 message 对象。"""
+    """调用模型，失败重试。返回 message 对象。
+    ★ 超出上下文预算时只裁「发给模型的那份」（保留 system + 用户最新请求及本轮工具结果），
+      原 messages 不动——前端的聊天记录照样完整。"""
     import time
+    import prompt_utils as pu
+    budget = _context_budget(client, model)
+    if budget:
+        messages = pu.fit_messages(messages, budget)
     last_err = None
     for attempt in range(retries + 1):
         try:
@@ -545,7 +648,8 @@ def _auto_approved(name, args, auto_set):
 
 def run_agent(client, model, messages, shell_enabled=False,
               on_tool=None, max_steps=8, approvals=None,
-              on_think=None, on_tool_start=None, auto_approve_tools=None):
+              on_think=None, on_tool_start=None, auto_approve_tools=None,
+              deny_message=None):
     """
     跑一轮 agent。返回 (回复文本, 更新后的 messages, pending)。
     - pending 为 None：正常完成。
@@ -637,7 +741,7 @@ def run_agent(client, model, messages, shell_enabled=False,
             if T.is_danger(name) and not _auto_approved(name, args, auto_set):
                 decision = approvals.get(tcid)
                 if decision is False:
-                    result = "用户拒绝了这次操作。"
+                    result = deny_message or "用户拒绝了这次操作。"
                     if on_tool:
                         on_tool(name, args, result)
                     messages.append({"role": "tool", "tool_call_id": tcid,
