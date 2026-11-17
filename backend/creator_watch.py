@@ -76,9 +76,17 @@ def _clean_err(e):
         hint = "YouTube 要求人机验证：当前代理/IP 被风控。换个代理节点，或点「视频」页「安装/更新依赖」升级 yt-dlp 再试"
     elif "429" in low or "too many requests" in low:
         hint = "请求太频繁被限流，过一会儿再扫"
-    elif "timed out" in low or "timeout" in low or "unable to connect" in low or "connection" in low \
-            or "getaddrinfo" in low or "proxy" in low:
-        hint = "网络连不上（YouTube 需要在「设置 → 联网与代理」配好代理）"
+    elif "10061" in low or "积极拒绝" in t or "connection refused" in low or "proxyerror" in low:
+        p = _proxy()
+        hint = ("代理连不上（%s 拒绝连接）：代理软件没开，或「设置 → 联网与代理」里的端口填错了" % p) if p \
+            else "连接被拒绝：检查网络，YouTube 需要先在「设置 → 联网与代理」配好代理"
+    elif ("10060" in low or "10054" in low or "10065" in low or "连接尝试失败" in t or "没有正确答复" in t
+          or "timed out" in low or "timeout" in low or "unable to connect" in low or "connection" in low
+          or "unable to download api page" in low or "urlopen error" in low or "getaddrinfo" in low
+          or "proxy" in low or "ssl" in low):
+        p = _proxy()
+        hint = ("通过代理 %s 访问超时：检查代理软件开着没有、当前节点能不能打开 YouTube" % p) if p \
+            else "网络超时：YouTube 在国内要走代理，去「设置 → 联网与代理」填代理地址（如 http://127.0.0.1:7890）"
     elif "unsupported url" in low:
         hint = "这个链接格式不支持，请填博主主页链接"
     elif "fresh cookies" in low or "cookies" in low:

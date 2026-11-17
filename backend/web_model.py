@@ -748,11 +748,11 @@ class _WebWorker:
         if not self._safe(lambda: user.count(), 0):
             raise RuntimeError("登录页找不到账号输入框，sorryios.ai 可能改版了")
 
-        user.click(); time.sleep(0.3); user.fill("")
+        self._safe(lambda: user.focus()); time.sleep(0.3); user.fill("")
         self._human_type(user, cfg["aiUsername"])
         self._log("已输入账号")
         time.sleep(0.5)
-        pwd.click(); time.sleep(0.3); pwd.fill("")
+        self._safe(lambda: pwd.focus()); time.sleep(0.3); pwd.fill("")
         self._human_type(pwd, cfg["aiPassword"])
         self._log("已输入密码")
         time.sleep(0.5)
@@ -1156,74 +1156,189 @@ class _WebWorker:
         nums = [float(x) for x in _re.findall(r"(\d+(?:\.\d+)?)", t) if float(x) < 50]
         return score + (max(nums) if nums else 0) / 10.0       # 同档位里版本号大的优先
 
+    _SLIDER_JS = r"""() => {
+        const vis = e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+        document.querySelectorAll('[data-cx-slider]').forEach(e => e.removeAttribute('data-cx-slider'));
+        const out = [];
+        for (const s of document.querySelectorAll('[role="slider"], input[type="range"]')) {
+            if (!vis(s)) continue;
+            const rg = s.tagName === 'INPUT';
+            const num = (v, d) => { const x = parseFloat(v); return isNaN(x) ? d : x; };
+            s.setAttribute('data-cx-slider', String(out.length));
+            out.push({i: out.length, range: rg,
+                      min: num(rg ? s.min : s.getAttribute('aria-valuemin'), 0),
+                      max: num(rg ? s.max : s.getAttribute('aria-valuemax'), 100),
+                      now: num(rg ? s.value : s.getAttribute('aria-valuenow'), 0),
+                      step: num(rg ? s.step : null, 1),
+                      text: s.getAttribute('aria-valuetext') || ''});
+        }
+        return out;
+    }"""
+
+    _DOM_CLICK_JS = r"""(sel) => {
+        const b = document.querySelector(sel); if (!b) return false;
+        for (const t of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'])
+            b.dispatchEvent(new (t.startsWith('pointer') ? PointerEvent : MouseEvent)(t,
+                {bubbles: true, cancelable: true, button: 0, pointerType: 'mouse'}));
+        return true;
+    }"""
+
+    def _menu_items(self):
+        return self._safe(lambda: self._page.evaluate(self._MODEL_MENU_JS), []) or []
+
+    def _sliders(self):
+        return self._safe(lambda: self._page.evaluate(self._SLIDER_JS), []) or []
+
+    def _dom_click(self, selector):
+        """页面内触发一次完整点击（按下/抬起/click），不动你的真实鼠标、不需要窗口在前台。"""
+        return bool(self._safe(lambda: self._page.evaluate(self._DOM_CLICK_JS, selector), False))
+
     def _open_model_menu(self):
-        loc = self._page.locator('[data-cx-model-btn="1"]').first
-        for how in ("click", "pointer"):
-            if how == "click":
-                self._safe(lambda: loc.click(timeout=4000))
-            else:   # Radix 一类的下拉是按下鼠标（pointerdown）就打开，补发一组指针事件
-                self._safe(lambda: loc.evaluate("""b => {
-                    for (const t of ['pointerdown','mousedown','pointerup','mouseup','click'])
-                        b.dispatchEvent(new (t.startsWith('pointer') ? PointerEvent : MouseEvent)(t,
-                            {bubbles: true, cancelable: true, button: 0, pointerType: 'mouse'}));
-                }"""))
-            for _ in range(6):
+        """打开聊天框里的模型 / 思考强度面板。先用页面内事件，不行再用虚拟鼠标点一下。"""
+        for how in ("dom", "click"):
+            if how == "dom":
+                self._dom_click('[data-cx-model-btn="1"]')
+            else:
+                self._safe(lambda: self._page.locator('[data-cx-model-btn="1"]').first.click(timeout=4000))
+            for _ in range(8):
                 time.sleep(0.25)
-                items = self._safe(lambda: self._page.evaluate(self._MODEL_MENU_JS), []) or []
-                if items:
-                    return items
-        return []
+                if self._menu_items() or self._sliders():
+                    return True
+        return False
+
+    def _slider_now(self, i):
+        return next((x for x in self._sliders() if x["i"] == i), None)
+
+    def _slider_to_max(self, sl):
+        """把「思考强度」滑块拉到最右（最强）。依次试：页面内 End 键 → 键盘 End/→ → 点轨道最右端。"""
+        sel = '[data-cx-slider="%d"]' % sl["i"]
+        if sl["range"]:
+            self._safe(lambda: self._page.evaluate("""(sel) => {
+                const s = document.querySelector(sel);
+                Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(s, s.max);
+                s.dispatchEvent(new Event('input', {bubbles: true}));
+                s.dispatchEvent(new Event('change', {bubbles: true}));
+            }""", sel))
+        else:
+            self._safe(lambda: self._page.evaluate("""(sel) => {
+                const s = document.querySelector(sel); s.focus();
+                s.dispatchEvent(new KeyboardEvent('keydown', {key: 'End', code: 'End', bubbles: true, cancelable: true}));
+            }""", sel))
+        time.sleep(0.3)
+        cur = self._slider_now(sl["i"])
+        if cur and cur["now"] >= cur["max"]:
+            return cur
+        loc = self._page.locator(sel).first
+        self._safe(lambda: loc.press("End", timeout=3000))      # 键盘事件只发给这个页面
+        time.sleep(0.3)
+        cur = self._slider_now(sl["i"])
+        if cur and cur["now"] >= cur["max"]:
+            return cur
+        steps = int(max(1, (sl["max"] - sl["now"]) / max(sl["step"] or 1, 1e-6))) + 1
+        for _ in range(min(steps, 50)):
+            self._safe(lambda: loc.press("ArrowRight", timeout=2000))
+        time.sleep(0.3)
+        cur = self._slider_now(sl["i"])
+        if cur and cur["now"] >= cur["max"]:
+            return cur
+        # 最后一招：在滑轨最右端点一下（虚拟鼠标，不会移动你的真实鼠标）
+        box = self._safe(lambda: self._page.evaluate("""(sel) => {
+            const s = document.querySelector(sel);
+            let t = s.closest('[data-orientation]') || s.parentElement;
+            for (let k = 0; k < 3 && t && t.getBoundingClientRect().width < 80; k++) t = t.parentElement;
+            const r = (t || s).getBoundingClientRect(); return {x: r.right - 3, y: r.top + r.height / 2};
+        }""", sel))
+        if box:
+            self._safe(lambda: self._page.mouse.click(box["x"], box["y"]))
+            time.sleep(0.3)
+        return self._slider_now(sl["i"])
+
+    @staticmethod
+    def _has_effort(label):
+        import re as _re
+        return bool(_re.search(r"instant|mini|\blow\b|medium|\bhigh\b|\bpro\b|thinking|auto|heavy|extended|"
+                               r"light|standard|即时|思考|专业|标准|极高|超高|高|中|低", (label or "").lower()))
+
+    @staticmethod
+    def _version(label):
+        import re as _re
+        nums = [float(x) for x in _re.findall(r"(\d+(?:\.\d+)?)", label or "") if float(x) < 50]
+        return max(nums) if nums else None
+
+    def _panel_head(self):
+        """面板标题行，如「6 Medium」「6 High」：带版本号又带强度词的那一项。"""
+        return next((it["label"] for it in self._menu_items()
+                     if self._version(it["label"]) is not None and self._has_effort(it["label"])), "")
 
     def _select_best_model(self):
-        """分析类任务开始前，把 AI 池聊天框里的模型切到最高级（或配置里指定的那个）。
-        找不到模型按钮/菜单就保持原样继续，不影响任务；每一步都写日志，方便对照修。"""
+        """分析类任务开始前，把 AI 池切到最高级：
+          ① 模型：选版本号最高的（或配置 preferredModel 指定的）；
+          ② 思考强度：有滑块就拉到最右；是选项列表就选最强的一项。
+        找不到就保持原样继续，不影响任务；每一步都写日志，方便对照修。"""
         try:
             self._close_overlays()
-            before = self._safe(lambda: self._page.evaluate(self._MODEL_BTN_JS), None)
-            if not before:
-                self._log("[模型] 没找到聊天框里的模型选择按钮，按页面默认模型继续")
+            btn = self._safe(lambda: self._page.evaluate(self._MODEL_BTN_JS), None)
+            if not btn:
+                self._log("[模型] 没找到聊天框里的模型/思考强度按钮，按页面默认继续")
                 return False
-            items = self._open_model_menu()
-            if not items:
-                self._log("[模型] 点了「%s」但没弹出模型菜单，按默认模型继续" % before)
-                self._safe(lambda: self._page.keyboard.press("Escape"))
+            if not self._open_model_menu():
+                self._log("[模型] 点了「%s」但没弹出面板，按默认继续" % btn)
                 return False
-            self._log("[模型] 当前「%s」，可选：%s" % (before, " / ".join(
-                ("✓" if it["checked"] else "") + it["label"] for it in items)))
+            items = self._menu_items()
+            head = self._panel_head()
+            self._log("[模型] 按钮「%s」，当前「%s」，选项：%s，滑块：%d 个" % (
+                btn, head or "-", " / ".join(("✓" if it["checked"] else "") + it["label"]
+                                             for it in items if it["label"]) or "-", len(self._sliders())))
             want = (load_config().get("preferredModel") or "").strip().lower()
+
+            # ① 模型：只看「不带强度词」的选项（如「6」「GPT-5.6 Sol」），默认挑版本号最高的
+            models = [it for it in items if it["label"] and not it["disabled"]
+                      and not self._has_effort(it["label"]) and self._model_rank(it["label"]) >= 0]
             pick = None
             if want:
-                pick = next((it for it in items if want in it["label"].lower() and not it["disabled"]), None)
-                if not pick:
-                    self._log("[模型] 菜单里没有含「%s」的选项，改为自动选最高级" % want)
-            if not pick:
-                ranked = sorted((it for it in items if not it["disabled"] and self._model_rank(it["label"]) >= 0),
-                                key=lambda it: self._model_rank(it["label"]), reverse=True)
-                pick = ranked[0] if ranked else None
-            if not pick:
+                pick = next((it for it in models if want in it["label"].lower()), None)
+            if not pick and models:
+                pick = max(models, key=lambda it: (self._version(it["label"]) or 0, it["checked"]))
+            if pick and not pick["checked"]:
+                self._dom_click('[data-cx-mi="%d"]' % pick["i"])
+                time.sleep(0.6)
+                self._log("[模型] 选模型「%s」" % pick["label"])
+                if not (self._menu_items() or self._sliders()):     # 选完面板关了：重新打开
+                    self._open_model_menu()
+
+            # ② 思考强度
+            done = ""
+            sliders = self._sliders()
+            if sliders:
+                sl = sliders[0]
+                cur = self._slider_to_max(sl)
+                if cur:
+                    done = "思考强度滑块 %g→%g（最大 %g）%s" % (
+                        sl["now"], cur["now"], cur["max"],
+                        "，已拉满" if cur["now"] >= cur["max"] else "，⚠ 没能拉满")
+            else:
+                items = self._menu_items()
+                efforts = [it for it in items if it["label"] and not it["disabled"]
+                           and self._has_effort(it["label"]) and self._model_rank(it["label"]) >= 0]
+                pure = [it for it in efforts if self._version(it["label"]) is None]
+                combos = [it for it in efforts if self._version(it["label"]) is not None]
+                cands = pure or (combos if len(combos) >= 2 else [])    # 只有一个「6 Medium」是标题，不算选项
+                if want:
+                    cands = [it for it in cands if want in it["label"].lower()] or cands
+                if cands:
+                    best = max(cands, key=lambda it: self._model_rank(it["label"]))
+                    if not best["checked"]:
+                        self._dom_click('[data-cx-mi="%d"]' % best["i"])
+                        time.sleep(0.5)
+                    done = "思考强度选「%s」" % best["label"]
+            after = self._panel_head()
+            if self._menu_items() or self._sliders():
                 self._safe(lambda: self._page.keyboard.press("Escape"))
-                return False
-            if pick["checked"] and not pick["sub"]:
-                self._log("[模型] 已经是「%s」" % pick["label"])
-                self._safe(lambda: self._page.keyboard.press("Escape"))
-                return True
-            self._safe(lambda: self._page.locator('[data-cx-mi="%d"]' % pick["i"]).first.click(timeout=4000))
-            time.sleep(0.6)
-            if pick["sub"]:                       # 选中的是二级菜单入口：再从展开的子菜单里挑最高级
-                sub = [it for it in (self._safe(lambda: self._page.evaluate(self._MODEL_MENU_JS), []) or [])
-                       if it["label"] not in {x["label"] for x in items}]
-                sub = sorted((it for it in sub if not it["disabled"]),
-                             key=lambda it: self._model_rank(it["label"]), reverse=True)
-                if sub:
-                    self._safe(lambda: self._page.locator('[data-cx-mi="%d"]' % sub[0]["i"]).first.click(timeout=4000))
-                    time.sleep(0.6)
-            if self._safe(lambda: self._page.evaluate(self._MODEL_MENU_JS), []):
-                self._safe(lambda: self._page.keyboard.press("Escape"))
-            after = self._safe(lambda: self._page.evaluate(self._MODEL_BTN_JS), None) or "?"
-            self._log("[模型] 已切换：「%s」→「%s」" % (before, after))
+                time.sleep(0.2)
+            self._log("[模型] 完成：%s；当前「%s」" % (done or "没有可调的思考强度", after or head or btn))
             return True
         except Exception as e:
-            self._log("[模型] 切换出错（%s），按默认模型继续" % str(e)[:80])
+            self._log("[模型] 切换出错（%s），按默认继续" % str(e)[:80])
             return False
 
     def _park_mouse(self):
@@ -1411,6 +1526,10 @@ class _WebWorker:
 
         self._park_mouse()
         self._close_overlays()
+        if self._safe(lambda: self._page.evaluate("() => document.visibilityState"), "visible") == "hidden":
+            self._log("⚠ AI 池的浏览器窗口被最小化了。Chrome 会暂停最小化窗口里的页面，回复可能出不来。"
+                      "让它待在别的窗口后面没关系，但别最小化；或者在「设置」里取消「显示浏览器窗口」改成后台运行。")
+            prog("提示：AI 池窗口被最小化了，可能会变慢")
         baseline = self._capture_baseline()
         inp = self._find_input()
         self._log("已定位输入框，准备填入…")
