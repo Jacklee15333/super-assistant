@@ -310,6 +310,70 @@ class _WebWorker:
         except Exception:
             return ""
 
+    def _probe_one(self, mode, timeout=9):
+        """用 Python 快速访问一次 AI 池首页，测某种网络方式通不通。返回 (通不通, 说明)。"""
+        import urllib.request
+        import urllib.error
+        url = SITE_ORIGIN + "/" + (getattr(self, "_site_path", DEFAULT_SITE_PATH) or "laike") + "/"
+        if mode == "direct":
+            handler = urllib.request.ProxyHandler({})
+        elif mode == "proxy":
+            p = self._cfg_proxy()
+            if not p:
+                return False, "没设置代理"
+            handler = urllib.request.ProxyHandler({"http": p, "https": p})
+        else:
+            try:
+                reg = urllib.request.getproxies_registry()
+            except Exception:
+                reg = {}
+            reg = {k: v for k, v in (reg or {}).items() if k in ("http", "https")}
+            if not reg:
+                return False, "系统没开代理"
+            handler = urllib.request.ProxyHandler(reg)
+        try:
+            import web_tools
+            op = urllib.request.build_opener(handler, urllib.request.HTTPSHandler(context=web_tools._ssl_ctx()))
+        except Exception:
+            op = urllib.request.build_opener(handler)
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                                                   "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"})
+        try:
+            with op.open(req, timeout=timeout) as r:
+                r.read(2048)
+            return True, "通"
+        except urllib.error.HTTPError as e:
+            return (e.code < 500), "HTTP %d" % e.code      # 403/404 也说明连上了
+        except Exception as e:
+            s = str(e)
+            low = s.lower()
+            if "timed out" in low or "timeout" in low:
+                return False, "超时"
+            if "10054" in s or "reset" in low or "closed" in low or "eof" in low:
+                return False, "连接被断开"
+            if "10061" in s or "refused" in low:
+                return False, "连接被拒绝"
+            return False, s.split("\n")[0][:50]
+
+    def _probe_net(self, prefer):
+        """按「上次成功的方式 → 代理 → 系统代理 → 直连」测通，返回第一个能连上的。
+        全都连不上：直接报一句说得清楚的原因（不再花几分钟一遍遍启动浏览器去试）。"""
+        order = [prefer] + [m for m in ("proxy", "system", "direct") if m != prefer]
+        results = []
+        for m in order:
+            ok, why = self._probe_one(m)
+            results.append((m, why))
+            if ok:
+                if m != prefer:
+                    self._log("AI 池测通：「%s」连不上，改用「%s」" % (prefer, m))
+                return m
+        names = {"proxy": "走代理", "system": "系统代理", "direct": "直连"}
+        detail = "；".join("%s：%s" % (names.get(m, m), w) for m, w in results)
+        raise RuntimeError(
+            "AI 池网站（%s）现在打不开（%s）。请先在自己的浏览器里打开它看看：浏览器也打不开 → 网站暂时故障，过会儿再试；"
+            "浏览器能打开 → 检查 Clash 是不是开了「全局」模式或换了海外节点（这个网站可能拒绝海外节点），"
+            "改回「规则」模式再试。" % (SITE_ORIGIN, detail))
+
     def _net_args(self):
         mode = getattr(self, "_net_mode", "system")
         if mode == "direct":
@@ -341,6 +405,9 @@ class _WebWorker:
                 )
                 if channel:
                     opts["channel"] = channel
+                import os as _os
+                opts["env"] = {k: v for k, v in _os.environ.items()
+                               if k.upper() not in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY")}
                 b = self._pw.chromium.launch(**opts)
                 self._log("launched via " + name)
                 return b
@@ -398,6 +465,8 @@ class _WebWorker:
             self._net_mode = learned if learned in ("direct", "system", "proxy") else (
                 "proxy" if self._cfg_proxy() else "system")
             self._net_tried = set()
+        if mode not in ("direct", "system", "proxy") and not getattr(self, "_net_retry", False):
+            self._net_mode = self._probe_net(self._net_mode)       # 先用十几秒测通，挑能连上的方式
         self._log("AI 池网络：%s" % {"proxy": "走代理 %s" % self._cfg_proxy(), "system": "跟随系统代理",
                                     "direct": "直连"}.get(self._net_mode, self._net_mode))
         self._state = "starting"
