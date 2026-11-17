@@ -63,13 +63,68 @@ def resolve_local_model(name):
     return names[0]
 
 
+def video_model(use_local=True, model="qwen2.5"):
+    """视频笔记（总结/思维导图/翻译标题）用哪个模型：默认用本机的本地模型，
+    不跟着聊天里当前选的网页模型走（用户要求，网页模型又慢又会和别的任务抢）。
+    本机没有可用的本地模型（Ollama 没开/没装模型）时，才退回原来的「video_summary」任务设置。"""
+    names = installed_local_models()
+    if names:
+        try:
+            for task in ("local_action", "quick_chat"):
+                ul, m = resolve_model(task, fallback_use_local=True, fallback_model="")
+                if ul and m:
+                    return True, resolve_local_model(m)
+        except Exception:
+            pass
+        return True, resolve_local_model(model if use_local else names[0])
+    return resolve_model("video_summary", fallback_use_local=use_local, fallback_model=model)
+
+
+def _ollama_native_chat(model, messages, total_chars):
+    """长文本走 Ollama 原生 /api/chat，并按长度设置上下文窗口 num_ctx。
+    （OpenAI 兼容接口改不了 num_ctx，默认窗口很小，长文字稿会被悄悄截掉前半段。）
+    失败返回 None，调用方退回普通接口。"""
+    import urllib.request
+    from types import SimpleNamespace as NS
+    import prompt_utils as pu
+    need = int(total_chars * 0.8) + 4096           # qwen 分词器中文约 1.3 字≈1 token，再给输出留 4k
+    num_ctx = 8192 if need <= 8192 else (16384 if need <= 16384 else 32768)
+    msgs = [{"role": m.get("role", "user"),
+             "content": m.get("content") if isinstance(m.get("content"), str) else
+             "".join(b.get("text", "") for b in (m.get("content") or []) if isinstance(b, dict))}
+            for m in messages or []]
+    for extra in ({"think": False}, {}):            # 新版 Ollama 支持关掉思考；老版本不认就去掉再试
+        body = dict({"model": model, "messages": msgs, "stream": False,
+                     "options": {"num_ctx": num_ctx}}, **extra)
+        try:
+            req = urllib.request.Request("http://localhost:11434/api/chat",
+                                         data=json.dumps(body).encode("utf-8"),
+                                         headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=900) as r:
+                data = json.loads(r.read().decode("utf-8"))
+            text = pu.strip_think(((data.get("message") or {}).get("content")) or "")
+            msg = NS(content=text, tool_calls=None, role="assistant")
+            return NS(choices=[NS(message=msg, finish_reason="stop")], model=model)
+        except Exception:
+            continue
+    return None
+
+
 class _LocalChatCompletions:
     def __init__(self, inner):
         self._inner = inner
 
     def create(self, model=None, **kwargs):
         import prompt_utils as pu
-        resp = self._inner.create(model=resolve_local_model(model), **kwargs)
+        model = resolve_local_model(model)
+        msgs = kwargs.get("messages") or []
+        total = sum(len(m.get("content") if isinstance(m.get("content"), str) else str(m.get("content") or ""))
+                    for m in msgs)
+        if not kwargs.get("tools") and total > 5000:
+            r = _ollama_native_chat(model, msgs, total)
+            if r is not None:
+                return r
+        resp = self._inner.create(model=model, **kwargs)
         try:
             msg = resp.choices[0].message
             if isinstance(msg.content, str) and "think>" in msg.content:

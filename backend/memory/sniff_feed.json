@@ -911,5 +911,170 @@
     "category": "AI动态",
     "key": "078aaeb6a02ba572",
     "ts": "2026-06-24 11:02"
+  },
+  {
+    "kind": "发布",
+    "title": "ChatGPT 医疗保健版",
+    "summary": "OpenAI 推出了针对医疗领域的 ChatGPT 版本，旨在通过AI技术优化诊疗流程。该产品属于AI在医疗健康领域的具体应用，可能提升诊断效率并改善患者服务体验，属于医疗AI领域的重要进展。",
+    "importance": "高",
+    "source_title": "OpenAI 新闻",
+    "link": "https://openai.com/news/",
+    "category": "AI动态",
+    "key": "d869148788e238a4",
+    "ts": "2026-11-17 10:35"
+  },
+  {
+    "kind": "功能",
+    "title": "Advancing computer-use agents for healthcare teams",
+    "summary": "该条目表明OpenAI正在研发用于医疗团队的计算机代理技术，属于AI辅助医疗的新能力方向。这类工具可能通过自动化任务、数据分析等方式提升医疗机构的运营效率，属于AI与医疗行业深度结合的典型案例。",
+    "importance": "中",
+    "source_title": "OpenAI 新闻",
+    "link": "https://openai.com/news/",
+    "category": "AI动态",
+    "key": "784246c7f9fd782a",
+    "ts": "2026-11-17 10:35"
+  },
+  {
+    "kind": "概念",
+    "title": "向标准模型的格点定义迈进一步",
+    "summary": "OpenAI 在科学研究方向提出新的模型定义方法论，涉及基础理论层面的突破。格点定义可能指向模型结构或计算框架的创新，属于AI基础研究领域的重要概念进展，可能为后续模型开发提供理论支撑。",
+    "importance": "中",
+    "source_title": "OpenAI 新闻",
+    "link": "https://openai.com/news/",
+    "category": "AI动态",
+    "key": "fc98fb1b867589fa",
+    "ts": "2026-11-17 10:35"
+  },
+  {
+    "kind": "发布",
+    "title": "Introducing Claude Fable 5.2 and Claude Mythos 5.2",
+    "summary": "Anthropic 推出了 Claude Fable 5.2 和 Claude Mythos 5.2 两个新版本模型，这两个模型在编码、金融和科学等复杂技术任务上表现更优。这属于大语言模型的更新发布，进一步提升了模型在专业领域的应用能力，对需要高精度技术处理的行业具有重要意义。",
+    "importance": "高",
+    "source_title": "Anthropic 新闻",
+    "link": "https://www.anthropic.com/news",
+    "category": "AI动态",
+    "key": "2fd354db61a3614d",
+    "ts": "2026-11-17 10:35"
+  },
+  {
+    "kind": "发布",
+    "title": "Anthropic files S-1 with the SEC for proposed initial public offering",
+    "summary": "Anthropic 向美国证券交易委员会（SEC）提交了 S-1 注册文件，标志着其拟议中的首次公开募股（IPO）进入正式流程。这属于公司层面的重要事件，表明 Anthropic 正在向成为公开上市公司迈进，可能对其未来发展和行业影响力产生深远影响。",
+    "importance": "高",
+    "source_title": "Anthropic 新闻",
+    "link": "https://www.anthropic.com/news",
+    "category": "AI动态",
+    "key": "43b3b851d444ebf4",
+    "ts": "2026-11-17 10:35"
+  },
+  {
+    "kind": "发布",
+    "title": "Introducing Claude Haiku 5.5",
+    "summary": "Anthropic 推出了 Claude Haiku 5.5，这是目前最快的轻量级模型，适用于需要高吞吐量的任务，如摘要生成、子代理和浏览器操作。这属于模型优化和发布，旨在满足对效率和速度有高要求的应用场景，可能在大规模部署中具有优势。",
+    "importance": "中",
+    "source_title": "Anthropic 新闻",
+    "link": "https://www.anthropic.com/news",
+    "category": "AI动态",
+    "key": "c786ca614e70aed7",
+    "ts": "2026-11-17 10:35"
+  },
+  {
+    "kind": "发布",
+    "title": "Introducing Claude Opus 5.5",
+    "summary": "Anthropic 推出了 Claude Opus 5.5，该版本在代理式编程和知识处理方面表现突出，且运行成本比上一代降低了 40%。这属于大语言模型的更新发布，对需要高效执行复杂任务的用户来说，可能带来显著的经济和性能优势。",
+    "importance": "高",
+    "source_title": "Anthropic 新闻",
+    "link": "https://www.anthropic.com/news",
+    "category": "AI动态",
+    "key": "7035ee2f68c8b9ed",
+    "ts": "2026-11-17 10:35"
+  },
+  {
+    "kind": "功能",
+    "title": "Early progress on accelerating drug development with Claude",
+    "summary": "Anthropic 正在与多家医药研发机构合作，利用 Claude 加速药物研发过程。这属于人工智能在生物医药领域的应用，表明大模型在科研协作和效率提升方面正在取得进展，可能对新药开发周期产生积极影响。",
+    "importance": "中",
+    "source_title": "Anthropic 新闻",
+    "link": "https://www.anthropic.com/news",
+    "category": "AI动态",
+    "key": "f10bdba8d76f5bcb",
+    "ts": "2026-11-17 10:35"
+  },
+  {
+    "kind": "概念",
+    "title": "AI for Science expands to foundations and research institutions",
+    "summary": "Anthropic 将其 AI for Science 计划扩展至全球 20 个科学基金会和研究机构，推动人工智能在基础科学研究中的应用。这属于人工智能与科研结合的新趋势，表明大模型正在成为推动科学进步的重要工具，可能对跨学科研究产生深远影响。",
+    "importance": "中",
+    "source_title": "Anthropic 新闻",
+    "link": "https://www.anthropic.com/news",
+    "category": "AI动态",
+    "key": "40c2eafc46701ba3",
+    "ts": "2026-11-17 10:35"
+  },
+  {
+    "kind": "发布",
+    "title": "Gemini 4 Hydrogen",
+    "summary": "Gemini 4 Hydrogen 是 Google DeepMind 推出的最新一代 AI 模型，属于 Gemini 系列的扩展版本。该模型可能在语言理解、多模态处理或推理能力方面有显著提升，适用于更广泛的 AI 应用场景，如复杂任务处理和跨领域交互。",
+    "importance": "高",
+    "source_title": "Google DeepMind 博客",
+    "link": "https://deepmind.google/discover/blog/",
+    "category": "AI动态",
+    "key": "b61402a018f02c6d",
+    "ts": "2026-11-17 10:35"
+  },
+  {
+    "kind": "发布",
+    "title": "Gemini 4 Carbon",
+    "summary": "Gemini 4 Carbon 是 Gemini 系列的另一个新版本，可能专注于特定领域的性能优化，如代码生成、逻辑推理或自然语言处理。该模型的发布表明 DeepMind 在持续扩展 Gemini 的功能边界，以满足不同应用场景的需求。",
+    "importance": "高",
+    "source_title": "Google DeepMind 博客",
+    "link": "https://deepmind.google/discover/blog/",
+    "category": "AI动态",
+    "key": "8024c36a6e65cb66",
+    "ts": "2026-11-17 10:35"
+  },
+  {
+    "kind": "发布",
+    "title": "Gemini Robotics 2.5",
+    "summary": "Gemini Robotics 2.5 是 DeepMind 在机器人领域的重要更新，可能增强了机器人在现实世界中的操作能力，如更精确的物体操控和环境适应性。这一版本的发布标志着 DeepMind 在通用机器人技术上的进一步突破。",
+    "importance": "高",
+    "source_title": "Google DeepMind 博客",
+    "link": "https://deepmind.google/discover/blog/",
+    "category": "AI动态",
+    "key": "021495f7495ef336",
+    "ts": "2026-11-17 10:35"
+  },
+  {
+    "kind": "发布",
+    "title": "AlphaProof Code",
+    "summary": "AlphaProof Code 是 DeepMind 在软件验证领域的新突破，可能利用 AI 技术对复杂软件进行深度验证，提高代码安全性和可靠性。该工具的推出有助于提升软件开发的效率和质量，尤其在关键系统中具有重要意义。",
+    "importance": "高",
+    "source_title": "Google DeepMind 博客",
+    "link": "https://deepmind.google/discover/blog/",
+    "category": "AI动态",
+    "key": "6cbc6f6a53788ad8",
+    "ts": "2026-11-17 10:35"
+  },
+  {
+    "kind": "功能",
+    "title": "Opening the datasets behind our AI weather models",
+    "summary": "DeepMind 开放了其 AI 天气模型背后的数据集，这为气象研究和相关 AI 应用提供了宝贵的资源。该数据集可能包含大量历史天气数据和模型预测结果，有助于推动天气预测算法的进一步发展和验证。",
+    "importance": "中",
+    "source_title": "Google DeepMind 博客",
+    "link": "https://deepmind.google/discover/blog/",
+    "category": "AI动态",
+    "key": "134e187b58914719",
+    "ts": "2026-11-17 10:35"
+  },
+  {
+    "kind": "发布",
+    "title": "AlphaGenome 2",
+    "summary": "AlphaGenome 2 是 DeepMind 在基因组学领域的最新成果，旨在更深入地解析细胞如何读取 DNA，从而更好地理解疾病机制。该模型的发布可能推动精准医学和个性化医疗的发展，对生命科学领域具有重要价值。",
+    "importance": "高",
+    "source_title": "Google DeepMind 博客",
+    "link": "https://deepmind.google/discover/blog/",
+    "category": "AI动态",
+    "key": "3f58701e67ae0d06",
+    "ts": "2026-11-17 10:35"
   }
 ]

@@ -204,8 +204,7 @@ def _analyze_transcript(transcript, title, use_local, model, on_progress=None):
 
     # 取「视频总结」该用的模型；前端当前选择作兜底
     try:
-        s_use_local, s_model = agent_core.resolve_model(
-            "video_summary", fallback_use_local=use_local, fallback_model=model)
+        s_use_local, s_model = agent_core.video_model(use_local, model)
     except Exception:
         s_use_local, s_model = use_local, model
 

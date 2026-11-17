@@ -379,7 +379,125 @@ def _build_result_from_item(item, aid):
             "uploader": uploader, "tags": tags, "aweme_id": aid}
 
 
-def resolve(url):
+def resolve(url, allow_browser=True):
+    """解析抖音链接：先走下面的 HTTP 两层（快）；都拿不到直链时，再用真浏览器兜底（慢但最稳）。
+    返回结构同 _resolve_http。"""
+    res = _resolve_http(url)
+    if res.get("ok") or not allow_browser:
+        return res
+    aid = res.get("aweme_id") or _resolve_id(url)
+    if not aid:
+        return res
+    br = _resolve_via_browser(aid)
+    if br.get("ok"):
+        for k in ("title", "uploader", "tags"):          # 浏览器没拿到的标题等，用 HTTP 那份补上
+            if not br.get(k) and res.get(k):
+                br[k] = res.get(k)
+        return br
+    res = dict(res)
+    res["error"] = "%s；浏览器兜底：%s" % (res.get("error") or "HTTP 解析失败", br.get("error"))
+    return res
+
+
+def _resolve_via_browser(aid, timeout_s=30):
+    """③ 真浏览器兜底（2026-11 抖音又改规则后加的）：用本机 Chrome 在后台（无界面）打开视频页，
+    让页面自己算签名、自己请求详情接口，我们只在旁边「听」接口返回的 JSON 和视频请求，
+    从里面拿直链。抖音怎么改签名算法都不影响这条路。
+    只处理用户自己发来的这一条视频，不做批量。"""
+    import time as _t
+    try:
+        from playwright.sync_api import sync_playwright
+    except Exception as e:
+        return {"ok": False, "error": "没装 Playwright（%s）" % str(e)[:60]}
+    page_url = _BROWSER_PAGE % aid
+    responses, media = [], []
+
+    def on_resp(r):                       # 事件回调里只记录，解析放到外面做（同步 API 更稳）
+        try:
+            u = r.url
+            if "aweme/detail" in u or "iteminfo" in u:
+                responses.append(r)
+            elif r.request.resource_type == "media" or "douyinvod.com" in u or "mime_type=video" in u:
+                media.append(u)
+        except Exception:
+            pass
+
+    item, title = None, ""
+    try:
+        with sync_playwright() as pw:
+            browser = None
+            for ch in ("chrome", "msedge", None):
+                try:
+                    kw = dict(headless=True, args=["--disable-blink-features=AutomationControlled",
+                                                   "--mute-audio", "--autoplay-policy=no-user-gesture-required"])
+                    if ch:
+                        kw["channel"] = ch
+                    browser = pw.chromium.launch(**kw)
+                    break
+                except Exception:
+                    continue
+            if browser is None:
+                return {"ok": False, "error": "没有可用的浏览器（Chrome/Edge）"}
+            try:
+                ctx = browser.new_context(user_agent=_PC_UA, locale="zh-CN",
+                                          viewport={"width": 1280, "height": 800})
+                ck = _load_user_cookie()
+                if ck:
+                    ctx.add_cookies([{"name": k, "value": v, "domain": ".douyin.com", "path": "/"}
+                                     for k, v in ck.items() if k and v])
+                page = ctx.new_page()
+                page.on("response", on_resp)
+                page.goto(page_url, wait_until="domcontentloaded", timeout=25000)
+                end = _t.time() + timeout_s
+                media_since = None
+                while _t.time() < end and not item:
+                    page.wait_for_timeout(600)
+                    while responses and not item:
+                        r = responses.pop(0)
+                        try:
+                            it = _item_from_api(r.json())
+                            if it and _urls_from_item(it):
+                                item = it
+                        except Exception:
+                            pass
+                    if not media:
+                        try:
+                            media.extend(page.evaluate(
+                                "() => [...document.querySelectorAll('video, video source')]"
+                                ".map(v => v.currentSrc || v.src).filter(s => s && s.startsWith('http'))") or [])
+                        except Exception:
+                            pass
+                    if media and media_since is None:
+                        media_since = _t.time()
+                    if media_since and _t.time() - media_since > 6:   # 已有视频地址，再给接口 6 秒机会补标题
+                        break
+                try:
+                    title = (page.title() or "").replace(" - 抖音", "").strip()
+                except Exception:
+                    title = ""
+            finally:
+                try:
+                    browser.close()
+                except Exception:
+                    pass
+    except Exception as e:
+        return {"ok": False, "error": "浏览器打开视频页出错：%s" % str(e).split("\n")[0][:100]}
+    if item:
+        return _build_result_from_item(item, aid)
+    urls = []
+    for u in media:
+        if u not in urls and not u.startswith("blob:"):
+            urls.append(u)
+    if urls:
+        return {"ok": True, "urls": urls, "title": title, "uploader": "", "tags": [], "aweme_id": aid}
+    return {"ok": False, "error": "浏览器也没拿到视频（可能要登录或出现了验证码，可在 memory/douyin_cookie.txt 填入登录 Cookie）",
+            "aweme_id": aid}
+
+
+_BROWSER_PAGE = "https://www.douyin.com/video/%s"
+
+
+def _resolve_http(url):
     """把抖音链接解析成 {ok, urls:[...], title, uploader, aweme_id}。
     失败返回 {ok: False, error: 原因}。
 
@@ -483,7 +601,7 @@ def fetch_meta(url):
     「获取名称中…」。现在分成两个字段：原始 title 保持原样（不污染笔记标题的
     「文稿首句」兜底），另给一个非空的 display_title 让列表直接有名字。"""
     try:
-        info = resolve(url)
+        info = resolve(url, allow_browser=False)      # 只要标题，不值得开浏览器
         # resolve 即便 ok=False（下不了直链）也会带回 title/uploader/tags
         title = (info.get("title") or "").strip()
         uploader = (info.get("uploader") or "").strip()

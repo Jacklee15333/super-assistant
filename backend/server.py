@@ -326,11 +326,10 @@ def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None
     want_markers = bool(do_screenshot or do_link) and bool(segments)
     # 文字稿上限：网页模型 / Claude 能吃长文，给 30000 字；本地小模型 10000 字。
     try:
-        _ul, _m = core.resolve_model("video_summary", fallback_use_local=use_local,
-                                     fallback_model=model)
+        _ul, _m = core.video_model(use_local, model)
     except Exception:
         _ul, _m = use_local, model
-    _limit = 10000 if _ul else 30000
+    _limit = 12000 if _ul else 30000   # 本地模型会自动放大上下文窗口（agent_core._ollama_native_chat）
     if want_markers:
         body_text = _build_timestamped_transcript(segments, limit=_limit)
         if not body_text:
@@ -397,8 +396,7 @@ def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None
 
     # 视频总结的设计：原文已用本地听写提取，这一步默认交给「网页模型」分析总结。
     try:
-        s_use_local, s_model = core.resolve_model(
-            "video_summary", fallback_use_local=use_local, fallback_model=model)
+        s_use_local, s_model = core.video_model(use_local, model)
     except Exception:
         s_use_local, s_model = use_local, model
     # 若解析成"没配 OPENAI_API_KEY 的云端模型"，直接调用会报 Missing credentials，
@@ -588,8 +586,7 @@ def _cx_mindmap_from_text(analysis, title, use_local, model, on_progress=None):
 
     # 与 video_summary 相同的模型解析逻辑：默认网页模型
     try:
-        s_use_local, s_model = core.resolve_model(
-            "video_summary", fallback_use_local=use_local, fallback_model=model)
+        s_use_local, s_model = core.video_model(use_local, model)
     except Exception:
         s_use_local, s_model = use_local, model
     _is_claude_m = (s_model == "claude") or str(s_model).startswith("claude::")
