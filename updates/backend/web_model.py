@@ -447,6 +447,7 @@ class _WebWorker:
 
     def _wait_for_cards(self, timeout_sec=8):
         end = time.time() + timeout_sec
+        self._dismiss_popups(min(1.5, timeout_sec))   # 弹窗会挡住卡片点击，先关掉
         while True:
             st = self._page_status()
             if st.get("hasCardListMarkers") and not st.get("isLoginPage"):
@@ -495,6 +496,46 @@ class _WebWorker:
             return False
         self._page.mouse.click(coords["cx"], coords["cy"])
         return True
+
+    # 公告/提示弹窗按钮：优先「今日不再提示」（当天不再弹），其次「知道了」等
+    _POPUP_BTN_TEXTS = ["今日不再提示", "今天不再提示", "不再提示", "知道了", "我知道了",
+                        "我已知晓", "关闭公告", "关闭"]
+    _POPUP_JS = r"""(texts) => {
+        const norm = s => (s || '').replace(/\s+/g, '');
+        for (const want of texts) {
+            for (const b of document.querySelectorAll('button,[role="button"],a,span,div')) {
+                if (norm(b.innerText) !== want) continue;
+                const r = b.getBoundingClientRect();
+                if (r.width < 10 || r.height < 10 || r.bottom < 0 || r.top > window.innerHeight) continue;
+                const cx = r.x + r.width / 2, cy = r.y + r.height / 2;
+                // 必须是最上层（真正浮在页面上的弹窗按钮，不是被遮住的普通元素）
+                const top = document.elementFromPoint(cx, cy);
+                if (!top || !(top === b || b.contains(top) || top.contains(b))) continue;
+                return { text: want, cx: Math.round(cx), cy: Math.round(cy) };
+            }
+        }
+        return null;
+    }"""
+
+    def _dismiss_popups(self, wait_sec=2.0):
+        """关掉网页打开时弹出的公告提示框（如「注册即可免费试用…」→ 知道了）。
+        会先等 wait_sec 秒让弹窗出现（多数有延迟/动画），最多连关 3 个。返回关掉的个数。"""
+        closed = 0
+        end = time.time() + wait_sec
+        while closed < 3:
+            hit = self._safe(lambda: self._page.evaluate(self._POPUP_JS,
+                                                         self._POPUP_BTN_TEXTS), None)
+            if not hit:
+                if time.time() >= end:
+                    break
+                time.sleep(0.4)
+                continue
+            self._page.mouse.click(hit["cx"], hit["cy"])
+            closed += 1
+            self._log("关闭弹窗提示：点击「%s」" % hit["text"])
+            time.sleep(0.8)
+            end = time.time() + 0.8      # 关掉一个后再看一眼有没有下一个
+        return closed
 
     def _goto_carlist(self):
         """去卡片列表页。依次尝试：当前页 → 记住的/默认地址 → 「选服务」页里点服务名。"""
@@ -655,7 +696,8 @@ class _WebWorker:
 
     def _do_login(self, cfg):
         self._open_login_page()
-        time.sleep(1 + random.random())
+        time.sleep(0.5 + random.random() * 0.5)
+        self._dismiss_popups(2.5)       # 登录页打开会弹「注册即可免费试用…」公告
 
         pwd = self._page.locator('input[type="password"]:visible').first
         user = self._page.locator(
@@ -673,6 +715,7 @@ class _WebWorker:
         self._log("已输入密码")
         time.sleep(0.5)
 
+        self._dismiss_popups(0.3)
         self._ensure_agreement_checked()
         time.sleep(0.3)
 
@@ -691,6 +734,7 @@ class _WebWorker:
             if not st.get("isLoginPage"):
                 self._log("✓ 登录成功，落地页 " + st.get("url", ""))
                 self._landing_url = st.get("url", "")
+                self._dismiss_popups(2.0)   # 登录后首页也可能弹公告
                 break
             # 没勾协议时有的站会弹框「请先同意…」，点掉后再登一次
             if not nudged and time.time() > deadline - 16:
@@ -744,6 +788,7 @@ class _WebWorker:
                 return            # 交给 _wait_chat_page_ready 报 login_redirect → 重登
             raise RuntimeError("打不开卡片列表页")
         time.sleep(1.5 + random.random() * 1.5)
+        self._dismiss_popups(0.5)
 
         # 在【当前视口】里扫所有 Plus/Team 卡，返回 [{name, status}]。
         scan_js = """() => {
