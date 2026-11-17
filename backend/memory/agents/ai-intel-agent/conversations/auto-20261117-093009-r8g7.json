@@ -1,0 +1,16 @@
+{
+  "id": "auto-20261117-093009-r8g7",
+  "title": "🤖 自动 · 最新github开源项目 · 11-17 09:30",
+  "created_at": "2026-11-17T09:31:19",
+  "updated_at": "2026-11-17T09:31:19",
+  "messages": [
+    {
+      "role": "user",
+      "content": "查最新 github 最新的，最热门的开源项目"
+    },
+    {
+      "role": "assistant",
+      "content": "#### ChatGPT 说：\n\n# GitHub 最新热门开源项目情报\n2026年11月17日 · 实时联网查询 · GitHub Trending 日榜 + 近7天热度\n最新发现：AI Agent（智能体）相关项目仍然是最值得关注的方向。 当前热门项目集中在 AI 编程代理、智能体交互协议、自动化办公、AI 工具技能库和本地部署。\n我把项目分成两类：GitHub 官方今日热门，以及最近7天增长迅速的项目。下面的 Star 增量为不同榜单采集时的快照，随时可能变化。\n\n## 一、GitHub 今日热门项目\n\n| 项目 | 今日新增 Star（约） | 核心用途 |\n| --- | --- | --- |\n| Univer | +1,828 | AI 办公、表格和文档编辑 |\n| Claude Trading Skills | +837 | AI 金融分析技能 |\n| AG-UI | +791 | AI Agent 与前端交互协议 |\n| Plannotator | +696 | AI 编程任务审核与协作 |\n| 江山时序 | +288 | 中国历史交互地图 |\n\n数据来自 GitHub 官方 Trending 实时榜单。\n![图片](https://www.google.com/s2/favicons?domain=https://github.com&sz=32)\n\nGitHub\n\n另外，今天值得补充关注的还有 [Alibaba Open Code Review](https://github.com/alibaba/open-code-review?utm_source=chatgpt.com)（AI 代码审查）、[NVIDIA SkillEvaluator](https://github.com/NVIDIA/SkillEvaluator?utm_source=chatgpt.com)（智能体技能评测）和 [Google Stitch Skills](https://github.com/google-labs-code/stitch-skills?utm_source=chatgpt.com)（AI 设计工作流）。这些项目都出现在官方日榜。\n![图片](https://www.google.com/s2/favicons?domain=https://github.com&sz=32)\n\nGitHub\n\n## 二、最近7天增长最猛的项目\n第三方趋势追踪数据，截至11月16日至17日附近；不同榜单统计口径可能不同\nAI 辅助逆向工程，分析应用行为和二进制程序。适合软件研究、兼容性分析与安全测试。\n近7天增长约18,530 Star\n\n增长最快\n\n为 AI 编程工具提供现代 Web 开发实践指导，可用于改进网页性能、安全性和代码质量。\n近7天增长约15,945 Star\n\n面向 AI Agent 的可定制设计系统，适合开发 AI 辅助的前端应用。\n近7天增长约11,397 Star\n\n用电脑或手机远程管理 Claude Code、Codex 等编程智能体。\n近7天增长约9,091 Star\n\n多 AI 编程智能体管理平台，可用于桌面、移动设备和远程运行环境。\n近7天增长约6,677 Star\n\n增长数据来源：MostStarred 周榜。项目用途另对照 GitHub 仓库说明。\n![图片](https://www.google.com/s2/favicons?domain=https://moststarred.com&sz=32)\n\nMostStarred\n\n## 三、哪些项目最值得实际研究？\n\n| 项目 | 我的判断 | 优先级 |\n| --- | --- | --- |\n| T3 Code | 适合研究远程操控本地 AI 助手 | 高 |\n| AG-UI | 适合给 Agent 开发可交互界面 | 高 |\n| Univer | 适合做 AI 表格、文档办公产品 | 高 |\n| Plannotator | 适合改进 AI 编程审核流程 | 中高 |\n| REA | 技术研究价值高，但涉及逆向分析及授权边界 | 中高 |\n\n市场机会判断： AI Agent 的基础模型能力正在向应用层延伸。围绕智能体的管理、交互、技能扩展、任务审查等方向，已经出现多个高热度项目。可以重点观察基于开源组件制作垂直行业工具的机会，例如企业内部自动化办公或开发者工作流管理。但 Star 增长只能说明关注度，商业需求、项目维护质量和许可证仍需单独验证。\n官方入口：[GitHub 今日热门](https://github.com/trending?utm_source=chatgpt.com) · [本周热门](https://github.com/trending?since=weekly&utm_source=chatgpt.com)\n本次没有安装项目，也没有对你的电脑进行操作。\n你想继续重点挖哪一类？\nAI Agent / 本地智能体\n能直接赚钱的开源项目\nWindows 实用工具\n最新 AI 技术与模型\n全部类型，每日热门 Top 20"
+    }
+  ]
+}

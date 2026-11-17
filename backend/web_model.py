@@ -1,5 +1,10 @@
 """
-web_model.py — 「伪模型」核心：用 Playwright 操作 sorryios.ai/pastel 的网页 ChatGPT。
+web_model.py — 「伪模型」核心：用 Playwright 操作 sorryios.ai 的网页 ChatGPT。
+
+★ 2026-11 适配改版：站点从 /pastel 迁到 /laike，登录页新增「同意用户协议」勾选框，
+  登录后不一定直接落在卡片列表。现在：站点路径可配置（sitePath）并自动回退，
+  登录后自动寻找卡片列表并记住其地址，任何一步失败都会把截图+页面结构存到
+  memory/web_model_diag/ 便于下次快速对照修复。
 
 这是参考实现 ai/ai-runner.js（Node + Playwright）的 Python 移植，保留它全部
 经过实战打磨的健壮性：
@@ -53,8 +58,26 @@ except Exception as _e:          # 没装 playwright 时不要让 import 崩掉�
     _PW_IMPORT_ERR = _e
 
 # ─────────────── 常量 ───────────────
-LOGIN_URL = "https://sorryios.ai/pastel/#/login"
-CARLIST_URL = "https://sorryios.ai/pastel/#/carlist"
+SITE_ORIGIN = "https://sorryios.ai"
+DEFAULT_SITE_PATH = "laike"              # 2026-11 起的新路径；老路径 pastel 作为自动回退
+KNOWN_SITE_PATHS = ["laike", "pastel"]
+
+
+def _site_base(path):
+    return "%s/%s" % (SITE_ORIGIN, (path or DEFAULT_SITE_PATH).strip("/"))
+
+
+def _login_url_for(path):
+    return _site_base(path) + "#/login"
+
+
+def _carlist_url_for(path):
+    return _site_base(path) + "#/carlist"
+
+
+# 兼容旧代码的模块级常量（实际运行时用 worker 上的 self._login_url / self._carlist_url）
+LOGIN_URL = _login_url_for(DEFAULT_SITE_PATH)
+CARLIST_URL = _carlist_url_for(DEFAULT_SITE_PATH)
 
 BASE_DIR = Path(__file__).parent
 MEMORY_DIR = BASE_DIR / "memory"
@@ -62,6 +85,9 @@ MEMORY_DIR.mkdir(exist_ok=True)
 CONFIG_PATH = MEMORY_DIR / "web_model.json"
 SESSION_PATH = MEMORY_DIR / "web_session.json"
 SESSION_TTL_DAYS = 7
+ROUTES_PATH = MEMORY_DIR / "web_model_routes.json"   # 自动学到的卡片列表地址
+DIAG_DIR = MEMORY_DIR / "web_model_diag"             # 失败时的截图 + 页面结构
+DIAG_KEEP = 10
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
@@ -75,6 +101,8 @@ def _default_config():
         "cardName": "",           # 想指定的卡名（留空＝任意可用卡，全都是 ChatGPT）
         "enableSearch": True,     # 默认开联网搜索：软件要的就是最新信息，别让用户漏配
         "aiUrl": "https://sorryios.ai/",
+        "sitePath": DEFAULT_SITE_PATH,   # 网站路径：sorryios.ai/<sitePath>#/login，改版时改这里
+        "serviceName": "ChatGPT",        # 登录后若先进「选服务」页，点这个名字进入卡片列表
     }
 
 
@@ -130,6 +158,21 @@ def _save_session(state):
         pass
 
 
+def _load_routes():
+    try:
+        return json.loads(ROUTES_PATH.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return {}
+
+
+def _save_routes(routes):
+    try:
+        ROUTES_PATH.write_text(json.dumps(routes, ensure_ascii=False, indent=2),
+                               encoding="utf-8")
+    except Exception:
+        pass
+
+
 def _clear_session():
     try:
         if SESSION_PATH.exists():
@@ -162,6 +205,11 @@ class _WebWorker:
         self._page = None
         self._state = "idle"   # idle | ready | error | closed
         self._logger = print
+        self._site_path = DEFAULT_SITE_PATH
+        self._service_name = "ChatGPT"
+        self._login_url = LOGIN_URL
+        self._carlist_url = CARLIST_URL
+        self._landing_url = ""
 
     # ---- 公共：投递一个 job，阻塞等结果 ----
     def submit(self, fn_name, kwargs, timeout=720):
@@ -280,6 +328,7 @@ class _WebWorker:
             raise RuntimeError("请先在「网页大模型」设置里填写 sorryios.ai 账号和密码")
 
         headless = cfg.get("headless") is True
+        self._resolve_routes(cfg)
         self._state = "starting"
         self._log("starting (headless=%s)..." % headless)
         try:
@@ -301,23 +350,14 @@ class _WebWorker:
             need_login = True
             if saved:
                 try:
-                    self._page.goto(CARLIST_URL, wait_until="domcontentloaded",
+                    self._log("尝试复用 session → " + self._carlist_url)
+                    self._page.goto(self._carlist_url, wait_until="domcontentloaded",
                                     timeout=20000)
-                    time.sleep(2.5)
-                    status = self._page.evaluate("""() => {
-                        const url = window.location.href;
-                        const hasPasswordInput = !!document.querySelector('input[type="password"]');
-                        const bt = (document.body.innerText || '');
-                        const hasLoginText = bt.includes('用户登录') || /密\\s*码/.test(bt) || /账\\s*号/.test(bt);
-                        const hasCardListMarkers = bt.includes('TEAM') || bt.includes('PRO') || bt.includes('PLUS') ||
-                            bt.includes('空闲') || bt.includes('繁忙') || bt.includes('正常') || /[A-Z]{2}\\d{4}-\\d{2}/.test(bt);
-                        return { url, hasPasswordInput, hasLoginText, hasCardListMarkers };
-                    }""")
-                    if (("carlist" in status["url"]) and not status["hasPasswordInput"]
-                            and not status["hasLoginText"] and status["hasCardListMarkers"]):
+                    if self._wait_for_cards(8):
                         self._log("✓ session 复用成功，跳过登录")
                         need_login = False
                     else:
+                        self._log("session 已失效或卡片页地址变了 → 走完整登录")
                         _clear_session()
                 except Exception as e:
                     self._log("session 复用出错: %s → 走完整登录" % e)
@@ -334,8 +374,9 @@ class _WebWorker:
             self._select_card_and_enter_chat()
             self._state = "ready"
             self._log("✓ 就绪")
-        except Exception:
+        except Exception as e:
             self._state = "error"
+            self._dump_diag("start", e)
             self._close()
             raise
 
@@ -362,42 +403,358 @@ class _WebWorker:
                     pass
         return None
 
-    def _do_login(self, cfg):
-        self._log("打开登录页 " + LOGIN_URL)
+    # ---- 站点路径 / 卡片列表地址 ----
+    def _resolve_routes(self, cfg):
+        self._site_path = (cfg.get("sitePath") or DEFAULT_SITE_PATH).strip("/")
+        self._service_name = (cfg.get("serviceName") or "ChatGPT").strip()
+        self._login_url = _login_url_for(self._site_path)
+        routes = _load_routes()
+        if routes.get("sitePath") == self._site_path and routes.get("carlistUrl"):
+            self._carlist_url = routes["carlistUrl"]
+        else:
+            self._carlist_url = _carlist_url_for(self._site_path)
+        self._log("站点路径=%s 登录页=%s 卡片页=%s"
+                  % (self._site_path, self._login_url, self._carlist_url))
+
+    def _learn_carlist(self, url):
+        url = (url or "").strip()
+        if not url or "login" in url:
+            return
+        if url != self._carlist_url:
+            self._log("记住卡片列表地址: " + url)
+        self._carlist_url = url
+        _save_routes({"sitePath": self._site_path, "carlistUrl": url,
+                      "learnedAt": time.strftime("%Y-%m-%d %H:%M:%S")})
+
+    _PAGE_STATUS_JS = r"""() => {
+        const url = window.location.href;
+        const vis = el => { const r = el.getBoundingClientRect();
+            return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'; };
+        const hasPasswordInput = [...document.querySelectorAll('input[type="password"]')].some(vis);
+        const bt = document.body ? (document.body.innerText || '') : '';
+        const hasCardListMarkers =
+            ((bt.includes('空闲') || bt.includes('繁忙') || bt.includes('正常')) &&
+             (bt.includes('TEAM') || bt.includes('PLUS') || bt.includes('Plus') || bt.includes('PRO')))
+            || /[A-Z]{2}\d{4}-\d{2}/.test(bt);
+        return { url, hasPasswordInput, hasCardListMarkers,
+                 isLoginPage: url.includes('/login') || hasPasswordInput };
+    }"""
+
+    def _page_status(self):
+        return self._safe(lambda: self._page.evaluate(self._PAGE_STATUS_JS),
+                          {"url": "", "hasPasswordInput": False,
+                           "hasCardListMarkers": False, "isLoginPage": False})
+
+    def _wait_for_cards(self, timeout_sec=8):
+        end = time.time() + timeout_sec
+        self._dismiss_popups(min(1.5, timeout_sec))   # 弹窗会挡住卡片点击，先关掉
+        while True:
+            st = self._page_status()
+            if st.get("hasCardListMarkers") and not st.get("isLoginPage"):
+                return True
+            if time.time() >= end:
+                return False
+            time.sleep(0.8)
+
+    def _adopt_new_page(self, before_count):
+        """点击后如果弹出了新标签页，就切过去（很多聚合站点会新开标签进聊天）。"""
         try:
-            self._page.goto(LOGIN_URL, wait_until="networkidle", timeout=30000)
+            pages = self._context.pages
+            if len(pages) > before_count:
+                newp = pages[-1]
+                try:
+                    newp.wait_for_load_state("domcontentloaded", timeout=15000)
+                except Exception:
+                    pass
+                self._safe(lambda: newp.set_default_timeout(8000))
+                self._page = newp
+                self._log("检测到新标签页，已切换: " + (newp.url or ""))
+                return True
         except Exception:
             pass
-        time.sleep(2 + random.random())
+        return False
 
-        visible = [i for i in self._page.locator("input").all()
-                   if self._safe(lambda i=i: i.is_visible(), False)]
-        if len(visible) < 2:
-            raise RuntimeError("登录页找不到 2 个可见输入框，sorryios.ai 可能改版了")
+    def _click_text(self, text):
+        """点击页面上包含 text 的、尽量小的可见可点元素。返回是否点到。"""
+        coords = self._safe(lambda: self._page.evaluate(r"""(text) => {
+            const cands = [];
+            for (const el of document.querySelectorAll('a,button,[role="button"],[role="tab"],[role="menuitem"],li,div,span')) {
+                const t = (el.innerText || '').trim();
+                if (!t || !t.includes(text) || t.length > text.length + 40) continue;
+                const r = el.getBoundingClientRect();
+                if (r.width < 8 || r.height < 8 || r.bottom < 0 || r.top > window.innerHeight) continue;
+                const clickable = el.matches('a,button,[role="button"],[role="tab"],[role="menuitem"]') ||
+                                  getComputedStyle(el).cursor === 'pointer';
+                cands.push({ area: r.width * r.height, clickable,
+                             cx: Math.round(r.x + r.width / 2), cy: Math.round(r.y + r.height / 2) });
+            }
+            if (!cands.length) return null;
+            cands.sort((a, b) => (b.clickable - a.clickable) || (a.area - b.area));
+            return cands[0];
+        }""", text), None)
+        if not coords:
+            return False
+        self._page.mouse.click(coords["cx"], coords["cy"])
+        return True
 
-        visible[0].click(); time.sleep(0.3); visible[0].fill("")
-        self._human_type(visible[0], cfg["aiUsername"])
+    # 公告/提示弹窗按钮：优先「今日不再提示」（当天不再弹），其次「知道了」等
+    _POPUP_BTN_TEXTS = ["今日不再提示", "今天不再提示", "不再提示", "知道了", "我知道了",
+                        "我已知晓", "关闭公告", "关闭"]
+    _POPUP_JS = r"""(texts) => {
+        const norm = s => (s || '').replace(/\s+/g, '');
+        for (const want of texts) {
+            for (const b of document.querySelectorAll('button,[role="button"],a,span,div')) {
+                if (norm(b.innerText) !== want) continue;
+                const r = b.getBoundingClientRect();
+                if (r.width < 10 || r.height < 10 || r.bottom < 0 || r.top > window.innerHeight) continue;
+                const cx = r.x + r.width / 2, cy = r.y + r.height / 2;
+                // 必须是最上层（真正浮在页面上的弹窗按钮，不是被遮住的普通元素）
+                const top = document.elementFromPoint(cx, cy);
+                if (!top || !(top === b || b.contains(top) || top.contains(b))) continue;
+                return { text: want, cx: Math.round(cx), cy: Math.round(cy) };
+            }
+        }
+        return null;
+    }"""
+
+    def _dismiss_popups(self, wait_sec=2.0):
+        """关掉网页打开时弹出的公告提示框（如「注册即可免费试用…」→ 知道了）。
+        会先等 wait_sec 秒让弹窗出现（多数有延迟/动画），最多连关 3 个。返回关掉的个数。"""
+        closed = 0
+        end = time.time() + wait_sec
+        while closed < 3:
+            hit = self._safe(lambda: self._page.evaluate(self._POPUP_JS,
+                                                         self._POPUP_BTN_TEXTS), None)
+            if not hit:
+                if time.time() >= end:
+                    break
+                time.sleep(0.4)
+                continue
+            self._page.mouse.click(hit["cx"], hit["cy"])
+            closed += 1
+            self._log("关闭弹窗提示：点击「%s」" % hit["text"])
+            time.sleep(0.8)
+            end = time.time() + 0.8      # 关掉一个后再看一眼有没有下一个
+        return closed
+
+    def _goto_carlist(self):
+        """去卡片列表页。依次尝试：当前页 → 记住的/默认地址 → 「选服务」页里点服务名。"""
+        if self._wait_for_cards(1):
+            self._learn_carlist(self._page.url)
+            return True
+        # 刚登录完落在「选服务」页：先在当前页找服务入口，省一次跳转
+        if self._try_service_entry():
+            return True
+        tried = []
+        for url in (self._carlist_url, _carlist_url_for(self._site_path)):
+            if url in tried:
+                continue
+            tried.append(url)
+            self._log("打开卡片列表 " + url)
+            self._safe(lambda u=url: self._page.goto(u, wait_until="domcontentloaded",
+                                                     timeout=30000))
+            if self._wait_for_cards(10):
+                self._learn_carlist(self._page.url)
+                return True
+            if self._page_status().get("isLoginPage"):
+                return False      # 交给上层处理重新登录
+        # 新平台是多服务聚合（ChatGPT/Claude/Gemini…），可能要先选服务
+        seen = set()
+        for url in (self._landing_url, _site_base(self._site_path) + "#/",
+                    _site_base(self._site_path) + "/#/"):
+            if not url or url in seen or "/login" in url:
+                continue
+            seen.add(url)
+            self._safe(lambda u=url: self._page.goto(u, wait_until="domcontentloaded",
+                                                     timeout=30000))
+            time.sleep(2)
+            if self._page_status().get("isLoginPage"):
+                return False
+            if self._wait_for_cards(1) or self._try_service_entry():
+                self._learn_carlist(self._page.url)
+                return True
+        self._log("⚠ 没找到卡片列表页（当前 %s）" % self._page.url)
+        return False
+
+    def _try_service_entry(self):
+        """在当前页点服务名（默认 ChatGPT）进入卡片列表。"""
+        before = len(self._context.pages)
+        if not self._click_text(self._service_name):
+            return False
+        self._log("点击服务入口「%s」" % self._service_name)
+        time.sleep(2)
+        self._adopt_new_page(before)
+        if self._wait_for_cards(12):
+            self._learn_carlist(self._page.url)
+            return True
+        return False
+
+    # ---- 登录 ----
+    _AGREE_JS = r"""() => {
+        const kw = /(阅读|同意).{0,12}(协议|条款|政策|声明)|agree|terms/i;
+        const vis = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+        const near = el => { let n = el;
+            for (let i = 0; i < 5 && n; i++) { n = n.parentElement;
+                if (n && kw.test(n.innerText || '')) return true; }
+            return false; };
+        // 1) 原生 checkbox（多数 UI 库会把它藏起来，要点它旁边的可视方框）
+        for (const cb of document.querySelectorAll('input[type="checkbox"]')) {
+            if (!near(cb)) continue;
+            let target = cb;
+            const cs = getComputedStyle(cb);
+            if (!vis(cb) || cs.opacity === '0' || cs.visibility === 'hidden')
+                target = cb.nextElementSibling && vis(cb.nextElementSibling)
+                         ? cb.nextElementSibling : cb.parentElement;
+            const r = target.getBoundingClientRect();
+            return { found: true, checked: cb.checked,
+                     cx: Math.round(r.x + Math.min(r.width, 24) / 2), cy: Math.round(r.y + r.height / 2) };
+        }
+        // 2) 自绘 checkbox
+        for (const el of document.querySelectorAll('[role="checkbox"],[class*="checkbox"]')) {
+            if (!vis(el) || !near(el)) continue;
+            const checked = el.getAttribute('aria-checked') === 'true' ||
+                            /(^|\s|-)(is-)?checked(\s|$)/.test(el.className || '');
+            const r = el.getBoundingClientRect();
+            return { found: true, checked,
+                     cx: Math.round(r.x + Math.min(r.width, 24) / 2), cy: Math.round(r.y + r.height / 2) };
+        }
+        return { found: false };
+    }"""
+
+    def _ensure_agreement_checked(self):
+        """勾选「我已阅读并同意《用户服务协议》」。只点方框，避免点到协议链接弹窗。"""
+        info = self._safe(lambda: self._page.evaluate(self._AGREE_JS), {"found": False})
+        if not info.get("found"):
+            self._log("未发现协议勾选框（可能不需要）")
+            return
+        if info.get("checked"):
+            self._log("协议已勾选")
+            return
+        self._page.mouse.click(info["cx"], info["cy"])
+        time.sleep(0.4)
+        info = self._safe(lambda: self._page.evaluate(self._AGREE_JS), {"found": False})
+        if not info.get("checked"):
+            # 兜底：直接 check 原生 input
+            self._safe(lambda: self._page.locator('input[type="checkbox"]').first.check(
+                force=True, timeout=3000))
+            time.sleep(0.3)
+            info = self._safe(lambda: self._page.evaluate(self._AGREE_JS), {"found": False})
+        self._dismiss_agreement_dialog()
+        self._log("协议勾选" + ("成功" if info.get("checked") else "可能未成功（继续尝试登录）"))
+
+    def _dismiss_agreement_dialog(self):
+        """若弹出了协议/提示弹窗，点里面的「同意/确定」按钮。返回是否点了。"""
+        return bool(self._safe(lambda: self._page.evaluate(r"""() => {
+            const dlgs = document.querySelectorAll('[role="dialog"],[class*="modal"],[class*="dialog"],[class*="popup"]');
+            for (const d of dlgs) {
+                const r = d.getBoundingClientRect();
+                if (r.width < 50 || r.height < 50) continue;
+                for (const b of d.querySelectorAll('button,[role="button"],a')) {
+                    const t = (b.innerText || '').trim();
+                    const br = b.getBoundingClientRect();
+                    if (br.width > 0 && /同意|确定|确认|我知道了|Agree|OK/i.test(t) && !/不同意|取消/.test(t)) {
+                        b.click(); return true;
+                    }
+                }
+            }
+            return false;
+        }"""), False))
+
+    def _login_error_text(self):
+        return self._safe(lambda: self._page.evaluate(r"""() => {
+            const out = [];
+            for (const el of document.querySelectorAll('[class*="message"],[class*="toast"],[class*="notification"],[class*="error"],[class*="alert"],[role="alert"]')) {
+                const r = el.getBoundingClientRect();
+                const t = (el.innerText || '').trim();
+                if (r.width > 0 && r.height > 0 && t && t.length < 120 && !out.includes(t)) out.push(t);
+            }
+            return out.slice(0, 3).join(' / ');
+        }"""), "") or ""
+
+    def _open_login_page(self):
+        paths = [self._site_path] + [p for p in KNOWN_SITE_PATHS if p != self._site_path]
+        for p in paths:
+            url = _login_url_for(p)
+            self._log("打开登录页 " + url)
+            self._safe(lambda u=url: self._page.goto(u, wait_until="domcontentloaded",
+                                                     timeout=30000))
+            try:
+                self._page.wait_for_selector('input[type="password"]', state="visible",
+                                             timeout=12000)
+            except Exception:
+                self._log("  该地址没有出现登录表单")
+                continue
+            if p != self._site_path:
+                self._log("⚠ 配置的路径 /%s 不可用，自动改用 /%s（可在设置里改 sitePath）"
+                          % (self._site_path, p))
+                self._site_path = p
+                self._carlist_url = _carlist_url_for(p)
+            self._login_url = url
+            return
+        raise RuntimeError("打开登录页失败：%s 都没有出现密码框，sorryios.ai 可能又改版了"
+                           % "、".join("/" + x for x in paths))
+
+    def _do_login(self, cfg):
+        self._open_login_page()
+        time.sleep(0.5 + random.random() * 0.5)
+        self._dismiss_popups(2.5)       # 登录页打开会弹「注册即可免费试用…」公告
+
+        pwd = self._page.locator('input[type="password"]:visible').first
+        user = self._page.locator(
+            'input:not([type="password"]):not([type="checkbox"]):not([type="radio"])'
+            ':not([type="hidden"]):not([type="submit"]):not([type="button"]):visible').first
+        if not self._safe(lambda: user.count(), 0):
+            raise RuntimeError("登录页找不到账号输入框，sorryios.ai 可能改版了")
+
+        user.click(); time.sleep(0.3); user.fill("")
+        self._human_type(user, cfg["aiUsername"])
         self._log("已输入账号")
         time.sleep(0.5)
-        visible[1].click(); time.sleep(0.3); visible[1].fill("")
-        self._human_type(visible[1], cfg["aiPassword"])
+        pwd.click(); time.sleep(0.3); pwd.fill("")
+        self._human_type(pwd, cfg["aiPassword"])
         self._log("已输入密码")
         time.sleep(0.5)
 
-        btn = self._find_button_by_text("用户登录", "登录", "Login")
+        self._dismiss_popups(0.3)
+        self._ensure_agreement_checked()
+        time.sleep(0.3)
+
+        btn = self._find_button_by_text("用户登录", "登录", "登 录", "Login", "Sign in")
         if btn:
             btn.click()
         else:
-            self._page.keyboard.press("Enter")
+            pwd.press("Enter")
+        self._log("已点击登录")
 
-        try:
-            self._page.wait_for_url("**/carlist**", timeout=15000)
-            self._log("✓ 登录成功")
-        except Exception:
-            time.sleep(3)
-            if "carlist" not in self._page.url:
-                raise RuntimeError("登录后没跳到卡片列表页 — 账号或密码可能错了")
-            self._log("✓ 登录成功（延迟跳转）")
+        deadline = time.time() + 20
+        nudged = False
+        while time.time() < deadline:
+            time.sleep(1)
+            st = self._page_status()
+            if not st.get("isLoginPage"):
+                self._log("✓ 登录成功，落地页 " + st.get("url", ""))
+                self._landing_url = st.get("url", "")
+                self._dismiss_popups(2.0)   # 登录后首页也可能弹公告
+                break
+            # 没勾协议时有的站会弹框「请先同意…」，点掉后再登一次
+            if not nudged and time.time() > deadline - 16:
+                nudged = True
+                if self._dismiss_agreement_dialog():
+                    self._log("点掉了协议提示弹窗，重新登录")
+                    time.sleep(0.5)
+                    self._ensure_agreement_checked()
+                    btn = self._find_button_by_text("用户登录", "登录", "登 录", "Login", "Sign in")
+                    if btn:
+                        self._safe(lambda: btn.click())
+        else:
+            hint = self._login_error_text()
+            raise RuntimeError("登录失败，仍停留在登录页" +
+                               ("：" + hint if hint else "（账号密码错误，或页面又改版了）"))
+
+        time.sleep(1.5)
+        if not self._goto_carlist():
+            raise RuntimeError("登录成功了，但找不到卡片列表页（页面结构可能变了，"
+                               "诊断截图已保存到 memory/web_model_diag/）")
 
     # ════════════════════ 选卡 + 进聊天页 ════════════════════
     def _select_card_and_enter_chat(self):
@@ -419,17 +776,19 @@ class _WebWorker:
                     pass
                 continue   # 不消耗 attempt（与参考一致：重登后重选）
             self._log("进入聊天页失败，第 %d 次重试" % (attempt + 1))
-            self._safe(lambda: self._page.goto(CARLIST_URL, wait_until="networkidle",
-                                               timeout=30000))
+            self._safe(lambda: self._page.goto(self._carlist_url,
+                       wait_until="domcontentloaded", timeout=30000))
             time.sleep(3)
         raise RuntimeError("选卡进入聊天页失败（已重试 3 次）")
 
     def _select_random_card(self):
         self._log("选 AI 卡片中...")
-        if "carlist" not in self._page.url:
-            self._safe(lambda: self._page.goto(CARLIST_URL, wait_until="networkidle",
-                                               timeout=30000))
-        time.sleep(3 + random.random() * 2)
+        if not self._goto_carlist():
+            if self._page_status().get("isLoginPage"):
+                return            # 交给 _wait_chat_page_ready 报 login_redirect → 重登
+            raise RuntimeError("打不开卡片列表页")
+        time.sleep(1.5 + random.random() * 1.5)
+        self._dismiss_popups(0.5)
 
         # 在【当前视口】里扫所有 Plus/Team 卡，返回 [{name, status}]。
         scan_js = """() => {
@@ -514,17 +873,21 @@ class _WebWorker:
         if not coords:
             return False
         time.sleep(0.4)
+        before = len(self._context.pages)
         self._page.mouse.click(coords["cx"], coords["cy"])
+        time.sleep(1.5)
+        self._adopt_new_page(before)
         return True
 
     def _wait_chat_page_ready(self, timeout_sec=25):
         self._log("等聊天页就绪...")
+        carlist_url = self._carlist_url
         start = time.time()
         last_log = 0
         while time.time() - start < timeout_sec:
             time.sleep(2)
             try:
-                info = self._page.evaluate("""() => {
+                info = self._page.evaluate("""(carlistUrl) => {
                     const url = window.location.href;
                     let inputCount = 0;
                     const inputs = [...document.querySelectorAll('textarea'),
@@ -539,10 +902,10 @@ class _WebWorker:
                         url, inputCount,
                         hasChatHint: bt.includes('询问任何问题') || bt.includes('有什么可以帮') ||
                                      bt.includes('开始使用') || bt.includes('Send a message'),
-                        isCarlist: url.includes('carlist'),
-                        isLoginPage: url.includes('login') || hasPasswordInput,
+                        isCarlist: url.includes('carlist') || url === carlistUrl,
+                        isLoginPage: url.includes('/login') || hasPasswordInput,
                     };
-                }""")
+                }""", carlist_url)
             except Exception:
                 continue
             if info["isLoginPage"]:
@@ -573,8 +936,8 @@ class _WebWorker:
         if opts.get("forceNewCard"):
             self._log("[换卡] 上层请求换一张新卡重试…")
             prog("换一张 AI 卡片重试…")
-            self._safe(lambda: self._page.goto(CARLIST_URL,
-                       wait_until="networkidle", timeout=30000))
+            self._safe(lambda: self._page.goto(self._carlist_url,
+                       wait_until="domcontentloaded", timeout=30000))
             time.sleep(3)
             self._select_card_and_enter_chat()
             self._state = "ready"
@@ -591,8 +954,8 @@ class _WebWorker:
                 if attempt < max_attempts and not disable_switch:
                     self._log("[恢复] 卡死，换张卡重试...")
                     prog("上一张卡卡住，换卡重试…")
-                    self._safe(lambda: self._page.goto(CARLIST_URL,
-                               wait_until="networkidle", timeout=30000))
+                    self._safe(lambda: self._page.goto(self._carlist_url,
+                               wait_until="domcontentloaded", timeout=30000))
                     time.sleep(3)
                     self._select_card_and_enter_chat()
                     continue
@@ -1153,6 +1516,40 @@ class _WebWorker:
             return fn()
         except Exception:
             return default
+
+    def _dump_diag(self, stage, err=None):
+        """失败现场：整页截图 + 页面结构摘要（不含任何输入框的值）。"""
+        try:
+            page = self._page
+            if not page or page.is_closed():
+                return
+            DIAG_DIR.mkdir(exist_ok=True)
+            ts = time.strftime("%Y%m%d-%H%M%S")
+            self._safe(lambda: page.screenshot(path=str(DIAG_DIR / (ts + ".png")),
+                                               full_page=True, timeout=10000))
+            info = self._safe(lambda: page.evaluate(r"""() => {
+                const vis = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+                return {
+                    url: location.href, title: document.title,
+                    inputs: [...document.querySelectorAll('input,textarea')].map(i => ({
+                        tag: i.tagName, type: i.type, name: i.name, placeholder: i.placeholder,
+                        visible: vis(i), checked: i.type === 'checkbox' ? i.checked : undefined })),
+                    buttons: [...document.querySelectorAll('button,[role="button"]')]
+                        .filter(vis).map(b => (b.innerText || '').trim()).filter(Boolean).slice(0, 40),
+                    text: (document.body ? document.body.innerText : '').slice(0, 5000),
+                };
+            }"""), {}) or {}
+            info.update({"stage": stage, "error": str(err) if err else "",
+                         "sitePath": self._site_path, "carlistUrl": self._carlist_url,
+                         "time": ts})
+            (DIAG_DIR / (ts + ".json")).write_text(
+                json.dumps(info, ensure_ascii=False, indent=2), encoding="utf-8")
+            files = sorted(DIAG_DIR.glob("*.*"))
+            for f in files[:-DIAG_KEEP * 2]:
+                self._safe(lambda f=f: f.unlink())
+            self._log("诊断已保存: %s (.png/.json)" % (DIAG_DIR / ts))
+        except Exception:
+            pass
 
     def get_state(self):
         return {"state": self._state, "hasBrowser": bool(self._browser),
