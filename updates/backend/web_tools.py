@@ -66,7 +66,27 @@ _DOMESTIC_SUFFIX = (
     "baidu.com", "bdstatic.com", "qq.com", "gtimg.com", "163.com", "126.net", "sohu.com",
     "aliyun.com", "alicdn.com", "taobao.com", "tmall.com", "jd.com", "csdn.net", "juejin.cn",
     "sorryios.ai", "dakeai.cc", "deepseek.com", "moonshot.cn", "kimi.com", "doubao.com",
+    "hf-mirror.com",
 )
+
+_SSL_CTX = None
+
+
+def _ssl_ctx():
+    """HTTPS 证书库：Windows 系统证书 + certifi 标准证书包（校验照常开着）。
+    Windows 不预装所有根证书，浏览器遇到缺的会自动下载，Python 不会——于是 Hugging Face、
+    example.com 这类站报 CERTIFICATE_VERIFY_FAILED（unable to get local issuer certificate）。"""
+    global _SSL_CTX
+    if _SSL_CTX is None:
+        import ssl
+        ctx = ssl.create_default_context()
+        try:
+            import certifi
+            ctx.load_verify_locations(certifi.where())
+        except Exception:
+            pass
+        _SSL_CTX = ctx
+    return _SSL_CTX
 
 
 def needs_proxy(url):
@@ -104,9 +124,10 @@ def _opener(use_proxy=None, url=None):
     p = ""
     if use_proxy is not False:
         p = proxy_for(url) if url else (_read_proxy() if use_proxy else "")
+    https = urllib.request.HTTPSHandler(context=_ssl_ctx())
     if p:
-        return urllib.request.build_opener(urllib.request.ProxyHandler({"http": p, "https": p})), p
-    return urllib.request.build_opener(urllib.request.ProxyHandler({})), None
+        return urllib.request.build_opener(urllib.request.ProxyHandler({"http": p, "https": p}), https), p
+    return urllib.request.build_opener(urllib.request.ProxyHandler({}), https), None
 
 
 # ---------- 读网页正文 ----------
