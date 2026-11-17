@@ -601,7 +601,7 @@ def run_sniff(use_local=True, model="qwen2.5", verbose=False):
         # （网页模型要逐站换卡、排队，8 个站能拖上好几分钟）
         try:
             import agent_core as _ac
-            use_local, model = _ac.video_model(use_local, model)
+            use_local, model = _ac.prefer_local_model(use_local, model)
         except Exception:
             pass
     try:
