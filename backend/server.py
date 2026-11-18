@@ -80,7 +80,7 @@ def _clog(tag, msg):
 # 这些接口是前端**定时高频轮询**或页面加载时被动拉取的（查状态/进度/列表/配置），
 # 一旦打印就会把控制台刷爆、淹没真正有用的操作日志，所以一律静音、不记。
 _LOG_QUIET_PATHS = {
-    "/ping", "/video_progress", "/video_health", "/video_deps", "/video_notes",
+    "/ping", "/video_progress", "/video_health", "/video_deps", "/video_notes", "/creator_profiles_batch",
     "/video_note_analyze_progress", "/sniff/feed", "/sniff/discover", "/video_note_analyze_batch",
     "/chat_progress", "/heartbeat/status", "/lumi/status", "/lumi/evolve_status",
     "/web_model/state", "/web_model/config", "/loop/status", "/insight/status",
@@ -306,6 +306,158 @@ def _vn_set_note_author(note_name, author):
     except Exception:
         pass
     return False
+
+
+def _vn_note_index():
+    """v60：把所有笔记的「来源链接 / 作者 / 所在文件夹」读一遍（新的在前）。批量找主页时只读一次。
+    作者的认法和笔记列表一样（第一条「作者：」，最多 40 字，纯数字 ID 不算），这样和头像墙上的名字对得上。"""
+    try:
+        folders, mapping = _vn_load_folders()
+    except Exception:
+        folders, mapping = [], {}
+    rows = []
+    try:
+        files = sorted(_cx_video_dir().glob("*.md"), key=lambda p: p.name, reverse=True)
+    except Exception:
+        files = []
+    for p in files:
+        try:
+            with open(p, encoding="utf-8", errors="replace") as f:
+                lines = f.read(2500).split("\n")
+        except Exception:
+            continue
+        url = au = ""
+        for ln in lines[1:16]:
+            t = ln.strip().lstrip("-").strip()
+            if not url and t.startswith(("来源链接：", "来源链接:")):
+                url = t[5:].strip()
+        for ln in lines[1:8]:
+            t = ln.strip().lstrip("-").strip()
+            if t.startswith(("作者：", "作者:")):
+                cand = t[3:].strip()
+                au = cand[:40] if cand and not cand.isdigit() else ""
+                break
+        fold = mapping.get(p.name, "")
+        rows.append({"url": url, "author": au, "folder": fold if fold in folders else ""})
+    return {"rows": rows, "folders": list(folders)}
+
+
+def _vn_pick_sources(key, index=None, limit=3):
+    """v60：找这个博主（或文件夹）的在线视频链接，新的在前，最多 limit 条。
+    文件夹里如果是好几个博主的笔记（比如按主题建的「英语」），就不算一个博主，不去绑。
+    返回 (链接列表, 找不到时的原因)。"""
+    from collections import Counter
+    key = (key or "").strip()
+    idx = index or _vn_note_index()
+    rows = idx["rows"]
+    mine = [r for r in rows if r["author"] and r["author"] == key]
+    if not mine and key in idx["folders"]:
+        inf = [r for r in rows if r["folder"] == key]
+        authors = Counter(r["author"] for r in inf if r["author"])
+        if not inf:
+            return [], "这个文件夹是空的"
+        if not authors:
+            return [], "文件夹里的笔记都没填作者"
+        top, n = authors.most_common(1)[0]
+        if n < 0.8 * sum(authors.values()):
+            return [], "文件夹里是好几个博主的笔记，不是同一个博主"
+        mine = [r for r in inf if r["author"] == top]
+    if not mine:
+        return [], "没找到这个博主的笔记"
+    urls = []
+    for r in mine:
+        u = r["url"]
+        if u.startswith("http") and u not in urls:
+            urls.append(u)
+            if len(urls) >= limit:
+                break
+    if not urls:
+        return [], "这个博主的笔记都是本地导入的，没有视频链接"
+    return urls, ""
+
+
+# ════════ v60：一键识别博主主页（给还没主页的博主一个个找主页、取头像和资料）════════
+_cpb_lock = _threading.Lock()
+_cpb = {"running": False, "stop": False, "total": 0, "done": 0, "ok": 0, "noav": 0, "fail": 0,
+        "skip": 0, "current": "", "started": 0, "finished": 0, "results": [], "note": ""}
+_CPB_GAP = (3.0, 2.0)         # 每个博主之间歇 3~5 秒，别被抖音等平台限流
+_CPB_PAUSE_AFTER = 6          # 连续这么多个没找到 → 歇一分钟
+_CPB_STOP_AFTER = 12          # 连续这么多个没找到 → 先停下（多半没网或被限流）
+
+
+def _cpb_sleep(sec):
+    """可被「停止」打断的等待。被停止返回 True。"""
+    import time as _t
+    end = _t.time() + sec
+    while _t.time() < end:
+        if _cpb["stop"]:
+            return True
+        _t.sleep(0.3)
+    return False
+
+
+def _cpb_worker(keys):
+    import time as _t
+    import random as _r
+    import creator_profiles as _cpf
+    idx = _vn_note_index()
+    streak = 0
+    try:
+        for key in keys:
+            if _cpb["stop"]:
+                break
+            _cpb["current"] = key
+            st = _cpf.profile_state(key)
+            res = {"key": key}
+            networked = False
+            if st.get("url") or st.get("no_auto"):
+                res.update(status="skip", msg="已经有主页了" if st.get("url") else "你解除过绑定")
+            else:
+                urls, why = _vn_pick_sources(key, idx)
+                if not urls:
+                    res.update(status="skip", msg=why)
+                    try:
+                        _cpf.mark_skip(key, why)
+                    except Exception:
+                        pass
+                else:
+                    networked = True
+                    try:
+                        ok, info, _k = _cpf.auto_bind_from_videos(key, urls, force=True)
+                    except Exception as e:
+                        ok, info = False, "出错：%s" % e
+                    if ok and isinstance(info, dict):
+                        res.update(status="ok" if info.get("has_avatar") else "noav",
+                                   msg=info.get("platform_label") or "", name=info.get("name") or "")
+                    else:
+                        res.update(status="fail", msg=str(info)[:120])
+                    streak = streak + 1 if res["status"] == "fail" else 0
+            with _cpb_lock:
+                _cpb["done"] += 1
+                _cpb[res["status"]] += 1
+                _cpb["results"].append(res)
+            _clog("博主", {"ok": "✓", "noav": "✓（没头像）", "fail": "✗", "skip": "－"}[res["status"]] +
+                  " %s %s" % (key, res.get("msg") or ""))
+            if not networked:
+                continue
+            if streak >= _CPB_STOP_AFTER:
+                _cpb["note"] = ("连续 %d 个都没找到，可能是网络有问题或被平台限流了，先停下。"
+                                "过一会儿再点「一键识别」，会接着找剩下的。" % streak)
+                break
+            if streak and streak % _CPB_PAUSE_AFTER == 0:
+                _cpb["note"] = "连续几个没找到，先歇一分钟再接着找（防止被平台限流）"
+                if _cpb_sleep(60):
+                    break
+                _cpb["note"] = ""
+            if _cpb_sleep(_CPB_GAP[0] + _r.random() * _CPB_GAP[1]):
+                break
+    finally:
+        with _cpb_lock:
+            _cpb["running"] = False
+            _cpb["current"] = ""
+            _cpb["finished"] = _t.time()
+        _clog("博主", "一键识别结束：成功 %d（没头像 %d），没找到 %d，跳过 %d" % (
+            _cpb["ok"] + _cpb["noav"], _cpb["noav"], _cpb["fail"], _cpb["skip"]))
 
 
 def _vn_find_source_url(key):
@@ -2371,6 +2523,15 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send({"douyin": {"status": "error", "detail": str(e)},
                                    "versions": {}, "ytdlp": {}, "diag": {}}, 200)
+        if path == "/creator_profiles_batch":
+            # v60：一键识别博主主页的进度
+            with _cpb_lock:
+                b = {k: (list(v) if isinstance(v, list) else v) for k, v in _cpb.items()}
+            now = _time_now()
+            b["now"] = now
+            left = max(0, b["total"] - b["done"])
+            b["eta"] = int((now - b["started"]) / b["done"] * left) if b["running"] and b["done"] else 0
+            return self._send(b)
         if path == "/video_deps":
             # v59：维护工具——每个依赖的已装版本、有没有新版（refresh=1 立刻重查）
             try:
@@ -2860,6 +3021,29 @@ class Handler(BaseHTTPRequestHandler):
             if _act != "status":
                 _clog("黑窗口", ("✓ " if ok else "✗ ") + msg)
             return self._send({"ok": ok, "message": msg, "hidden": _log_capture.console_hidden()})
+        if path == "/creator_profiles_batch":
+            # v60：一键识别博主主页：{keys:[…]} 开始；{stop:true} 停止
+            b = body or {}
+            if b.get("stop"):
+                _cpb["stop"] = True
+                return self._send({"ok": True, "stopping": True})
+            seen, keys = set(), []
+            for k in b.get("keys") or []:
+                k = str(k or "").strip()
+                if k and k != "未填作者" and k not in seen:
+                    seen.add(k)
+                    keys.append(k)
+            if not keys:
+                return self._send({"ok": False, "message": "没有要识别的博主"})
+            with _cpb_lock:
+                if _cpb["running"]:
+                    return self._send({"ok": False, "message": "已经在识别了（%d/%d），等它结束或先点「停止」"
+                                       % (_cpb["done"], _cpb["total"])})
+                _cpb.update(running=True, stop=False, total=len(keys), done=0, ok=0, noav=0, fail=0,
+                            skip=0, current="", started=_time_now(), finished=0, results=[], note="")
+            _clog("博主", "开始一键识别博主主页：%d 个" % len(keys))
+            _threading.Thread(target=_cpb_worker, args=(keys,), daemon=True).start()
+            return self._send({"ok": True, "total": len(keys)})
         if path == "/creator_profile":
             # v58：博主主页（绑定链接取头像 / 刷新 / 手动上传头像 / 解除绑定）
             try:
@@ -2876,13 +3060,12 @@ class Handler(BaseHTTPRequestHandler):
                 elif act == "remove":
                     ok, res = _cpf.remove(key)
                 elif act == "auto":
-                    # v59：根据这个博主的视频自动找主页（用他最新一条在线视频的链接）
-                    vurl = _vn_find_source_url(key)
-                    if not vurl:
-                        ok, res = False, ("这个博主的笔记里没有在线视频链接（本地导入的没有），"
-                                          "没法自动找，请粘贴主页链接")
+                    # 根据这个博主的视频自动找主页（新的视频在前，找不到会再试两条）
+                    urls, why = _vn_pick_sources(key)
+                    if not urls:
+                        ok, res = False, why + "，没法自动找，可以粘贴主页链接"
                     else:
-                        ok, res, _k = _cpf.auto_bind_from_video(key, vurl, force=True)
+                        ok, res, _k = _cpf.auto_bind_from_videos(key, urls, force=True)
                 else:
                     ok, res = False, "不认识的操作"
             except Exception as e:

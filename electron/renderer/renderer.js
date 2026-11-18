@@ -9780,15 +9780,14 @@ function vnGroupStats(items) {
   return { total: items.length, last, first, recent };
 }
 
-function vnCreatorTile(g, sortKey) {
-  const p = _vnProfiles[g.key] || {};
+// ════════════════════ v60：一键识别博主主页 ════════════════════
+// 头像墙上方一行「一键识别博主主页（N 个还没主页）」。后台一个个找（每个之间歇几秒，防平台限流），
+// 找到一个，墙上对应的头像马上换成真头像（原地换，不重画整面墙）；可以随时停止，下次接着找剩下的。
+let _vnCpbTimer = null;
+let _vnCpbSeen = -1;
+
+function vnTileAvatar(g) {
   const st = g.stats;
-  const t = document.createElement("div");
-  t.className = "vn-ctile";
-  t.title = (p.name && p.name !== g.name ? g.name + "（" + p.name + "）" : g.name) +
-    "\n笔记 " + st.total + " 条" + (st.recent ? "，近30天新增 " + st.recent + " 条" : "") +
-    (st.last ? "\n最近提取：" + new Date(st.last).toLocaleString() : "") +
-    (p.followers ? "\n粉丝：" + vnFmtNum(p.followers) : "") + "\n\n点击进去看" + (p.url ? "" : "；点右上角 🔗 绑定博主主页，自动换成真头像");
   const av = vnAvatarEl(g);
   const pill = document.createElement("span");
   pill.className = "vn-av-pill"; pill.textContent = st.total;
@@ -9799,7 +9798,169 @@ function vnCreatorTile(g, sortKey) {
     nw.title = "近30天新增 " + st.recent + " 条";
     av.appendChild(nw);
   }
-  t.appendChild(av);
+  return av;
+}
+
+function vnAvMarker(key) {
+  const p = _vnProfiles[key] || {};
+  return [p.v || 0, p.has_avatar ? 1 : 0, p.platform || "", p.url || ""].join("|");
+}
+
+function vnRefreshTileAvatars() {
+  document.querySelectorAll(".vn-ctile").forEach((t) => {
+    const g = t._g;
+    if (!g) return;
+    const m = vnAvMarker(g.key);
+    if (m === t.dataset.avm) return;
+    t.dataset.avm = m;
+    const old = t.querySelector(".vn-av");
+    if (old) old.replaceWith(vnTileAvatar(g));
+    t.classList.remove("vn-av-pop"); void t.offsetWidth; t.classList.add("vn-av-pop");
+  });
+}
+
+// 还没主页的博主（未填作者、已经绑过的、你解除过绑定的都不算）
+function vnCpbTodo(groups) {
+  const seen = new Set(), out = [];
+  (groups || []).forEach((g) => {
+    if (g.name === "未填作者" || seen.has(g.key)) return;
+    const p = _vnProfiles[g.key] || {};
+    if (p.url || p.no_auto || p.auto_skip) return;     // auto_skip：上次一键识别时发现没法自动找
+    seen.add(g.key); out.push(g.key);
+  });
+  return out;
+}
+
+function vnCpbBar(groups) {
+  const bar = document.createElement("div");
+  bar.className = "vn-cpb"; bar.id = "vnCpb";
+  bar._groups = groups;
+  vnCpbRender(bar, null);
+  _vnCpbSeen = -1;
+  setTimeout(vnCpbPoll, 30);
+  return bar;
+}
+
+function vnCpbRender(bar, d) {
+  if (!bar) return;
+  const running = !!(d && d.running);
+  const mode = running ? "run" : "idle";
+  if (bar.dataset.mode !== mode) {
+    bar.dataset.mode = mode;
+    bar.innerHTML = "";
+    if (running) {
+      bar.innerHTML = '<span class="vn-cpb-track"><i></i></span><span class="vn-cpb-txt"></span>';
+      const stop = document.createElement("button");
+      stop.type = "button"; stop.className = "vn-batch-stop vn-cpb-stop"; stop.textContent = "停止";
+      stop.title = "找完当前这个就停；下次点「一键识别」会接着找剩下的";
+      stop.addEventListener("click", async () => {
+        stop.disabled = true; stop.textContent = "停止中…";
+        try {
+          await fetch(BACKEND + "/creator_profiles_batch", { method: "POST",
+            headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stop: true }) });
+        } catch (_) {}
+      });
+      bar.appendChild(stop);
+      const note = document.createElement("div"); note.className = "vn-cpb-note"; note.hidden = true;
+      bar.appendChild(note);
+    } else {
+      const btn = document.createElement("button");
+      btn.type = "button"; btn.className = "vn-cpb-btn";
+      btn.title = "根据每个博主最近的视频，自动找到他的主页，取头像、昵称、粉丝数和简介";
+      btn.addEventListener("click", () => { const todo = vnCpbTodo(bar._groups); if (todo.length) vnCpbStart(todo); });
+      const sum = document.createElement("span"); sum.className = "vn-cpb-sum";
+      bar.appendChild(btn); bar.appendChild(sum);
+    }
+  }
+  if (running) {
+    const pct = d.total ? Math.round(d.done * 100 / d.total) : 0;
+    bar.querySelector(".vn-cpb-track > i").style.width = pct + "%";
+    const txt = "正在识别博主主页 " + d.done + " / " + d.total +
+      (d.current ? " · 正在找「" + d.current + "」" : "") +
+      " · 成功 " + (d.ok + d.noav) + (d.fail ? " · 没找到 " + d.fail : "") +
+      (d.eta ? " · 预计还要 " + _vnFmtDur(d.eta) : "");
+    const el = bar.querySelector(".vn-cpb-txt"); el.textContent = txt; el.title = txt;
+    const note = bar.querySelector(".vn-cpb-note");
+    note.hidden = !d.note; note.textContent = d.note ? "⏸ " + d.note : "";
+    return;
+  }
+  const todo = vnCpbTodo(bar._groups);
+  const btn = bar.querySelector(".vn-cpb-btn"), sum = bar.querySelector(".vn-cpb-sum");
+  btn.disabled = !todo.length;
+  btn.textContent = todo.length ? "🔍 一键识别博主主页（" + todo.length + " 个还没主页）" : "✓ 博主都有主页了";
+  sum.innerHTML = "";
+  bar.querySelectorAll(".vn-cpb-list").forEach((x) => x.remove());
+  if (d && d.finished && d.total) {
+    let s = "上次识别了 " + d.done + " 个：成功 " + (d.ok + d.noav) +
+      (d.noav ? "（其中 " + d.noav + " 个没取到头像）" : "") +
+      (d.fail ? "，没找到 " + d.fail : "") + (d.skip ? "，跳过 " + d.skip : "") + "。";
+    if (d.note) s += d.note;
+    sum.appendChild(document.createTextNode(s));
+    const bad = (d.results || []).filter((r) => r.status !== "ok");
+    if (bad.length) {
+      const more = document.createElement("a");
+      more.href = "#"; more.className = "vn-cpb-more"; more.textContent = "看看没成功的 ›";
+      const listEl = document.createElement("div"); listEl.className = "vn-cpb-list"; listEl.hidden = true;
+      bad.forEach((r) => {
+        const row = document.createElement("div");
+        row.textContent = r.status === "noav" ? "△ " + r.key + "：找到了主页（" + (r.msg || "") + "），但没取到头像，可以进去上传一张"
+          : (r.status === "fail" ? "✗ " : "－ ") + r.key + "：" + (r.msg || "");
+        listEl.appendChild(row);
+      });
+      more.addEventListener("click", (e) => {
+        e.preventDefault(); listEl.hidden = !listEl.hidden;
+        more.textContent = listEl.hidden ? "看看没成功的 ›" : "收起";
+      });
+      sum.appendChild(more);
+      bar.appendChild(listEl);
+    }
+  } else {
+    sum.textContent = "根据每个博主最近的视频自动找主页，取头像和资料。";
+  }
+}
+
+async function vnCpbStart(keys) {
+  const mins = Math.max(1, Math.round(keys.length * 7 / 60));
+  if (!confirm("给 " + keys.length + " 个博主自动识别主页？\n\n" +
+    "· 根据每个博主最近的视频找到他的主页，取头像、昵称、粉丝数和简介；\n" +
+    "· 为了不被抖音等平台限流，每个之间会歇几秒，大约要 " + mins + " 分钟，找到一个就换上一个头像；\n" +
+    "· 可以随时点「停止」，下次接着找剩下的；\n" +
+    "· 已经绑过主页的、你解除过绑定的都不会动。")) return;
+  try {
+    const d = await (await fetch(BACKEND + "/creator_profiles_batch", { method: "POST",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ keys }) })).json();
+    if (!d.ok) { alert(d.message || "没能开始"); return; }
+  } catch (e) { alert("出错：" + e.message); return; }
+  vnCpbPoll();
+}
+
+async function vnCpbPoll() {
+  clearTimeout(_vnCpbTimer); _vnCpbTimer = null;
+  if (!document.getElementById("vnCpb")) return;
+  let d;
+  try {
+    d = await (await fetch(BACKEND + "/creator_profiles_batch", { cache: "no-store" })).json();
+  } catch (e) { _vnCpbTimer = setTimeout(vnCpbPoll, 4000); return; }
+  if (!document.getElementById("vnCpb")) return;
+  if (d.done !== _vnCpbSeen) {
+    if (_vnCpbSeen !== -1) { await vnLoadProfiles(); vnRefreshTileAvatars(); }
+    _vnCpbSeen = d.done;
+  }
+  vnCpbRender(document.getElementById("vnCpb"), d);
+  if (d.running) _vnCpbTimer = setTimeout(vnCpbPoll, 2000);
+}
+
+function vnCreatorTile(g, sortKey) {
+  const p = _vnProfiles[g.key] || {};
+  const st = g.stats;
+  const t = document.createElement("div");
+  t.className = "vn-ctile";
+  t.title = (p.name && p.name !== g.name ? g.name + "（" + p.name + "）" : g.name) +
+    "\n笔记 " + st.total + " 条" + (st.recent ? "，近30天新增 " + st.recent + " 条" : "") +
+    (st.last ? "\n最近提取：" + new Date(st.last).toLocaleString() : "") +
+    (p.followers ? "\n粉丝：" + vnFmtNum(p.followers) : "") + "\n\n点击进去看" + (p.url ? "" : "；点右上角 🔗 绑定博主主页，自动换成真头像");
+  t.appendChild(vnTileAvatar(g));
+  t._g = g; t.dataset.avm = vnAvMarker(g.key);     // v60：资料变了能原地换头像
   const nm = document.createElement("div");
   nm.className = "vn-cname"; nm.textContent = g.name;
   t.appendChild(nm);
@@ -10011,10 +10172,11 @@ function vnRenderIconView(list, notes, folders, byFolder, ungrouped) {
     });
     head.appendChild(sorts);
     wrap.appendChild(head);
+    wrap.appendChild(vnCpbBar(groups));      // v60：一键识别博主主页
     const tip = document.createElement("div");
     tip.className = "vn-auto-tip";
-    tip.textContent = "圆角方形是你建的文件夹，圆形是按作者自动分的组。点头像进去看笔记；鼠标移到头像上点 🔗，" +
-      "粘贴博主主页链接（抖音 / B站 / YouTube…）就能换成真头像。";
+    tip.textContent = "圆角方形是你建的文件夹，圆形是按作者自动分的组。点头像进去看笔记。个别没找到主页的，" +
+      "鼠标移到头像上点 🔗 粘贴主页链接（抖音 / B站 / YouTube…），或者点进去上传一张头像。";
     wrap.appendChild(tip);
     const grid = document.createElement("div");
     grid.className = "vn-cgrid";

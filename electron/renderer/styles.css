@@ -2432,3 +2432,22 @@ body.lv-standalone .lv-root { height: 100%; }
 .vn-batch-body .vn-live { border-top: none; margin-top: 0; padding-top: 0; }
 /* 完成那一行外面不要再套一层框 */
 #videoResult:has(> .vdone) { border: 0 !important; padding: 0 !important; background: transparent !important; box-shadow: none !important; }
+
+/* ════════ v60：一键识别博主主页 ════════ */
+.vn-cpb { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 6px 2px 4px; font-size: 12.5px; color: var(--text-dim); }
+.vn-cpb-btn { flex: 0 0 auto; border: 1px solid var(--accent); color: var(--accent); background: transparent;
+  border-radius: 8px; padding: 4px 12px; font: 600 12.5px var(--sans); cursor: pointer; }
+.vn-cpb-btn:hover { background: var(--bg-hover); }
+.vn-cpb-btn:disabled { border-color: var(--line); color: var(--text-dim); cursor: default; font-weight: 500; }
+.vn-cpb-sum { flex: 1 1 260px; min-width: 0; }
+.vn-cpb-more { color: var(--accent); text-decoration: none; margin-left: 6px; white-space: nowrap; }
+.vn-cpb-track { flex: 0 0 90px; height: 6px; border-radius: 6px; background: var(--bg-active, #e3e3e8); overflow: hidden; }
+.vn-cpb-track > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .4s; }
+.vn-cpb-txt { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.vn-cpb-note { flex: 1 1 100%; color: #b0851e; }
+.vn-cpb-list { flex: 1 1 100%; max-height: 190px; overflow: auto; background: var(--bg-hover); border-radius: 8px;
+  padding: 6px 10px; line-height: 1.75; color: var(--text); }
+.vn-cpb-note[hidden], .vn-cpb-list[hidden] { display: none !important; }
+.vn-ctile.vn-av-pop .vn-av { animation: vnAvPop .9s ease; }
+@keyframes vnAvPop { 0% { transform: scale(.55); opacity: .25; } 60% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); } }
+

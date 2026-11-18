@@ -384,7 +384,12 @@ def _download_avatar(url, platform, referer=""):
 
 # ════════════════════ 对外 ════════════════════
 
-_RESOLVERS = {"douyin": _resolve_douyin, "bilibili": _resolve_bilibili, "youtube": _resolve_youtube}
+def _resolve_x(url):
+    raise RuntimeError("X（推特）的主页要登录才能看，取不到头像，可以手动上传一张")
+
+
+_RESOLVERS = {"douyin": _resolve_douyin, "bilibili": _resolve_bilibili, "youtube": _resolve_youtube,
+              "x": _resolve_x}
 
 
 def _fetch(url):
@@ -403,7 +408,7 @@ def _store(key, url, plat, info, hint=None, auto=False):
             info[k] = hint[k]
     with _lock:
         prof = dict(_load().get(key) or {})
-    for k in ("error", "no_auto", "auto_fail_at"):
+    for k in ("error", "no_auto", "auto_fail_at", "auto_skip"):
         prof.pop(k, None)
     prof.update({"key": key, "url": url, "platform": plat, "updated": int(time.time())})
     if auto:
@@ -542,6 +547,12 @@ def remove(key):
 
 # ════════════════════ v59：根据视频链接找博主主页 ════════════════════
 
+def profile_state(key):
+    """这个博主现在存着的资料（原样，没有返回空字典）。"""
+    with _lock:
+        return dict(_load().get((key or "").strip()) or {})
+
+
 def should_auto_bind(key):
     """这个博主要不要自动找主页：没绑过主页、用户没手动解除过、一天内没自动找失败过，才找。"""
     with _lock:
@@ -551,6 +562,19 @@ def should_auto_bind(key):
     if p.get("auto_fail_at") and time.time() - p["auto_fail_at"] < 86400:
         return False
     return True
+
+
+def mark_skip(key, why):
+    """v60：一键识别时这个没法自动找（比如按主题建的文件夹、全是本地导入的）——记下来，
+    下次一键识别不再把它算进「还没主页」。点它自己的「自动找主页」按钮仍然可以试。"""
+    with _lock:
+        store = _load()
+        p = dict(store.get(key) or {"key": key})
+        if p.get("url"):
+            return
+        p["auto_skip"] = (why or "")[:120]
+        store[key] = p
+        _save(store)
 
 
 def _mark_auto_fail(key, msg):
@@ -638,6 +662,12 @@ def find_home_from_video(url):
         except Exception:
             pass
         raise RuntimeError(err)
+    if plat == "x":
+        # X（推特）：主页就在链接里（x.com/<账号>/status/…），不用联网
+        m = re.search(r"(?:x|twitter)\.com/([A-Za-z0-9_]{1,15})(?:[/?#]|$)", url)
+        if m and m.group(1).lower() not in ("i", "home", "search", "intent", "share", "status", "hashtag"):
+            h = m.group(1)
+            return {"platform": "x", "home": "https://x.com/%s" % h, "uid": h, "name": "@" + h, "handle": h}
     proxy = _proxy() if plat in ("youtube", "tiktok", "x") else ""
     try:
         r = _ytdlp_uploader(url, proxy)
@@ -649,22 +679,32 @@ def find_home_from_video(url):
     return r
 
 
-def auto_bind_from_video(key, video_url, force=False):
-    """根据视频链接自动找到博主主页并绑到 key 名下。返回 (ok, 资料或错误说明, key)。
+def auto_bind_from_videos(key, video_urls, force=False):
+    """根据这个博主的几条视频（新的在前）自动找主页并绑到 key 名下：第一条找不到（比如视频被删了）
+    就试下一条，最多试 3 条。返回 (ok, 资料或错误说明, key)。
     force=False（提取时自动做）：已经绑过 / 用户解除过 / 一天内失败过的都跳过；force=True（用户点按钮）：照做。"""
     key = (key or "").strip()
     if not key:
         return False, "缺少博主名", key
     if not force and not should_auto_bind(key):
         return False, "已经有主页了", key
-    try:
-        found = find_home_from_video(video_url)
-    except Exception as e:
-        _mark_auto_fail(key, str(e))
-        return False, str(e)[:200], key
-    found["video"] = _find_url(video_url)
-    ok, r = bind(key, found["home"], hint=found, auto=True)
-    if not ok:
-        _mark_auto_fail(key, r)
-    return ok, r, key
+    errs = []
+    for u in [x for x in (video_urls or []) if x][:3]:
+        try:
+            found = find_home_from_video(u)
+        except Exception as e:
+            errs.append(str(e)[:160])
+            continue
+        found["video"] = _find_url(u)
+        ok, r = bind(key, found["home"], hint=found, auto=True)
+        if not ok:
+            _mark_auto_fail(key, r)
+        return ok, r, key
+    msg = errs[0] if errs else "没有可用的视频链接"
+    _mark_auto_fail(key, msg)
+    return False, msg[:200], key
+
+
+def auto_bind_from_video(key, video_url, force=False):
+    return auto_bind_from_videos(key, [video_url], force=force)
 
