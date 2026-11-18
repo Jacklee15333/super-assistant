@@ -691,6 +691,13 @@ def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None
             return _bold_point_titles(out)
         raise RuntimeError("空回复")
     except Exception as e:
+        # v62：是你点了「停止」才中断的 → 不再换卡重试
+        try:
+            import web_model as _wm
+            if _wm.was_cancelled():
+                return "（分析出错：已按你的要求停止）"
+        except Exception:
+            pass
         # ★ 分析只用网页 AI 池（用户要求：本地模型分析不到位）。失败就换一张卡再试一次，不退回本地。
         try:
             if on_progress:
@@ -1766,6 +1773,9 @@ def _note_batch_worker(names, use_local, model):
             with _note_an_lock:
                 ok = bool(_note_an_state.get("ok"))
                 err = _note_an_state.get("error") or ""
+            if not ok and _note_batch["stop"]:
+                tries[name] -= 1          # v62：是你点了停止才中断的，不算这条失败，下次接着分析它
+                break
             if ok:
                 _note_batch["done"] += 1
                 _note_batch["ok"] += 1
@@ -4994,6 +5004,16 @@ class Handler(BaseHTTPRequestHandler):
         后台一条接一条跑；每条都是一个新任务，AI 池会换一张新卡、开新对话（不串上一条的内容）。"""
         if body.get("stop"):
             _note_batch["stop"] = True
+            # v62：正在等 AI 回复的这一条也马上放下（以前要等它答完或超时才停，看起来像点了没反应）
+            try:
+                with _note_an_lock:
+                    busy = bool(_note_an_state.get("running"))
+                if busy and _note_batch.get("running"):
+                    import web_model as _wm
+                    _wm.cancel_current("你点了停止")
+                    _clog("视频", "⏹ 批量补分析：你点了停止，正在分析的这条马上放下")
+            except Exception:
+                pass
             return self._send({"ok": True, "stopping": True})
         if body.get("resume_now"):
             _note_batch["resume_now"] = True

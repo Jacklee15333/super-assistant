@@ -220,6 +220,115 @@ _DOM_FILL_JS = r"""(el, text) => {
 }"""
 
 
+# ════════ v62：批量分析点「停止」时，让 AI 池马上放下手上这条（不用等它答完）════════
+_CANCEL_EVT = threading.Event()
+_CANCEL_WHY = [""]
+_CANCEL_AT = [0.0]
+
+
+class _Cancelled(Exception):
+    """用户点了停止：这条不再等、也不换卡重试。"""
+
+
+def cancel_current(why="你点了停止"):
+    """让 AI 池马上放下正在做的这一条。等回复的循环每半秒看一次，最多一两秒就停下。"""
+    _CANCEL_WHY[0] = why
+    _CANCEL_AT[0] = time.time()
+    _CANCEL_EVT.set()
+
+
+def was_cancelled(within=20):
+    """刚刚（within 秒内）是不是有人点了停止——上层据此不再「换卡重试」。"""
+    return time.time() - _CANCEL_AT[0] < within
+
+
+def _check_cancel():
+    if _CANCEL_EVT.is_set():
+        _CANCEL_EVT.clear()
+        raise _Cancelled(_CANCEL_WHY[0] or "已取消")
+
+
+# v62：输入框里是不是还躺着这段提示词（= 没发出去）。只看可编辑的框，不看已经发出去的提问气泡。
+_COMPOSER_HAS_JS = r"""(head) => {
+    const norm = (s) => (s || '').replace(/\s+/g, '');
+    const h = norm(head).slice(0, 40);
+    if (!h) return false;
+    const els = document.querySelectorAll('textarea, [contenteditable="true"], [role="textbox"]');
+    for (const el of els) {
+        const r = el.getBoundingClientRect();
+        if (r.width < 20 || r.height < 10) continue;
+        const t = norm(el.value !== undefined && el.value !== null && el.tagName === 'TEXTAREA' ? el.value : el.innerText);
+        if (t.includes(h)) return true;
+    }
+    return false;
+}"""
+
+# v62：发送键现在能不能点（enabled / disabled / none=没认出来）
+_SEND_STATE_JS = r"""() => {
+    const sels = ['button[data-testid="send-button"]', '#composer-submit-button',
+                  'button[aria-label*="发送"]', 'button[aria-label*="Send" i]'];
+    let b = null;
+    for (const s of sels) { b = document.querySelector(s); if (b) break; }
+    if (!b) {
+        const inp = document.querySelector('[data-cx-input="1"]');
+        const root = (inp && (inp.closest('form') || inp.parentElement && inp.parentElement.parentElement)) || document;
+        b = [...root.querySelectorAll('button')].find(x => /send|发送/i.test(
+            (x.getAttribute('aria-label') || '') + ' ' + (x.getAttribute('data-testid') || '') + ' ' + (x.title || '')));
+    }
+    if (!b) return 'none';
+    return (b.disabled || b.getAttribute('aria-disabled') === 'true') ? 'disabled' : 'enabled';
+}"""
+
+
+def _win_taskbar_set(show):
+    """v62（Windows）：把挪到屏幕外的 AI 池浏览器窗口从任务栏拿掉 / 放回来。
+    做法：给窗口加上「工具窗口」样式（任务栏和 Alt+Tab 里都不显示），窗口本身照常工作、不最小化。
+    只认「Chrome 窗口 + 在屏幕外」的那一个，不会动你自己开的浏览器。返回处理了几个窗口。"""
+    import sys as _sys
+    if _sys.platform != "win32":
+        return 0
+    try:
+        import ctypes
+        from ctypes import wintypes
+        user32 = ctypes.windll.user32
+        GWL_EXSTYLE, WS_EX_TOOLWINDOW, WS_EX_APPWINDOW = -20, 0x00000080, 0x00040000
+        get = getattr(user32, "GetWindowLongPtrW", user32.GetWindowLongW)
+        setl = getattr(user32, "SetWindowLongPtrW", user32.SetWindowLongW)
+        get.restype, get.argtypes = ctypes.c_ssize_t, [wintypes.HWND, ctypes.c_int]
+        setl.restype, setl.argtypes = ctypes.c_ssize_t, [wintypes.HWND, ctypes.c_int, ctypes.c_ssize_t]
+        hits = []
+        proto = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+        def cb(hwnd, _lp):
+            try:
+                if not user32.IsWindowVisible(hwnd):
+                    return True
+                buf = ctypes.create_unicode_buffer(64)
+                user32.GetClassNameW(hwnd, buf, 64)
+                if buf.value != "Chrome_WidgetWin_1":
+                    return True
+                r = wintypes.RECT()
+                user32.GetWindowRect(hwnd, ctypes.byref(r))
+                if r.left <= OFFSCREEN_X // 2:
+                    hits.append(hwnd)
+            except Exception:
+                pass
+            return True
+        user32.EnumWindows(proto(cb), 0)
+        n = 0
+        for hwnd in hits:
+            ex = get(hwnd, GWL_EXSTYLE)
+            new = ((ex | WS_EX_APPWINDOW) & ~WS_EX_TOOLWINDOW) if show else ((ex | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW)
+            if new != ex:
+                user32.ShowWindow(hwnd, 0)          # SW_HIDE：先藏一下，任务栏才会按新样式刷新
+                setl(hwnd, GWL_EXSTYLE, new)
+                user32.ShowWindow(hwnd, 4)          # SW_SHOWNOACTIVATE：马上再显示（还在屏幕外），不抢焦点
+                n += 1
+        return n
+    except Exception:
+        return 0
+
+
 def is_available():
     return sync_playwright is not None
 
@@ -1237,6 +1346,7 @@ class _WebWorker:
             if on_progress:
                 self._safe(lambda: on_progress(msg))
         prog("打开网页 / 就位中…")
+        _CANCEL_EVT.clear()               # v62：上一条残留的「停止」信号不作数
         self._ensure_started()
 
         # ★ 2026-06 新增：forceNewCard —— 主动换一张新卡再问。
@@ -1874,39 +1984,8 @@ class _WebWorker:
         self._log("已定位输入框，准备填入…")
         time.sleep(1.0)
 
-        # ── 填入：新版 ChatGPT 是 ProseMirror contenteditable。依次试 insert_text / fill / type ──
-        pre = ""
-        filled = False
-        # ① 首选：直接在页面里写入输入框（不用鼠标、不需要窗口在前台）
-        how_dom = self._safe(lambda: inp.evaluate(_DOM_FILL_JS, prompt), "")
-        if how_dom:
-            time.sleep(0.5)
-            pre = self._read_input_text(inp)
-            if len(pre) >= min(int(len(prompt) * 0.8), 8):
-                filled = True
-                self._log("已填入（方式=页面直写/%s，框内 %d 字）" % (how_dom, len(pre)))
-        for how in (() if filled else ("insert_text", "fill", "type")):
-            try:
-                self._focus_input(inp)
-                self._page.keyboard.press("Control+A")
-                self._page.keyboard.press("Delete")
-                if how == "insert_text":
-                    self._page.keyboard.insert_text(prompt)
-                elif how == "fill":
-                    inp.fill(prompt, timeout=5000)
-                else:
-                    self._page.keyboard.type(prompt, delay=0)
-                time.sleep(0.4)
-                pre = self._read_input_text(inp)
-                if len(pre) >= min(int(len(prompt) * 0.8), 8):
-                    filled = True
-                    self._log("已填入（方式=%s，框内 %d 字）" % (how, len(pre)))
-                    break
-                self._log("填入[%s]后框内只有 %d 字，换方式…" % (how, len(pre)))
-            except Exception as e:
-                self._log("填入[%s]异常：%s" % (how, e))
-        if not filled:
-            raise RuntimeError("prompt 没填进输入框（换卡重试）")
+        pre = self._fill_prompt(inp, prompt)
+        _check_cancel()
 
         # ── 发送 ──
         # ★核心修复★ 发送成功的判定【不再只看输入框是否清空】：
@@ -2113,6 +2192,84 @@ class _WebWorker:
             self._log("  未命中发送按钮选择器。附近按钮: " + ((res or {}).get("desc") or "(无)"))
         return False
 
+    def _send_btn_state(self):
+        return self._safe(lambda: self._page.evaluate(_SEND_STATE_JS), "none") or "none"
+
+    def _composer_has(self, text):
+        """输入框里是不是还躺着这段文字（= 没发出去）。"""
+        return bool(self._safe(lambda: self._page.evaluate(_COMPOSER_HAS_JS, (text or "")[:120]), False))
+
+    def _nudge_input(self, inp):
+        """补按一下空格再删掉：让输入框正式触发一次「有人在打字」，页面才会把发送键点亮。"""
+        try:
+            self._focus_input(inp)
+            self._page.keyboard.press("End")
+            self._page.keyboard.insert_text(" ")
+            self._page.keyboard.press("Backspace")
+            time.sleep(0.5)
+        except Exception:
+            pass
+
+    def _fill_prompt(self, inp, prompt):
+        """v62：填入提示词，并确认页面真的「认」到了（发送键亮起来）。返回框里的文字。
+        以前先用「页面直写」——字是进了框，但网页自己的编辑器没收到输入事件，发送键一直是灰的，
+        点了也发不出去（你截图里那样卡住）。现在先用真正的键盘输入（不需要窗口在前台），
+        填完看发送键：还是灰的就补按一下空格再删掉，仍然灰就换下一种填法。"""
+        need = min(int(len(prompt) * 0.8), 8)
+        last_pre = ""
+        for how in ("insert_text", "页面直写", "fill"):
+            try:
+                if how == "页面直写":
+                    if not self._safe(lambda: inp.evaluate(_DOM_FILL_JS, prompt), ""):
+                        continue
+                else:
+                    self._focus_input(inp)
+                    self._page.keyboard.press("Control+A")
+                    self._page.keyboard.press("Delete")
+                    if how == "insert_text":
+                        self._page.keyboard.insert_text(prompt)
+                    else:
+                        inp.fill(prompt, timeout=5000)
+                time.sleep(0.6)
+                pre = self._read_input_text(inp)
+                last_pre = pre or last_pre
+                if len(pre) < need:
+                    self._log("填入[%s]后框内只有 %d 字，换方式…" % (how, len(pre)))
+                    continue
+                st = self._send_btn_state()
+                if st == "disabled":
+                    self._nudge_input(inp)
+                    st = self._send_btn_state()
+                if st == "disabled":
+                    self._log("填入[%s]后发送键还是灰的（网页没认到这段字），换方式…" % how)
+                    continue
+                self._log("已填入（方式=%s，框内 %d 字，发送键%s）" % (
+                    how, len(pre), "已亮" if st == "enabled" else "没认出来，按页面默认"))
+                return pre
+            except Exception as e:
+                self._log("填入[%s]异常：%s" % (how, e))
+        raise RuntimeError("prompt 没填进输入框，或者填了发送键一直是灰的（换卡重试）")
+
+    def _resend_if_stuck(self, prompt_text):
+        """v62：提示词还躺在输入框里（没发出去）→ 再点一次发送。返回是否还卡着。"""
+        if not self._composer_has(prompt_text):
+            return False
+        try:
+            inp = self._find_input()
+        except Exception:
+            inp = None
+        if inp is not None:
+            self._nudge_input(inp)
+        for act in (self._dom_click_send, self._click_send_btn,
+                    (lambda: self._press_send_key(inp)) if inp is not None else None):
+            if act is None:
+                continue
+            self._safe(act)
+            time.sleep(1.5)
+            if not self._composer_has(prompt_text):
+                return False
+        return self._composer_has(prompt_text)
+
     def _wait_send_committed(self, pre_page_len, inp, pre_text, label, max_wait=3.5):
         """
         判断消息是否【真的发出去了】。不再只看输入框清空（ProseMirror 清空有延迟还会重建节点，
@@ -2127,10 +2284,13 @@ class _WebWorker:
         grow_thresh = max(30, pre_len)        # 至少要多出『提问气泡』那么多字
         while time.time() < deadline:
             time.sleep(0.5)
+            _check_cancel()
             probe = self._safe(lambda: self._page.evaluate(_PROBE_JS), None)
             if (probe or {}).get("genState") == "generating":
                 self._log("✓ 发送成功（方式：%s）：检测到『停止■』，AI 已开始生成" % label)
                 return True
+            if pre_text and self._composer_has(pre_text):
+                continue          # v62：提示词还在输入框里 = 没发出去（别被别的信号骗了）
             grew = self._page_text_len() - pre_page_len
             if grew > grow_thresh:
                 self._log("✓ 发送成功（方式：%s）：页面新增 %d 字（出现提问气泡/回复）"
@@ -2250,11 +2410,15 @@ class _WebWorker:
         last_blk = 0
         img_wait_since = 0
         IMG_WAIT_CAP = opts.get("imageWaitMs") or 480000      # 生成图片最多多等 8 分钟
+        echo_since = 0            # v62：第一次看到「回显」的时间
+        last_resend = 0
+        resends = 0
 
         self._quiet_shots = False
         while (time.time() - start) * 1000 < timeout_ms:
             time.sleep(POLL)
             self._tick()
+            _check_cancel()           # v62：批量分析点了「停止」→ 马上放下这条
 
             # 每 2 秒查一次：对比框 / 出错重试 / 额度用完 / 正在生成图片
             if time.time() - last_blk > 2:
@@ -2359,6 +2523,21 @@ class _WebWorker:
                 if head and head in cur_head:
                     last_change = time.time()
                     warned = False
+                    if not echo_since:
+                        echo_since = time.time()
+                    # v62：「回显」持续 15 秒还在，看看是不是提示词根本还在输入框里（没发出去）
+                    if time.time() - echo_since > 15 and time.time() - last_resend > 15:
+                        last_resend = time.time()
+                        if self._composer_has(prompt_text):
+                            resends += 1
+                            if resends > 2:
+                                raise _Stuck("提示词一直停在输入框里没发出去（换卡重试）")
+                            self._log("⚠ 提示词还在输入框里，没发出去 → 再点一次发送（第 %d 次）" % resends)
+                            prog("提示词没发出去，再点一次发送…")
+                            if not self._resend_if_stuck(prompt_text):
+                                self._log("✓ 补发成功")
+                                echo_since = 0
+                            continue
                     if time.time() - skip_log > 5:
                         self._log("抓到的是 prompt 回显，等真实 AI 回复...")
                         skip_log = time.time()
@@ -2564,6 +2743,10 @@ class _WebWorker:
                 except queue.Empty:
                     break
                 self._apply_ui_cmd(cmd)
+            # v62：隐藏状态下每 20 秒看一眼：任务栏按钮被 Chrome 自己加回来了就再拿掉
+            if _LIVE.get("visible") is False and time.time() - getattr(self, "_taskbar_check", 0) > 20:
+                self._taskbar_check = time.time()
+                _win_taskbar_set(False)
             now = time.time()
             if self._quiet_shots or _LIVE["watch_until"] < now:
                 return
@@ -2642,6 +2825,7 @@ class _WebWorker:
             set_b({"windowState": "normal"})
             cur = bounds()
         if visible:
+            _win_taskbar_set(True)        # v62：先放回任务栏（这时窗口还在屏幕外，好认）
             set_b(self._visible_bounds())
             # 先最小化再还原：Windows 会把它放到最上面
             set_b({"windowState": "minimized"})
@@ -2661,7 +2845,11 @@ class _WebWorker:
             _live_set(visible=True)
             return False, "系统不允许把窗口挪到屏幕外"
         _live_set(visible=False)
-        return True, "已隐藏 AI 池浏览器（挪到屏幕外，照常在后台工作）"
+        time.sleep(0.2)
+        n_tb = _win_taskbar_set(False)    # v62：任务栏和 Alt+Tab 里也不显示
+        self._taskbar_check = time.time()
+        return True, "已隐藏 AI 池浏览器（挪到屏幕外，任务栏里也不显示，照常在后台工作）" if n_tb else \
+            "已隐藏 AI 池浏览器（挪到屏幕外，照常在后台工作）"
 
     def get_state(self):
         return {"state": self._state, "hasBrowser": bool(self._browser),
