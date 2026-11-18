@@ -1075,8 +1075,18 @@ def _get_model(level, progress_cb=None):
         except Exception:
             pass
         download_root = str(mdir)
+    # 自动下载过的模型存在 download_root 下的 models--Systran--faster-whisper-<size> 里，
+    # 这种也算「已经下好了」，别再提示「首次使用要下载」
+    cached_dl = False
+    if download_root:
+        try:
+            cached_dl = any((Path(download_root) / n).is_dir() for n in (
+                f"models--Systran--faster-whisper-{size}",
+                f"models--mobiuslabsgmbh--faster-whisper-{size}"))
+        except Exception:
+            cached_dl = False
     if progress_cb:
-        if is_local:
+        if is_local or cached_dl:
             progress_cb("加载语音模型", f"用本地已下载的 {size} 模型，无需联网")
         else:
             progress_cb("加载语音模型",

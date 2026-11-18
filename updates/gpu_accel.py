@@ -32,6 +32,7 @@ _state = {
     "checked": False,        # 是否检测过
     "has_nvidia": False,     # 是否有 NVIDIA 显卡
     "gpu_name": "",          # 显卡型号
+    "gpu_mem_gb": 0,         # 显存（GB）
     "libs_ok": None,         # CUDA 运行库是否就绪（None=还没确认）
     "installing": False,     # 正在安装运行库
     "install_msg": "",       # 安装过程/结果说明
@@ -73,7 +74,17 @@ def _nvidia_smi_name():
                            capture_output=True, text=True, timeout=15,
                            creationflags=_NO_WINDOW)
         line = (r.stdout or "").strip().splitlines()
-        return line[0].strip() if (r.returncode == 0 and line) else ""
+        if r.returncode != 0 or not line:
+            return ""
+        # 输出形如 "NVIDIA GeForce RTX 5060 Ti, 16311 MiB"：名字和显存分开存
+        parts = [x.strip() for x in line[0].split(",")]
+        if len(parts) >= 2 and "MiB" in parts[-1]:
+            try:
+                _state["gpu_mem_gb"] = round(int(parts[-1].split()[0]) / 1024, 1)
+            except Exception:
+                pass
+            return ", ".join(parts[:-1])
+        return line[0].strip()
     except Exception:
         return ""
 

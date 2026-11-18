@@ -43,6 +43,13 @@ try:
 except Exception:
     pass
 
+# v55：黑窗口里打印的每一行，同时存一份在内存里，软件里的「终端」面板通过 /logs 读
+try:
+    import log_capture as _log_capture
+    _log_capture.install()
+except Exception:
+    _log_capture = None
+
 import agent_core as core
 try:
     import chat_progress as cp
@@ -81,6 +88,7 @@ _LOG_QUIET_PATHS = {
     "/sniff/config", "/skills/list", "/agents/list", "/agents/convos", "/agents/notifications", "/datadb/list", "/memory/list",
     "/creator/list", "/creator/findings", "/creator/videos_cached",
     "/creator/x_cookie_status",
+    "/logs", "/ai_live", "/ai_live_shot", "/version", "/gpu_status",
 }
 
 # 给少数关键路径配一句「人话」描述，让日志一眼能看懂用户在干嘛。
@@ -1478,7 +1486,8 @@ def _note_batch_worker(names, use_local, model):
                 with _note_an_lock:
                     if not _note_an_state["running"]:
                         _note_an_state.update({"running": True, "name": name, "stage": "准备",
-                                               "error": "", "ok": False})
+                                               "error": "", "ok": False, "title": "",
+                                               "author": "", "started_at": _time.time()})
                         break
                 if _note_batch["stop"]:
                     break
@@ -1628,6 +1637,17 @@ def _note_analyze_worker(name, use_local, model):
         p = _cx_video_dir() / name
         text = p.read_text(encoding="utf-8", errors="replace")
         title, meta_lines, transcript, old_tags = _parse_saved_note(text)
+        # v55：「实时画面」面板显示正在分析哪一篇（标题 + 作者）
+        try:
+            _au = ""
+            for ln in meta_lines:
+                _m = re.search(r"作者[：:]\s*(.+)", ln)
+                if _m:
+                    _au = _m.group(1).strip()
+                    break
+            _note_an_state.update({"title": title or "", "author": _au, "started_at": start})
+        except Exception:
+            pass
         if not transcript:
             raise RuntimeError("这条笔记里没找到文字稿，补不了分析")
         title = title or "（无标题）"
@@ -2085,6 +2105,29 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass  # 安静，不刷屏
 
+    def _ai_live(self, watch=False):
+        """v55：「实时画面」面板要的数据：AI 池在干什么 + 批量分析正在分析哪一篇。"""
+        try:
+            import web_model
+            pool = web_model.live_state(watch=watch)
+        except Exception as e:
+            pool = {"error": str(e)}
+        b = _note_batch
+        with _note_an_lock:
+            an = dict(_note_an_state)
+        cur = b.get("current") or ""
+        same = bool(cur) and an.get("name") == cur
+        batch = {
+            "running": bool(b.get("running")), "total": b.get("total", 0), "done": b.get("done", 0),
+            "ok": b.get("ok", 0), "fail": b.get("fail", 0), "round": b.get("round", 1),
+            "waiting": b.get("waiting") or "", "current": cur,
+            "title": (an.get("title") or "") if same else "",
+            "author": (an.get("author") or "") if same else "",
+            "stage": (an.get("stage") or "") if same else "",
+            "note_started": (an.get("started_at") or 0) if same else 0,
+        }
+        return {"pool": pool, "batch": batch, "now": _time_now()}
+
     def _send(self, obj, status=200):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
@@ -2175,6 +2218,28 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/video_note_analyze_progress":
             with _note_an_lock:
                 return self._send(dict(_note_an_state))
+        if path == "/logs":
+            # v55：软件里的「终端」面板 / 独立终端窗口，增量读后端日志
+            try:
+                since = int((qs.get("since") or ["0"])[0] or 0)
+                limit = max(1, min(5000, int((qs.get("limit") or ["2000"])[0] or 2000)))
+            except Exception:
+                since, limit = 0, 2000
+            if _log_capture is None:
+                return self._send({"lines": [], "last": 0, "first": 0, "gap": False,
+                                   "error": "日志收集没启用"})
+            return self._send(_log_capture.get_lines(since, limit))
+        if path == "/ai_live":
+            return self._send(self._ai_live((qs.get("watch") or ["0"])[0] == "1"))
+        if path == "/ai_live_shot":
+            try:
+                import web_model
+                data, _ts = web_model.live_shot()
+            except Exception:
+                data = b""
+            if not data:
+                return self._send({"error": "还没有画面"}, 404)
+            return self._send_bytes(data, "image/jpeg")
         if path == "/video_progress":
             return self._send(self._video_progress_merged())
         if path == "/video_shot":
@@ -2649,6 +2714,21 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_video_note_delete(body)
         if path == "/video_note_analyze_batch":
             return self._handle_video_note_analyze_batch(body)
+        if path == "/web_model/window":
+            # v55：显示 / 隐藏 AI 池浏览器（隐藏＝挪到屏幕外，照常工作）
+            try:
+                import web_model
+                ok, msg = web_model.request_window((body or {}).get("action", ""))
+            except Exception as e:
+                ok, msg = False, "出错：%s" % e
+            _clog("AI池", msg)
+            return self._send({"ok": ok, "message": msg})
+        if path == "/console":
+            # v55：启动时的黑窗口：最小化 / 显示
+            if _log_capture is None:
+                return self._send({"ok": False, "message": "日志收集没启用"})
+            ok, msg = _log_capture.console_window((body or {}).get("action", "status"))
+            return self._send({"ok": ok, "message": msg})
         if path == "/video_note_analyze":
             return self._handle_video_note_analyze(body)
         if path == "/video_note_set_author":
