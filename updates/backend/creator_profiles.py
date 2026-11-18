@@ -569,11 +569,38 @@ def rename_key(old, new):
             return False
         q = store.get(new) or {}
         if not (q.get("url") or q.get("avatar_file")):
-            p["key"] = new
-            p["renamed_from"] = old
-            store[new] = p
+            if p.get("url") or p.get("avatar_file"):
+                p["key"] = new
+                p["renamed_from"] = old
+                store[new] = p
+            elif p.get("no_auto") and not q:
+                # v64：old 只有「用户解除过绑定」的记号 → 新名字也别自动绑
+                store[new] = {"key": new, "no_auto": True, "renamed_from": old, "updated": int(time.time())}
+            # v64：old 只有「自动找没成功」之类的记号（没主页也没头像）→ 不挪过去，
+            # 免得 new 的资料卡上显示 old 的失败原因（合并记录里留着原样，撤销时会放回去）
         _save(store)
     return True
+
+
+def restore_after_unmerge(src, dst, src_before, dst_before, moved):
+    """v64：撤销合并——src 的资料放回去；dst 那份如果是合并时从 src 挪过来的，恢复成 dst 原来的样子。
+    （合并后 dst 又重新绑定 / 刷新过的，就保留 dst 现在的。）"""
+    src, dst = (src or "").strip(), (dst or "").strip()
+    if not src or not dst:
+        return
+    with _lock:
+        store = _load()
+        cur = store.get(dst) or {}
+        if moved and cur.get("renamed_from") == src:
+            if dst_before:
+                store[dst] = dict(dst_before)
+            else:
+                store.pop(dst, None)
+        if src_before and src not in store:
+            p = dict(src_before)
+            p["key"] = src
+            store[src] = p
+        _save(store)
 
 
 def profile_state(key):

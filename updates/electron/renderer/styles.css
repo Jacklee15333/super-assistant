@@ -2209,8 +2209,7 @@ body.lv-standalone .lv-root { height: 100%; }
 /* ════════════════ v55：批量分析 ·「AI 实时画面」 ════════════════ */
 .vn-live { flex: 1 1 100%; border-top: 1px dashed var(--line); margin-top: 4px; padding-top: 6px; min-width: 0; }
 .vn-live[hidden] { display: none; }
-.vn-live-head { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; user-select: none; min-width: 0; }
-.vn-live-caret { width: 12px; color: var(--text-dim); }
+.vn-live-head { display: flex; align-items: center; gap: 6px; font-size: 13px; min-width: 0; }  /* v64：不再单独折叠 */
 .vn-live-title { font-weight: 600; white-space: nowrap; }
 .vn-live-sum { color: var(--text-dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
 .vn-live-body { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
@@ -2457,3 +2456,35 @@ body.lv-standalone .lv-root { height: 100%; }
 .vn-wall-sum { color: var(--text-dim); font-size: 12.5px; font-weight: 400; }
 .vn-wall-body[hidden], .vn-csorts[hidden] { display: none !important; }
 
+
+
+/* ════════════════ v64：合并博主 ════════════════ */
+.vn-tidy-tip { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 10px; padding: 8px 10px 8px 12px;
+  border: 1px solid var(--accent); border-radius: 10px; background: var(--bg-elev, #fff); font-size: 12.5px; }
+.vn-tidy-text { flex: 1; min-width: 0; white-space: pre-line; line-height: 1.6; color: var(--text); }
+.vn-tidy-x { flex: 0 0 auto; border: 0; background: transparent; color: var(--text-dim); font-size: 16px; line-height: 1;
+  cursor: pointer; padding: 2px 4px; border-radius: 6px; }
+.vn-tidy-x:hover { background: var(--bg-hover); color: var(--text); }
+.vn-cprof-merged { font-size: 12.5px; color: var(--text-dim); display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.vn-cprof-merged b { font-weight: 500; color: var(--text); }
+.vn-cprof-undo { border: 0; background: transparent; color: var(--accent); cursor: pointer; font-size: 12px; padding: 0 4px; }
+.vn-cprof-undo:hover { text-decoration: underline; }
+.vn-merge-mask { position: fixed; inset: 0; z-index: 10000; background: rgba(0, 0, 0, .35);
+  display: flex; align-items: center; justify-content: center; }
+.vn-merge-box { background: var(--surface-2, var(--bg-elev, #fff)); color: var(--text); border: 0.5px solid var(--line-strong);
+  border-radius: 12px; box-shadow: 0 12px 40px rgba(0, 0, 0, .25); padding: 16px 18px; width: min(480px, 90vw);
+  display: flex; flex-direction: column; gap: 8px; }
+.vn-merge-title { font-size: 14px; font-weight: 600; }
+.vn-merge-desc { font-size: 12.5px; color: var(--text-dim); line-height: 1.6; }
+.vn-merge-lab { font-size: 12.5px; font-weight: 600; margin-top: 4px; }
+.vn-merge-input { width: 100%; box-sizing: border-box; }
+.vn-merge-like { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.vn-merge-like.empty { font-size: 12px; color: var(--text-dim); }
+.vn-merge-likelab { font-size: 12px; color: var(--text-dim); }
+.vn-merge-picks { display: flex; flex-wrap: wrap; gap: 8px; }
+.vn-merge-keep { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vn-merge-keep:disabled { opacity: .45; cursor: default; }
+.vn-merge-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
+.vn-merge-note { font-size: 12px; color: #d9534f; }
+.vn-merge-cancel { border: 0.5px solid var(--line-strong); background: transparent; color: var(--text); border-radius: 8px;
+  padding: 6px 14px; font-size: 13px; cursor: pointer; }
