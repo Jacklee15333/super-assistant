@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>超能小助 · 终端</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    html, body { height: 100%; margin: 0; }
+    body { background: #141414; color: #ddd; display: flex; flex-direction: column; }
+    .term-head { display: flex; align-items: center; gap: 10px; padding: 8px 12px; font: 13px system-ui, "Microsoft YaHei", sans-serif; color: #aaa; border-bottom: 1px solid #2a2a2a; }
+    .term-head b { color: #eee; font-weight: 600; }
+    .term-head .sp { flex: 1; }
+    .term-head button { background: #252525; color: #ddd; border: 1px solid #3a3a3a; border-radius: 6px; padding: 3px 10px; font-size: 12px; cursor: pointer; }
+    .term-head button:hover { background: #303030; }
+    #log { flex: 1; min-height: 0; }
+  </style>
+</head>
+<body class="lv-standalone">
+  <div class="term-head">
+    <b>超能小助 · 终端</b>
+    <span>和启动时的黑窗口内容一样，实时更新</span>
+    <span class="sp"></span>
+    <span id="msg"></span>
+    <button id="showConsole" title="把启动时的那个黑窗口重新显示出来">显示原来的黑窗口</button>
+  </div>
+  <div id="log"></div>
+  <script src="logview.js"></script>
+  <script>
+    (async function () {
+      let port = 8756;
+      try { if (window.crayfish && window.crayfish.getBackendPort) port = (await window.crayfish.getBackendPort()) || port; } catch (_) {}
+      const backend = "http://127.0.0.1:" + port;
+      const v = CxLogView.mount(document.getElementById("log"), { backend: () => backend });
+      v.start();
+      document.getElementById("showConsole").addEventListener("click", async () => {
+        const msg = document.getElementById("msg");
+        try {
+          const d = await (await fetch(backend + "/console", { method: "POST",
+            headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "show" }) })).json();
+          msg.textContent = d.message || "";
+        } catch (e) { msg.textContent = "出错：" + e.message; }
+        setTimeout(() => { msg.textContent = ""; }, 4000);
+      });
+    })();
+  </script>
+</body>
+</html>
