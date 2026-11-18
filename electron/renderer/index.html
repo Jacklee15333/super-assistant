@@ -337,70 +337,12 @@
               <button id="videoGoBtn" class="send-btn">提取并分析</button>
             </div>
 
-            <!-- ── 高级选项（默认收起）：插图 / 跳转原片 / 字幕模式，各带说明 + 检测 ── -->
-            <div class="v-adv" id="advBox">
-              <div class="v-adv-head" id="advHead" role="button" tabindex="0">
-                <span id="advCaret">▸</span>
-                <span>⚙ 高级选项</span>
-                <span style="color:var(--text-dim,#9aa);font-weight:400">（插图 · 跳转原片 · 字幕模式 · 是否AI分析，可先「测一下」看能不能用）</span>
-              </div>
-              <div class="v-adv-body" id="advBody">
-
-                <!-- 插图 -->
-                <div class="v-opt-row">
-                  <span class="v-opt-main">
-                    <label class="video-opt" style="margin:0">
-                      <input type="checkbox" id="videoShot" /> 🖼️ 插图（自动截取关键画面）
-                    </label>
-                    <button type="button" class="v-info-btn" data-info="info-shot" title="说明">ⓘ</button>
-                  </span>
-                  <button type="button" class="v-test-btn" data-test="shot">测一下</button>
-                  <span class="v-badge" id="badge-shot"></span>
-                  <div class="v-info-pop" id="info-shot" style="position:static;display:none;max-width:none;margin-top:6px;box-shadow:none">勾选后会额外下载视频画面，让 AI 在合适的地方插入截图。会比只听写稍慢、占点流量。能不能成要真正下载才知道，所以「测一下」只给适配性预估。</div>
-                </div>
-
-                <!-- 跳转原片 -->
-                <div class="v-opt-row">
-                  <span class="v-opt-main">
-                    <label class="video-opt" style="margin:0">
-                      <input type="checkbox" id="videoLink" /> 🔗 跳转原片（点标题回看对应片段）
-                    </label>
-                    <button type="button" class="v-info-btn" data-info="info-link" title="说明">ⓘ</button>
-                  </span>
-                  <button type="button" class="v-test-btn" data-test="link">测一下</button>
-                  <span class="v-badge" id="badge-link"></span>
-                  <div class="v-info-pop" id="info-link" style="position:static;display:none;max-width:none;margin-top:6px;box-shadow:none">勾选后笔记里的小标题会带「跳转原片」链接，点一下跳到原视频对应时间点。支持 B站 / YouTube / 抖音。需要提取出带时间戳的分段才有效，所以「测一下」按平台给预估。</div>
-                </div>
-
-                <!-- 字幕模式（这个能真检测）-->
-                <div class="v-opt-row">
-                  <span class="v-opt-main">
-                    <span class="video-mode-label" style="font-size:13px">📝 字幕模式</span>
-                    <select id="videoSubMode" class="video-mode-sel">
-                      <option value="auto" selected>自动（推荐）</option>
-                      <option value="subtitle_only">只用字幕（最快）</option>
-                      <option value="transcribe">字幕+视频听写（更准更全）</option>
-                    </select>
-                    <button type="button" class="v-info-btn" data-info="info-sub" title="说明">ⓘ</button>
-                  </span>
-                  <button type="button" class="v-test-btn" data-test="sub">测一下</button>
-                  <span class="v-badge" id="badge-sub"></span>
-                  <div class="v-info-pop" id="info-sub" style="position:static;display:none;max-width:none;margin-top:6px;box-shadow:none">有字幕的视频（B站/YouTube）能直接用现成字幕，又快又准；抖音等没字幕的会自动听写。「自动」最省心；「只用字幕」最快但没字幕时回退听写；「字幕+视频听写」最准最全。粘好链接点「测一下」可真实探测这个视频有没有字幕。</div>
-                </div>
-
-                <!-- 提取后是否自动 AI 分析（新增）-->
-                <div class="v-opt-row">
-                  <span class="v-opt-main">
-                    <label class="video-opt" style="margin:0">
-                      <input type="checkbox" id="videoAnalyze" checked /> 🤖 提取后自动 AI 分析
-                    </label>
-                    <button type="button" class="v-info-btn" data-info="info-analyze" title="说明">ⓘ</button>
-                  </span>
-                  <span class="v-badge" id="badge-analyze"></span>
-                  <div class="v-info-pop" id="info-analyze" style="position:static;display:none;max-width:none;margin-top:6px;box-shadow:none">默认勾选：提取完立刻让 AI 总结成笔记（和以前一样）。<b>取消勾选</b>则只提取并保存文字稿、完全不调用 AI——适合 AI 正被别的软件占用的时候；之后随时到「已存的视频笔记」里点该条右侧的「🤖 AI 分析」补做，效果和当场分析一样。注意：不勾选时「插图」不可用（视频画面用完即删，事后补不了图）；「跳转原片」不受影响，补分析时会自动带上。</div>
-                </div>
-
-              </div>
+            <!-- v59：博主主页（选填）。不填也行：提取完会根据视频自动找博主主页，建「博主板块」（头像、昵称、粉丝数）。
+                 原来的「高级选项」（插图 / 跳转原片 / 字幕模式 / 自动 AI 分析）已去掉，一律用默认：自动用字幕、提取完自动 AI 分析。 -->
+            <div class="video-creator-row">
+              <span class="vc-label" title="填了就按这个主页建博主板块；不填，软件会根据视频自动找博主主页">👤 博主主页</span>
+              <input type="text" id="videoCreatorUrl" class="text-input"
+                placeholder="选填：博主主页链接（抖音 / B站 / YouTube…）。不填也行，软件会根据视频自动找" />
             </div>
             <div id="videoSubHint" class="video-sub-hint" style="display:none"></div>
 
@@ -414,14 +356,16 @@
                 <span id="videoToolsCaret">▸</span>
                 <span>🛠 维护工具</span>
                 <span style="color:var(--text-dim,#9aa);font-weight:400">（依赖安装 · 抖音自检 · 诊断）</span>
+                <span id="videoDepBadge" class="vdep-badge" hidden></span>
               </div>
               <div id="videoToolsBody" style="display:none;padding:10px;border-top:0.5px solid var(--border,#3a3a3a)">
+                <div id="videoDepStatus" class="vdep-status"></div>
                 <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px">
                   <button id="videoDepBtn" class="send-btn" style="font-size:13px;padding:6px 12px">🔧 安装/更新依赖</button>
                   <button id="videoHealthBtn" class="send-btn" style="font-size:13px;padding:6px 12px">🩺 检测抖音是否正常</button>
                   <button id="videoDiagCopyBtn2" class="send-btn" style="font-size:13px;padding:6px 12px">📋 复制诊断信息</button>
                 </div>
-                <div class="video-mode-tip" style="margin-top:6px">首次使用、或抖音提取一直失败时用：联网安装/升级 yt-dlp、faster-whisper、curl_cffi（约一两分钟）。</div>
+                <div class="video-mode-tip" style="margin-top:6px">软件会自己查这几个依赖有没有新版：有新版时「更新依赖」按钮才亮起来，已是最新时按钮是灰的。抖音提取一直失败时，先更新一下往往就好了。</div>
                 <div class="video-install-log" id="videoDepLog" style="margin-top:6px"></div>
                 <div id="videoHealthBanner" class="video-health-banner" style="display:none;margin-top:8px;padding:8px 10px;border-radius:8px;font-size:13px;line-height:1.5"></div>
               </div>
@@ -1972,7 +1916,7 @@
       }
     })();
   </script>
-  <!-- 视频页：ⓘ 信息按钮弹窗 + 高级选项折叠 + 插图/跳转/字幕「测一下」检测 -->
+  <!-- 视频页：ⓘ 信息按钮弹窗（v59 去掉了高级选项和「测一下」） -->
   <script>
     (function () {
       function backend() {
@@ -2026,77 +1970,6 @@
             document.querySelectorAll(".v-info-pop.show").forEach(function (p) {
               p.classList.remove("show");
             });
-          }
-        });
-
-        // —— 高级选项折叠 ——
-        var advHead = document.getElementById("advHead");
-        if (advHead) {
-          var toggle = function () {
-            var body = document.getElementById("advBody");
-            var caret = document.getElementById("advCaret");
-            if (!body) return;
-            var open = body.style.display === "block";
-            body.style.display = open ? "none" : "block";
-            if (caret) caret.textContent = open ? "▸" : "▾";
-          };
-          advHead.addEventListener("click", toggle);
-          advHead.addEventListener("keydown", function (e) {
-            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
-          });
-        }
-
-        // —— 三个「测一下」检测 ——
-        document.addEventListener("click", function (e) {
-          var t = e.target.closest && e.target.closest(".v-test-btn");
-          if (!t) return;
-          var kind = t.getAttribute("data-test");
-          var url = getUrl();
-          var plat = platformOf(url);
-          if (!url) {
-            setBadge(kind, "no", "先粘个链接");
-            return;
-          }
-
-          if (kind === "sub") {
-            // 字幕：真检测，调后端 /video_detect_subtitle
-            setBadge("sub", "testing", "检测中…");
-            fetch(backend() + "/video_detect_subtitle", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ url: url }),
-            }).then(function (r) { return r.json(); }).then(function (d) {
-              if (d && d.has) {
-                var src = d.source === "bilibili_subtitle" ? "B站字幕"
-                  : (d.source === "youtube_subtitle" ? "YouTube字幕" : "字幕");
-                setBadge("sub", "ok", "✓ 有" + src + "，可秒取");
-              } else {
-                setBadge("sub", "maybe", "无字幕，将自动听写");
-              }
-            }).catch(function () {
-              setBadge("sub", "maybe", "测不了，提取时会自动判断");
-            });
-            return;
-          }
-
-          // 插图 / 跳转：事前测不准，按平台给「预估」
-          if (kind === "shot") {
-            if (plat === "bilibili" || plat === "youtube" || plat === "douyin") {
-              setBadge("shot", "maybe", "预估可用（需真正下载才确定）");
-            } else if (plat === "other") {
-              setBadge("shot", "maybe", "预估：看平台支持，试了才知");
-            }
-            return;
-          }
-          if (kind === "link") {
-            if (plat === "bilibili" || plat === "youtube") {
-              setBadge("link", "ok", "✓ 该平台支持跳转");
-            } else if (plat === "douyin") {
-              setBadge("link", "maybe", "抖音多数支持，按时间戳跳转");
-            } else if (plat === "other") {
-              setBadge("link", "maybe", "看是否有时间戳，提取后确定");
-            }
-            return;
           }
         });
       }

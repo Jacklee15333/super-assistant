@@ -1788,6 +1788,8 @@ async function startVideoJob(url, level) {
     // 读字幕模式（auto / subtitle_only / transcribe），默认 auto
     const modeEl = document.getElementById("videoSubMode");
     const mode = (modeEl && modeEl.value) || "auto";
+    // v59：博主主页（选填）
+    const creator_url = (document.getElementById("videoCreatorUrl")?.value || "").trim();
 
     // 先轻量检测有没有平台字幕（秒级，不下载正文）。失败/超时就当没字幕，照常提交。
     const hintEl = document.getElementById("videoSubHint");
@@ -1804,9 +1806,7 @@ async function startVideoJob(url, level) {
           const srcName = dd.source === "bilibili_subtitle" ? "B站字幕"
             : (dd.source === "youtube_subtitle" ? "YouTube 字幕" : "字幕");
           if (mode === "auto") {
-            hintEl.innerHTML = "✅ 检测到" + srcName +
-              "，已按「自动」直接用字幕（最快）。想更准更全，可在上方「字幕模式」改选" +
-              "『字幕+视频听写』后重新提取。";
+            hintEl.innerHTML = "✅ 检测到" + srcName + "，直接用字幕（最快）。";
           } else {
             hintEl.innerHTML = "✅ 检测到" + srcName + "，将优先使用字幕。";
           }
@@ -1822,7 +1822,7 @@ async function startVideoJob(url, level) {
     const resp = await fetch(BACKEND + "/video_transcribe", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url, level, use_local: s.use_local, model: s.model,
-                             screenshot, link, mode, analyze }),
+                             screenshot, link, mode, analyze, creator_url }),
     });
     const data = await resp.json();
 
@@ -1839,7 +1839,9 @@ async function startVideoJob(url, level) {
     if (data.error) { setVideoStatus("没成功：" + data.error, "warn"); return; }
     if (data.queued) {
       const box = document.getElementById("videoUrl");
-      if (box) box.value = "";   // 已进队列，清空输入框，避免用户分不清这链接干嘛的
+      if (box) box.value = "";
+      const crBox = document.getElementById("videoCreatorUrl");
+      if (crBox) crBox.value = "";   // 已进队列，清空输入框，避免用户分不清这链接干嘛的
       if (data.position > 1) {
         setVideoStatus("已加入队列，前面还有 " + (data.position - 1) + " 个，排队处理中…");
       } else {
@@ -1873,6 +1875,12 @@ async function startLocalVideoJob(filePath, author, noteFolder, opts) {
       ? opts.screenshot : !!(shotEl && shotEl.checked));
     const link = (typeof opts.link === "boolean")
       ? opts.link : !!(linkEl && linkEl.checked);
+    // v59：博主主页（选填）。导入文件夹会一个个调用这里，第一次读到后记在 opts 里，后面的文件接着用
+    if (typeof opts.creator_url !== "string") {
+      const crBox = document.getElementById("videoCreatorUrl");
+      opts.creator_url = ((crBox && crBox.value) || "").trim();
+      if (crBox) crBox.value = "";
+    }
 
     const resp = await fetch(BACKEND + "/video_transcribe", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -1880,7 +1888,8 @@ async function startLocalVideoJob(filePath, author, noteFolder, opts) {
                              use_local: s.use_local, model: s.model,
                              screenshot, link, analyze,
                              author: (author || "").trim(),
-                             note_folder: (noteFolder || "").trim() }),
+                             note_folder: (noteFolder || "").trim(),
+                             creator_url: opts.creator_url || "" }),
     });
     const data = await resp.json();
 
@@ -2334,7 +2343,7 @@ function pollVideoProgress() {
         _lastVideoResultId = p.result_id;
         const res = p.result;
         if (res.ok) {
-          mountVideoResult(res);
+          mountVideoDone(res);              // v59：只显示一行「完成」，详情去「最新提取」看
           loadVideoNotes();
           _lastDoneTitle = (res.title || "").trim();
         } else if (res.cancelled) {
@@ -2366,7 +2375,7 @@ function pollVideoProgress() {
           const totalLeft = qlen + 1;  // 正在跑的 + 排队的
           const pos = totalLeft > 1 ? `（还剩 ${totalLeft} 个）` : "";
           banner = `⏳ 正在处理${pos}…`;
-          if (_lastDoneTitle) {
+          if (_lastDoneTitle && !document.querySelector("#videoResult .vdone")) {   // v59：完成那一行已经写了，不重复
             banner = `✅ 上一个已完成并存档：《${_lastDoneTitle.slice(0, 24)}》　|　` + banner;
           }
         } else if (qlen > 0) {
@@ -2384,8 +2393,12 @@ function pollVideoProgress() {
         if (res.cancelled) {
           setVideoStatus("🛑 已全部取消（已识别的进度会保留，同一链接下次可续传）。", "ok");
         } else if (res.ok || _lastDoneTitle) {
-          const t = _lastDoneTitle ? `：《${_lastDoneTitle.slice(0, 24)}》` : "";
-          setVideoStatus(`🎉 全部完成，已自动存档${t}`, "ok");
+          if (document.querySelector("#videoResult .vdone")) {
+            setVideoStatus("");      // v59：下面「✅ 提取完成」那一行已经说清楚了，不再多一条横幅
+          } else {
+            const t = _lastDoneTitle ? `：《${_lastDoneTitle.slice(0, 24)}》` : "";
+            setVideoStatus(`🎉 全部完成，已自动存档${t}`, "ok");
+          }
         } else if (res.error) {
           setVideoStatus("⚠ 最后一个没成功：" + res.error, "warn");
         } else {
@@ -2423,40 +2436,99 @@ async function runVideoInstall() {
   }
 }
 
-// 工具栏上「常驻」的安装/更新依赖按钮（不像上面那个只在缺依赖时才冒出来）。
-// 用途：依赖明明"装过"但实际缺 curl_cffi / 或 yt-dlp 太旧导致抖音提取失败时，
-//   随时点一下把 yt-dlp、faster-whisper、curl_cffi 一并升级/补齐。
+// ────────── v59：维护工具 · 依赖版本 ──────────
+// 每个依赖显示「已装版本 + 是不是最新」。已是最新时「更新」按钮变灰点不了；查到新版才亮起来。
+// 有没有新版由后端让 pip 试装一下来判断（和真正更新走同一个源），结果记 6 小时，可点「↻ 重新检查」。
+let _vdepTimer = null;
+let _vdepInstalling = false;
+
+function renderVideoDeps(st) {
+  if (!st) return;
+  const box = document.getElementById("videoDepStatus");
+  const btn = document.getElementById("videoDepBtn");
+  const badge = document.getElementById("videoDepBadge");
+  const n = st.updates || 0;
+  if (box) {
+    let html = '<div class="vdep-list">';
+    (st.items || []).forEach((it) => {
+      let txt, cls;
+      if (it.missing) { txt = "未安装" + (st.known && it.latest ? "，可装 " + it.latest : ""); cls = "warn"; }
+      else if (it.update) { txt = "⬆ 有新版 " + it.latest; cls = "up"; }
+      else if (st.known) { txt = "✓ 已是最新"; cls = "ok"; }
+      else { txt = st.checking ? "检查中…" : "—"; cls = "dim"; }
+      if (it.restart) txt += "（关掉软件再打开才生效）";
+      html += '<div class="vdep-row"><span class="vdep-name">' + escapeHtml(it.name) + "</span>" +
+        '<span class="vdep-ver">' + escapeHtml(it.installed || "—") + "</span>" +
+        '<span class="vdep-st ' + cls + '">' + escapeHtml(txt) + "</span></div>";
+    });
+    html += "</div>";
+    let foot = "";
+    if (st.installing) foot = "正在更新…";
+    else if (st.checking) foot = "正在检查有没有新版本…（十几秒）";
+    else if (st.error) foot = "⚠ " + st.error;
+    else if (st.known) foot = "上次检查：" + vnFmtWhen(st.checked_at * 1000) + (st.source ? "（" + st.source + "）" : "");
+    html += '<div class="vdep-foot"><span>' + escapeHtml(foot) + "</span>" +
+      (st.checking || st.installing ? "" : '<a href="#" id="videoDepRecheck">↻ 重新检查</a>') + "</div>";
+    box.innerHTML = html;
+    const re = document.getElementById("videoDepRecheck");
+    if (re) re.addEventListener("click", (e) => { e.preventDefault(); loadVideoDeps(true); });
+  }
+  if (btn && !_vdepInstalling) {
+    if (st.installing) { btn.disabled = true; btn.textContent = "更新中…"; btn.title = ""; }
+    else if (st.checking) { btn.disabled = true; btn.textContent = "正在检查新版本…"; btn.title = ""; }
+    else if (n > 0) {
+      btn.disabled = false; btn.textContent = "⬇ 更新依赖（" + n + " 个有新版）";
+      btn.title = "联网把有新版的依赖更新到最新（约一两分钟）";
+    } else if (st.up_to_date) {
+      btn.disabled = true; btn.textContent = "✓ 已是最新";
+      btn.title = "所有依赖都是最新版本；查到新版时这个按钮会亮起来";
+    } else {
+      btn.disabled = false; btn.textContent = "🔧 安装/更新依赖";
+      btn.title = "没查到新版本信息（可能没网），也可以直接点更新";
+    }
+  }
+  if (badge) {
+    if (n > 0) { badge.hidden = false; badge.className = "vdep-badge up"; badge.textContent = "⬆ " + n + " 个依赖有新版"; }
+    else if (st.up_to_date) { badge.hidden = false; badge.className = "vdep-badge ok"; badge.textContent = "✓ 依赖已是最新"; }
+    else badge.hidden = true;
+  }
+}
+
+async function loadVideoDeps(refresh) {
+  clearTimeout(_vdepTimer);
+  let st;
+  try {
+    st = await (await fetch(BACKEND + "/video_deps" + (refresh ? "?refresh=1" : ""), { cache: "no-store" })).json();
+  } catch (e) { return; }
+  renderVideoDeps(st);
+  if (st.checking || st.installing) _vdepTimer = setTimeout(() => loadVideoDeps(false), 2000);
+}
+
 async function runVideoDepInstall() {
   const btn = document.getElementById("videoDepBtn");
   const log = document.getElementById("videoDepLog");
-  const orig = (btn && btn.textContent) || "🔧 安装/更新依赖";
-  if (btn) { btn.disabled = true; btn.textContent = "安装中…（请稍候，别关软件）"; }
+  _vdepInstalling = true;
+  if (btn) { btn.disabled = true; btn.textContent = "更新中…（约一两分钟，别关软件）"; }
   if (log) {
-    log.style.display = "";
-    log.textContent = "正在联网下载并安装/升级 yt-dlp、faster-whisper、curl_cffi，约一两分钟…";
+    log.style.display = ""; log.classList.remove("ok", "bad");
+    log.textContent = "正在联网更新 yt-dlp、faster-whisper、curl_cffi、gmssl（先走清华镜像，不通会自动换源）…";
   }
   try {
-    const resp = await fetch(BACKEND + "/video_install", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
-    const data = await resp.json();
+    const data = await (await fetch(BACKEND + "/video_install", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })).json();
+    _vdepInstalling = false;
     if (log) {
-      let t = data.message || (data.ok ? "依赖已就绪。" : "安装未完成。");
-      // 失败时把日志末尾贴出来，方便排查
+      let t = data.message || (data.ok ? "依赖已就绪。" : "更新没完成。");
       if (!data.ok && data.log) t += "\n\n" + String(data.log).slice(-1200);
       log.textContent = t;
+      log.classList.add(data.ok ? "ok" : "bad");
     }
-    if (data.ok) {
-      setVideoStatus("依赖装好/更新好了，回到上面再点一次「提取并分析」即可。", "ok");
-      if (btn) btn.textContent = "已安装/更新 ✓";
-      setTimeout(() => {
-        if (btn) { btn.disabled = false; btn.textContent = orig; }
-      }, 4000);
-    } else if (btn) {
-      btn.disabled = false; btn.textContent = "重试安装";
-    }
+    if (data.deps) renderVideoDeps(data.deps); else loadVideoDeps(false);
+    if (!data.ok && btn) { btn.disabled = false; btn.textContent = "重试更新"; }
   } catch (e) {
-    if (log) { log.style.display = ""; log.textContent = "安装出错：" + e.message; }
-    if (btn) { btn.disabled = false; btn.textContent = "重试安装"; }
+    _vdepInstalling = false;
+    if (log) { log.style.display = ""; log.textContent = "更新出错：" + e.message; log.classList.add("bad"); }
+    if (btn) { btn.disabled = false; btn.textContent = "重试更新"; }
   }
 }
 document.getElementById("videoDepBtn")?.addEventListener("click", runVideoDepInstall);
@@ -2470,6 +2542,7 @@ function setVideoToolsOpen(open) {
   if (!body) return;
   body.style.display = open ? "" : "none";
   if (caret) caret.textContent = open ? "▾" : "▸";
+  if (open) loadVideoDeps(false);          // v59：展开时刷新依赖版本
 }
 function toggleVideoTools() {
   const body = document.getElementById("videoToolsBody");
@@ -2558,7 +2631,7 @@ async function runVideoHealthCheck(manual) {
     if (yt.update_available) {
       ytLine = '<br>🆕 yt-dlp 有新版（当前 ' + (yt.current || "?") +
                '，最新 ' + (yt.latest || "?") +
-               '）。可点「安装/更新依赖」升级——抖音的问题有时升级后就好了。';
+               '）。可在下面点「⬇ 更新依赖」升级——抖音的问题有时升级后就好了。';
     }
     const diagBtn = diag && diag.exists
       ? ' <button id="videoDiagCopyBtn" class="send-btn" style="font-size:12px;padding:3px 8px;margin-left:6px">复制诊断信息</button>'
@@ -2603,6 +2676,8 @@ document.getElementById("videoHealthBtn")?.addEventListener("click", () => runVi
 
 // 启动后悄悄自检一次（延迟几秒，不抢占启动；只有真出问题才弹主区细提示条）
 setTimeout(() => { try { runVideoHealthCheck(false); } catch (_) {} }, 4000);
+// v59：顺便看看依赖有没有新版（维护工具标题行会显示「有新版 / 已是最新」，不用点开）
+setTimeout(() => { try { loadVideoDeps(false); } catch (_) {} }, 6000);
 
 let _currentVideo = null;  // 当前展示的视频数据（用于复制/导出）
 
@@ -3103,6 +3178,50 @@ function renderMindmapInto(container, root, onRegen) {
   requestAnimationFrame(() => { try { fitView(); } catch (_) {} });
 }
 
+// v59：提取完成只显示一行「✅ 提取完成《标题》」，不再把整篇笔记铺开（画面太花）。
+// 详细内容去「已存的视频笔记 → 最新提取」里点开看。
+function mountVideoDone(res) {
+  const el = document.getElementById("videoResult");
+  if (!el) return;
+  const title = (res.title || "").trim() || "（无标题）";
+  const cr = res.creator || {};
+  const au = (res.uploader || cr.key || "").trim();
+  let crTxt = "";
+  if (cr.status === "bound") crTxt = cr.auto ? "已自动识别博主主页" : "已绑定博主主页";
+  else if (cr.status === "pending") crTxt = "博主主页还在识别";
+  else if (cr.status === "fail") crTxt = "没找到博主主页";
+  el.innerHTML = "";
+  const box = document.createElement("div");
+  box.className = "vdone";
+  box.innerHTML = '<span class="vdone-ok">✅ 提取完成</span>' +
+    '<span class="vdone-title">《' + escapeHtml(title) + "》</span>" +
+    (au ? '<span class="vdone-who">👤 ' + escapeHtml(au) + (crTxt ? " · " + escapeHtml(crTxt) : "") + "</span>" : "");
+  box.querySelector(".vdone-title").title = title;
+  if (cr.status === "fail" && cr.message) box.querySelector(".vdone-who").title = cr.message + "（可以在图标视图里点博主头像手动绑定）";
+  const go = document.createElement("button");
+  go.type = "button"; go.className = "vdone-go"; go.textContent = "去「最新提取」看 ›";
+  go.title = "在下面的「最新提取」里找到这一条（点标题就能看完整笔记）";
+  go.addEventListener("click", () => vnRevealRecent(res.saved_as));
+  box.appendChild(go);
+  el.appendChild(box);
+}
+
+// 滚到「最新提取」，展开它、回到第一页，把刚提取的那条闪一下
+async function vnRevealRecent(name) {
+  const prefs = vnRecentPrefs();
+  prefs.open = true; vnRecentSave(prefs);
+  _vnRecentPage = 1;
+  _vnIconPath = null;
+  await loadVideoNotes();
+  const rec = document.getElementById("vnRecent");
+  if (!rec) return;
+  rec.scrollIntoView({ block: "start", behavior: "smooth" });
+  if (name) {
+    const row = Array.from(rec.querySelectorAll(".video-note-item")).find((x) => x.dataset.name === name);
+    if (row) { row.classList.add("vn-flash"); setTimeout(() => row.classList.remove("vn-flash"), 2600); }
+  }
+}
+
 function mountVideoResult(data, target) {
   const resultEl = target || document.getElementById("videoResult");
   if (!target) _currentVideo = data;  // 只有视频标签页才更新全局当前视频
@@ -3487,8 +3606,8 @@ async function loadVideoNotes() {
     if (vnViewMode() === "icon") {
       await vnLoadProfiles();
       if (!_vnIconPath) { try { vnRenderRecent(list, notes, folders); } catch (e) { console.error(e); } }
+      vnRenderBatchBar(list, notes);   // v59：和列表视图一样放在「最新提取」下面
       vnRenderIconView(list, notes, folders, byFolder, ungrouped);
-      vnRenderBatchBar(list, notes);
       return;
     }
 
@@ -3654,26 +3773,129 @@ function vnRenderUngrouped(list, ungrouped, folders) {
 }
 
 // 顶部的批量分析条
+// v59：批量 AI 分析做成可折叠的一组（像「最新提取」）。折叠时标题行照样显示进度、正在分析哪篇、在做哪一步。
+function vnBatchIsOpen() {
+  try { return localStorage.getItem("vnBatchOpen") === "1"; } catch (_) { return false; }
+}
+
 function vnRenderBatchBar(list, notes) {
   const todo = vnUnanalyzed(notes);
   const bar = document.createElement("div");
-  bar.className = "vn-batch-bar"; bar.id = "vnBatchBar";
-  const txt = document.createElement("span"); txt.className = "vn-batch-text";
-  txt.textContent = todo.length ? todo.length + " 条笔记还没做 AI 分析" : "所有笔记都已做过 AI 分析";
-  bar.appendChild(txt);
+  bar.className = "vn-batch-bar vn-batch-group"; bar.id = "vnBatchBar";
+  bar.dataset.todo = String(todo.length);
+  const head = document.createElement("div");
+  head.className = "video-note-item vn-group-head vn-batch-head";
+  head.title = "点击展开 / 收起（收起时这一行也会显示进度）";
+  const caret = document.createElement("span"); caret.className = "vn-caret";
+  const nm = document.createElement("span"); nm.className = "vn-name"; nm.textContent = "批量 AI 分析";
+  const mini = document.createElement("span"); mini.className = "vn-batch-mini"; mini.id = "vnBatchMini"; mini.hidden = true;
+  mini.appendChild(document.createElement("i"));
+  const sum = document.createElement("span"); sum.className = "vn-batch-sum"; sum.id = "vnBatchSum";
+  sum.textContent = todo.length ? todo.length + " 条笔记还没做 AI 分析" : "所有笔记都已做过 AI 分析";
+  const acts = document.createElement("span"); acts.className = "vn-batch-hacts"; acts.id = "vnBatchHActs";
   if (todo.length) {
     const b = document.createElement("button");
     b.className = "send-btn vn-batch-btn"; b.textContent = "批量 AI 分析";
     b.title = "按列表顺序一条一条分析；每条都会在 AI 池换一张新的 AI 卡、开新对话";
-    b.addEventListener("click", () => vnStartBatch(todo));
-    bar.appendChild(b);
+    b.addEventListener("click", (e) => { e.stopPropagation(); vnStartBatch(todo); });
+    acts.appendChild(b);
   }
+  head.appendChild(caret); head.appendChild(nm); head.appendChild(mini); head.appendChild(sum); head.appendChild(acts);
+  const body = document.createElement("div"); body.className = "vn-batch-body"; body.id = "vnBatchBody";
+  const idle = document.createElement("div"); idle.className = "vn-batch-idle"; idle.id = "vnBatchIdle";
+  idle.textContent = todo.length
+    ? "点上面的「批量 AI 分析」开始。分析时这里会显示进度、AI 的实时画面和它正在写的回复。"
+    : "现在没有要分析的笔记。以后有「只提取了文字稿」的笔记，可以在这里一键批量分析。";
   const prog = document.createElement("div"); prog.className = "vn-batch-prog"; prog.id = "vnBatchProg"; prog.hidden = true;
-  bar.appendChild(prog);
-  bar.appendChild(vnBuildLive());   // v55：可展开的「AI 实时画面」
+  body.appendChild(idle); body.appendChild(prog);
+  body.appendChild(vnBuildLive());   // v55：可展开的「AI 实时画面」
+  bar.appendChild(head); bar.appendChild(body);
+  const apply = (open) => { body.hidden = !open; caret.textContent = open ? "▾" : "▸"; bar.classList.toggle("open", open); };
+  apply(vnBatchIsOpen());
+  head.addEventListener("click", () => {
+    const open = body.hidden;
+    apply(open);
+    try { localStorage.setItem("vnBatchOpen", open ? "1" : "0"); } catch (_) {}
+    vnLivePoll();
+  });
   list.appendChild(bar);
   vnPollBatch();          // 页面刷新时如果有批量在跑，接着显示进度
   vnLivePoll();
+}
+
+// 标题行：折叠时也看得到——进度条、第几篇、哪一篇、在做哪一步、这篇用了多久；还有「停止」「现在就继续」
+let _vnBatchStopping = false;
+function vnBatchHead(d) {
+  const sum = document.getElementById("vnBatchSum");
+  if (!sum) return;
+  const bar = document.getElementById("vnBatchBar");
+  const todo = bar ? +(bar.dataset.todo || 0) : 0;
+  let txt;
+  if (d.running) {
+    const idx = Math.min(d.total || 0, (d.done || 0) + 1);
+    const t = (d.cur_title || (d.current || "").replace(/\.md$/, "").replace(/^\d{8}-\d{6}-?/, "")).trim();
+    if (d.waiting) {
+      txt = "⏸ 暂停中 " + d.done + " / " + d.total + " · " + d.waiting +
+        (d.resume_in ? "，" + _vnFmtDur(d.resume_in) + "后自动接着跑" : "");
+    } else {
+      txt = "分析中 " + d.done + " / " + d.total + (t ? " · 第 " + idx + " 篇《" + t + "》" : "") +
+        (d.stage ? " · " + d.stage : "") +
+        (d.cur_started && d.now ? " · 已用 " + _vnFmtDur(d.now - d.cur_started) : "") +
+        (d.round > 1 ? " · 第 " + d.round + " 遍补漏" : "");
+    }
+  } else if (d.finished) {
+    txt = "已结束 " + d.done + " / " + d.total + "（成功 " + d.ok + "，失败 " + d.fail + "）" +
+      (todo ? " · 还有 " + todo + " 条没分析" : "");
+  } else {
+    txt = todo ? todo + " 条笔记还没做 AI 分析" : "所有笔记都已做过 AI 分析";
+  }
+  sum.textContent = txt; sum.title = txt;
+  sum.classList.toggle("run", !!d.running);
+  const mini = document.getElementById("vnBatchMini");
+  if (mini) {
+    const show = !!((d.running || d.finished) && d.total);
+    mini.hidden = !show;
+    if (show) mini.firstChild.style.width = Math.round((d.done || 0) * 100 / d.total) + "%";
+  }
+  const acts = document.getElementById("vnBatchHActs");
+  if (!acts) return;
+  let stop = acts.querySelector(".vn-bh-stop"), go = acts.querySelector(".vn-bh-go");
+  if (!d.running) {
+    _vnBatchStopping = false;
+    if (stop) stop.remove();
+    if (go) go.remove();
+    return;
+  }
+  if (!stop) {
+    stop = document.createElement("button");
+    stop.type = "button"; stop.className = "vn-batch-stop vn-bh-stop"; stop.title = "分析完当前这一条后停止";
+    stop.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      _vnBatchStopping = true; stop.disabled = true; stop.textContent = "停止中…";
+      try {
+        await fetch(BACKEND + "/video_note_analyze_batch", { method: "POST",
+          headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stop: true }) });
+      } catch (_) {}
+    });
+    acts.appendChild(stop);
+  }
+  stop.disabled = _vnBatchStopping; stop.textContent = _vnBatchStopping ? "停止中…" : "停止";
+  if (d.waiting && !go) {
+    go = document.createElement("button");
+    go.type = "button"; go.className = "vn-batch-stop vn-bh-go"; go.textContent = "现在就继续";
+    go.title = "不等了，马上接着分析";
+    go.addEventListener("click", async (e) => {
+      e.stopPropagation(); go.disabled = true;
+      try {
+        await fetch(BACKEND + "/video_note_analyze_batch", { method: "POST",
+          headers: { "Content-Type": "application/json" }, body: JSON.stringify({ resume_now: true }) });
+      } catch (_) {}
+      setTimeout(vnPollBatch, 800);
+    });
+    acts.insertBefore(go, stop);
+  } else if (!d.waiting && go) {
+    go.remove();
+  }
 }
 
 let _vnBatchTimer = null;
@@ -3702,6 +3924,9 @@ async function vnPollBatch() {
   if (!prog) return;
   // 正在批量分析时，隐藏「批量 AI 分析」和各组的「分析本组」按钮，避免重复提交
   document.querySelectorAll(".vn-batch-btn, .vn-group-batch").forEach((b) => { b.hidden = !!d.running; });
+  vnBatchHead(d);                 // v59：标题行（折叠时也能看到进度和当前在做什么）
+  const idle = document.getElementById("vnBatchIdle");
+  if (idle) idle.hidden = !!(d.running || d.finished);
   if (!d.running && !d.finished) { prog.hidden = true; return; }
   prog.hidden = false;
   const pct = d.total ? Math.round(d.done * 100 / d.total) : 0;
@@ -3710,8 +3935,7 @@ async function vnPollBatch() {
       (d.running ? (d.waiting ? "批量分析等待中 " : "批量分析中 ") : "批量分析结束 ") + d.done + " / " + d.total +
       "（成功 " + d.ok + "，失败 " + d.fail + "）" +
       (d.running && d.round > 1 ? '<span class="vn-batch-cur">第 ' + d.round + " 遍：补之前没成功的</span>" : "") +
-      (d.running && d.current && !d.waiting ? '<span class="vn-batch-cur">正在分析：' + escapeHtml(d.current.replace(/\.md$/, "")) +
-        (d.stage ? " · " + escapeHtml(d.stage) : "") + "</span>" : "") +
+
     "</div>" +
     '<div class="vn-batch-track"><div class="vn-batch-fill" style="width:' + pct + '%"></div></div>' +
     (d.running && d.waiting ? '<div class="vn-batch-errs vn-batch-wait">⏸ ' + escapeHtml(d.waiting) +
@@ -3723,27 +3947,7 @@ async function vnPollBatch() {
       ? '<div class="vn-batch-errs">没成功的：' + d.errors.map((x) => escapeHtml(x.name.replace(/\.md$/, ""))).join("、") +
         "（可以稍后再点一次批量分析，只会补没成功的）</div>" : "");
   if (d.running) {
-    const stop = document.createElement("button");
-    stop.className = "vn-batch-stop"; stop.textContent = "停止";
-    stop.title = "分析完当前这一条后停止";
-    stop.addEventListener("click", async () => {
-      stop.disabled = true; stop.textContent = "停止中…";
-      await fetch(BACKEND + "/video_note_analyze_batch", { method: "POST",
-        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stop: true }) });
-    });
-    prog.querySelector(".vn-batch-line").appendChild(stop);
-    if (d.waiting) {
-      const go = document.createElement("button");
-      go.className = "vn-batch-stop"; go.textContent = "现在就继续";
-      go.title = "不等了，马上接着分析";
-      go.addEventListener("click", async () => {
-        go.disabled = true;
-        await fetch(BACKEND + "/video_note_analyze_batch", { method: "POST",
-          headers: { "Content-Type": "application/json" }, body: JSON.stringify({ resume_now: true }) });
-        setTimeout(vnPollBatch, 800);
-      });
-      prog.querySelector(".vn-batch-line").appendChild(go);
-    }
+    // 「停止」「现在就继续」挪到了标题行（折叠时也能点），见 vnBatchHead
     if (!_vnBatchTimer) _vnBatchTimer = setInterval(vnPollBatch, 2500);
     if (d.done !== vnPollBatch._lastDone) { vnPollBatch._lastDone = d.done; if (d.done) _vnRefreshSoon(); }
   } else if (_vnBatchTimer) {
@@ -3759,6 +3963,7 @@ function _vnRefreshSoon() { clearTimeout(_vnRefreshT); _vnRefreshT = setTimeout(
 function makeVideoNoteItem(n, folders) {
   const item = document.createElement("div");
   item.className = "video-note-item";
+  item.dataset.name = n.name || "";
   const name = document.createElement("span");
   name.className = "vn-name";
   name.textContent = n.title || n.name;
@@ -9196,7 +9401,7 @@ async function vnLivePoll() {
   if (!box) { _vnLiveTimer = null; return; }          // 列表重画时会重新启动
   const viewOn = document.getElementById("view-video")?.classList.contains("active") && !document.hidden;
   if (!viewOn) { _vnLiveTimer = setTimeout(vnLivePoll, 3000); return; }
-  const open = vnLiveIsOpen();
+  const open = vnLiveIsOpen() && vnBatchIsOpen();   // 批量那组折起来时不要截图
   let d = null;
   try {
     d = await (await fetch(BACKEND + "/ai_live?watch=" + (open ? "1" : "0"), { cache: "no-store" })).json();
@@ -9615,8 +9820,8 @@ function vnCreatorTile(g, sortKey) {
 }
 
 async function vnProfileAction(body, msgEl) {
-  if (msgEl) msgEl.textContent = body.action === "bind" || body.action === "refresh"
-    ? "正在识别博主主页，取头像和资料…（最多半分钟）" : "处理中…";
+  if (msgEl) msgEl.textContent = body.action === "auto" ? "正在根据这个博主的视频找主页，取头像和资料…（最多半分钟）"
+    : body.action === "bind" || body.action === "refresh" ? "正在识别博主主页，取头像和资料…（最多半分钟）" : "处理中…";
   try {
     const d = await (await fetch(BACKEND + "/creator_profile", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })).json();
@@ -9641,11 +9846,13 @@ async function vnBindProfile(key, msgEl) {
   const v = await askText({
     title: (p.url ? "更换" : "绑定") + "「" + key + "」的主页",
     desc: "粘贴博主主页链接（抖音、B站、YouTube 等都行；抖音可以在博主主页点「分享 → 复制链接」，整段分享文字粘进来也行）。" +
-      "软件会自动取头像、昵称、粉丝数和简介。" + (p.url ? "\n现在绑的是：" + p.url : ""),
+      "软件会自动取头像、昵称、粉丝数和简介。\n不知道主页链接？留空直接点「绑定」，软件会根据这个博主的视频自动找。" +
+      (p.url ? "\n现在绑的是：" + p.url : ""),
     placeholder: "https://…",
     okText: "绑定",
   });
-  if (v === null || !v.trim()) return;
+  if (v === null) return;
+  if (!v.trim()) { await vnProfileAction({ action: "auto", key }, msgEl); return; }
   await vnProfileAction({ action: "bind", key, url: v.trim() }, msgEl);
 }
 
@@ -9714,6 +9921,7 @@ function vnProfileCard(g) {
     acts.appendChild(a);
   }
   btn(p.url ? "更换主页链接" : "绑定博主主页", "粘贴抖音 / B站 / YouTube 等主页链接，自动取头像和资料", () => vnBindProfile(g.key, msg));
+  if (!p.url) btn("🔍 自动找主页", "根据这个博主最新一条视频，自动找到他的主页，取头像和资料", () => vnProfileAction({ action: "auto", key: g.key }, msg));
   if (p.url) btn("刷新资料", "重新去主页取一次头像、粉丝数、简介", () => vnProfileAction({ action: "refresh", key: g.key }, msg));
   btn("上传头像", "用电脑里的一张图片当头像", () => vnUploadAvatar(g.key, msg));
   if (p.url || p.has_avatar) {

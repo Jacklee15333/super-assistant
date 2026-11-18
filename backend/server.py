@@ -80,7 +80,7 @@ def _clog(tag, msg):
 # 这些接口是前端**定时高频轮询**或页面加载时被动拉取的（查状态/进度/列表/配置），
 # 一旦打印就会把控制台刷爆、淹没真正有用的操作日志，所以一律静音、不记。
 _LOG_QUIET_PATHS = {
-    "/ping", "/video_progress", "/video_health", "/video_notes",
+    "/ping", "/video_progress", "/video_health", "/video_deps", "/video_notes",
     "/video_note_analyze_progress", "/sniff/feed", "/sniff/discover", "/video_note_analyze_batch",
     "/chat_progress", "/heartbeat/status", "/lumi/status", "/lumi/evolve_status",
     "/web_model/state", "/web_model/config", "/loop/status", "/insight/status",
@@ -290,6 +290,98 @@ def _vn_assign_folder(note_name, folder):
         else:
             mapping.pop(note_name, None)
         _vn_save_folders(folders, mapping)
+
+
+def _vn_set_note_author(note_name, author):
+    """v59：把笔记 md 里的「- 作者：」改成 author（本地文件没作者，填了博主主页后用博主昵称补上）。"""
+    try:
+        p = _cx_video_dir() / note_name
+        lines = p.read_text(encoding="utf-8", errors="replace").split("\n")
+        for i in range(1, min(14, len(lines))):
+            t = lines[i].strip().lstrip("-").strip()
+            if t.startswith("作者：") or t.startswith("作者:"):
+                lines[i] = "- 作者：" + author
+                p.write_text("\n".join(lines), encoding="utf-8")
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def _vn_find_source_url(key):
+    """v59：在这个博主（或同名文件夹）的笔记里找一条在线视频链接，新的优先。找不到返回空。"""
+    key = (key or "").strip()
+    try:
+        _folders, mapping = _vn_load_folders()
+    except Exception:
+        mapping = {}
+    try:
+        files = sorted(_cx_video_dir().glob("*.md"), key=lambda p: p.name, reverse=True)
+    except Exception:
+        return ""
+    for p in files:
+        try:
+            with open(p, encoding="utf-8", errors="replace") as f:
+                head = f.read(2000).split("\n")[:16]
+        except Exception:
+            continue
+        url = au = ""
+        for ln in head:
+            t = ln.strip().lstrip("-").strip()
+            if t.startswith(("来源链接：", "来源链接:")):
+                url = t[5:].strip()
+            elif t.startswith(("作者：", "作者:")):
+                au = t[3:].strip()
+        if url.startswith("http") and (au == key or mapping.get(p.name) == key):
+            return url
+    return ""
+
+
+def _vn_creator_after_save(job, res, cb=None):
+    """v59：提取完成、笔记存好后，给这条笔记的博主建「博主板块」资料（头像、昵称、粉丝数、简介）。
+      · 提取卡片里填了「博主主页」→ 按它绑定（笔记没有作者时，顺便把作者填成博主昵称）；
+      · 没填 → 根据视频链接自动找博主主页（抖音作者 / B站 UP 主 / YouTube 频道）。
+    已经有资料的博主不重复找；最多等 25 秒，超时就让它在后台接着做，不耽误下一个视频。
+    返回给前端显示的一小段信息；什么都没做返回 None。"""
+    import creator_profiles as _cpf
+    creator_url = (job.get("creator_url") or "").strip()
+    video_url = (res.get("url") or job.get("url") or "").strip()
+    key = (res.get("uploader") or job.get("author") or "").strip()
+    fname = res.get("saved_as") or ""
+    if not creator_url:
+        if not key or not video_url.startswith("http"):
+            return None
+        if not _cpf.should_auto_bind(key):
+            return {"key": key, "status": "exists"}
+    box = {}
+
+    def work():
+        try:
+            if creator_url:
+                ok, info, k = _cpf.bind_for_note(key, creator_url)
+            else:
+                ok, info, k = _cpf.auto_bind_from_video(key, video_url)
+            box.update(ok=ok, info=info, key=k)
+        except Exception as e:
+            box.update(ok=False, info=str(e), key=key)
+
+    if cb:
+        cb("博主主页", "正在识别博主主页，取头像和资料…")
+    t = _threading.Thread(target=work, daemon=True)
+    t.start()
+    t.join(25)
+    if t.is_alive():
+        _clog("博主", "「%s」的主页还在识别，后台接着做" % (key or "博主"))
+        return {"key": key, "status": "pending"}
+    ok, info, k = box.get("ok"), box.get("info"), (box.get("key") or key)
+    if ok and isinstance(info, dict):
+        if not key and k and fname and _vn_set_note_author(fname, k):
+            res["uploader"] = k
+        _clog("博主", "✓ 已识别「%s」的主页：%s" % (k, info.get("home") or info.get("url") or ""))
+        return {"key": k, "status": "bound", "name": info.get("name") or k,
+                "platform": info.get("platform_label") or "", "auto": not creator_url}
+    _clog("博主", "✗「%s」的主页没识别出来：%s" % (key or "博主", str(info)[:120]))
+    return {"key": key, "status": "fail", "message": str(info)[:120], "auto": not creator_url}
 
 
 def _bold_point_titles(md):
@@ -1311,6 +1403,14 @@ def _video_worker():
                         _vn_assign_folder(fname, job.get("note_folder"))
                 except Exception:
                     pass
+            # v59：博主板块——填了博主主页就按它绑；没填就根据视频链接自动找博主主页（头像、昵称、粉丝数）
+            if isinstance(res, dict) and res.get("ok") and res.get("saved_as"):
+                try:
+                    _cr = _vn_creator_after_save(job, res, cb)
+                    if _cr:
+                        res["creator"] = _cr
+                except Exception as _e:
+                    _clog("博主", "识别博主主页出错：%s" % _e)
             _video_state["result"] = res
         except Exception as e:
             _video_state["result"] = {"ok": False, "error": str(e)}
@@ -2214,6 +2314,11 @@ class Handler(BaseHTTPRequestHandler):
             b["resume_in"] = max(0, int((b.get("resume_at") or 0) - _time_now())) if b.get("resume_at") else 0
             with _note_an_lock:
                 b["stage"] = _note_an_state.get("stage", "")
+                if b.get("running"):
+                    b["cur_title"] = _note_an_state.get("title", "")
+                    b["cur_author"] = _note_an_state.get("author", "")
+                    b["cur_started"] = _note_an_state.get("started_at", 0)
+            b["now"] = _time_now()
             return self._send(b)
         if path == "/video_note_analyze_progress":
             with _note_an_lock:
@@ -2266,6 +2371,14 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send({"douyin": {"status": "error", "detail": str(e)},
                                    "versions": {}, "ytdlp": {}, "diag": {}}, 200)
+        if path == "/video_deps":
+            # v59：维护工具——每个依赖的已装版本、有没有新版（refresh=1 立刻重查）
+            try:
+                import video_transcribe
+                return self._send(video_transcribe.deps_status(
+                    refresh=(qs.get("refresh") or ["0"])[0] == "1"))
+            except Exception as e:
+                return self._send({"items": [], "error": "检查出错：%s" % e, "known": False})
         if path == "/video_diag":
             try:
                 import video_transcribe
@@ -2762,6 +2875,14 @@ class Handler(BaseHTTPRequestHandler):
                     ok, res = _cpf.set_avatar_data(key, b.get("data") or "")
                 elif act == "remove":
                     ok, res = _cpf.remove(key)
+                elif act == "auto":
+                    # v59：根据这个博主的视频自动找主页（用他最新一条在线视频的链接）
+                    vurl = _vn_find_source_url(key)
+                    if not vurl:
+                        ok, res = False, ("这个博主的笔记里没有在线视频链接（本地导入的没有），"
+                                          "没法自动找，请粘贴主页链接")
+                    else:
+                        ok, res, _k = _cpf.auto_bind_from_video(key, vurl, force=True)
                 else:
                     ok, res = False, "不认识的操作"
             except Exception as e:
@@ -4274,10 +4395,22 @@ class Handler(BaseHTTPRequestHandler):
         try:
             import video_transcribe
             ok, out = video_transcribe.install_deps()
-            msg = ("依赖装好了，可以开始提取视频了。" if ok
-                   else "安装没成功，可能是网络问题。可稍后重试，或手动在命令行运行："
-                        "pip install yt-dlp faster-whisper")
-            return self._send({"ok": ok, "message": msg, "log": out})
+            st = video_transcribe.deps_status()
+            li = st.get("last_install") or {}
+            if ok:
+                ch = li.get("changes") or []
+                if ch:
+                    msg = "✓ 更新成功：" + "；".join(
+                        "%s %s → %s" % (c["name"], c.get("from") or "未安装", c.get("to") or "?") for c in ch)
+                else:
+                    msg = "✓ 检查完毕：所有依赖都已是最新版本，不需要更新。"
+                if li.get("restart"):
+                    msg += "\n（%s 要关掉软件再打开才生效）" % "、".join(li["restart"])
+                _clog("视频", msg.replace("\n", " "))
+            else:
+                msg = ("安装没成功，多半是网络问题（清华、阿里镜像和默认源都试过了）。"
+                       "可以稍后重试，或者把下面的日志发给我。")
+            return self._send({"ok": ok, "message": msg, "log": out, "deps": st})
         except Exception as e:
             return self._send({"ok": False, "message": f"安装出错：{e}"})
 
@@ -4366,6 +4499,8 @@ class Handler(BaseHTTPRequestHandler):
         author = (body.get("author") or "").strip()[:40]
         # 新增：自动归档文件夹（导入文件夹时可选）——提取完的笔记自动归进这个笔记文件夹
         note_folder = (body.get("note_folder") or "").strip()[:30]
+        # v59：提取卡片里的「博主主页」（选填）。填了就按它建博主板块；不填就根据视频自动找
+        creator_url = (body.get("creator_url") or "").strip()[:500]
 
         try:
             import video_transcribe
@@ -4393,6 +4528,7 @@ class Handler(BaseHTTPRequestHandler):
                 "screenshot": do_screenshot, "link": do_link, "mode": mode,
                 "analyze": do_analyze,
                 "author": author, "note_folder": note_folder,
+                "creator_url": creator_url,
             })
             return self._send({"queued": True, "position": pos})
 
@@ -4431,7 +4567,8 @@ class Handler(BaseHTTPRequestHandler):
                               "use_local": use_local, "model": model,
                               "screenshot": do_screenshot, "link": do_link,
                               "mode": mode, "analyze": do_analyze,
-                              "author": author, "note_folder": note_folder})
+                              "author": author, "note_folder": note_folder,
+                              "creator_url": creator_url})
         return self._send({"queued": True, "position": pos})
 
     def _handle_video_move_models(self, _body):

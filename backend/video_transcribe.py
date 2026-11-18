@@ -803,27 +803,353 @@ def move_cached_models():
             "moved": moved, "notes": notes, "dest": str(dest)}
 
 
-def install_deps():
-    """尝试自动 pip 安装依赖。返回 (是否成功, 输出文本)。"""
-    import sys
-    import subprocess
-    # curl_cffi：让 impersonate（模拟真实 Chrome 指纹）可用，抖音提取大幅更稳。
-    # gmssl：抖音「作品列表」签名 a_bogus 用得到（列博主作品更稳）；不装也能用，会退回 X-Bogus。
-    # yt-dlp 用 --upgrade 升到最新，跟上抖音接口变化。
-    pkgs = ["yt-dlp", "faster-whisper", "curl_cffi", "gmssl"]
-    cmd = [sys.executable, "-m", "pip", "install", "--upgrade"] + pkgs
-    # 某些环境需要 --break-system-packages，加上不影响普通环境
+# ════════════════════ 依赖：已装版本 / 有没有新版 / 一键更新（v59 重写）════════════════════
+# 以前「安装/更新依赖」点完看起来像没更新成功，原因有两个：
+#   ① 版本号读的是已经加载进内存的旧模块（yt_dlp.version.__version__），pip 升级后不重启软件，
+#      显示的就一直是旧版本；
+#   ② 「最新版」是去 pypi.org 查的，而安装可能走镜像，镜像晚同步几个小时就会一直显示「有新版」。
+# 现在：
+#   · 已装版本直接读硬盘上的安装信息（importlib.metadata），装完马上就是新版本号；
+#   · 有没有新版，让 pip 自己「试装一下」（--dry-run，不真装），和真正安装走同一个源、
+#     同一套规则（也会考虑你的 Python 版本）——pip 说没什么可装的，就是最新；
+#   · yt-dlp 升级后，如果没有提取任务在跑，马上改用新版（不用重启）；其它带 C 扩展的包
+#     （curl_cffi 等）已经加载过的，提示「重启软件后生效」。
+import sys as _sys
+import json as _json
+import time as _time
+
+DEP_PKGS = [("yt-dlp", "yt_dlp"), ("faster-whisper", "faster_whisper"),
+            ("curl_cffi", "curl_cffi"), ("gmssl", "gmssl")]
+_PIP_SOURCES = [
+    ("清华镜像", ["-i", "https://pypi.tuna.tsinghua.edu.cn/simple",
+                 "--trusted-host", "pypi.tuna.tsinghua.edu.cn"]),
+    ("阿里镜像", ["-i", "https://mirrors.aliyun.com/pypi/simple/",
+                 "--trusted-host", "mirrors.aliyun.com"]),
+    ("默认源", []),
+]
+_DEP_CHECK_TTL = 6 * 3600          # 查过的结果 6 小时内有效
+_DEP_RETRY_AFTER_FAIL = 600        # 查失败（多半没网）10 分钟内不自动再查
+_deps_lock = threading.Lock()
+_deps_state = {"checking": False, "installing": False, "checked_at": 0, "failed_at": 0,
+               "updates_map": {}, "source": "", "error": "", "last_install": None}
+
+
+def _canon(name):
+    return re.sub(r"[-_.]+", "-", (name or "").lower())
+
+
+def installed_versions():
+    """硬盘上实际装着的版本（不是内存里的旧模块），没装为 None。装完不用重启就能读到新版本号。"""
+    import importlib
+    import importlib.metadata as _md
     try:
-        r = subprocess.run(cmd + ["--break-system-packages"],
-                           capture_output=True, text=True, timeout=600)
-        if r.returncode != 0:
-            # 再试一次不带该参数
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-        ok = r.returncode == 0 and not check_deps()
+        importlib.invalidate_caches()
+    except Exception:
+        pass
+    out = {}
+    for pkg, _mod in DEP_PKGS:
+        ver = None
+        for nm in (pkg, pkg.replace("-", "_"), pkg.replace("_", "-")):
+            try:
+                ver = _md.version(nm)
+                break
+            except Exception:
+                continue
+        out[pkg] = ver
+    return out
+
+
+def _vnorm(v):
+    """版本号统一写法再比较：yt-dlp 内存里是 2025.01.15，pip 记的是 2025.1.15，其实是同一版。"""
+    if not v:
+        return v
+    try:
+        from pip._vendor.packaging.version import Version
+        return str(Version(str(v)))
+    except Exception:
+        return ".".join((p.lstrip("0") or "0") if p.isdigit() else p for p in str(v).split("."))
+
+
+def _loaded_version(mod):
+    """内存里已经加载的版本（没加载为 None）。和硬盘版本不一样 = 要重启才生效。"""
+    m = _sys.modules.get(mod)
+    if m is None:
+        return None
+    try:
+        if mod == "yt_dlp":
+            return m.version.__version__
+    except Exception:
+        pass
+    return getattr(m, "__version__", None)
+
+
+def _run_pip(args, timeout):
+    """跑 pip，返回 (退回码, 输出文字)。Windows 上不弹窗口；输出统一按 UTF-8 读，避免中文乱码报错。"""
+    import subprocess
+    kw = {"capture_output": True, "text": True, "encoding": "utf-8", "errors": "replace",
+          "timeout": timeout, "env": dict(os.environ, PYTHONIOENCODING="utf-8")}
+    if _sys.platform == "win32":
+        kw["creationflags"] = 0x08000000      # CREATE_NO_WINDOW
+    r = subprocess.run(args, **kw)
+    out = (r.stdout or "") + (r.stderr or "")
+    if r.returncode != 0 and "externally-managed" in out:
+        r = subprocess.run(args + ["--break-system-packages"], **kw)
         out = (r.stdout or "") + (r.stderr or "")
-        return ok, out[-3000:]
-    except Exception as e:
-        return False, f"安装出错：{e}"
+    return r.returncode, out
+
+
+def _pip_base():
+    return [_sys.executable, "-m", "pip", "install", "--upgrade",
+            "--disable-pip-version-check", "--no-input", "--prefer-binary"]
+
+
+def _pip_last_line(out):
+    lines = [x.strip() for x in (out or "").splitlines() if x.strip()]
+    for x in reversed(lines):
+        if x.lower().startswith(("error", "warning: retrying")) or "Error" in x:
+            return x[:200]
+    return (lines[-1] if lines else "没有输出")[:200]
+
+
+# 连不上源时，pip 不会报错（退出码还是 0），只会打印 "Retrying … connection broken"，
+# 已经装着的包就当成「已是最新」——这会造成「明明没查到却显示已是最新」。所以：
+#   ① 先用一个小请求确认这个源连得上，连不上直接换下一个；
+#   ② pip 输出里有网络出错的痕迹，这个源的结果就不算数。
+_NET_FAIL_MARKS = ("connection broken", "Failed to establish", "ProxyError", "Max retries exceeded",
+                   "Read timed out", "ConnectTimeoutError", "SSLError", "Could not fetch URL")
+_default_index = []
+
+
+def _net_trouble(out):
+    return any(m in (out or "") for m in _NET_FAIL_MARKS)
+
+
+def _source_index(src_args):
+    """这个源的索引地址。「默认源」= pip 自己配置的（用户可能在 pip.ini 里设了镜像），没设就是 pypi.org。"""
+    if src_args:
+        return src_args[1].rstrip("/")
+    if not _default_index:
+        url = "https://pypi.org/simple"
+        try:
+            _rc, out = _run_pip([_sys.executable, "-m", "pip", "config", "list"], 30)
+            m = re.search(r"index-url\s*=\s*['\"]?([^'\"\s]+)", out or "")
+            if m:
+                url = m.group(1)
+        except Exception:
+            pass
+        _default_index.append(url.rstrip("/"))
+    return _default_index[0]
+
+
+def _index_reachable(index):
+    """连得上这个源吗（取 yt-dlp 的索引页开头一点点，10 秒超时）。"""
+    import urllib.request
+    try:
+        req = urllib.request.Request("%s/yt-dlp/" % index, headers={"User-Agent": "pip chaoneng-xiaozhu"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            r.read(512)
+            return getattr(r, "status", 200) < 400
+    except Exception:
+        return False
+
+
+def _latest_via_json(src_args):
+    """老版本 pip 不支持试装时的兜底：直接问源里每个包的最新版本。返回 {包: 新版本}。"""
+    base = "https://pypi.org/pypi/%s/json"
+    if src_args and "tuna" in src_args[1]:
+        base = "https://pypi.tuna.tsinghua.edu.cn/pypi/%s/json"
+    elif src_args:
+        raise RuntimeError("这个源不支持查版本")
+    import urllib.request
+    try:
+        from pip._vendor.packaging.version import Version as _V
+    except Exception:
+        _V = None
+    have = installed_versions()
+    upd = {}
+    for pkg, _mod in DEP_PKGS:
+        req = urllib.request.Request(base % pkg, headers={"User-Agent": "chaoneng-xiaozhu"})
+        with urllib.request.urlopen(req, timeout=15) as r:
+            latest = ((_json.loads(r.read().decode("utf-8", "replace")).get("info") or {})
+                      .get("version"))
+        cur = have.get(pkg)
+        if not latest:
+            continue
+        newer = (cur is None) or (cur != latest)
+        if newer and cur and _V:
+            try:
+                newer = _V(latest) > _V(cur)
+            except Exception:
+                pass
+        if newer:
+            upd[pkg] = latest
+    return upd
+
+
+def _dry_run(src_args):
+    """让 pip 试装一下（不真装）：返回 {包: 将要装上的新版本}，空字典 = 都是最新。"""
+    pkgs = [p for p, _m in DEP_PKGS]
+    fd, rep = tempfile.mkstemp(suffix=".json")
+    os.close(fd)
+    try:
+        rc, out = _run_pip(_pip_base() + ["--dry-run", "--quiet", "--retries", "2", "--timeout", "15",
+                                          "--report", rep] + src_args + pkgs, 240)
+        if rc != 0:
+            if "no such option" in out.lower():
+                return _latest_via_json(src_args)       # pip 太旧，不认 --dry-run / --report
+            raise RuntimeError(_pip_last_line(out))
+        if _net_trouble(out):
+            raise RuntimeError("网络不稳，没查完整")
+        with open(rep, encoding="utf-8") as f:
+            data = _json.load(f)
+    finally:
+        try:
+            os.remove(rep)
+        except Exception:
+            pass
+    want = {_canon(p): p for p in pkgs}
+    upd = {}
+    for it in data.get("install") or []:
+        md = it.get("metadata") or {}
+        key = want.get(_canon(md.get("name")))
+        if key:
+            upd[key] = md.get("version") or "?"
+    return upd
+
+
+def _check_updates_worker():
+    result, used, errs = None, "", []
+    for label, args in _PIP_SOURCES:
+        if not _index_reachable(_source_index(args)):
+            errs.append("%s：连不上" % label)
+            continue
+        try:
+            result = _dry_run(args)
+            used = label
+            break
+        except Exception as e:
+            errs.append("%s：%s" % (label, str(e)[:120]))
+    with _deps_lock:
+        _deps_state["checking"] = False
+        if result is not None:
+            _deps_state.update(updates_map=result, checked_at=_time.time(), source=used, error="")
+        else:
+            _deps_state.update(failed_at=_time.time(),
+                               error="没查到新版本信息（多半是网络不通）。" + "；".join(errs[-1:]))
+    try:
+        n = len(result or {})
+        print("[deps] 依赖新版本检查：%s" % (("%d 个有新版（%s）" % (n, used)) if n
+              else ("都是最新（%s）" % used if result is not None else "没查成（网络问题）")), flush=True)
+    except Exception:
+        pass
+
+
+def deps_status(refresh=False):
+    """维护工具用：每个依赖的已装版本、有没有新版。结果缓存 6 小时；过期或 refresh=True 时在后台重查
+    （返回 checking=True，前端过一会儿再来取）。"""
+    now = _time.time()
+    start = False
+    with _deps_lock:
+        st = _deps_state
+        stale = now - (st["checked_at"] or 0) > _DEP_CHECK_TTL
+        recently_failed = now - (st["failed_at"] or 0) < _DEP_RETRY_AFTER_FAIL
+        if not st["checking"] and not st["installing"] and (refresh or (stale and not recently_failed)):
+            st["checking"] = True
+            start = True
+        snap = {k: (dict(v) if isinstance(v, dict) else v) for k, v in st.items()}
+    if start:
+        threading.Thread(target=_check_updates_worker, daemon=True).start()
+    known = bool(snap["checked_at"])
+    upd = snap["updates_map"] if known else {}
+    have = installed_versions()
+    items, restart = [], []
+    for pkg, mod in DEP_PKGS:
+        cur = have.get(pkg)
+        new = upd.get(pkg)
+        if new and new == cur:
+            new = None
+        loaded = _loaded_version(mod)
+        need_restart = bool(loaded and cur and _vnorm(loaded) != _vnorm(cur))
+        if need_restart:
+            restart.append(pkg)
+        items.append({"name": pkg, "installed": cur, "missing": cur is None,
+                      "update": bool(new), "latest": new or (cur if known else None),
+                      "restart": need_restart})
+    n = sum(1 for it in items if it["update"] or it["missing"])
+    return {"items": items, "updates": n, "known": known, "up_to_date": known and n == 0,
+            "checking": snap["checking"] or start, "installing": snap["installing"],
+            "checked_at": int(snap["checked_at"] or 0), "source": snap["source"],
+            "error": snap["error"] if (snap["failed_at"] or 0) > (snap["checked_at"] or 0) else "",
+            "restart": restart,
+            "last_install": snap["last_install"]}
+
+
+def _reload_ytdlp_if_idle():
+    """yt-dlp 升级后：没有提取任务在跑时，把内存里的旧 yt-dlp 卸掉，下次用到时自动加载新版（不用重启）。
+    软件里所有 import yt_dlp 都写在函数里，所以卸掉后下一次调用拿到的就是新版。"""
+    if "yt_dlp" not in _sys.modules:
+        return True
+    if extract_busy():
+        return False
+    for k in [k for k in list(_sys.modules) if k == "yt_dlp" or k.startswith("yt_dlp.")]:
+        _sys.modules.pop(k, None)
+    return True
+
+
+def install_deps():
+    """装 / 升级视频依赖（先清华镜像，不行换阿里镜像，最后默认源）。返回 (是否成功, 输出文本)。
+    详细结果（哪些包从几版升到几版、要不要重启）放在 deps_status()["last_install"]。"""
+    pkgs = [p for p, _m in DEP_PKGS]
+    with _deps_lock:
+        if _deps_state["installing"]:
+            return False, "已经在更新了，请稍等…"
+        _deps_state["installing"] = True
+    before = installed_versions()
+    used, out, tried, shaky = "", "", [], False
+    try:
+        for label, args in _PIP_SOURCES:
+            if not _index_reachable(_source_index(args)):
+                tried.append("%s：连不上" % label)
+                continue
+            try:
+                rc, out = _run_pip(_pip_base() + args + pkgs, 900)
+            except Exception as e:
+                rc, out = 1, "安装出错：%s" % e
+            if rc == 0:
+                used, shaky = label, _net_trouble(out)
+                break
+            tried.append("%s：%s" % (label, _pip_last_line(out)))
+        after = installed_versions()
+        ok = bool(used) and all(after.get(p) for p, _m in DEP_PKGS)
+        changes = [{"name": p, "from": before.get(p), "to": after.get(p)}
+                   for p, _m in DEP_PKGS if before.get(p) != after.get(p)]
+        hot = True
+        if any(c["name"] == "yt-dlp" for c in changes):
+            hot = _reload_ytdlp_if_idle()
+        restart = [p for p, m in DEP_PKGS
+                   if (p != "yt-dlp" or not hot) and _loaded_version(m)
+                   and after.get(p) and _vnorm(_loaded_version(m)) != _vnorm(after.get(p))]
+        info = {"ok": ok, "at": int(_time.time()), "source": used, "changes": changes,
+                "restart": restart, "versions": after, "tried": tried, "shaky": shaky}
+        recheck = False
+        with _deps_lock:
+            _deps_state["last_install"] = info
+            if ok and not shaky:
+                # 刚从这个源装了能装的最新版，所以现在就是「最新」，不用再查一遍
+                _deps_state.update(updates_map={}, checked_at=_time.time(), source=used,
+                                   error="", failed_at=0)
+            elif ok:
+                recheck = True          # 中途网络抖过：不敢说一定最新，马上在后台重查一遍
+        if recheck:
+            with _deps_lock:
+                _deps_state["installing"] = False
+            deps_status(refresh=True)
+        if not ok and tried:
+            out = (out or "") + "\n\n" + "\n".join(tried)
+        return ok, (out or "")[-3000:]
+    finally:
+        with _deps_lock:
+            _deps_state["installing"] = False
 
 
 # ════════════════════ 诊断 / 自检 / 版本检查 ════════════════════
@@ -891,28 +1217,16 @@ def clear_diag():
 
 
 def check_ytdlp_update():
-    """查 PyPI 上 yt-dlp 最新版，跟本地装的比。返回 {current, latest, update_available}。
-    用标准库联网，超时短；查不到 latest 返回 None（不报错）。"""
-    cur = None
+    """yt-dlp 有没有新版（v59：和「维护工具」里的依赖检查用同一份结果，已装版本读硬盘，
+    不会再出现「明明更新了还提示有新版」）。返回 {current, latest, update_available}。"""
     try:
-        import yt_dlp
-        cur = yt_dlp.version.__version__
+        for it in deps_status()["items"]:
+            if it["name"] == "yt-dlp":
+                return {"current": it["installed"], "latest": it["latest"],
+                        "update_available": bool(it["update"])}
     except Exception:
-        cur = None
-    latest = None
-    try:
-        import json as _json
-        import urllib.request
-        req = urllib.request.Request(
-            "https://pypi.org/pypi/yt-dlp/json",
-            headers={"User-Agent": "chaoneng-xiaozhu"})
-        with urllib.request.urlopen(req, timeout=12) as r:
-            data = _json.loads(r.read().decode("utf-8", "replace"))
-        latest = ((data.get("info") or {}).get("version")) or None
-    except Exception:
-        latest = None
-    return {"current": cur, "latest": latest,
-            "update_available": bool(cur and latest and cur != latest)}
+        pass
+    return {"current": None, "latest": None, "update_available": False}
 
 
 def health():

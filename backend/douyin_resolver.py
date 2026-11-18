@@ -348,6 +348,30 @@ def _resolve_via_api(session, aid):
     return None
 
 
+def _author_from_item(item):
+    """v59：从视频数据里取作者信息（sec_uid、昵称、头像、简介…），供「根据视频找博主主页」用。"""
+    try:
+        a = item.get("author") or {}
+        if not isinstance(a, dict):
+            return {}
+
+        def first(x):
+            try:
+                return ((x or {}).get("url_list") or [""])[0] or ""
+            except Exception:
+                return ""
+        out = {"sec_uid": a.get("sec_uid") or "", "uid": str(a.get("uid") or ""),
+               "nickname": (a.get("nickname") or "").strip(),
+               "avatar": first(a.get("avatar_larger")) or first(a.get("avatar_medium"))
+               or first(a.get("avatar_thumb")) or first(a.get("avatar_168x168")),
+               "signature": (a.get("signature") or "").strip(),
+               "unique_id": a.get("unique_id") or a.get("short_id") or "",
+               "followers": a.get("follower_count"), "works": a.get("aweme_count")}
+        return {k: v for k, v in out.items() if v not in (None, "", "0")}
+    except Exception:
+        return {}
+
+
 def _build_result_from_item(item, aid):
     """从一条 item 抽出 {urls,title,uploader,tags}，组装成 resolve() 的返回结构。
     没拿到直链时返回 ok=False 但仍带 meta（标题/作者/标签），交上层决定怎么用。"""
@@ -370,13 +394,14 @@ def _build_result_from_item(item, aid):
     except Exception:
         pass
 
+    author = _author_from_item(item)
     urls = _urls_from_item(item)
     if not urls:
         return {"ok": False, "error": "没拿到可下载的视频直链",
                 "title": title, "uploader": uploader, "tags": tags,
-                "aweme_id": aid}
+                "aweme_id": aid, "author": author}
     return {"ok": True, "urls": urls, "title": title,
-            "uploader": uploader, "tags": tags, "aweme_id": aid}
+            "uploader": uploader, "tags": tags, "aweme_id": aid, "author": author}
 
 
 def resolve(url, allow_browser=True):
@@ -563,6 +588,8 @@ def _resolve_http(url):
                 merged[k] = res.get(k)
         if not merged.get("tags") and res.get("tags"):
             merged["tags"] = res.get("tags")
+        if not merged.get("author") and res.get("author"):
+            merged["author"] = res.get("author")
         return merged
     return res
 
