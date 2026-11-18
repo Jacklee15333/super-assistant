@@ -3461,6 +3461,7 @@ async function loadVideoNotes() {
       if (d && d.ok) { vnSetFolderOpen(name, true); loadVideoNotes(); }
     });
     bar.appendChild(nf);
+    bar.insertBefore(vnViewToggle(), nf);   // v57：列表 / 图标 切换
     list.appendChild(bar);
 
     if (notes.length === 0 && folders.length === 0) {
@@ -3481,6 +3482,13 @@ async function loadVideoNotes() {
         ungrouped.push(n);
       }
     });
+
+    // v57：图标视图（像电脑文件夹那样一格一格显示）
+    if (vnViewMode() === "icon") {
+      vnRenderIconView(list, notes, folders, byFolder, ungrouped);
+      vnRenderBatchBar(list, notes);
+      return;
+    }
 
     // v56：置顶的「最新提取」（按提取时间筛选、分页）
     try { vnRenderRecent(list, notes, folders); } catch (e) { console.error(e); }
@@ -9446,3 +9454,211 @@ function vnRenderRecent(list, notes, folders) {
     try { localStorage.setItem("cxSidebarCollapsed", nc ? "1" : "0"); } catch (_) {}
   });
 })();
+
+
+// ════════════════════ v57：视频笔记 · 列表 / 图标 两种显示方式 ════════════════════
+// 图标视图像电脑的文件夹：最上层是「最新提取」、自己建的文件夹、按作者自动分的组；
+// 点一个文件夹进去，里面的笔记也是一格一格的图标，每页 50 个；上面的路径（全部 › xxx）点一下就回去。
+let _vnIconPath = null;   // null＝最上层；{kind: "recent" | "folder" | "author", name}
+let _vnIconPage = 1;
+const VN_ICON_PAGE_SIZE = 50;
+
+function vnViewMode() {
+  try { return localStorage.getItem("vnViewMode") === "icon" ? "icon" : "list"; } catch (_) { return "list"; }
+}
+
+function vnViewToggle() {
+  const wrap = document.createElement("span");
+  wrap.className = "vn-view-toggle";
+  const mk = (mode, label, svg, tip) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.title = tip;
+    b.className = vnViewMode() === mode ? "active" : "";
+    b.innerHTML = svg + "<span>" + label + "</span>";
+    b.addEventListener("click", () => {
+      if (vnViewMode() === mode) return;
+      try { localStorage.setItem("vnViewMode", mode); } catch (_) {}
+      loadVideoNotes();
+    });
+    return b;
+  };
+  wrap.appendChild(mk("list", "列表",
+    '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>',
+    "列表显示：一行一条，能直接移动、改作者、删除"));
+  wrap.appendChild(mk("icon", "图标",
+    '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>',
+    "图标显示：像电脑文件夹那样，点文件夹进去看"));
+  return wrap;
+}
+
+const VN_ICO_FOLDER = '<svg viewBox="0 0 64 52" aria-hidden="true"><path d="M4 9a4 4 0 0 1 4-4h14.5l5.5 5.5H56a4 4 0 0 1 4 4V18H4z" fill="#E8A825"/>' +
+  '<rect x="4" y="14" width="56" height="34" rx="4" fill="#FFC83D"/><rect x="4" y="14" width="56" height="5" rx="2.5" fill="#FFDA6E"/></svg>';
+const VN_ICO_NOTE = '<svg viewBox="0 0 48 60" aria-hidden="true"><path d="M7 2h25l13 13v41a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="#fff" stroke="#c8c8c8" stroke-width="2"/>' +
+  '<path d="M32 2v11a2 2 0 0 0 2 2h11" fill="#f1f1f1" stroke="#c8c8c8" stroke-width="2"/>' +
+  '<path d="M12 27h24M12 34h24M12 41h15" stroke="#a9b3c1" stroke-width="2.6" stroke-linecap="round"/>' +
+  '<circle cx="35" cy="47" r="8" fill="#e25b3c"/><path d="M32.5 43.5v7l6-3.5z" fill="#fff"/></svg>';
+const VN_BADGE = {
+  recent: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
+  author: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/></svg>',
+};
+
+function vnFolderTile(name, sub, badge, onOpen, tip) {
+  const t = document.createElement("div");
+  t.className = "vn-tile folder";
+  t.title = tip || name;
+  t.innerHTML = '<div class="vn-tile-ico">' + VN_ICO_FOLDER +
+    (badge ? '<span class="vn-tile-badge ' + badge + '">' + VN_BADGE[badge] + "</span>" : "") + "</div>" +
+    '<div class="vn-tile-name"></div><div class="vn-tile-sub"></div>';
+  t.querySelector(".vn-tile-name").textContent = name;
+  t.querySelector(".vn-tile-sub").textContent = sub || "";
+  t.addEventListener("click", onOpen);
+  return t;
+}
+
+function vnNoteTile(n) {
+  const t = document.createElement("div");
+  t.className = "vn-tile note";
+  const when = vnNoteTime(n);
+  const title = n.title || (n.name || "").replace(/\.md$/, "");
+  t.title = title + (n.author ? "\n作者：" + n.author : "") + (when ? "\n提取时间：" + new Date(when).toLocaleString() : "") +
+    "\n\n点击打开。移动、改作者、删除等操作请切到「列表」。";
+  t.innerHTML = '<div class="vn-tile-ico">' + VN_ICO_NOTE + "</div>" +
+    '<div class="vn-tile-name"></div><div class="vn-tile-sub"></div>' +
+    (n.analyzed === false ? '<span class="vn-tile-tag">未分析</span>' : "");
+  t.querySelector(".vn-tile-name").textContent = title;
+  t.querySelector(".vn-tile-sub").textContent = (when ? vnFmtWhen(when) : "") + (n.author ? " · " + n.author : "");
+  t.addEventListener("click", () => openVideoNote(n.name));
+  return t;
+}
+
+function vnIconGo(path) {
+  _vnIconPath = path; _vnIconPage = 1;
+  loadVideoNotes();
+}
+
+function vnRenderIconView(list, notes, folders, byFolder, ungrouped) {
+  const wrap = document.createElement("div");
+  wrap.className = "vn-icons"; wrap.id = "vnIcons";
+  // 和列表视图一样：没放进文件夹的笔记超过 12 条就按作者分组，否则直接平铺
+  const authors = {};
+  const groupAuthors = ungrouped.length > 12;
+  if (groupAuthors) {
+    ungrouped.forEach((n) => { const k = (n.author || "").trim() || "未填作者"; (authors[k] = authors[k] || []).push(n); });
+  }
+  const authorKeys = Object.keys(authors).sort((a, b) =>
+    (a === "未填作者") - (b === "未填作者") || authors[b].length - authors[a].length);
+  const prefs = vnRecentPrefs();
+  const range = VN_RECENT_RANGES.find((x) => x[0] === prefs.range) || VN_RECENT_RANGES[1];
+  const now = Date.now();
+  const recentOf = (days) => (notes || []).map((n) => [vnNoteTime(n), n])
+    .filter((x) => x[0] > 0 && now - x[0] <= days * 86400000).sort((a, b) => b[0] - a[0]).map((x) => x[1]);
+
+  // 当前位置还在不在（文件夹被删 / 改名后回到最上层）
+  const p = _vnIconPath;
+  if (p && ((p.kind === "folder" && folders.indexOf(p.name) < 0) || (p.kind === "author" && !authors[p.name]))) {
+    _vnIconPath = null;
+  }
+
+  // 路径：全部 › xxx
+  const crumb = document.createElement("div");
+  crumb.className = "vn-crumb";
+  const home = document.createElement("a");
+  home.textContent = "全部"; home.href = "#";
+  home.addEventListener("click", (e) => { e.preventDefault(); vnIconGo(null); });
+  crumb.appendChild(home);
+  wrap.appendChild(crumb);
+
+  if (!_vnIconPath) {
+    home.classList.add("here");
+    const info = document.createElement("span");
+    info.className = "vn-crumb-info";
+    info.textContent = "（共 " + notes.length + " 条笔记；点文件夹进去看）";
+    crumb.appendChild(info);
+    const grid = document.createElement("div");
+    grid.className = "vn-icon-grid";
+    grid.appendChild(vnFolderTile("最新提取", range[1] + " " + recentOf(range[2]).length + " 条", "recent",
+      () => vnIconGo({ kind: "recent", name: "最新提取" }), "最新提取（置顶）：按提取时间看最近的视频笔记"));
+    folders.forEach((f) => {
+      const items = byFolder[f] || [];
+      grid.appendChild(vnFolderTile(f, items.length + " 条", "", () => vnIconGo({ kind: "folder", name: f })));
+    });
+    authorKeys.forEach((k) => {
+      grid.appendChild(vnFolderTile(k, authors[k].length + " 条", "author",
+        () => vnIconGo({ kind: "author", name: k }), "作者：" + k + "（还没放进文件夹的笔记，按作者自动分组）"));
+    });
+    wrap.appendChild(grid);
+    if (!groupAuthors && ungrouped.length) {
+      const tip = document.createElement("div");
+      tip.className = "vn-auto-tip"; tip.textContent = "还没放进文件夹的笔记";
+      wrap.appendChild(tip);
+      const g2 = document.createElement("div");
+      g2.className = "vn-icon-grid notes";
+      ungrouped.forEach((n) => g2.appendChild(vnNoteTile(n)));
+      wrap.appendChild(g2);
+    }
+    list.appendChild(wrap);
+    return;
+  }
+
+  // 进到某个文件夹里
+  const sep = document.createElement("span"); sep.textContent = "›"; sep.className = "vn-crumb-sep";
+  const here = document.createElement("span"); here.className = "vn-crumb-here";
+  crumb.appendChild(sep); crumb.appendChild(here);
+  let items = [];
+  if (_vnIconPath.kind === "recent") {
+    items = recentOf(range[2]);
+    here.textContent = "最新提取 · " + range[1] + "（" + items.length + " 条）";
+    const chips = document.createElement("div");
+    chips.className = "vn-recent-ranges";
+    VN_RECENT_RANGES.forEach(([key, label, days]) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "vn-recent-chip" + (key === range[0] ? " active" : "");
+      b.innerHTML = escapeHtml(label) + "<b>" + recentOf(days).length + "</b>";
+      b.addEventListener("click", () => { prefs.range = key; vnRecentSave(prefs); _vnRecentPage = 1; _vnIconPage = 1; loadVideoNotes(); });
+      chips.appendChild(b);
+    });
+    wrap.appendChild(chips);
+  } else if (_vnIconPath.kind === "folder") {
+    items = byFolder[_vnIconPath.name] || [];
+    here.textContent = _vnIconPath.name + "（" + items.length + " 条）";
+  } else {
+    items = authors[_vnIconPath.name] || [];
+    here.textContent = "作者：" + _vnIconPath.name + "（" + items.length + " 条）";
+  }
+  const pages = Math.max(1, Math.ceil(items.length / VN_ICON_PAGE_SIZE));
+  if (_vnIconPage > pages) _vnIconPage = pages;
+  const grid = document.createElement("div");
+  grid.className = "vn-icon-grid notes";
+  const start = (_vnIconPage - 1) * VN_ICON_PAGE_SIZE;
+  items.slice(start, start + VN_ICON_PAGE_SIZE).forEach((n) => grid.appendChild(vnNoteTile(n)));
+  if (!items.length) {
+    const em = document.createElement("div");
+    em.className = "vn-recent-empty";
+    em.textContent = _vnIconPath.kind === "recent" ? "这段时间里没有提取过视频，点上面换一个更长的时间看看。" : "这个文件夹是空的。";
+    wrap.appendChild(em);
+  }
+  wrap.appendChild(grid);
+  if (pages > 1) {
+    const pager = document.createElement("div");
+    pager.className = "vn-recent-pager";
+    const btn = (text, page, disabled) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = text; b.disabled = disabled;
+      b.addEventListener("click", () => {
+        _vnIconPage = page; loadVideoNotes();
+        setTimeout(() => document.getElementById("vnIcons")?.scrollIntoView({ block: "start" }), 120);
+      });
+      return b;
+    };
+    const pg = _vnIconPage;
+    pager.appendChild(btn("首页", 1, pg === 1));
+    pager.appendChild(btn("上一页", pg - 1, pg === 1));
+    const info = document.createElement("span");
+    info.textContent = "第 " + pg + " / " + pages + " 页（共 " + items.length + " 条，每页 " + VN_ICON_PAGE_SIZE + " 个）";
+    pager.appendChild(info);
+    pager.appendChild(btn("下一页", pg + 1, pg === pages));
+    pager.appendChild(btn("末页", pages, pg === pages));
+    wrap.appendChild(pager);
+  }
+  list.appendChild(wrap);
+}
