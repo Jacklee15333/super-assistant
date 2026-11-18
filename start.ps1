@@ -290,6 +290,27 @@ function Check-Env {
     return $ok
 }
 
+# The app hides this console window while it runs (its log is shown inside the app).
+# When the app exits (even if it crashed), bring the window back so the user sees it.
+function Show-OwnConsole {
+    try {
+        if (-not ('CxConsole.Win' -as [type])) {
+            Add-Type -Namespace CxConsole -Name Win -MemberDefinition @'
+[DllImport("kernel32.dll")] public static extern System.IntPtr GetConsoleWindow();
+[DllImport("user32.dll")] public static extern bool ShowWindow(System.IntPtr hWnd, int nCmdShow);
+[DllImport("user32.dll")] public static extern System.IntPtr GetWindow(System.IntPtr hWnd, uint uCmd);
+'@ -ErrorAction Stop
+        }
+        $h = [CxConsole.Win]::GetConsoleWindow()
+        if ($h -eq [IntPtr]::Zero) { return }
+        $o = [CxConsole.Win]::GetWindow($h, 4)
+        $t = $h
+        if ($o -ne [IntPtr]::Zero) { $t = $o }
+        [void][CxConsole.Win]::ShowWindow($t, 5)
+        [void][CxConsole.Win]::ShowWindow($t, 9)
+    } catch { }
+}
+
 function Start-App {
     $electronDir = Join-Path $projectRoot 'electron'
     if (-not (Test-Path -LiteralPath (Join-Path $electronDir 'package.json'))) {
@@ -369,6 +390,7 @@ function Start-App {
 
     Write-Info "Starting Chaoneng Xiaozhu..."
     npm start
+    Show-OwnConsole
     Set-Location -LiteralPath $projectRoot
 }
 

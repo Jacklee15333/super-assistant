@@ -3485,6 +3485,8 @@ async function loadVideoNotes() {
 
     // v57：图标视图（像电脑文件夹那样一格一格显示）
     if (vnViewMode() === "icon") {
+      await vnLoadProfiles();
+      if (!_vnIconPath) { try { vnRenderRecent(list, notes, folders); } catch (e) { console.error(e); } }
       vnRenderIconView(list, notes, folders, byFolder, ungrouped);
       vnRenderBatchBar(list, notes);
       return;
@@ -8982,6 +8984,11 @@ function termDrawerMsg(text) {
   if (text) termDrawerMsg._t = setTimeout(() => { m.textContent = ""; }, 5000);
 }
 
+function termConsoleBtnLabel(hidden) {
+  const b = document.getElementById("termConsoleBtn");
+  if (b) b.textContent = hidden === false ? "隐藏原来的黑窗口" : "显示原来的黑窗口";
+}
+
 async function consoleWindow(action) {
   try {
     const d = await (await fetch(BACKEND + "/console", {
@@ -9016,8 +9023,9 @@ async function openTerminalWindow() {
   document.getElementById("termCloseBtn")?.addEventListener("click", () => termDrawerSetOpen(false));
   document.getElementById("termPopBtn")?.addEventListener("click", () => openTerminalWindow());
   document.getElementById("termConsoleBtn")?.addEventListener("click", async () => {
-    const r = await consoleWindow("show");
-    termDrawerMsg(r.message || (r.ok ? "已显示" : "没做到"));
+    const r = await consoleWindow("toggle");
+    termDrawerMsg(r.message || (r.ok ? "好了" : "没做到"));
+    termConsoleBtnLabel(r && r.hidden);
   });
 
   // 拖动顶边调整高度
@@ -9057,7 +9065,7 @@ async function openTerminalWindow() {
 function termAfterBackendReady() {
   let autoMin = true;
   try { autoMin = localStorage.getItem("cxAutoMinConsole") !== "0"; } catch (_) {}
-  if (autoMin) consoleWindow("minimize");
+  if (autoMin) consoleWindow("hide").then((r) => termConsoleBtnLabel(r && r.ok ? r.hidden : true));
   let wasOpen = false;
   try { wasOpen = localStorage.getItem("cxTermOpen") === "1"; } catch (_) {}
   if (wasOpen) termDrawerSetOpen(true);
@@ -9456,12 +9464,15 @@ function vnRenderRecent(list, notes, folders) {
 })();
 
 
-// ════════════════════ v57：视频笔记 · 列表 / 图标 两种显示方式 ════════════════════
-// 图标视图像电脑的文件夹：最上层是「最新提取」、自己建的文件夹、按作者自动分的组；
-// 点一个文件夹进去，里面的笔记也是一格一格的图标，每页 50 个；上面的路径（全部 › xxx）点一下就回去。
-let _vnIconPath = null;   // null＝最上层；{kind: "recent" | "folder" | "author", name}
+// ════════════════════ v57 / v58：视频笔记 · 列表 / 图标 两种显示方式 ════════════════════
+// 图标视图（v58）：最上面单独一块「最新提取」；下面是博主头像墙（自己建的文件夹是圆角方形，
+// 按作者自动分的组是圆形），可以按 最近提取 / 近期新增 / 笔记最多 / 新加入 / 名称 排序。
+// 给头像绑定博主主页（抖音 / B站 / YouTube…），软件自动取头像、粉丝数、简介。
+let _vnIconPath = null;   // null＝最上层；{kind: "folder" | "author", name}
 let _vnIconPage = 1;
 const VN_ICON_PAGE_SIZE = 50;
+let _vnProfiles = {};
+const VN_SORTS = [["last", "最近提取"], ["hot", "近期新增"], ["total", "笔记最多"], ["new", "新加入"], ["name", "名称"]];
 
 function vnViewMode() {
   try { return localStorage.getItem("vnViewMode") === "icon" ? "icon" : "list"; } catch (_) { return "list"; }
@@ -9487,33 +9498,239 @@ function vnViewToggle() {
     "列表显示：一行一条，能直接移动、改作者、删除"));
   wrap.appendChild(mk("icon", "图标",
     '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>',
-    "图标显示：像电脑文件夹那样，点文件夹进去看"));
+    "图标显示：博主头像墙，点头像进去看"));
   return wrap;
 }
 
-const VN_ICO_FOLDER = '<svg viewBox="0 0 64 52" aria-hidden="true"><path d="M4 9a4 4 0 0 1 4-4h14.5l5.5 5.5H56a4 4 0 0 1 4 4V18H4z" fill="#E8A825"/>' +
-  '<rect x="4" y="14" width="56" height="34" rx="4" fill="#FFC83D"/><rect x="4" y="14" width="56" height="5" rx="2.5" fill="#FFDA6E"/></svg>';
+async function vnLoadProfiles() {
+  try {
+    const d = await (await fetch(BACKEND + "/creator_profiles", { cache: "no-store" })).json();
+    _vnProfiles = d.profiles || {};
+  } catch (_) { _vnProfiles = {}; }
+}
+
+function vnSortKey() {
+  try { return localStorage.getItem("vnCreatorSort") || "last"; } catch (_) { return "last"; }
+}
+
+function vnHue(str) {
+  let h = 0;
+  for (const ch of String(str || "")) h = (h * 31 + ch.codePointAt(0)) % 360;
+  return h;
+}
+
+function vnFmtNum(n) {
+  if (n == null || n === "") return "";
+  n = Number(n);
+  if (n >= 1e8) return (n / 1e8).toFixed(n >= 1e9 ? 0 : 1).replace(/\.0$/, "") + " 亿";
+  if (n >= 1e4) return (n / 1e4).toFixed(n >= 1e5 ? 0 : 1).replace(/\.0$/, "") + " 万";
+  return String(n);
+}
+
+// 头像：绑定过就用博主头像，没有就用名字首字 + 固定配色
+function vnAvatarEl(g, size) {
+  const p = _vnProfiles[g.key] || {};
+  const av = document.createElement("div");
+  av.className = "vn-av" + (g.kind === "author" ? " round" : "") + (size === "big" ? " big" : "");
+  if (p.has_avatar) {
+    const img = document.createElement("img");
+    img.alt = "";
+    img.src = BACKEND + "/creator_avatar?key=" + encodeURIComponent(g.key) + "&v=" + (p.v || 0);
+    img.onerror = () => { img.remove(); av.appendChild(vnInitials(g)); };
+    av.appendChild(img);
+  } else {
+    av.appendChild(vnInitials(g));
+  }
+  if (p.platform_label) {
+    const tag = document.createElement("span");
+    tag.className = "vn-av-plat plat-" + (p.platform || "web");
+    tag.textContent = { douyin: "抖", bilibili: "B", youtube: "▶", kuaishou: "快", xiaohongshu: "红", tiktok: "T", x: "X", weibo: "微" }[p.platform] || "🔗";
+    tag.title = p.platform_label;
+    av.appendChild(tag);
+  }
+  return av;
+}
+
+function vnInitials(g) {
+  const sp = document.createElement("span");
+  sp.className = "vn-av-txt";
+  const h = vnHue(g.name);
+  sp.style.background = "hsl(" + h + ", 55%, 86%)";
+  sp.style.color = "hsl(" + h + ", 45%, 30%)";
+  const nm = (g.name || "?").replace(/^[\s@#]+/, "");
+  sp.textContent = g.kind === "folder" && !nm ? "📁" : Array.from(nm)[0].toUpperCase();
+  return sp;
+}
+
+function vnGroupStats(items) {
+  const now = Date.now();
+  let last = 0, first = 0, recent = 0;
+  items.forEach((n) => {
+    const t = vnNoteTime(n);
+    if (!t) return;
+    if (t > last) last = t;
+    if (!first || t < first) first = t;
+    if (now - t <= 30 * 86400000) recent++;
+  });
+  return { total: items.length, last, first, recent };
+}
+
+function vnCreatorTile(g, sortKey) {
+  const p = _vnProfiles[g.key] || {};
+  const st = g.stats;
+  const t = document.createElement("div");
+  t.className = "vn-ctile";
+  t.title = (p.name && p.name !== g.name ? g.name + "（" + p.name + "）" : g.name) +
+    "\n笔记 " + st.total + " 条" + (st.recent ? "，近30天新增 " + st.recent + " 条" : "") +
+    (st.last ? "\n最近提取：" + new Date(st.last).toLocaleString() : "") +
+    (p.followers ? "\n粉丝：" + vnFmtNum(p.followers) : "") + "\n\n点击进去看" + (p.url ? "" : "；点右上角 🔗 绑定博主主页，自动换成真头像");
+  const av = vnAvatarEl(g);
+  const pill = document.createElement("span");
+  pill.className = "vn-av-pill"; pill.textContent = st.total;
+  av.appendChild(pill);
+  if (st.recent) {
+    const nw = document.createElement("span");
+    nw.className = "vn-av-new"; nw.textContent = "+" + st.recent;
+    nw.title = "近30天新增 " + st.recent + " 条";
+    av.appendChild(nw);
+  }
+  t.appendChild(av);
+  const nm = document.createElement("div");
+  nm.className = "vn-cname"; nm.textContent = g.name;
+  t.appendChild(nm);
+  const sub = document.createElement("div");
+  sub.className = "vn-csub";
+  sub.textContent = sortKey === "hot" ? (st.recent ? "近30天 +" + st.recent : "近30天没新增")
+    : sortKey === "new" ? (st.first ? "首次 " + vnFmtWhen(st.first) : "")
+    : sortKey === "total" || sortKey === "name" ? st.total + " 条"
+    : (st.last ? vnFmtWhen(st.last) : st.total + " 条");
+  t.appendChild(sub);
+  const link = document.createElement("button");
+  link.type = "button"; link.className = "vn-clink";
+  link.textContent = "🔗"; link.title = p.url ? "更换博主主页链接" : "绑定博主主页（抖音 / B站 / YouTube…），自动取头像和资料";
+  link.addEventListener("click", (e) => { e.stopPropagation(); vnBindProfile(g.key); });
+  t.appendChild(link);
+  t.addEventListener("click", () => vnIconGo({ kind: g.kind, name: g.name }));
+  return t;
+}
+
+async function vnProfileAction(body, msgEl) {
+  if (msgEl) msgEl.textContent = body.action === "bind" || body.action === "refresh"
+    ? "正在识别博主主页，取头像和资料…（最多半分钟）" : "处理中…";
+  try {
+    const d = await (await fetch(BACKEND + "/creator_profile", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })).json();
+    if (!d.ok) {
+      if (msgEl) msgEl.textContent = "没成功：" + (d.message || "未知原因");
+      else alert("没成功：" + (d.message || "未知原因"));
+      await vnLoadProfiles();
+      return false;
+    }
+    if (d.message && msgEl) msgEl.textContent = d.message;
+    await vnLoadProfiles();
+    loadVideoNotes();
+    return true;
+  } catch (e) {
+    if (msgEl) msgEl.textContent = "出错：" + e.message; else alert("出错：" + e.message);
+    return false;
+  }
+}
+
+async function vnBindProfile(key, msgEl) {
+  const p = _vnProfiles[key] || {};
+  const v = await askText({
+    title: (p.url ? "更换" : "绑定") + "「" + key + "」的主页",
+    desc: "粘贴博主主页链接（抖音、B站、YouTube 等都行；抖音可以在博主主页点「分享 → 复制链接」，整段分享文字粘进来也行）。" +
+      "软件会自动取头像、昵称、粉丝数和简介。" + (p.url ? "\n现在绑的是：" + p.url : ""),
+    placeholder: "https://…",
+    okText: "绑定",
+  });
+  if (v === null || !v.trim()) return;
+  await vnProfileAction({ action: "bind", key, url: v.trim() }, msgEl);
+}
+
+function vnUploadAvatar(key, msgEl) {
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = "image/*";
+  inp.addEventListener("change", () => {
+    const f = inp.files && inp.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => vnProfileAction({ action: "avatar", key, data: r.result }, msgEl);
+    r.readAsDataURL(f);
+  });
+  inp.click();
+}
+
+function vnProfileCard(g) {
+  const p = _vnProfiles[g.key] || {};
+  const st = g.stats;
+  const card = document.createElement("div");
+  card.className = "vn-cprof";
+  card.appendChild(vnAvatarEl(g, "big"));
+  const main = document.createElement("div");
+  main.className = "vn-cprof-main";
+  const nm = document.createElement("div");
+  nm.className = "vn-cprof-name";
+  nm.textContent = g.name;
+  if (p.name && p.name !== g.name) {
+    const real = document.createElement("span"); real.className = "vn-cprof-real"; real.textContent = p.name;
+    nm.appendChild(real);
+  }
+  if (p.platform_label) {
+    const pl = document.createElement("span"); pl.className = "vn-cprof-plat"; pl.textContent = p.platform_label;
+    nm.appendChild(pl);
+  }
+  main.appendChild(nm);
+  const meta = document.createElement("div");
+  meta.className = "vn-cprof-meta";
+  const parts = [];
+  if (p.followers != null) parts.push("粉丝 " + vnFmtNum(p.followers));
+  if (p.works != null) parts.push("作品 " + vnFmtNum(p.works));
+  parts.push("笔记 " + st.total + " 条");
+  if (st.recent) parts.push("近30天新增 " + st.recent + " 条");
+  if (st.last) parts.push("最近提取 " + vnFmtWhen(st.last));
+  meta.textContent = parts.join(" · ");
+  main.appendChild(meta);
+  if (p.signature) {
+    const sg = document.createElement("div"); sg.className = "vn-cprof-sign"; sg.textContent = p.signature;
+    main.appendChild(sg);
+  }
+  const acts = document.createElement("div");
+  acts.className = "vn-cprof-acts";
+  const msg = document.createElement("div");
+  msg.className = "vn-cprof-msg";
+  if (p.error) msg.textContent = "上次识别没成功：" + p.error;
+  const btn = (text, tip, fn) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "vn-batch-stop"; b.textContent = text; b.title = tip;
+    b.addEventListener("click", fn);
+    acts.appendChild(b);
+  };
+  if (p.home || p.url) {
+    const a = document.createElement("a");
+    a.className = "vn-batch-stop vn-cprof-open"; a.textContent = "打开主页"; a.href = p.home || p.url; a.target = "_blank";
+    a.title = p.home || p.url;
+    acts.appendChild(a);
+  }
+  btn(p.url ? "更换主页链接" : "绑定博主主页", "粘贴抖音 / B站 / YouTube 等主页链接，自动取头像和资料", () => vnBindProfile(g.key, msg));
+  if (p.url) btn("刷新资料", "重新去主页取一次头像、粉丝数、简介", () => vnProfileAction({ action: "refresh", key: g.key }, msg));
+  btn("上传头像", "用电脑里的一张图片当头像", () => vnUploadAvatar(g.key, msg));
+  if (p.url || p.has_avatar) {
+    btn("解除绑定", "删掉绑定的主页和头像", () => {
+      if (confirm("解除「" + g.key + "」的主页绑定和头像？笔记不受影响。")) vnProfileAction({ action: "remove", key: g.key }, msg);
+    });
+  }
+  main.appendChild(acts);
+  main.appendChild(msg);
+  card.appendChild(main);
+  return card;
+}
+
 const VN_ICO_NOTE = '<svg viewBox="0 0 48 60" aria-hidden="true"><path d="M7 2h25l13 13v41a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="#fff" stroke="#c8c8c8" stroke-width="2"/>' +
   '<path d="M32 2v11a2 2 0 0 0 2 2h11" fill="#f1f1f1" stroke="#c8c8c8" stroke-width="2"/>' +
   '<path d="M12 27h24M12 34h24M12 41h15" stroke="#a9b3c1" stroke-width="2.6" stroke-linecap="round"/>' +
   '<circle cx="35" cy="47" r="8" fill="#e25b3c"/><path d="M32.5 43.5v7l6-3.5z" fill="#fff"/></svg>';
-const VN_BADGE = {
-  recent: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
-  author: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/></svg>',
-};
-
-function vnFolderTile(name, sub, badge, onOpen, tip) {
-  const t = document.createElement("div");
-  t.className = "vn-tile folder";
-  t.title = tip || name;
-  t.innerHTML = '<div class="vn-tile-ico">' + VN_ICO_FOLDER +
-    (badge ? '<span class="vn-tile-badge ' + badge + '">' + VN_BADGE[badge] + "</span>" : "") + "</div>" +
-    '<div class="vn-tile-name"></div><div class="vn-tile-sub"></div>';
-  t.querySelector(".vn-tile-name").textContent = name;
-  t.querySelector(".vn-tile-sub").textContent = sub || "";
-  t.addEventListener("click", onOpen);
-  return t;
-}
 
 function vnNoteTile(n) {
   const t = document.createElement("div");
@@ -9545,52 +9762,60 @@ function vnRenderIconView(list, notes, folders, byFolder, ungrouped) {
   if (groupAuthors) {
     ungrouped.forEach((n) => { const k = (n.author || "").trim() || "未填作者"; (authors[k] = authors[k] || []).push(n); });
   }
-  const authorKeys = Object.keys(authors).sort((a, b) =>
-    (a === "未填作者") - (b === "未填作者") || authors[b].length - authors[a].length);
-  const prefs = vnRecentPrefs();
-  const range = VN_RECENT_RANGES.find((x) => x[0] === prefs.range) || VN_RECENT_RANGES[1];
-  const now = Date.now();
-  const recentOf = (days) => (notes || []).map((n) => [vnNoteTime(n), n])
-    .filter((x) => x[0] > 0 && now - x[0] <= days * 86400000).sort((a, b) => b[0] - a[0]).map((x) => x[1]);
+  const groups = [];
+  folders.forEach((f) => groups.push({ kind: "folder", name: f, key: f, items: byFolder[f] || [] }));
+  Object.keys(authors).forEach((k) => groups.push({ kind: "author", name: k, key: k, items: authors[k] }));
+  groups.forEach((g) => { g.stats = vnGroupStats(g.items); });
 
-  // 当前位置还在不在（文件夹被删 / 改名后回到最上层）
   const p = _vnIconPath;
-  if (p && ((p.kind === "folder" && folders.indexOf(p.name) < 0) || (p.kind === "author" && !authors[p.name]))) {
-    _vnIconPath = null;
-  }
-
-  // 路径：全部 › xxx
-  const crumb = document.createElement("div");
-  crumb.className = "vn-crumb";
-  const home = document.createElement("a");
-  home.textContent = "全部"; home.href = "#";
-  home.addEventListener("click", (e) => { e.preventDefault(); vnIconGo(null); });
-  crumb.appendChild(home);
-  wrap.appendChild(crumb);
+  const cur = p ? groups.find((g) => g.kind === p.kind && g.name === p.name) : null;
+  if (p && !cur) _vnIconPath = null;
 
   if (!_vnIconPath) {
-    home.classList.add("here");
-    const info = document.createElement("span");
-    info.className = "vn-crumb-info";
-    info.textContent = "（共 " + notes.length + " 条笔记；点文件夹进去看）";
-    crumb.appendChild(info);
+    // ── 最上层：博主头像墙 ──
+    const sortKey = vnSortKey();
+    const cmp = {
+      last: (a, b) => b.stats.last - a.stats.last,
+      hot: (a, b) => b.stats.recent - a.stats.recent || b.stats.last - a.stats.last,
+      total: (a, b) => b.stats.total - a.stats.total,
+      new: (a, b) => b.stats.first - a.stats.first,
+      name: (a, b) => a.name.localeCompare(b.name, "zh"),
+    }[sortKey] || ((a, b) => b.stats.last - a.stats.last);
+    groups.sort((a, b) => (a.name === "未填作者") - (b.name === "未填作者") || cmp(a, b));
+
+    const head = document.createElement("div");
+    head.className = "vn-chead";
+    const ttl = document.createElement("span");
+    ttl.className = "vn-chead-title";
+    ttl.textContent = "博主 · 文件夹（" + groups.length + "）";
+    head.appendChild(ttl);
+    const sorts = document.createElement("div");
+    sorts.className = "vn-csorts";
+    const lab = document.createElement("span"); lab.textContent = "排序："; sorts.appendChild(lab);
+    VN_SORTS.forEach(([k, label]) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "vn-recent-chip" + (k === sortKey ? " active" : "");
+      b.textContent = label;
+      b.title = { last: "最近提取过视频的排前面", hot: "最近 30 天新增笔记多的排前面", total: "笔记总数多的排前面",
+        new: "最近才开始提取的博主排前面", name: "按名字排" }[k];
+      b.addEventListener("click", () => { try { localStorage.setItem("vnCreatorSort", k); } catch (_) {} loadVideoNotes(); });
+      sorts.appendChild(b);
+    });
+    head.appendChild(sorts);
+    wrap.appendChild(head);
+    const tip = document.createElement("div");
+    tip.className = "vn-auto-tip";
+    tip.textContent = "圆角方形是你建的文件夹，圆形是按作者自动分的组。点头像进去看笔记；鼠标移到头像上点 🔗，" +
+      "粘贴博主主页链接（抖音 / B站 / YouTube…）就能换成真头像。";
+    wrap.appendChild(tip);
     const grid = document.createElement("div");
-    grid.className = "vn-icon-grid";
-    grid.appendChild(vnFolderTile("最新提取", range[1] + " " + recentOf(range[2]).length + " 条", "recent",
-      () => vnIconGo({ kind: "recent", name: "最新提取" }), "最新提取（置顶）：按提取时间看最近的视频笔记"));
-    folders.forEach((f) => {
-      const items = byFolder[f] || [];
-      grid.appendChild(vnFolderTile(f, items.length + " 条", "", () => vnIconGo({ kind: "folder", name: f })));
-    });
-    authorKeys.forEach((k) => {
-      grid.appendChild(vnFolderTile(k, authors[k].length + " 条", "author",
-        () => vnIconGo({ kind: "author", name: k }), "作者：" + k + "（还没放进文件夹的笔记，按作者自动分组）"));
-    });
+    grid.className = "vn-cgrid";
+    groups.forEach((g) => grid.appendChild(vnCreatorTile(g, sortKey)));
     wrap.appendChild(grid);
     if (!groupAuthors && ungrouped.length) {
-      const tip = document.createElement("div");
-      tip.className = "vn-auto-tip"; tip.textContent = "还没放进文件夹的笔记";
-      wrap.appendChild(tip);
+      const t2 = document.createElement("div");
+      t2.className = "vn-auto-tip"; t2.textContent = "还没放进文件夹的笔记";
+      wrap.appendChild(t2);
       const g2 = document.createElement("div");
       g2.className = "vn-icon-grid notes";
       ungrouped.forEach((n) => g2.appendChild(vnNoteTile(n)));
@@ -9600,31 +9825,20 @@ function vnRenderIconView(list, notes, folders, byFolder, ungrouped) {
     return;
   }
 
-  // 进到某个文件夹里
+  // ── 进到某个博主 / 文件夹里 ──
+  const crumb = document.createElement("div");
+  crumb.className = "vn-crumb";
+  const home = document.createElement("a");
+  home.textContent = "全部"; home.href = "#";
+  home.addEventListener("click", (e) => { e.preventDefault(); vnIconGo(null); });
   const sep = document.createElement("span"); sep.textContent = "›"; sep.className = "vn-crumb-sep";
   const here = document.createElement("span"); here.className = "vn-crumb-here";
-  crumb.appendChild(sep); crumb.appendChild(here);
-  let items = [];
-  if (_vnIconPath.kind === "recent") {
-    items = recentOf(range[2]);
-    here.textContent = "最新提取 · " + range[1] + "（" + items.length + " 条）";
-    const chips = document.createElement("div");
-    chips.className = "vn-recent-ranges";
-    VN_RECENT_RANGES.forEach(([key, label, days]) => {
-      const b = document.createElement("button");
-      b.type = "button"; b.className = "vn-recent-chip" + (key === range[0] ? " active" : "");
-      b.innerHTML = escapeHtml(label) + "<b>" + recentOf(days).length + "</b>";
-      b.addEventListener("click", () => { prefs.range = key; vnRecentSave(prefs); _vnRecentPage = 1; _vnIconPage = 1; loadVideoNotes(); });
-      chips.appendChild(b);
-    });
-    wrap.appendChild(chips);
-  } else if (_vnIconPath.kind === "folder") {
-    items = byFolder[_vnIconPath.name] || [];
-    here.textContent = _vnIconPath.name + "（" + items.length + " 条）";
-  } else {
-    items = authors[_vnIconPath.name] || [];
-    here.textContent = "作者：" + _vnIconPath.name + "（" + items.length + " 条）";
-  }
+  here.textContent = (cur.kind === "author" ? "作者：" : "") + cur.name + "（" + cur.items.length + " 条）";
+  crumb.appendChild(home); crumb.appendChild(sep); crumb.appendChild(here);
+  wrap.appendChild(crumb);
+  wrap.appendChild(vnProfileCard(cur));
+
+  const items = cur.items.slice().sort((a, b) => vnNoteTime(b) - vnNoteTime(a));
   const pages = Math.max(1, Math.ceil(items.length / VN_ICON_PAGE_SIZE));
   if (_vnIconPage > pages) _vnIconPage = pages;
   const grid = document.createElement("div");
@@ -9633,8 +9847,7 @@ function vnRenderIconView(list, notes, folders, byFolder, ungrouped) {
   items.slice(start, start + VN_ICON_PAGE_SIZE).forEach((n) => grid.appendChild(vnNoteTile(n)));
   if (!items.length) {
     const em = document.createElement("div");
-    em.className = "vn-recent-empty";
-    em.textContent = _vnIconPath.kind === "recent" ? "这段时间里没有提取过视频，点上面换一个更长的时间看看。" : "这个文件夹是空的。";
+    em.className = "vn-recent-empty"; em.textContent = "这个文件夹是空的。";
     wrap.appendChild(em);
   }
   wrap.appendChild(grid);

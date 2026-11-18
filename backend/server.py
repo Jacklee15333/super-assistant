@@ -88,7 +88,7 @@ _LOG_QUIET_PATHS = {
     "/sniff/config", "/skills/list", "/agents/list", "/agents/convos", "/agents/notifications", "/datadb/list", "/memory/list",
     "/creator/list", "/creator/findings", "/creator/videos_cached",
     "/creator/x_cookie_status",
-    "/logs", "/ai_live", "/ai_live_shot", "/version", "/gpu_status",
+    "/logs", "/ai_live", "/ai_live_shot", "/version", "/gpu_status", "/creator_profiles", "/creator_avatar",
 }
 
 # 给少数关键路径配一句「人话」描述，让日志一眼能看懂用户在干嘛。
@@ -2231,6 +2231,21 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(_log_capture.get_lines(since, limit))
         if path == "/ai_live":
             return self._send(self._ai_live((qs.get("watch") or ["0"])[0] == "1"))
+        if path == "/creator_profiles":
+            try:
+                import creator_profiles as _cpf
+                return self._send({"profiles": _cpf.list_profiles()})
+            except Exception as e:
+                return self._send({"profiles": {}, "error": str(e)})
+        if path == "/creator_avatar":
+            try:
+                import creator_profiles as _cpf
+                data, ctype = _cpf.get_avatar((qs.get("key") or [""])[0])
+            except Exception:
+                data, ctype = None, None
+            if not data:
+                return self._send({"error": "没有头像"}, 404)
+            return self._send_bytes(data, ctype)
         if path == "/ai_live_shot":
             try:
                 import web_model
@@ -2727,11 +2742,36 @@ class Handler(BaseHTTPRequestHandler):
             # v55：启动时的黑窗口：最小化 / 显示
             if _log_capture is None:
                 return self._send({"ok": False, "message": "日志收集没启用"})
-            _act = (body or {}).get("action", "status")
+            _act = (body or {}).get("action") or (qs.get("action") or ["status"])[0]
             ok, msg = _log_capture.console_window(_act)
             if _act != "status":
                 _clog("黑窗口", ("✓ " if ok else "✗ ") + msg)
-            return self._send({"ok": ok, "message": msg})
+            return self._send({"ok": ok, "message": msg, "hidden": _log_capture.console_hidden()})
+        if path == "/creator_profile":
+            # v58：博主主页（绑定链接取头像 / 刷新 / 手动上传头像 / 解除绑定）
+            try:
+                import creator_profiles as _cpf
+                b = body or {}
+                act = b.get("action", "bind")
+                key = (b.get("key") or "").strip()
+                if act == "bind":
+                    ok, res = _cpf.bind(key, b.get("url") or "")
+                elif act == "refresh":
+                    ok, res = _cpf.refresh(key)
+                elif act == "avatar":
+                    ok, res = _cpf.set_avatar_data(key, b.get("data") or "")
+                elif act == "remove":
+                    ok, res = _cpf.remove(key)
+                else:
+                    ok, res = False, "不认识的操作"
+            except Exception as e:
+                ok, res = False, "出错：%s" % e
+            _clog("博主", "%s %s：%s" % ("✓" if ok else "✗", (body or {}).get("key", ""),
+                                       res.get("name", "好了") if isinstance(res, dict) else res))
+            if ok:
+                return self._send({"ok": True, "profile": res if isinstance(res, dict) else None,
+                                   "message": (res.get("note") if isinstance(res, dict) else res) or ""})
+            return self._send({"ok": False, "message": res})
         if path == "/video_note_analyze":
             return self._handle_video_note_analyze(body)
         if path == "/video_note_set_author":

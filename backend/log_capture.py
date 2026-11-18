@@ -179,8 +179,15 @@ def _attach_parent_console(kernel32):
     return False
 
 
-def _find_console_windows():
-    """返回 (要操作的窗口列表, 说明)。"""
+_CONSOLE = {"hidden": False}
+
+
+def console_hidden():
+    return bool(_CONSOLE["hidden"])
+
+
+def _find_console_windows(include_hidden=False):
+    """返回 (要操作的窗口列表, 说明)。include_hidden=True：被我们藏起来的窗口也算（要把它找回来）。"""
     import time as _t
     ctypes, user32, kernel32 = _win_api()
     hwnd = kernel32.GetConsoleWindow()
@@ -193,7 +200,7 @@ def _find_console_windows():
     cands = []
 
     def add(h):
-        if h and h not in cands and user32.IsWindowVisible(h):
+        if h and h not in cands and (include_hidden or user32.IsWindowVisible(h)):
             cands.append(h)
 
     add(user32.GetWindow(hwnd, 4))          # GW_OWNER：Windows Terminal 的真窗口
@@ -217,11 +224,14 @@ def _find_console_windows():
 
 
 def console_window(action):
-    """action: minimize | show | status。返回 (是否做到, 说明)。"""
+    """action: hide | show | toggle | minimize | status。返回 (是否做到, 说明)。
+    hide＝完全藏起来（任务栏里也没有）；show＝重新显示；toggle＝藏着就显示、显示着就藏。"""
     if sys.platform != "win32":
         return False, "不是 Windows，没有黑窗口可控制"
+    if action == "toggle":
+        action = "show" if _CONSOLE["hidden"] else "hide"
     try:
-        cands, kind, detach = _find_console_windows()
+        cands, kind, detach = _find_console_windows(include_hidden=(action == "show"))
     except Exception as e:
         return False, "找黑窗口出错：%s" % e
     if not cands:
@@ -230,12 +240,19 @@ def console_window(action):
         _ctypes, user32, _k = _win_api()
         if action == "status":
             return True, "找到了黑窗口（%s）" % kind
+        if action == "hide":
+            for h in cands:
+                user32.ShowWindow(h, 0)            # SW_HIDE：任务栏里也不显示
+            _CONSOLE["hidden"] = True
+            return True, "已把黑窗口藏起来（%s；软件里「终端」能看到同样的内容，关软件时会自动重新显示）" % kind
         if action == "minimize":
             for h in cands:
                 user32.ShowWindow(h, 6)            # SW_MINIMIZE
             return True, "已把黑窗口最小化（%s，在任务栏里还能点开）" % kind
         if action == "show":
+            _CONSOLE["hidden"] = False
             for h in cands:
+                user32.ShowWindow(h, 5)            # SW_SHOW（被藏起来的要先显示）
                 user32.ShowWindow(h, 9)            # SW_RESTORE
                 try:
                     user32.SetForegroundWindow(h)

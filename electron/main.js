@@ -691,8 +691,22 @@ app.whenReady().then(async () => {
 });
 
 // 退出时务必关掉后端，别留孤儿进程
+// v58：黑窗口平时被藏起来了（任务栏里也没有）；关软件前先让后端把它显示回来，
+// 不然启动器最后那句「按任意键退出」会停在一个看不见的窗口里。
+let _consoleRestored = false;
+function restoreConsoleWindow() {
+  if (_consoleRestored || process.platform !== "win32") return;
+  _consoleRestored = true;
+  try {
+    require("child_process").execFileSync("curl.exe",
+      ["-s", "-m", "2", "-X", "POST", "http://127.0.0.1:" + BACKEND_PORT + "/console?action=show"],
+      { windowsHide: true, timeout: 3000, stdio: "ignore" });
+  } catch (e) { /* 没有 curl 或后端已经退了：start.ps1 收尾时还会再显示一次 */ }
+}
+
 function killBackend() {
   if (backendProcess && !backendProcess.killed) {
+    restoreConsoleWindow();
     backendProcess.kill();
     backendProcess = null;
   }
