@@ -188,12 +188,28 @@
       </div>
 
       <div class="sidebar-foot">
+        <button class="ghost-btn" id="termToggleBtn" title="显示 / 收起终端（后台日志，和启动时的黑窗口内容一样）"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="m7 9.5 3 2.5-3 2.5M12.5 15h4.5"/></svg><span>终端</span></button>
         <button class="ghost-btn" id="heartbeatBtn" title="触发一次心跳"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.5 12h-4l-3 8.5-5-17-3 8.5h-4"/></svg><span>触发一次心跳</span></button>
         <button class="ghost-btn" id="endConvoBtn" title="结束对话"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 20.5H5.5a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2H9"/><path d="m16 16.5 4.5-4.5L16 7.5M20.5 12H9"/></svg><span>结束对话</span></button>
         <button class="nav-item foot-item" title="桌宠" data-view="pet"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 9.5 6 3.5l4 3h4l4-3 1.5 6"/><path d="M4.5 9.5c0 6 3.4 10 7.5 10s7.5-4 7.5-10"/><path d="M9.5 12.5h.01M14.5 12.5h.01M11 15.5h2"/></svg><span>桌宠</span></button>
         <button class="nav-item foot-item" title="设置" data-view="settings"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>设置</span></button>
       </div>
     </aside>
+
+    <!-- v55：终端抽屉（后台日志，和启动时的黑窗口内容一样），贴在主区底部 -->
+    <div class="term-drawer" id="termDrawer" hidden>
+      <div class="term-drawer-resize" id="termDrawerResize" title="上下拖动调整高度"></div>
+      <div class="term-drawer-head">
+        <span class="term-drawer-title">终端</span>
+        <span class="term-drawer-sub">后台日志，和启动时的黑窗口内容一样</span>
+        <span class="term-drawer-sp"></span>
+        <span class="term-drawer-msg" id="termDrawerMsg"></span>
+        <button class="term-drawer-btn" id="termPopBtn" title="在单独的窗口里看终端，可以拖到一边">单独窗口打开</button>
+        <button class="term-drawer-btn" id="termConsoleBtn" title="把启动时的那个黑窗口重新显示出来">显示原来的黑窗口</button>
+        <button class="term-drawer-btn" id="termCloseBtn" title="收起终端">✕</button>
+      </div>
+      <div class="term-drawer-body" id="termDrawerBody"></div>
+    </div>
 
     <!-- 主区 -->
     <main class="main">
@@ -1481,6 +1497,16 @@
           </div>
           <div class="setting-row">
             <div>
+              <div class="setting-title">启动后自动最小化黑窗口</div>
+              <div class="setting-desc">黑窗口里的内容在软件左下角「终端」里都能看到，不用再单独盯着它。需要时在终端面板点「显示原来的黑窗口」</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="autoMinConsole" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="setting-row">
+            <div>
               <div class="setting-title">使用本地模型</div>
               <div class="setting-desc">本地 Ollama，数据不出本机（推荐）</div>
             </div>
@@ -1897,6 +1923,7 @@
 
   <script src="pet-characters.js"></script>
   <script src="knowledge.js"></script>
+  <script src="logview.js"></script>
   <script src="renderer.js"></script>
   <script src="crawler.js"></script>
   <script src="evolution.js"></script>

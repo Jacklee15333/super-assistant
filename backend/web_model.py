@@ -101,6 +101,9 @@ def _default_config():
         "aiUsername": "",
         "aiPassword": "",
         "headless": False,        # 默认显示浏览器，便于排错；设 True 后台跑
+        # v55：浏览器照常开着、照常工作，只是移到屏幕外看不见（软件里能看实时画面）。
+        # 在软件里点「显示浏览器」会移回屏幕上，并记住这个选择。
+        "browserHidden": True,
         "cardName": "",           # 想指定的卡名（留空＝任意可用卡，全都是 ChatGPT）
         "enableSearch": True,     # 默认开联网搜索：软件要的就是最新信息，别让用户漏配
         "aiUrl": "https://sorryios.ai/",
@@ -228,6 +231,46 @@ def playwright_import_error():
 # ════════════════════════════════════════════════════════════════
 # Worker：独占浏览器的专用线程。所有浏览器操作只在这个线程里跑。
 # ════════════════════════════════════════════════════════════════
+# ════════════════════ v55：AI 池实时画面（给软件里的「实时画面」面板用） ════════════════════
+# 这些状态由 worker 线程写，HTTP 线程读：
+#   stage   最近一步在干什么（打开网页 / 换卡 / 思考中 / 接收回复中…）
+#   reply   AI 正在写的回复（边写边更新）
+#   shot    浏览器页面的截图（只有软件里打开了实时画面时才截，平时不截，不费资源）
+import collections as _collections
+
+_LIVE_LOCK = threading.Lock()
+_LIVE = {"busy": False, "job": "", "stage": "", "stage_at": 0.0, "started": 0.0,
+         "finished": 0.0, "reply": "", "reply_at": 0.0, "shot": b"", "shot_ts": 0.0,
+         "shot_err": "", "watch_until": 0.0, "visible": None}
+_LIVE_LOG = _collections.deque(maxlen=80)
+_UI_CMDS = queue.Queue()          # 「显示/隐藏浏览器」这类命令，交给 worker 线程去做
+OFFSCREEN_X = -12000              # 隐藏＝把窗口挪到屏幕外（不能最小化：最小化后 Chrome 会暂停页面）
+
+
+def _live_set(**kw):
+    with _LIVE_LOCK:
+        _LIVE.update(kw)
+
+
+def _live_log(msg):
+    with _LIVE_LOCK:
+        _LIVE_LOG.append((round(time.time(), 1), str(msg)[:300]))
+
+
+def _save_pref(**kw):
+    """只改配置文件里的几个开关，不触发浏览器重启（save_config 会让浏览器重开）。"""
+    try:
+        c = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
+    except Exception:
+        c = {}
+    c.update(kw)
+    try:
+        MEMORY_DIR.mkdir(parents=True, exist_ok=True)
+        CONFIG_PATH.write_text(json.dumps(c, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
 class _WebWorker:
     def __init__(self):
         self._jobs = queue.Queue()
@@ -252,6 +295,15 @@ class _WebWorker:
         self._cur_box = None      # 正在执行的 job 的结果盒（心跳写在里面）
         self._dead = False        # 被看门狗放弃的 worker：跑完手上这条就退出
         self._browser_pids = set()
+        # v55：实时画面 / 显示隐藏浏览器
+        self._headless = False
+        self._in_tick = False
+        self._quiet_shots = False   # 正在填字/发送时不截图，免得打乱节奏
+        self._last_shot = 0.0
+        self._shot_backoff = 0.0
+        self._cdp = None
+        self._cdp_page = None
+        self._win_restore = None    # 隐藏前窗口在屏幕上的位置，显示时放回去
 
     # ---- 公共：投递一个 job，阻塞等结果 ----
     # timeout 从这个 job【真正开始执行】时算起（排队等前一个 job 的时间不算），
@@ -314,6 +366,8 @@ class _WebWorker:
                 pass
         except Exception:
             pass
+        _live_log(msg)
+        self._tick()
 
     # ---- worker 主循环：一次处理一个 job（＝串行单浏览器）----
     def _run(self):
@@ -322,22 +376,40 @@ class _WebWorker:
         with sync_playwright() as pw:
             self._pw = pw
             while not self._dead:
-                fn_name, kwargs, box, done = self._jobs.get()
+                # 空闲时每 0.5 秒醒一次：处理「显示/隐藏浏览器」、给实时画面截图
+                job = None
+                while job is None and not self._dead:
+                    try:
+                        job = self._jobs.get(timeout=0.5)
+                    except queue.Empty:
+                        self._tick(idle=True)
+                if job is None:
+                    break
+                fn_name, kwargs, box, done = job
                 if self._dead:                   # 已被放弃：把 job 还给新的 worker
                     _requeue_job((fn_name, kwargs, box, done))
                     break
                 box["started"] = box["hb"] = time.time()
                 box["worker"] = self
                 self._cur_box = box
+                self._quiet_shots = False
+                _live_set(busy=True, job=fn_name, started=box["started"], finished=0.0,
+                          stage="开始处理…", stage_at=box["started"], reply="", reply_at=0.0)
+                ok_job = False
                 try:
                     fn = getattr(self, fn_name)
                     box["value"] = fn(**(kwargs or {}))
+                    ok_job = True
                 except Exception as e:        # noqa
                     box["error"] = e
                     self._log("job 出错: " + repr(e))
                     self._log(traceback.format_exc())
                 finally:
                     self._cur_box = None
+                    self._quiet_shots = False
+                    _live_set(busy=False, finished=time.time(),
+                              stage="这一条已完成" if ok_job else "这一条出错了（会自动重试）",
+                              stage_at=time.time())
                     done.set()
             if self._dead:
                 self._safe(self._close)
@@ -432,9 +504,12 @@ class _WebWorker:
         last_err = None
         for name, channel in tries:
             try:
+                hide_args = []
+                if not headless and load_config().get("browserHidden", True):
+                    hide_args = ["--window-position=%d,0" % OFFSCREEN_X]
                 opts = dict(
                     headless=bool(headless),
-                    args=self._net_args() +
+                    args=self._net_args() + hide_args +
                          ["--disable-blink-features=AutomationControlled",
                           # 窗口被别的程序挡住/最小化时也照常渲染，不然页面「冻住」，
                           # 点击和发送会一直等，非得把鼠标移回浏览器才继续
@@ -477,6 +552,8 @@ class _WebWorker:
 
     def _close(self):
         b = self._browser
+        self._cdp = self._cdp_page = None
+        _live_set(visible=None)
         self._page = self._context = self._browser = None
         self._state = "closed"
         self._destroy_browser(b)
@@ -505,6 +582,7 @@ class _WebWorker:
             raise RuntimeError("请先在「网页大模型」设置里填写 sorryios.ai 账号和密码")
 
         headless = cfg.get("headless") is True
+        self._headless = headless
         self._resolve_routes(cfg)
         # AI 池网络方式：proxy＝走「设置」里的代理 / system＝跟随系统代理 / direct＝直连。
         # 自动模式：用上次成功的方式；没有记录时，sorryios.ai 在境外 → 先走代理。
@@ -531,6 +609,14 @@ class _WebWorker:
                 user_agent=UA,
             )
             self._page = self._context.new_page()
+            # v55：默认把浏览器挪到屏幕外（照常工作），软件里看实时画面；点「显示浏览器」再挪回来
+            if not headless:
+                if cfg.get("browserHidden", True):
+                    ok_h, why_h = self._safe(lambda: self._set_window_visible(False), (False, "出错"))
+                    self._log("浏览器已移到屏幕外（照常工作，软件里能看实时画面）" if ok_h
+                              else "浏览器没能移到屏幕外：%s" % why_h)
+                else:
+                    _live_set(visible=True)
             # 全局默认超时调短：任何 click/fill 卡住最多 8 秒就抛错，便于快速换方法/诊断
             try:
                 self._page.set_default_timeout(8000)
@@ -1147,6 +1233,7 @@ class _WebWorker:
     def web_complete(self, prompt, on_progress=None, **opts):
         """对外主入口（在 worker 线程内执行）。返回 AI 回复纯文本。"""
         def prog(msg):
+            _live_set(stage=str(msg), stage_at=time.time())
             if on_progress:
                 self._safe(lambda: on_progress(msg))
         prog("打开网页 / 就位中…")
@@ -1765,6 +1852,7 @@ class _WebWorker:
 
     def _query_once(self, prompt, opts, attempt, prog):
         self._state = "busy"
+        self._quiet_shots = True          # 填字/发送这几秒不截图；开始等回复后恢复
         timeout_ms = opts.get("timeout") or 600000
         self._log("发送 prompt (len=%d, 第%d次)..." % (len(prompt), attempt))
 
@@ -2163,8 +2251,10 @@ class _WebWorker:
         img_wait_since = 0
         IMG_WAIT_CAP = opts.get("imageWaitMs") or 480000      # 生成图片最多多等 8 分钟
 
+        self._quiet_shots = False
         while (time.time() - start) * 1000 < timeout_ms:
             time.sleep(POLL)
+            self._tick()
 
             # 每 2 秒查一次：对比框 / 出错重试 / 额度用完 / 正在生成图片
             if time.time() - last_blk > 2:
@@ -2292,6 +2382,7 @@ class _WebWorker:
                 self._log("✓ AI 开始产生本轮回复（%d 字）" % len(current))
                 prog("接收回复中…")
             think_since = 0
+            _live_set(reply=current, reply_at=time.time())
 
             if current != last_text:
                 stable = 0
@@ -2459,6 +2550,119 @@ class _WebWorker:
         except Exception:
             pass
 
+    # ════════════════════ v55：实时画面 + 显示/隐藏浏览器（都在 worker 线程里做） ════════════════════
+    def _tick(self, idle=False):
+        """worker 线程里「顺手」做的事：处理显示/隐藏浏览器的命令；有人在看实时画面时截个图。
+        只在 worker 线程、两次网页操作之间调用，不会和别的网页操作打架。"""
+        if self._in_tick or threading.current_thread() is not self._thread:
+            return
+        self._in_tick = True
+        try:
+            while True:
+                try:
+                    cmd = _UI_CMDS.get_nowait()
+                except queue.Empty:
+                    break
+                self._apply_ui_cmd(cmd)
+            now = time.time()
+            if self._quiet_shots or _LIVE["watch_until"] < now:
+                return
+            if now < self._shot_backoff or now - self._last_shot < (5.0 if idle else 2.0):
+                return
+            pg = self._page
+            if pg is None or self._browser is None:
+                return
+            try:
+                if pg.is_closed():
+                    return
+            except Exception:
+                return
+            self._last_shot = now
+            try:
+                data = pg.screenshot(type="jpeg", quality=60, timeout=3000,
+                                     caret="initial", scale="css")
+                _live_set(shot=data, shot_ts=time.time(), shot_err="")
+            except Exception as e:
+                _live_set(shot_err=str(e).split("\n")[0][:160])
+                self._shot_backoff = time.time() + 15
+        except Exception:
+            pass
+        finally:
+            self._in_tick = False
+
+    def _apply_ui_cmd(self, cmd):
+        res = cmd.get("res", {})
+        try:
+            ok, msg = self._set_window_visible(cmd.get("action") == "show")
+        except Exception as e:
+            ok, msg = False, "操作浏览器窗口出错：%s" % str(e).split("\n")[0][:120]
+        res.update(ok=ok, msg=msg)
+        try:
+            cmd["done"].set()
+        except Exception:
+            pass
+
+    def _window_id(self):
+        pg = self._page
+        if pg is None or self._context is None:
+            raise RuntimeError("AI 池浏览器还没打开")
+        if self._cdp is None or self._cdp_page is not pg:
+            self._cdp = self._context.new_cdp_session(pg)
+            self._cdp_page = pg
+        return self._cdp, self._cdp.send("Browser.getWindowForTarget")["windowId"]
+
+    def _visible_bounds(self):
+        """显示时放到屏幕中间（隐藏前记下过位置就用原来的位置）。"""
+        if self._win_restore:
+            return dict(self._win_restore)
+        try:
+            al, at, aw, ah = self._page.evaluate(
+                "() => [screen.availLeft || 0, screen.availTop || 0, screen.availWidth, screen.availHeight]")
+            w = int(max(900, min(1340, aw - 40)))
+            h = int(max(640, min(1000, ah - 40)))
+            return {"left": int(al + max(0, (aw - w) // 2)), "top": int(at + max(0, (ah - h) // 2)),
+                    "width": w, "height": h}
+        except Exception:
+            return {"left": 60, "top": 40, "width": 1320, "height": 980}
+
+    def _set_window_visible(self, visible):
+        """显示＝挪回屏幕并放到最前面；隐藏＝挪到屏幕外（不最小化，页面照常工作）。"""
+        if self._headless:
+            return False, "现在是后台模式（设置里勾了不显示浏览器），没有窗口可显示"
+        cdp, wid = self._window_id()
+
+        def bounds():
+            return cdp.send("Browser.getWindowBounds", {"windowId": wid})["bounds"]
+
+        def set_b(b):
+            cdp.send("Browser.setWindowBounds", {"windowId": wid, "bounds": b})
+
+        cur = bounds()
+        if cur.get("windowState", "normal") != "normal":
+            set_b({"windowState": "normal"})
+            cur = bounds()
+        if visible:
+            set_b(self._visible_bounds())
+            # 先最小化再还原：Windows 会把它放到最上面
+            set_b({"windowState": "minimized"})
+            time.sleep(0.15)
+            set_b({"windowState": "normal"})
+            try:
+                self._page.bring_to_front()
+            except Exception:
+                pass
+            _live_set(visible=True)
+            return True, "已显示 AI 池浏览器"
+        if cur.get("left", 0) > OFFSCREEN_X // 2:
+            self._win_restore = {k: cur[k] for k in ("left", "top", "width", "height") if k in cur}
+        set_b({"left": OFFSCREEN_X, "top": 0})
+        after = bounds()
+        if after.get("left", 0) > OFFSCREEN_X // 4:
+            _live_set(visible=True)
+            return False, "系统不允许把窗口挪到屏幕外"
+        _live_set(visible=False)
+        return True, "已隐藏 AI 池浏览器（挪到屏幕外，照常在后台工作）"
+
     def get_state(self):
         return {"state": self._state, "hasBrowser": bool(self._browser),
                 "hasPage": bool(self._page), "available": is_available()}
@@ -2466,6 +2670,7 @@ class _WebWorker:
     def test_login(self, on_progress=None):
         """「测试网页模型」：就位 + 发一句测试，验证选择器与答完判定，并把 AI 回复带回前端展示。"""
         def prog(m):
+            _live_set(stage=str(m), stage_at=time.time())
             if on_progress:
                 self._safe(lambda: on_progress(m))
         self._ensure_started()
@@ -3287,3 +3492,49 @@ def get_state():
         return _worker().get_state()
     except Exception as e:
         return {"state": "idle", "available": is_available(), "error": str(e)}
+
+
+# ─────────────── v55：实时画面 / 显示隐藏浏览器（给 server 的接口用） ───────────────
+def live_state(watch=False):
+    """AI 池现在在干什么。watch=True 表示软件里有人开着实时画面（接下来 8 秒里会截图）。"""
+    now = time.time()
+    with _LIVE_LOCK:
+        if watch:
+            _LIVE["watch_until"] = now + 8
+        d = {k: v for k, v in _LIVE.items() if k not in ("shot", "reply")}
+        reply = _LIVE.get("reply") or ""
+        d["reply_len"] = len(reply)
+        d["reply_tail"] = reply[-8000:]
+        d["has_shot"] = bool(_LIVE.get("shot"))
+        d["log"] = list(_LIVE_LOG)[-25:]
+    st = get_state()
+    d["state"] = st.get("state")
+    d["hasBrowser"] = bool(st.get("hasBrowser"))
+    cfg = load_config()
+    d["hidden_pref"] = bool(cfg.get("browserHidden", True))
+    d["headless"] = cfg.get("headless") is True
+    d["now"] = now
+    return d
+
+
+def live_shot():
+    with _LIVE_LOCK:
+        return _LIVE.get("shot") or b"", _LIVE.get("shot_ts") or 0
+
+
+def request_window(action, wait=6.0):
+    """显示 / 隐藏 AI 池浏览器。选择会被记住（下次打开浏览器也照这个来）。返回 (ok, 说明)。"""
+    if action not in ("show", "hide"):
+        return False, "不认识的操作"
+    _save_pref(browserHidden=(action == "hide"))
+    if load_config().get("headless") is True:
+        return False, "现在是后台模式（设置里勾了不显示浏览器），没有窗口可显示"
+    w = _worker()
+    if not (w._browser and w._thread and w._thread.is_alive()):
+        return True, ("记住了：下次 AI 池打开浏览器时会%s" % ("显示在屏幕上" if action == "show" else "放在屏幕外"))
+    cmd = {"action": action, "done": threading.Event(), "res": {}}
+    _UI_CMDS.put(cmd)
+    if cmd["done"].wait(wait):
+        r = cmd["res"]
+        return bool(r.get("ok")), r.get("msg") or ""
+    return True, "已发出指令，AI 池正忙着一步操作，几秒内就会生效"

@@ -711,6 +711,39 @@ app.on("window-all-closed", () => {
 // 暴露后端端口给前端
 ipcMain.handle("get-backend-port", () => BACKEND_PORT);
 
+// v55：独立的「终端」窗口 —— 和启动时黑窗口里的内容一样（从后端 /logs 读），可以单独摆在一边看
+let termWin = null;
+ipcMain.handle("open-terminal-window", () => {
+  if (termWin && !termWin.isDestroyed()) {
+    if (termWin.isMinimized()) termWin.restore();
+    termWin.show();
+    termWin.focus();
+    return true;
+  }
+  termWin = new BrowserWindow({
+    width: 1000,
+    height: 640,
+    minWidth: 520,
+    minHeight: 300,
+    title: "超能小助 · 终端",
+    backgroundColor: "#141414",
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  try { termWin.setMenuBarVisibility(false); } catch (e) {}
+  termWin.loadFile(path.join(__dirname, "renderer", "terminal.html"));
+  termWin.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//.test(url)) shell.openExternal(url);
+    return { action: "deny" };
+  });
+  termWin.on("closed", () => { termWin = null; });
+  return true;
+});
+
 // 前端可主动查询当前后端状态（万一推送的 backend-status 没收到，用这个补救）
 ipcMain.handle("get-backend-status", () => lastBackendStatus);
 

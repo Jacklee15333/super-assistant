@@ -107,6 +107,7 @@ function onBackendReady() {
   if (!_backendReadyOnce) {
     _backendReadyOnce = true;
     reloadAllPanels();   // ← 关键：刷新「全部」页，而不只是当前页
+    try { termAfterBackendReady(); } catch (e) {}
   }
 }
 
@@ -3656,8 +3657,10 @@ function vnRenderBatchBar(list, notes) {
   }
   const prog = document.createElement("div"); prog.className = "vn-batch-prog"; prog.id = "vnBatchProg"; prog.hidden = true;
   bar.appendChild(prog);
+  bar.appendChild(vnBuildLive());   // v55：可展开的「AI 实时画面」
   list.appendChild(bar);
   vnPollBatch();          // 页面刷新时如果有批量在跑，接着显示进度
+  vnLivePoll();
 }
 
 let _vnBatchTimer = null;
@@ -8926,3 +8929,358 @@ window.openVideoNoteFromGraph = function (name, title) {
     setTimeout(function () { try { openVideoNote(name); } catch (e) {} }, 120);
   }
 };
+
+
+// ════════════════════ v55：终端抽屉（后台日志嵌进软件） ════════════════════
+// 启动时的黑窗口里打印的每一行，后端都会存一份；这里从 /logs 读出来显示，不用再盯着黑窗口。
+let _termView = null;
+
+function termDrawerPlace() {
+  const d = document.getElementById("termDrawer");
+  const main = document.querySelector(".main");
+  if (!d || d.hidden || !main) return;
+  const r = main.getBoundingClientRect();
+  d.style.left = r.left + "px";
+  d.style.width = r.width + "px";
+}
+
+function termDrawerSetOpen(open) {
+  const d = document.getElementById("termDrawer");
+  const main = document.querySelector(".main");
+  if (!d || !main) return;
+  d.hidden = !open;
+  main.classList.toggle("term-open", !!open);
+  document.getElementById("termToggleBtn")?.classList.toggle("active", !!open);
+  if (open) {
+    if (!_termView && window.CxLogView) {
+      _termView = CxLogView.mount(document.getElementById("termDrawerBody"), { backend: () => BACKEND });
+    }
+    if (_termView) _termView.start();
+    termDrawerPlace();
+  } else if (_termView) {
+    _termView.stop();
+  }
+  try { localStorage.setItem("cxTermOpen", open ? "1" : "0"); } catch (_) {}
+}
+
+function termDrawerMsg(text) {
+  const m = document.getElementById("termDrawerMsg");
+  if (!m) return;
+  m.textContent = text || "";
+  clearTimeout(termDrawerMsg._t);
+  if (text) termDrawerMsg._t = setTimeout(() => { m.textContent = ""; }, 5000);
+}
+
+async function consoleWindow(action) {
+  try {
+    const d = await (await fetch(BACKEND + "/console", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }) })).json();
+    return d;
+  } catch (e) {
+    return { ok: false, message: "出错：" + e.message };
+  }
+}
+
+// 「显示终端」：单独开一个终端窗口；老版本主进程没有这个功能时，退回到软件里的终端抽屉
+async function openTerminalWindow() {
+  try {
+    if (window.crayfish && window.crayfish.openTerminalWindow) {
+      await window.crayfish.openTerminalWindow();
+      return;
+    }
+  } catch (e) {}
+  termDrawerSetOpen(true);
+}
+
+(function initTermDrawer() {
+  const d = document.getElementById("termDrawer");
+  if (!d) return;
+  // 高度：上次拖到多高就是多高
+  let h = 0;
+  try { h = parseInt(localStorage.getItem("cxTermH") || "0", 10) || 0; } catch (_) {}
+  if (h) document.documentElement.style.setProperty("--term-h", h + "px");
+
+  document.getElementById("termToggleBtn")?.addEventListener("click", () => termDrawerSetOpen(d.hidden));
+  document.getElementById("termCloseBtn")?.addEventListener("click", () => termDrawerSetOpen(false));
+  document.getElementById("termPopBtn")?.addEventListener("click", () => openTerminalWindow());
+  document.getElementById("termConsoleBtn")?.addEventListener("click", async () => {
+    const r = await consoleWindow("show");
+    termDrawerMsg(r.message || (r.ok ? "已显示" : "没做到"));
+  });
+
+  // 拖动顶边调整高度
+  const handle = document.getElementById("termDrawerResize");
+  handle?.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    const move = (ev) => {
+      const nh = Math.max(120, Math.min(window.innerHeight - 160, window.innerHeight - ev.clientY));
+      document.documentElement.style.setProperty("--term-h", nh + "px");
+      try { localStorage.setItem("cxTermH", String(Math.round(nh))); } catch (_) {}
+    };
+    const up = () => {
+      document.removeEventListener("mousemove", move);
+      document.removeEventListener("mouseup", up);
+      document.body.classList.remove("term-resizing");
+    };
+    document.body.classList.add("term-resizing");
+    document.addEventListener("mousemove", move);
+    document.addEventListener("mouseup", up);
+  });
+
+  const main = document.querySelector(".main");
+  if (main && window.ResizeObserver) new ResizeObserver(() => termDrawerPlace()).observe(main);
+  window.addEventListener("resize", termDrawerPlace);
+
+  // 设置页：启动后自动最小化黑窗口
+  const cb = document.getElementById("autoMinConsole");
+  if (cb) {
+    try { cb.checked = localStorage.getItem("cxAutoMinConsole") !== "0"; } catch (_) {}
+    cb.addEventListener("change", () => {
+      try { localStorage.setItem("cxAutoMinConsole", cb.checked ? "1" : "0"); } catch (_) {}
+    });
+  }
+})();
+
+// 后端第一次连上之后：按设置把启动时的黑窗口最小化；上次开着终端抽屉就接着开
+function termAfterBackendReady() {
+  let autoMin = true;
+  try { autoMin = localStorage.getItem("cxAutoMinConsole") !== "0"; } catch (_) {}
+  if (autoMin) consoleWindow("minimize");
+  let wasOpen = false;
+  try { wasOpen = localStorage.getItem("cxTermOpen") === "1"; } catch (_) {}
+  if (wasOpen) termDrawerSetOpen(true);
+}
+
+// ════════════════════ v55：批量分析 ·「AI 实时画面」（可展开 / 折叠） ════════════════════
+// 展开后能看到：正在分析哪一篇、AI 池浏览器的实时截图、AI 正在写的回复、每一步做了什么；
+// 不用再去看浏览器和黑窗口。「显示浏览器」「显示终端」可以把它们单独调出来。
+let _vnLiveTimer = null;
+let _vnLiveShotTs = 0;
+let _vnLiveTab = "reply";
+
+function vnLiveIsOpen() {
+  try { return localStorage.getItem("vnLiveOpen") !== "0"; } catch (_) { return true; }
+}
+
+function vnBuildLive() {
+  const box = document.createElement("div");
+  box.className = "vn-live"; box.id = "vnLive"; box.hidden = true;
+  box.innerHTML =
+    '<div class="vn-live-head" id="vnLiveHead" title="点击展开 / 折叠">' +
+      '<span class="vn-live-caret" id="vnLiveCaret">▾</span>' +
+      '<span class="vn-live-title">AI 实时画面</span>' +
+      '<span class="vn-live-sum" id="vnLiveSum"></span>' +
+    "</div>" +
+    '<div class="vn-live-body" id="vnLiveBody">' +
+      '<div class="vn-live-article" id="vnLiveArticle"></div>' +
+      '<div class="vn-live-stage" id="vnLiveStage"></div>' +
+      '<div class="vn-live-grid">' +
+        '<div class="vn-live-shotbox" title="点击放大">' +
+          '<img id="vnLiveShot" alt="" hidden />' +
+          '<div class="vn-live-shotnote" id="vnLiveShotNote">等待画面…</div>' +
+        "</div>" +
+        '<div class="vn-live-side">' +
+          '<div class="vn-live-tabs">' +
+            '<button class="vn-live-tab" data-tab="reply">AI 回复（实时）</button>' +
+            '<button class="vn-live-tab" data-tab="steps">步骤记录</button>' +
+          "</div>" +
+          '<pre class="vn-live-reply" id="vnLiveReply"></pre>' +
+          '<div class="vn-live-steps" id="vnLiveSteps" hidden></div>' +
+        "</div>" +
+      "</div>" +
+      '<div class="vn-live-actions">' +
+        '<button class="vn-batch-stop" id="vnLiveBrowserBtn" title="把 AI 池浏览器调到屏幕上 / 挪回屏幕外（挪走后照常工作）">显示浏览器</button>' +
+        '<button class="vn-batch-stop" id="vnLiveTermBtn" title="在单独的窗口里看终端（后台日志）">显示终端</button>' +
+        '<span class="vn-live-msg" id="vnLiveMsg"></span>' +
+      "</div>" +
+    "</div>";
+
+  const body = box.querySelector("#vnLiveBody");
+  const caret = box.querySelector("#vnLiveCaret");
+  const applyOpen = (open) => { body.hidden = !open; caret.textContent = open ? "▾" : "▸"; };
+  applyOpen(vnLiveIsOpen());
+  box.querySelector("#vnLiveHead").addEventListener("click", () => {
+    const open = body.hidden;
+    applyOpen(open);
+    try { localStorage.setItem("vnLiveOpen", open ? "1" : "0"); } catch (_) {}
+    vnLivePoll();
+  });
+
+  const setTab = (t) => {
+    _vnLiveTab = t;
+    box.querySelectorAll(".vn-live-tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === t));
+    box.querySelector("#vnLiveReply").hidden = t !== "reply";
+    box.querySelector("#vnLiveSteps").hidden = t !== "steps";
+  };
+  box.querySelectorAll(".vn-live-tab").forEach((b) => b.addEventListener("click", () => setTab(b.dataset.tab)));
+  setTab(_vnLiveTab);
+
+  box.querySelector(".vn-live-shotbox").addEventListener("click", () => {
+    const img = box.querySelector("#vnLiveShot");
+    if (img && !img.hidden && img.src) vnLiveZoom(img.src);
+  });
+
+  box.querySelector("#vnLiveBrowserBtn").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    const action = btn.dataset.visible === "1" ? "hide" : "show";
+    btn.disabled = true;
+    try {
+      const d = await (await fetch(BACKEND + "/web_model/window", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }) })).json();
+      vnLiveMsg(d.message || (d.ok ? "好了" : "没做到"));
+    } catch (err) {
+      vnLiveMsg("出错：" + err.message);
+    }
+    btn.disabled = false;
+    setTimeout(vnLivePoll, 300);
+  });
+  box.querySelector("#vnLiveTermBtn").addEventListener("click", () => openTerminalWindow());
+  return box;
+}
+
+function vnLiveMsg(text) {
+  const m = document.getElementById("vnLiveMsg");
+  if (!m) return;
+  m.textContent = text || "";
+  clearTimeout(vnLiveMsg._t);
+  if (text) vnLiveMsg._t = setTimeout(() => { m.textContent = ""; }, 6000);
+}
+
+function vnLiveZoom(src) {
+  const ov = document.createElement("div");
+  ov.className = "vn-live-zoom";
+  ov.title = "点击任意处关闭";
+  const img = document.createElement("img");
+  img.src = src;
+  ov.appendChild(img);
+  ov.addEventListener("click", () => ov.remove());
+  document.body.appendChild(ov);
+}
+
+function _vnFmtDur(sec) {
+  sec = Math.max(0, Math.round(sec || 0));
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return m ? m + " 分 " + s + " 秒" : s + " 秒";
+}
+
+function _vnClock(t) {
+  const d = new Date(t * 1000);
+  return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0") + ":" +
+    String(d.getSeconds()).padStart(2, "0");
+}
+
+async function vnLivePoll() {
+  clearTimeout(_vnLiveTimer);
+  const box = document.getElementById("vnLive");
+  if (!box) { _vnLiveTimer = null; return; }          // 列表重画时会重新启动
+  const viewOn = document.getElementById("view-video")?.classList.contains("active") && !document.hidden;
+  if (!viewOn) { _vnLiveTimer = setTimeout(vnLivePoll, 3000); return; }
+  const open = vnLiveIsOpen();
+  let d = null;
+  try {
+    d = await (await fetch(BACKEND + "/ai_live?watch=" + (open ? "1" : "0"), { cache: "no-store" })).json();
+  } catch (e) {
+    _vnLiveTimer = setTimeout(vnLivePoll, 4000);
+    return;
+  }
+  if (document.getElementById("vnLive") !== box) return;   // 期间列表重画了，新的那个会自己轮询
+  const b = d.batch || {}, p = d.pool || {};
+  if (!b.running) {
+    box.hidden = true;
+    _vnLiveTimer = setTimeout(vnLivePoll, 4000);
+    return;
+  }
+  box.hidden = false;
+  const name = (b.current || "").replace(/\.md$/, "");
+  const title = b.title || name;
+  const idx = Math.min(b.total || 0, (b.done || 0) + 1);
+  const sum = box.querySelector("#vnLiveSum");
+  if (b.waiting) {
+    sum.textContent = "· 暂停中，到时间会自动接着跑";
+  } else if (title) {
+    sum.textContent = "· 第 " + idx + " / " + b.total + " 篇：" + title;
+  } else {
+    sum.textContent = "";
+  }
+  sum.title = title;
+
+  if (open) {
+    // 正在分析哪一篇
+    const art = box.querySelector("#vnLiveArticle");
+    art.innerHTML = "";
+    if (title && !b.waiting) {
+      const t = document.createElement("a");
+      t.className = "vn-live-art-title"; t.textContent = "《" + title + "》"; t.href = "#";
+      t.title = "打开这篇笔记";
+      t.addEventListener("click", (e) => { e.preventDefault(); if (b.current) openVideoNote(b.current); });
+      const meta = document.createElement("span");
+      meta.className = "vn-live-art-meta";
+      meta.textContent = "第 " + idx + " / " + b.total + " 篇" + (b.author ? " · 作者：" + b.author : "") +
+        (b.note_started ? " · 这篇已用时 " + _vnFmtDur(d.now - b.note_started) : "") +
+        (b.round > 1 ? " · 第 " + b.round + " 遍（补之前没成功的）" : "");
+      art.appendChild(t); art.appendChild(meta);
+    } else if (b.waiting) {
+      art.textContent = "⏸ " + b.waiting;
+    }
+    // 现在在干什么
+    const stage = box.querySelector("#vnLiveStage");
+    const parts = [];
+    if (b.stage) parts.push(b.stage);
+    if (p.stage && (!b.stage || b.stage.indexOf(p.stage) < 0)) {
+      parts.push("AI 池：" + p.stage + (p.busy ? "" : "（空闲）"));
+    }
+    stage.textContent = parts.join(" · ");
+
+    // 实时截图
+    const img = box.querySelector("#vnLiveShot");
+    const note = box.querySelector("#vnLiveShotNote");
+    if (p.has_shot && p.shot_ts && p.shot_ts !== _vnLiveShotTs) {
+      _vnLiveShotTs = p.shot_ts;
+      img.src = BACKEND + "/ai_live_shot?t=" + encodeURIComponent(p.shot_ts);
+      img.hidden = false;
+    } else if (p.has_shot && img.hidden && p.shot_ts) {
+      img.src = BACKEND + "/ai_live_shot?t=" + encodeURIComponent(p.shot_ts);
+      img.hidden = false;
+    }
+    if (!p.hasBrowser) {
+      note.textContent = p.headless ? "AI 池是后台模式（不显示浏览器），这里只有文字进度"
+        : "AI 池浏览器还没打开（换卡 / 启动中）";
+    } else if (p.shot_err) {
+      note.textContent = "截图暂时失败，文字进度照常更新";
+    } else if (p.shot_ts) {
+      const ago = Math.max(0, Math.round(d.now - p.shot_ts));
+      note.textContent = ago <= 3 ? "实时画面 · 点击放大" : "画面更新于 " + ago + " 秒前 · 点击放大";
+    } else {
+      note.textContent = "等待画面…";
+    }
+
+    // AI 正在写的回复
+    const rep = box.querySelector("#vnLiveReply");
+    const nearBottom = rep.scrollHeight - rep.scrollTop - rep.clientHeight < 40;
+    let txt = p.reply_tail || "";
+    if (p.reply_len > txt.length) txt = "…（前面还有 " + (p.reply_len - txt.length) + " 字）\n" + txt;
+    if (!txt) txt = p.busy ? "AI 还没开始写回复（可能在换卡、选模型、思考中…）" : "（暂无回复内容）";
+    if (rep.textContent !== txt) {
+      rep.textContent = txt;
+      if (nearBottom) rep.scrollTop = rep.scrollHeight;
+    }
+    // 步骤记录
+    const steps = box.querySelector("#vnLiveSteps");
+    const rows = (p.log || []).slice(-25);
+    const html = rows.map((r) => '<div class="vn-live-step"><span class="vn-live-step-t">' + _vnClock(r[0]) +
+      "</span>" + escapeHtml(r[1]) + "</div>").join("");
+    if (steps.innerHTML !== html) {
+      steps.innerHTML = html;
+      steps.scrollTop = steps.scrollHeight;
+    }
+    // 显示 / 隐藏浏览器按钮
+    const bb = box.querySelector("#vnLiveBrowserBtn");
+    const vis = p.visible === true || (p.visible == null && p.hidden_pref === false);
+    bb.dataset.visible = vis ? "1" : "0";
+    bb.textContent = vis ? "隐藏浏览器" : "显示浏览器";
+    bb.disabled = !!p.headless;
+  }
+  _vnLiveTimer = setTimeout(vnLivePoll, open ? 1500 : 4000);
+}

@@ -18,6 +18,9 @@ contextBridge.exposeInMainWorld("crayfish", {
   // 返回 { name, folder, files } 或 null（用户取消）
   pickMediaFolder: () => ipcRenderer.invoke("pick-media-folder"),
 
+  // v55：打开独立的「终端」窗口（显示后端日志，和黑窗口内容一样）
+  openTerminalWindow: () => ipcRenderer.invoke("open-terminal-window"),
+
   // 主窗里也能控制桌宠（设置面板用）：改形象 / 开关 / 让它说话 / 切换显示
   petApplyConfig: (patch) => ipcRenderer.invoke("pet-apply-config", patch),
   petToggle: () => ipcRenderer.invoke("pet-toggle"),

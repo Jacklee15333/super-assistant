@@ -4,5 +4,6 @@
   "headless": false,
   "cardName": "",
   "enableSearch": true,
-  "aiUrl": "https://sorryios.ai/"
+  "aiUrl": "https://sorryios.ai/",
+  "browserHidden": true
 }
