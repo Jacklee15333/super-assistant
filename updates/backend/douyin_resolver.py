@@ -616,8 +616,57 @@ _JS_USER_LINKS = r"""() => [...document.querySelectorAll('a[href*="/user/"]')].m
 }).filter(Boolean)"""
 
 
+# v62：有的视频页不另外请求详情，而是把数据直接写在页面里（RENDER_DATA）——从里面按视频编号找作者
+_JS_SSR_AUTHOR = r"""(aid) => {
+  const el = document.getElementById('RENDER_DATA');
+  if (!el) return null;
+  let data;
+  try { data = JSON.parse(decodeURIComponent(el.textContent)); } catch (e) { return null; }
+  const seen = new Set();
+  let found = null;
+  const walk = (o, depth) => {
+    if (!o || typeof o !== 'object' || found || depth > 14 || seen.has(o)) return;
+    seen.add(o);
+    const id = String(o.awemeId || o.aweme_id || o.itemId || '');
+    if (id === aid) {
+      const a = o.authorInfo || o.author;
+      if (a && (a.secUid || a.sec_uid)) {
+        const av = a.avatarThumb || a.avatar_thumb || a.avatarMedium || a.avatar_medium || {};
+        found = {sec_uid: a.secUid || a.sec_uid, nickname: a.nickname || '',
+                 avatar: (av.urlList || av.url_list || [])[0] || '', signature: a.signature || '',
+                 followers: a.followerCount || a.follower_count || null};
+        return;
+      }
+    }
+    for (const k in o) { try { walk(o[k], depth + 1); } catch (e) {} }
+  };
+  walk(data, 0);
+  return found;
+}"""
+
+# 视频没了时页面上会写的话（出现就不用再干等 25 秒）
+_GONE_WORDS = ("视频不存在", "作品不存在", "内容不存在", "该作品已删除", "作品已删除", "已被删除", "已删除",
+               "视频已失效", "作品已失效", "暂时无法观看", "仅作者自己可见", "私密作品", "该内容无法", "你要观看的视频不存在")
+
+
+def _norm_name(s):
+    """名字比较前统一一下：去掉表情、空格、标点，字母转小写。"""
+    return re.sub(r"[^\w]+", "", (s or "").lower()).replace("_", "")
+
+
+def _name_match(seen, expect):
+    a, b = _norm_name(seen), _norm_name(expect)
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    short, long_ = (a, b) if len(a) <= len(b) else (b, a)
+    return len(short) >= 2 and short in long_ and len(long_) - len(short) <= 4
+
+
 def _author_via_browser(aid, expect="", timeout_s=25):
-    """后台浏览器打开视频页找作者。返回 (author 或 {}, 说明)。"""
+    """后台浏览器打开视频页找作者。返回 (author 或 {}, 说明)。
+    依次看：页面请求的详情数据 → 页面里直接写着的数据（RENDER_DATA）→ 页面上名字对得上的作者链接。"""
     import time as _t
     try:
         import playwright  # noqa: F401
@@ -628,7 +677,7 @@ def _author_via_browser(aid, expect="", timeout_s=25):
     if own:
         sess = _BrowserSession()
     page = None
-    found, links, n_json = {}, [], 0
+    found, links, n_this, n_other, gone, title = {}, [], 0, 0, "", ""
     exp = (expect or "").strip().lstrip("@")
     try:
         ctx = sess.context()
@@ -643,7 +692,8 @@ def _author_via_browser(aid, expect="", timeout_s=25):
                 pass
         page.on("response", on_resp)
         page.goto(_BROWSER_PAGE % aid, wait_until="domcontentloaded", timeout=25000)
-        end = _t.time() + timeout_s
+        t0 = _t.time()
+        end = t0 + timeout_s
         while _t.time() < end and not found:
             page.wait_for_timeout(700)
             while responses and not found:
@@ -654,25 +704,46 @@ def _author_via_browser(aid, expect="", timeout_s=25):
                     it = None
                 if not it:
                     continue
-                n_json += 1
                 if str(it.get("aweme_id") or aid) != str(aid):
-                    continue                 # 别的视频（推荐区）的数据，不要
+                    n_other += 1             # 推荐区别的视频的数据，不要
+                    continue
+                n_this += 1
                 a = _author_from_item(it)
                 if a.get("sec_uid") or a.get("uid"):
                     found = a
-            if found or not exp:
-                continue
+            if found:
+                break
+            try:
+                ssr = page.evaluate(_JS_SSR_AUTHOR, str(aid))
+            except Exception:
+                ssr = None
+            if ssr and ssr.get("sec_uid"):
+                found = {k: v for k, v in ssr.items() if v not in (None, "")}
+                break
+            try:
+                txt = page.evaluate("() => (document.body && document.body.innerText || '').slice(0, 3000)") or ""
+            except Exception:
+                txt = ""
+            gone = next((w for w in _GONE_WORDS if w in txt), "")
+            if gone and _t.time() - t0 > 5:
+                break                        # 页面已经说视频没了，不用再等
             try:
                 links = page.evaluate(_JS_USER_LINKS) or []
             except Exception:
                 links = []
+            if not exp:
+                continue
             for ln in links:
                 first = (ln.get("text") or "").split("\n")[0].replace("@", "").strip()
-                if first and (first == exp or (len(exp) >= 2 and exp in first and len(first) <= len(exp) + 4)):
+                if first and _name_match(first, exp):
                     av = ln.get("avatar") or next((x.get("avatar") for x in links
                                                    if x.get("sec_uid") == ln["sec_uid"] and x.get("avatar")), "")
                     found = {"sec_uid": ln["sec_uid"], "nickname": first, "avatar": av}
                     break
+        try:
+            title = (page.title() or "").strip()
+        except Exception:
+            title = ""
     except Exception as e:
         return {}, "打开视频页出错（%s）" % str(e).split("\n")[0][:90]
     finally:
@@ -686,11 +757,21 @@ def _author_via_browser(aid, expect="", timeout_s=25):
     if found:
         _remember_author(aid, found)
         return found, "浏览器"
-    if n_json:
-        return {}, "页面的视频数据里没有作者信息"
-    if links:
-        return {}, "页面上有用户链接，但没有名字是「%s」的（博主可能改名了）" % exp if exp else "没听到视频数据"
-    return {}, "等了 %d 秒没拿到视频信息（视频可能被删了，或者要登录 / 出现了验证码）" % timeout_s
+    if gone:
+        return {}, "这条视频已经删了或设成私密了（页面上写着「%s」）" % gone
+    if n_this:
+        return {}, "这条视频的数据里没有作者信息"
+    names = []
+    for ln in links:
+        first = (ln.get("text") or "").split("\n")[0].replace("@", "").strip()
+        if first and first not in names:
+            names.append(first[:16])
+    if names:
+        return {}, "页面上没有叫「%s」的作者（页面上看到的是：%s%s）。博主可能改名了，或者这条视频已经没了" % (
+            exp, "、".join(names[:5]), "…" if len(names) > 5 else "")
+    if n_other:
+        return {}, "页面只加载了推荐区别的视频，没加载这条（多半已删除）"
+    return {}, "等了 %d 秒没拿到视频信息（页面标题「%s」；可能要登录或出现了验证码）" % (timeout_s, title[:30])
 
 
 def find_author(url, expect=""):
@@ -712,14 +793,12 @@ def find_author(url, expect=""):
         if a.get("sec_uid") or a.get("uid"):
             _remember_author(aid, a)
             return a, "快速通道"
-        steps.append("快速通道没拿到（%s）" % (r.get("error") or "没带作者信息")[:50])
-    except Exception as e:
-        steps.append("快速通道出错（%s）" % str(e)[:50])
+    except Exception:
+        pass
     a, why = _author_via_browser(aid, expect=expect)
     if a:
         return a, why
-    steps.append("浏览器：" + why)
-    return {}, "；".join(steps)
+    return {}, why
 
 
 def _resolve_http(url):
