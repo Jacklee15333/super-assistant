@@ -402,7 +402,14 @@ def _cpb_worker(keys):
     import creator_profiles as _cpf
     idx = _vn_note_index()
     streak = 0
+    sess = None
     try:
+        try:
+            import douyin_resolver as _dr       # v61：整批共用一个后台浏览器（抖音找作者要用）
+            sess = _dr.browser_session()
+            sess.__enter__()
+        except Exception:
+            sess = None
         for key in keys:
             if _cpb["stop"]:
                 break
@@ -428,9 +435,11 @@ def _cpb_worker(keys):
                         ok, info = False, "出错：%s" % e
                     if ok and isinstance(info, dict):
                         res.update(status="ok" if info.get("has_avatar") else "noav",
-                                   msg=info.get("platform_label") or "", name=info.get("name") or "")
+                                   msg=(info.get("platform_label") or "") +
+                                   ("（%s）" % info["found_via"] if info.get("found_via") else ""),
+                                   name=info.get("name") or "")
                     else:
-                        res.update(status="fail", msg=str(info)[:120])
+                        res.update(status="fail", msg=str(info)[:300])
                     streak = streak + 1 if res["status"] == "fail" else 0
             with _cpb_lock:
                 _cpb["done"] += 1
@@ -452,6 +461,11 @@ def _cpb_worker(keys):
             if _cpb_sleep(_CPB_GAP[0] + _r.random() * _CPB_GAP[1]):
                 break
     finally:
+        if sess is not None:
+            try:
+                sess.__exit__(None, None, None)
+            except Exception:
+                pass
         with _cpb_lock:
             _cpb["running"] = False
             _cpb["current"] = ""
@@ -521,7 +535,7 @@ def _vn_creator_after_save(job, res, cb=None):
         cb("博主主页", "正在识别博主主页，取头像和资料…")
     t = _threading.Thread(target=work, daemon=True)
     t.start()
-    t.join(25)
+    t.join(40)            # v61：抖音可能要开后台浏览器找，多等一会儿；还没好就让它在后台接着做
     if t.is_alive():
         _clog("博主", "「%s」的主页还在识别，后台接着做" % (key or "博主"))
         return {"key": key, "status": "pending"}

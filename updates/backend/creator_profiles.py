@@ -415,6 +415,8 @@ def _store(key, url, plat, info, hint=None, auto=False):
         prof["auto"] = True
         if hint.get("video"):
             prof["source_video"] = hint["video"]
+        if hint.get("via"):
+            prof["found_via"] = hint["via"]
     else:
         prof.pop("auto", None)
     av_url = info.pop("avatar", "") or ""
@@ -457,6 +459,9 @@ def bind(key, url, hint=None, auto=False):
     if not re.match(r"https?://", url or ""):
         return False, "请粘贴以 http 开头的主页链接"
     plat = detect_platform(url)
+    if auto and plat == "douyin" and hint and hint.get("name") and hint.get("avatar"):
+        # 视频里已经带了作者的昵称和头像：不再去请求抖音主页接口（改规则后多半也请求不到，还慢）
+        return True, _store(key, url, plat, {"home": url}, hint=hint, auto=auto)
     try:
         plat, info = _fetch(url)
     except Exception as e:
@@ -626,21 +631,21 @@ def _ytdlp_uploader(url, proxy=""):
             "name": info.get("channel") or info.get("uploader") or ""}
 
 
-def find_home_from_video(url):
-    """根据一条视频链接找博主主页。返回 {platform, home, uid, name, avatar, …}；找不到抛 RuntimeError（人话）。"""
+def find_home_from_video(url, expect=""):
+    """根据一条视频链接找博主主页。返回 {platform, home, uid, name, avatar, via, …}；找不到抛 RuntimeError（人话）。
+    expect：笔记里记的博主名（抖音从页面上认作者链接时用来核对）。"""
     url = _find_url(url)
     plat = detect_platform(url)
     if plat == "douyin":
         import douyin_resolver as dr
-        info = dr.resolve(url, allow_browser=False) or {}
-        a = info.get("author") or {}
+        a, how = dr.find_author(url, expect=expect)
         sec, uid = a.get("sec_uid") or "", a.get("uid") or ""
         if not (sec or uid):
-            raise RuntimeError("抖音这条视频没返回作者信息（可能被风控了，稍后再试）")
-        out = {"platform": "douyin",
+            raise RuntimeError("抖音没找到作者：" + how)
+        out = {"platform": "douyin", "via": how,
                "home": ("https://www.douyin.com/user/%s" % sec) if sec
                else ("https://www.iesdouyin.com/share/user/%s" % uid),
-               "uid": sec or uid, "name": a.get("nickname") or info.get("uploader") or "",
+               "uid": sec or uid, "name": a.get("nickname") or expect or "",
                "avatar": a.get("avatar") or "", "signature": a.get("signature") or "",
                "handle": a.get("unique_id") or ""}
         for k in ("followers", "works"):
@@ -689,11 +694,12 @@ def auto_bind_from_videos(key, video_urls, force=False):
     if not force and not should_auto_bind(key):
         return False, "已经有主页了", key
     errs = []
-    for u in [x for x in (video_urls or []) if x][:3]:
+    tried = [x for x in (video_urls or []) if x][:3]
+    for u in tried:
         try:
-            found = find_home_from_video(u)
+            found = find_home_from_video(u, expect=key)
         except Exception as e:
-            errs.append(str(e)[:160])
+            errs.append(str(e)[:220])
             continue
         found["video"] = _find_url(u)
         ok, r = bind(key, found["home"], hint=found, auto=True)
@@ -701,8 +707,10 @@ def auto_bind_from_videos(key, video_urls, force=False):
             _mark_auto_fail(key, r)
         return ok, r, key
     msg = errs[0] if errs else "没有可用的视频链接"
+    if len(tried) > 1:
+        msg = "试了 %d 条视频都没找到。第一条：%s" % (len(tried), msg)
     _mark_auto_fail(key, msg)
-    return False, msg[:200], key
+    return False, msg[:300], key
 
 
 def auto_bind_from_video(key, video_url, force=False):

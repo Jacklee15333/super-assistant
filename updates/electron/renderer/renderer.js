@@ -9920,10 +9920,10 @@ function vnCpbRender(bar, d) {
 }
 
 async function vnCpbStart(keys) {
-  const mins = Math.max(1, Math.round(keys.length * 7 / 60));
+  const mins = Math.max(1, Math.round(keys.length * 13 / 60));   // v61：抖音要开后台浏览器找，每个十几秒
   if (!confirm("给 " + keys.length + " 个博主自动识别主页？\n\n" +
     "· 根据每个博主最近的视频找到他的主页，取头像、昵称、粉丝数和简介；\n" +
-    "· 为了不被抖音等平台限流，每个之间会歇几秒，大约要 " + mins + " 分钟，找到一个就换上一个头像；\n" +
+    "· 抖音要在后台开浏览器打开视频页去找，每个十几秒，大约要 " + mins + " 分钟，找到一个就换上一个头像；\n" +
     "· 可以随时点「停止」，下次接着找剩下的；\n" +
     "· 已经绑过主页的、你解除过绑定的都不会动。")) return;
   try {
