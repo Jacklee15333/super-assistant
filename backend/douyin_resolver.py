@@ -395,6 +395,7 @@ def _build_result_from_item(item, aid):
         pass
 
     author = _author_from_item(item)
+    _remember_author(aid, author)          # v61：记下来，找博主主页时直接用
     urls = _urls_from_item(item)
     if not urls:
         return {"ok": False, "error": "没拿到可下载的视频直链",
@@ -521,6 +522,204 @@ def _resolve_via_browser(aid, timeout_s=30):
 
 
 _BROWSER_PAGE = "https://www.douyin.com/video/%s"
+
+
+# ════════════════════ v61：根据视频找作者（博主主页用）════════════════════
+# 2026-11 抖音改规则后，不开浏览器的「快速通道」（移动端接口 + 分享页）基本拿不到视频信息了，
+# 提取视频靠的是上面的「浏览器兜底」。找博主主页也走同一条路：
+#   ① 缓存：这条视频之前解析时拿到过作者（比如刚提取完），直接用；
+#   ② 快速通道（不开浏览器，1 秒左右）；
+#   ③ 后台浏览器：打开视频页，听页面自己请求的详情数据（里面有作者 sec_uid、昵称、头像）；
+#      没听到时，再从页面上找作者主页链接——只认名字对得上的，防止认成评论区或推荐里的别人。
+# 一键识别时整批共用一个浏览器（browser_session），不用每个博主都重新开一次 Chrome。
+import threading as _thr
+
+_AUTHOR_CACHE = {}
+_tl = _thr.local()
+
+
+def _remember_author(aid, author):
+    try:
+        if aid and author and (author.get("sec_uid") or author.get("uid")):
+            if len(_AUTHOR_CACHE) > 500:
+                _AUTHOR_CACHE.clear()
+            _AUTHOR_CACHE[str(aid)] = dict(author)
+    except Exception:
+        pass
+
+
+class _BrowserSession:
+    """一个后台浏览器（第一次要用时才打开）。只能在打开它的那个线程里用。"""
+
+    def __init__(self):
+        self.pw = self.browser = self.ctx = None
+
+    def context(self):
+        if self.ctx is not None:
+            return self.ctx
+        from playwright.sync_api import sync_playwright
+        self.pw = sync_playwright().start()
+        for ch in ("chrome", "msedge", None):
+            try:
+                kw = dict(headless=True, args=["--disable-blink-features=AutomationControlled",
+                                               "--mute-audio", "--no-proxy-server"])   # 抖音是国内站：直连
+                if ch:
+                    kw["channel"] = ch
+                self.browser = self.pw.chromium.launch(**kw)
+                break
+            except Exception:
+                continue
+        if self.browser is None:
+            self.close()
+            raise RuntimeError("没有可用的浏览器（Chrome/Edge）")
+        self.ctx = self.browser.new_context(user_agent=_PC_UA, locale="zh-CN",
+                                            viewport={"width": 1280, "height": 800})
+        ck = _load_user_cookie()
+        if ck:
+            try:
+                self.ctx.add_cookies([{"name": k, "value": v, "domain": ".douyin.com", "path": "/"}
+                                      for k, v in ck.items() if k and v])
+            except Exception:
+                pass
+        return self.ctx
+
+    def close(self):
+        for obj, meth in ((self.ctx, "close"), (self.browser, "close"), (self.pw, "stop")):
+            try:
+                if obj is not None:
+                    getattr(obj, meth)()
+            except Exception:
+                pass
+        self.pw = self.browser = self.ctx = None
+
+
+class browser_session:
+    """with douyin_resolver.browser_session(): …  —— 这段时间里（同一线程）找作者共用一个后台浏览器。"""
+
+    def __enter__(self):
+        self.s = _BrowserSession()
+        self.prev = getattr(_tl, "session", None)
+        _tl.session = self.s
+        return self.s
+
+    def __exit__(self, *a):
+        _tl.session = self.prev
+        self.s.close()
+        return False
+
+
+_JS_USER_LINKS = r"""() => [...document.querySelectorAll('a[href*="/user/"]')].map(a => {
+  const m = (a.getAttribute('href') || '').match(/\/user\/(MS4w[\w-]+)/);
+  const img = a.querySelector('img');
+  return m ? {sec_uid: m[1], text: (a.innerText || a.getAttribute('title') || '').trim().slice(0, 80),
+              avatar: img ? (img.currentSrc || img.src || '') : ''} : null;
+}).filter(Boolean)"""
+
+
+def _author_via_browser(aid, expect="", timeout_s=25):
+    """后台浏览器打开视频页找作者。返回 (author 或 {}, 说明)。"""
+    import time as _t
+    try:
+        import playwright  # noqa: F401
+    except Exception:
+        return {}, "没装 Playwright"
+    sess = getattr(_tl, "session", None)
+    own = sess is None
+    if own:
+        sess = _BrowserSession()
+    page = None
+    found, links, n_json = {}, [], 0
+    exp = (expect or "").strip().lstrip("@")
+    try:
+        ctx = sess.context()
+        page = ctx.new_page()
+        responses = []
+
+        def on_resp(r):                    # 回调里只记录，解析放到外面做
+            try:
+                if "aweme/detail" in r.url or "iteminfo" in r.url:
+                    responses.append(r)
+            except Exception:
+                pass
+        page.on("response", on_resp)
+        page.goto(_BROWSER_PAGE % aid, wait_until="domcontentloaded", timeout=25000)
+        end = _t.time() + timeout_s
+        while _t.time() < end and not found:
+            page.wait_for_timeout(700)
+            while responses and not found:
+                r = responses.pop(0)
+                try:
+                    it = _item_from_api(r.json())
+                except Exception:
+                    it = None
+                if not it:
+                    continue
+                n_json += 1
+                if str(it.get("aweme_id") or aid) != str(aid):
+                    continue                 # 别的视频（推荐区）的数据，不要
+                a = _author_from_item(it)
+                if a.get("sec_uid") or a.get("uid"):
+                    found = a
+            if found or not exp:
+                continue
+            try:
+                links = page.evaluate(_JS_USER_LINKS) or []
+            except Exception:
+                links = []
+            for ln in links:
+                first = (ln.get("text") or "").split("\n")[0].replace("@", "").strip()
+                if first and (first == exp or (len(exp) >= 2 and exp in first and len(first) <= len(exp) + 4)):
+                    av = ln.get("avatar") or next((x.get("avatar") for x in links
+                                                   if x.get("sec_uid") == ln["sec_uid"] and x.get("avatar")), "")
+                    found = {"sec_uid": ln["sec_uid"], "nickname": first, "avatar": av}
+                    break
+    except Exception as e:
+        return {}, "打开视频页出错（%s）" % str(e).split("\n")[0][:90]
+    finally:
+        try:
+            if page is not None:
+                page.close()
+        except Exception:
+            pass
+        if own:
+            sess.close()
+    if found:
+        _remember_author(aid, found)
+        return found, "浏览器"
+    if n_json:
+        return {}, "页面的视频数据里没有作者信息"
+    if links:
+        return {}, "页面上有用户链接，但没有名字是「%s」的（博主可能改名了）" % exp if exp else "没听到视频数据"
+    return {}, "等了 %d 秒没拿到视频信息（视频可能被删了，或者要登录 / 出现了验证码）" % timeout_s
+
+
+def find_author(url, expect=""):
+    """根据一条抖音视频找作者。返回 (author 或 {}, 说明)：成功时说明是用哪条路找到的，
+    失败时写清楚每一步卡在哪。expect = 笔记里记的作者名，用来核对页面上的链接。"""
+    try:
+        aid = _resolve_id(url)
+    except Exception:
+        aid = None
+    if not aid:
+        return {}, "没认出视频编号（链接可能失效了）"
+    aid = str(aid)
+    if aid in _AUTHOR_CACHE:
+        return dict(_AUTHOR_CACHE[aid]), "缓存"
+    steps = []
+    try:
+        r = _resolve_http(_BROWSER_PAGE % aid)
+        a = r.get("author") or {}
+        if a.get("sec_uid") or a.get("uid"):
+            _remember_author(aid, a)
+            return a, "快速通道"
+        steps.append("快速通道没拿到（%s）" % (r.get("error") or "没带作者信息")[:50])
+    except Exception as e:
+        steps.append("快速通道出错（%s）" % str(e)[:50])
+    a, why = _author_via_browser(aid, expect=expect)
+    if a:
+        return a, why
+    steps.append("浏览器：" + why)
+    return {}, "；".join(steps)
 
 
 def _resolve_http(url):
