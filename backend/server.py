@@ -1334,9 +1334,17 @@ def _note_batch_worker(names, use_local, model):
             _note_batch["done"] += 1
             if ok:
                 _note_batch["ok"] += 1
+                _note_batch["streak"] = 0
             else:
                 _note_batch["fail"] += 1
+                _note_batch["streak"] = _note_batch.get("streak", 0) + 1
                 _note_batch["errors"] = (_note_batch["errors"] + [{"name": name, "error": err[:160]}])[-20:]
+                if _note_batch["streak"] >= 2:
+                    # 连着两条都失败，多半是 AI 池本身打不开：先停下，别一条接一条白跑
+                    _note_batch["paused"] = ("连续 %d 条都没成功，已自动暂停。最后一次的原因：%s"
+                                             % (_note_batch["streak"], err[:160]))
+                    _clog("视频", "⏸ 批量补分析自动暂停：%s" % _note_batch["paused"])
+                    break
             _time.sleep(1)
     finally:
         _note_batch["running"] = False
@@ -1426,6 +1434,9 @@ def _note_analyze_worker(name, use_local, model):
             on_progress=lambda m: stage("AI 分析", m),
             segments=segments, do_screenshot=False,
             do_link=bool(want_link and segments))
+        if (analysis or "").lstrip().startswith("（分析出错"):
+            # AI 池没成功：不把报错当分析结果存进笔记（保持「未分析」，以后还能再补）
+            raise RuntimeError((analysis or "").strip().strip("（）")[:200])
         title_from_ai, analysis = _split_title_from_analysis(analysis)
 
         stage("AI 分析", "归纳标签…")
@@ -4127,6 +4138,8 @@ class Handler(BaseHTTPRequestHandler):
                     if s.startswith("状态：未分析") or s.startswith("状态:未分析"):
                         analyzed = False
                         break
+                if analyzed and any("（分析出错" in ln for ln in lines[:120]):
+                    analyzed = False      # 以前 AI 失败时把报错存成了分析：当作未分析，可重新补
                 items.append({"name": p.name, "title": title, "author": author,
                               "analyzed": analyzed,
                               "folder": mapping.get(p.name, "")})
@@ -4278,7 +4291,8 @@ class Handler(BaseHTTPRequestHandler):
         if not names:
             return self._send({"ok": False, "error": "没有可分析的笔记"})
         _note_batch.update({"running": True, "total": len(names), "done": 0, "ok": 0, "fail": 0,
-                            "current": "", "stop": False, "errors": [], "started": _time_now(), "finished": 0})
+                            "current": "", "stop": False, "errors": [], "started": _time_now(), "finished": 0,
+                            "streak": 0, "paused": ""})
         _clog("视频", "📦 开始批量补分析：%d 条（每条换一张新的 AI 卡）" % len(names))
         _threading.Thread(target=_note_batch_worker,
                           args=(names, body.get("use_local", True), body.get("model", "qwen2.5")),

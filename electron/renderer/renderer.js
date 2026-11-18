@@ -3669,6 +3669,8 @@ async function vnPollBatch() {
         (d.stage ? " · " + escapeHtml(d.stage) : "") + "</span>" : "") +
     "</div>" +
     '<div class="vn-batch-track"><div class="vn-batch-fill" style="width:' + pct + '%"></div></div>' +
+    (d.paused && !d.running ? '<div class="vn-batch-errs">⏸ ' + escapeHtml(d.paused) +
+      "。处理好后再点一次「批量 AI 分析」，会接着补没分析的。</div>" : "") +
     (d.errors && d.errors.length && !d.running
       ? '<div class="vn-batch-errs">没成功的：' + d.errors.map((x) => escapeHtml(x.name.replace(/\.md$/, ""))).join("、") +
         "（可以稍后再点一次批量分析，只会补没成功的）</div>" : "");
