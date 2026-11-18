@@ -2123,7 +2123,22 @@ class Handler(BaseHTTPRequestHandler):
         _log_request("GET", path)
 
         if path == "/ping":
-            return self._send({"ok": True})
+            return self._send({"ok": True, "version": _cx_app_version()})
+
+        if path == "/version":
+            try:
+                import app_version as _av
+                note = getattr(_av, "VERSION_NOTE", "")
+            except Exception:
+                note = ""
+            return self._send({"version": _cx_app_version(), "note": note})
+
+        if path == "/gpu_status":
+            try:
+                import gpu_accel
+                return self._send(gpu_accel.status())
+            except Exception as e:
+                return self._send({"summary": "GPU 状态读取失败：%s" % e})
 
         if path == "/system_access":
             try:
@@ -4839,7 +4854,16 @@ class Handler(BaseHTTPRequestHandler):
         return "\n".join(lines)
 
 
+def _cx_app_version():
+    try:
+        import app_version as _av
+        return getattr(_av, "APP_VERSION", "")
+    except Exception:
+        return ""
+
+
 def main():
+    print("[backend] 超能小助 %s" % (_cx_app_version() or "(未知版本)"), flush=True)
     try:
         server = ThreadingHTTPServer((HOST, PORT), Handler)
     except OSError as e:
@@ -4866,6 +4890,12 @@ def main():
         return
     print(f"[backend] running at http://{HOST}:{PORT} (local only)")
     print("[backend] close this window or press Ctrl+C to stop.")
+    # v54：后台检测 NVIDIA 显卡、准备 GPU 运行库（缺了自动装），语音转文字走显卡
+    try:
+        import gpu_accel
+        gpu_accel.prepare_async()
+    except Exception as e:
+        print("[gpu] 准备显卡加速失败：%s" % e)
     # 启动时恢复上次没跑完的视频任务，自动接着处理
     try:
         _restore_video_queue()

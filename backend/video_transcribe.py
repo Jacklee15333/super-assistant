@@ -237,7 +237,13 @@ def models_info():
                     found.append(label)
     except Exception:
         pass
-    return {"dir": str(d), "models": found}
+    gpu = {}
+    try:
+        import gpu_accel
+        gpu = gpu_accel.status()
+    except Exception as e:
+        gpu = {"summary": "GPU 状态读取失败：%s" % e}
+    return {"dir": str(d), "models": found, "gpu": gpu}
 
 # 友好的模型档位：speed=快但糙，balanced=均衡(默认)，accurate=慢但准
 MODEL_MAP = {
@@ -1039,7 +1045,83 @@ def _download_video(url, outdir, progress_cb=None):
 
 
 
+def _get_model(level, progress_cb=None):
+    """取（必要时加载）语音模型。v54：优先用 NVIDIA 显卡（gpu_accel），不行自动退回 CPU。
+    缓存里存的是 (模型, 设备)；之前因为 GPU 运行库还没装好而用了 CPU 的，
+    等运行库就绪后下次会自动换成 GPU 版本。"""
+    import gpu_accel
+    size = MODEL_MAP.get(level, "small")
+    cached = _model_cache.get(size)
+    if cached is not None and not isinstance(cached, tuple):
+        cached = (cached, "?")          # 兼容旧写法（命令行工具直接塞模型进来）
+        _model_cache[size] = cached
+    if cached is not None:
+        model, dev = cached
+        st = gpu_accel.status()
+        upgrade = (dev == "cpu" and st.get("has_nvidia") and st.get("libs_ok")
+                   and st.get("gpu_works") is not False
+                   and os.environ.get("CX_WHISPER_DEVICE", "").lower() != "cpu")
+        if not upgrade:
+            return model, dev
+        _model_cache.pop(size, None)    # 显卡运行库刚装好 → 丢掉 CPU 版，重新用 GPU 加载
+        del model
+    model_ref = _resolve_model(size)
+    is_local = model_ref != size
+    download_root = None
+    if not is_local:
+        mdir = _models_dir()
+        try:
+            mdir.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+        download_root = str(mdir)
+    if progress_cb:
+        if is_local:
+            progress_cb("加载语音模型", f"用本地已下载的 {size} 模型，无需联网")
+        else:
+            progress_cb("加载语音模型",
+                        f"首次使用要下载 {size} 模型到 {_models_dir()}（经国内镜像），"
+                        "可能要等几分钟，只这一次")
+    model, dev, ct = gpu_accel.load_model(model_ref, download_root=download_root,
+                                          progress_cb=progress_cb)
+    _model_cache[size] = (model, dev)
+    return model, dev
+
+
+def _drop_gpu_models():
+    """GPU 中途出错后，把缓存里的 GPU 模型全部丢掉（下次按 CPU 重新加载）。"""
+    for k in list(_model_cache.keys()):
+        v = _model_cache.get(k)
+        if not isinstance(v, tuple) or v[1] != "cpu":
+            _model_cache.pop(k, None)
+    try:
+        import gc
+        gc.collect()
+    except Exception:
+        pass
+
+
 def _transcribe(path, level="balanced", progress_cb=None, job_dir=None):
+    """语音转文字（入口）。v54：先用显卡；如果显卡中途出错（找不到 CUDA 库 / 显存不够等），
+    自动标记显卡不可用、换 CPU 重来。在线任务有断点进度，重来时会从出错前的位置接着转。"""
+    import gpu_accel
+    try:
+        return _transcribe_once(path, level, progress_cb, job_dir)
+    except ExtractCancelled:
+        raise
+    except Exception as e:
+        cached = _model_cache.get(MODEL_MAP.get(level, "small"))
+        used_gpu = isinstance(cached, tuple) and cached[1] == "cuda"
+        if not (used_gpu and gpu_accel.is_gpu_error(e)):
+            raise
+        gpu_accel.mark_gpu_broken("转写时显卡出错：%s" % str(e)[:200])
+        _drop_gpu_models()
+        if progress_cb:
+            progress_cb("语音转文字", "显卡出错，自动改用 CPU 接着转…")
+        return _transcribe_once(path, level, progress_cb, job_dir)
+
+
+def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
     """用 faster-whisper 把音频转成中文文字。progress_cb(stage, detail) 报告进度。
     若给了 job_dir，则支持断点续传：读回已转文字、从上次的秒数处切片接着转，
     并边转边把进度写进 job_dir/progress.json（换代码/关软件后重启能接着跑）。
@@ -1048,28 +1130,8 @@ def _transcribe(path, level="balanced", progress_cb=None, job_dir=None):
       · 文字稿：分好段的整段中文（和以前一样，给 AI 总结用）；
       · 分段列表：[{"start":秒, "end":秒, "text":"这一句"}, ...]，带时间戳，
         给后面的「截图插入 / 跳转原片」用。续传时这份分段也会一起恢复，时间戳连续不串。"""
-    from faster_whisper import WhisperModel
     size = MODEL_MAP.get(level, "small")
-    if size not in _model_cache:
-        model_ref = _resolve_model(size)
-        is_local = model_ref != size
-        kwargs = {"device": "cpu", "compute_type": "int8"}
-        if not is_local:
-            mdir = _models_dir()
-            try:
-                mdir.mkdir(parents=True, exist_ok=True)
-            except Exception:
-                pass
-            kwargs["download_root"] = str(mdir)
-        if progress_cb:
-            if is_local:
-                progress_cb("加载语音模型", f"用本地已下载的 {size} 模型，无需联网")
-            else:
-                progress_cb("加载语音模型",
-                            f"首次使用要下载 {size} 模型到 {_models_dir()}（经国内镜像），"
-                            "可能要等几分钟，只这一次")
-        _model_cache[size] = WhisperModel(model_ref, **kwargs)
-    model = _model_cache[size]
+    model, _device = _get_model(level, progress_cb)
 
     # ── 读回断点续传进度 ──
     # parts：已转的纯文字片段（老逻辑）；seg_list：已转的带时间戳分段（新增，给截图/跳转用）
@@ -1123,7 +1185,8 @@ def _transcribe(path, level="balanced", progress_cb=None, job_dir=None):
                         "这次无法从中间切片续转，将从头识别（已转进度仍保留在磁盘上）…")
 
     if progress_cb and offset == 0:
-        progress_cb("语音转文字", "模型就绪，开始逐句识别…")
+        progress_cb("语音转文字", "模型就绪（%s），开始逐句识别…"
+                    % ("显卡加速" if _device == "cuda" else "CPU"))
 
     # vad_filter 会跳过静音，能省不少时间；但它让 whisper 上报的时间戳基于「去静音后」
     # 的位置，导致进度百分比相对真实音频忽快忽慢。这里把静音判定阈值调大一点

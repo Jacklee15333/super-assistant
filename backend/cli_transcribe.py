@@ -26,41 +26,18 @@ sys.path.insert(0, str(HERE))
 OUT_DIR = HERE / "转写结果"
 
 
-def _setup_cuda_dlls() -> None:
-    """CTranslate2 的 Windows 包不自带 CUDA 运行库，从 nvidia-*-cu12 包里借。"""
-    base = Path(sys.prefix) / "Lib" / "site-packages" / "nvidia"
-    dirs = [p for p in (base / "cublas" / "bin", base / "cudnn" / "bin") if p.is_dir()]
-    for d in dirs:
-        os.environ["PATH"] = str(d) + os.pathsep + os.environ.get("PATH", "")
-        try:
-            os.add_dll_directory(str(d))
-        except (AttributeError, OSError):
-            pass
-
-
 def warm_gpu(level: str) -> None:
-    """提前把模型以 CUDA 方式塞进 video_transcribe 的模型缓存。
-    它自己的 _transcribe 发现缓存里已有就直接用，于是命令行走 GPU，
-    而 App 那边不经过这里，仍然保持原来的 CPU 行为。"""
+    """v54：App 本身已经默认走显卡（gpu_accel），这里只是提前加载模型并打印用的设备。"""
     import video_transcribe as vt
+    import gpu_accel
 
-    size = vt.MODEL_MAP.get(level, "small")
-    if size in vt._model_cache:
-        return
-    from faster_whisper import WhisperModel
-
-    _setup_cuda_dlls()
-    ref = vt._resolve_model(size)
-    kwargs = {"device": "cuda", "compute_type": "float16"}
-    if ref == size:  # 本地没有这个模型，走它自己的镜像下载目录
-        mdir = vt._models_dir()
-        mdir.mkdir(parents=True, exist_ok=True)
-        kwargs["download_root"] = str(mdir)
-    try:
-        vt._model_cache[size] = WhisperModel(ref, **kwargs)
-        print(f"[GPU] {size} 模型已加载 (float16)", flush=True)
-    except Exception as e:  # noqa: BLE001
-        print(f"[!] GPU 不可用（{type(e).__name__}: {e}），本次回退 CPU", flush=True)
+    if gpu_accel.detect():
+        print("[GPU] 检测到显卡：%s，准备 CUDA 运行库…" % gpu_accel.status().get("gpu_name"), flush=True)
+    _model, dev = vt._get_model(level, lambda st, d: print(f"[{st}] {d}", flush=True))
+    if dev == "cuda":
+        print("[GPU] 模型已用显卡加载（%s）" % gpu_accel.status().get("compute_type"), flush=True)
+    else:
+        print("[!] 本次用 CPU：%s" % (gpu_accel.status().get("reason") or "无可用显卡"), flush=True)
 
 
 def srt_ts(t: float) -> str:

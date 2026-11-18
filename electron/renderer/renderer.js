@@ -76,6 +76,24 @@ function reloadAllPanels() {
   try { document.querySelector(".nav-item.active")?.click(); } catch (e) {}
 }
 
+// v54：左上角显示版本号，方便确认更新是否成功加载
+let _appVersion = "";
+async function showAppVersion() {
+  try {
+    if (!_appVersion) {
+      const r = await fetch(BACKEND + "/version", { cache: "no-store" });
+      const d = await r.json();
+      _appVersion = d.version || "";
+      if (_appVersion) console.log("[超能小助] 版本 " + _appVersion + (d.note ? "：" + d.note : ""));
+    }
+    const line = document.getElementById("statusLine");
+    if (line && _appVersion && line.textContent.startsWith("已就绪")) {
+      line.textContent = "已就绪 · " + _appVersion;
+      line.title = "当前版本 " + _appVersion;
+    }
+  } catch (_) {}
+}
+
 let _backendReadyOnce = false;
 function onBackendReady() {
   const line = document.getElementById("statusLine");
@@ -83,6 +101,7 @@ function onBackendReady() {
     line.textContent = "已就绪";
     line.style.color = "var(--text-dim)";
   }
+  showAppVersion();
   setStatusDot(true);
   maybeGreetOnce();
   if (!_backendReadyOnce) {
@@ -1469,6 +1488,14 @@ async function loadModelsInfo() {
     if (dirEl) dirEl.textContent = d.dir || "（未知）";
     if (listEl) listEl.textContent = (d.models && d.models.length)
       ? d.models.join("、") : "暂无（用一次视频提取会自动下载）";
+    const gpuEl = document.getElementById("gpuStatusText");
+    if (gpuEl) {
+      const g = d.gpu || {};
+      gpuEl.textContent = g.summary || "（未知）";
+      gpuEl.style.color = g.device === "cuda" ? "#5fa463" : "";
+      // 还在检测 / 下载运行库时，过几秒再刷新一次
+      if (g.installing || g.checked === false) setTimeout(loadModelsInfo, 5000);
+    }
   } catch (_) {}
 }
 
