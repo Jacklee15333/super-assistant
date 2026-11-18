@@ -22,7 +22,6 @@ __pycache__/
 venv/
 
 # --- 更新机制的临时/备份文件（不用进版本库）---
-updates/
 updates-backup/
 updates-history.log
 启动日志.txt
