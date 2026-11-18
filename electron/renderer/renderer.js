@@ -3639,7 +3639,8 @@ async function vnStartBatch(items) {
   if (!confirm("批量分析 " + items.length + " 条笔记？\n\n" +
                "· 一条接一条分析，每条都会在 AI 池换一张新的 AI 卡、开新对话，互不串内容；\n" +
                "· 用最高级模型，单条可能要几分钟，整批会比较久，可以随时点「停止」；\n" +
-               "· 分析期间可以正常用软件的其他功能。")) return;
+               "· 分析期间可以正常用软件的其他功能；\n" +
+               "· 挂机也没关系：AI 池出问题会自动等一会儿再接着跑，每条最多试 4 次，最后再把没成功的补一遍。")) return;
   const s = (typeof settings === "function") ? settings() : {};
   try {
     const d = await (await fetch(BACKEND + "/video_note_analyze_batch", {
@@ -3663,12 +3664,16 @@ async function vnPollBatch() {
   const pct = d.total ? Math.round(d.done * 100 / d.total) : 0;
   prog.innerHTML =
     '<div class="vn-batch-line">' +
-      (d.running ? "批量分析中 " : "批量分析结束 ") + d.done + " / " + d.total +
+      (d.running ? (d.waiting ? "批量分析等待中 " : "批量分析中 ") : "批量分析结束 ") + d.done + " / " + d.total +
       "（成功 " + d.ok + "，失败 " + d.fail + "）" +
-      (d.running && d.current ? '<span class="vn-batch-cur">正在分析：' + escapeHtml(d.current.replace(/\.md$/, "")) +
+      (d.running && d.round > 1 ? '<span class="vn-batch-cur">第 ' + d.round + " 遍：补之前没成功的</span>" : "") +
+      (d.running && d.current && !d.waiting ? '<span class="vn-batch-cur">正在分析：' + escapeHtml(d.current.replace(/\.md$/, "")) +
         (d.stage ? " · " + escapeHtml(d.stage) : "") + "</span>" : "") +
     "</div>" +
     '<div class="vn-batch-track"><div class="vn-batch-fill" style="width:' + pct + '%"></div></div>' +
+    (d.running && d.waiting ? '<div class="vn-batch-errs vn-batch-wait">⏸ ' + escapeHtml(d.waiting) +
+      (d.resume_in ? "（还有 " + Math.floor(d.resume_in / 60) + " 分 " + (d.resume_in % 60) + " 秒）" : "") +
+      "。不用管它，到时间会先测一下 AI 池能不能连上，再自动接着跑。</div>" : "") +
     (d.paused && !d.running ? '<div class="vn-batch-errs">⏸ ' + escapeHtml(d.paused) +
       "。处理好后再点一次「批量 AI 分析」，会接着补没分析的。</div>" : "") +
     (d.errors && d.errors.length && !d.running
@@ -3684,6 +3689,18 @@ async function vnPollBatch() {
         headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stop: true }) });
     });
     prog.querySelector(".vn-batch-line").appendChild(stop);
+    if (d.waiting) {
+      const go = document.createElement("button");
+      go.className = "vn-batch-stop"; go.textContent = "现在就继续";
+      go.title = "不等了，马上接着分析";
+      go.addEventListener("click", async () => {
+        go.disabled = true;
+        await fetch(BACKEND + "/video_note_analyze_batch", { method: "POST",
+          headers: { "Content-Type": "application/json" }, body: JSON.stringify({ resume_now: true }) });
+        setTimeout(vnPollBatch, 800);
+      });
+      prog.querySelector(".vn-batch-line").appendChild(go);
+    }
     if (!_vnBatchTimer) _vnBatchTimer = setInterval(vnPollBatch, 2500);
     if (d.done !== vnPollBatch._lastDone) { vnPollBatch._lastDone = d.done; if (d.done) _vnRefreshSoon(); }
   } else if (_vnBatchTimer) {

@@ -977,7 +977,8 @@ class _Completions:
         for k in ("requiredMarkers", "minExpectedLength", "markersMinHits",
                   "acceptStableMarkers", "expectsJson", "timeout",
                   "disableCardSwitch", "shortReply",
-                  "bestModel", "thinkNoOutputMs", "stuckFatalMs", "newTaskCard"):
+                  "bestModel", "thinkNoOutputMs", "stuckFatalMs", "newTaskCard",
+                  "saveImages", "imageWaitMs"):
             if k in kwargs:
                 wait_opts[k] = kwargs[k]
         # 纯文本模式每次都带着完整历史，开新对话发送，避免和别的任务混在一个线程里

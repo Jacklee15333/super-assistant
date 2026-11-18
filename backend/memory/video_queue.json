@@ -1,18 +1,4 @@
 {
-  "current": {
-    "url": "https://v.douyin.com/91pRybUnIls/",
-    "level": "accurate",
-    "use_local": true,
-    "model": "qwen3:14b",
-    "screenshot": false,
-    "link": false,
-    "mode": "auto",
-    "analyze": false,
-    "author": "",
-    "note_folder": "",
-    "id": "vj1794965195.758459-0",
-    "fail_count": 1,
-    "title": "抖音视频 …749417"
-  },
+  "current": null,
   "pending": []
 }

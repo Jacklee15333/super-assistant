@@ -27,6 +27,8 @@ web_model.py — 「伪模型」核心：用 Playwright 操作 sorryios.ai 的�
   shutdown()
 """
 
+import os
+import re
 import json
 import time
 import queue
@@ -87,6 +89,7 @@ SESSION_PATH = MEMORY_DIR / "web_session.json"
 SESSION_TTL_DAYS = 7
 ROUTES_PATH = MEMORY_DIR / "web_model_routes.json"   # 自动学到的卡片列表地址
 DIAG_DIR = MEMORY_DIR / "web_model_diag"             # 失败时的截图 + 页面结构
+IMG_DIR = MEMORY_DIR / "web_model_images"            # AI 回复里的图片（调用方取走后移到笔记目录）
 DIAG_KEEP = 10
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -246,18 +249,46 @@ class _WebWorker:
         self._chat_epoch = 0      # 每进入一个全新的网页对话线程 +1（客户端据此判断能否发增量）
         self._chat_used = True    # 当前对话里是否已经发过东西（刚换卡/开新聊天后为 False）
         self._best_epoch = -1     # 在哪个对话线程上已经切过最高级模型
+        self._cur_box = None      # 正在执行的 job 的结果盒（心跳写在里面）
+        self._dead = False        # 被看门狗放弃的 worker：跑完手上这条就退出
+        self._browser_pids = set()
 
     # ---- 公共：投递一个 job，阻塞等结果 ----
+    # timeout 从这个 job【真正开始执行】时算起（排队等前一个 job 的时间不算），
+    # 这样前一个分析想得久，后面排队的不会被误判超时。
+    # 另有看门狗：job 在跑、但浏览器 WATCHDOG_SEC 秒没有任何动静（页面调用卡死），
+    # 就强制关掉浏览器进程、让下一个 job 重新打开，这一条按失败返回，交给上层重试。
     def submit(self, fn_name, kwargs, timeout=720):
         self._ensure_thread()
-        result_box = {}
+        result_box = {"queued": time.time()}
         done = threading.Event()
         self._jobs.put((fn_name, kwargs, result_box, done))
-        if not done.wait(timeout):
-            raise TimeoutError("web_model job 超时未返回")
+        while not done.wait(5):
+            started = result_box.get("started")
+            if not started:
+                continue                      # 还在排队：前一个 job 自己有看门狗管着
+            now = time.time()
+            quiet = now - (result_box.get("hb") or started)
+            why = ""
+            if quiet > WATCHDOG_SEC:
+                why = "浏览器 %d 秒没有任何反应（页面卡死）" % int(quiet)
+            elif now - started > timeout:
+                why = "这次任务超过 %d 分钟还没结束" % max(1, int(timeout // 60))
+            if why:
+                w = result_box.get("worker") or self
+                _reset_worker(w, why, result_box, done)
+                if done.is_set() and "value" in result_box and "error" not in result_box:
+                    return result_box.get("value")
+                raise TimeoutError("AI 池%s，已强制重启浏览器（这条会自动重试）" % why)
         if "error" in result_box:
             raise result_box["error"]
         return result_box.get("value")
+
+    def _beat(self):
+        """有动静就记一下（看门狗据此判断浏览器是不是卡死了）。"""
+        b = self._cur_box
+        if b is not None:
+            b["hb"] = time.time()
 
     def request_restart(self):
         self._want_restart = True
@@ -274,6 +305,7 @@ class _WebWorker:
         self._logger = fn or print
 
     def _log(self, msg):
+        self._beat()
         try:
             self._logger("[web_model] " + str(msg))
             try:
@@ -289,8 +321,14 @@ class _WebWorker:
             return
         with sync_playwright() as pw:
             self._pw = pw
-            while True:
+            while not self._dead:
                 fn_name, kwargs, box, done = self._jobs.get()
+                if self._dead:                   # 已被放弃：把 job 还给新的 worker
+                    _requeue_job((fn_name, kwargs, box, done))
+                    break
+                box["started"] = box["hb"] = time.time()
+                box["worker"] = self
+                self._cur_box = box
                 try:
                     fn = getattr(self, fn_name)
                     box["value"] = fn(**(kwargs or {}))
@@ -299,7 +337,10 @@ class _WebWorker:
                     self._log("job 出错: " + repr(e))
                     self._log(traceback.format_exc())
                 finally:
+                    self._cur_box = None
                     done.set()
+            if self._dead:
+                self._safe(self._close)
 
     # ════════════════════ 浏览器生命周期 ════════════════════
     @staticmethod
@@ -408,7 +449,9 @@ class _WebWorker:
                 import os as _os
                 opts["env"] = {k: v for k, v in _os.environ.items()
                                if k.upper() not in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY")}
+                before = _browser_child_pids()
                 b = self._pw.chromium.launch(**opts)
+                self._browser_pids = _browser_child_pids() - before
                 self._log("launched via " + name)
                 return b
             except Exception as e:
@@ -437,6 +480,14 @@ class _WebWorker:
         self._page = self._context = self._browser = None
         self._state = "closed"
         self._destroy_browser(b)
+        self._browser_pids = set()
+
+    def _kill_browser_procs(self):
+        """（看门狗用，在别的线程调用）直接结束这个浏览器的进程。卡在页面调用里的
+        worker 线程会因此立刻收到「浏览器已关闭」的异常，从卡死中恢复过来。"""
+        pids = set(self._browser_pids or ())
+        self._want_restart = True
+        return _kill_pids(pids)
 
     def _ensure_started(self):
         """启动 + 登录 + 选卡 + 进聊天页。已就绪则直接返回。"""
@@ -1503,6 +1554,77 @@ class _WebWorker:
             }"""))
         return True
 
+    def _click_marked(self):
+        """真实点击 _BLOCKER_JS 标记好的按钮；点不动就强制点 / 页面内点。"""
+        loc = self._page.locator('[data-cx-click="1"]').first
+        for how in ("normal", "force", "js"):
+            try:
+                if how == "normal":
+                    loc.click(timeout=3000)
+                elif how == "force":
+                    loc.click(timeout=3000, force=True)
+                else:
+                    loc.evaluate("el => el.click()")
+                return True
+            except Exception:
+                continue
+        return False
+
+    def _handle_blockers(self, prompt="", st=None, allow_retry=True):
+        """处理会让流程卡住的页面提示。返回 None（没事）或做了什么的说明。
+        额度用完 / 反复出错 → 抛 _Stuck，让上层立刻换一张卡。
+        st：本次提问共用的状态（重试次数、对比框长度记录）。"""
+        st = st if st is not None else {}
+        info = self._safe(lambda: self._page.evaluate(_BLOCKER_JS), None) or {}
+        if not info:
+            return None
+        norm = lambda x: re.sub(r"\s+", "", x or "")
+        ptxt = norm(prompt)
+
+        def from_prompt(t):          # 提示文字其实是我们自己发的内容（文字稿里的原话）→ 不算
+            return bool(t) and len(norm(t)) >= 6 and norm(t) in ptxt
+
+        if info.get("compare"):
+            if info.get("click") == "skip":
+                self._log("检测到「%s」对比框 → 自动点「跳过」" % (info.get("text") or "你更喜欢哪个"))
+                self._click_marked()
+                time.sleep(1.5)
+                return "skip"
+            if info.get("click") == "prefer":
+                lens = info.get("lens") or []
+                prev = st.get("cmp_lens")
+                st["cmp_lens"] = lens
+                # 两边都写完（长度不再变）再选，选内容更长的那个
+                if prev == lens and lens:
+                    self._log("检测到对比框（没有跳过按钮）→ 选内容更长的那个回复（%s 字）" % lens)
+                    self._click_marked()
+                    st["cmp_lens"] = None
+                    time.sleep(1.5)
+                    return "prefer"
+                return "compare-wait"
+            return "compare-wait"
+        q = info.get("quota") or ""
+        if q and not from_prompt(q):
+            self._log("⚠ 这张卡额度用完了（%s）→ 立刻换卡" % q[:60])
+            raise _Stuck("这张卡额度用完：%s" % q[:60])
+        e = info.get("error") or ""
+        if e and allow_retry and not from_prompt(e):
+            n = st.get("retries", 0)
+            if info.get("click") == "retry" and n < 2:
+                st["retries"] = n + 1
+                self._log("⚠ AI 池提示「%s」→ 自动点重试（第 %d 次）" % (e[:50], n + 1))
+                self._click_marked()
+                time.sleep(2)
+                return "retry"
+            if n >= 2 or not info.get("click"):
+                since = st.setdefault("err_since", time.time())
+                if n >= 2 or time.time() - since > 30:
+                    self._log("⚠ AI 池一直报错（%s）→ 换卡重试" % e[:50])
+                    raise _Stuck("AI 池报错：%s" % e[:60])
+        else:
+            st.pop("err_since", None)
+        return None
+
     def _focus_input(self, inp):
         """聚焦输入框：正常点击 → 关遮挡后再点 → 强制点击 → JS focus，一级级兜底。"""
         try:
@@ -1648,6 +1770,13 @@ class _WebWorker:
 
         self._park_mouse()
         self._close_overlays()
+        # 上一轮留下的「你更喜欢哪个回复」对比框会锁住输入框；额度用完的卡直接换掉
+        blk = {}
+        for _ in range(4):
+            act = self._handle_blockers(prompt, blk, allow_retry=False)
+            if not act:
+                break
+            time.sleep(1.5)
         if self._safe(lambda: self._page.evaluate("() => document.visibilityState"), "visible") == "hidden":
             self._log("⚠ AI 池的浏览器窗口被最小化了。Chrome 会暂停最小化窗口里的页面，回复可能出不来。"
                       "让它待在别的窗口后面没关系，但别最小化；或者在「设置」里取消「显示浏览器窗口」改成后台运行。")
@@ -1742,11 +1871,92 @@ class _WebWorker:
         # 把回复重新抓成 Markdown：把 <a href> 还原成可点击链接 [文字](网址)，
         # 并去掉 ChatGPT 的引用角标杂质（如 "OpenAI +1"、"Anthropic +2"）。
         # 仅当抓取结果可信（长度不大幅缩水）才采用，否则保留纯文本。
+        imgs = []
+        if opts.get("saveImages"):
+            imgs = self._safe(lambda: self._page.evaluate(_MARK_IMAGES_JS, prompt), []) or []
         md = self._safe(lambda: self._page.evaluate(_GRAB_MARKDOWN_JS, prompt), "") or ""
         # 只有和刚才确认过的回复是同一条时才用 Markdown 版（之前只比长度，旧的长消息会顶替掉正确回复）
         if md and len(md) >= max(40, int(len(reply or "") * 0.6)) and self._same_reply(md, reply):
             reply = md
+        if imgs:
+            prog("保存回复里的 %d 张图片…" % len(imgs))
+            reply = self._save_reply_images(reply, imgs)
         self._state = "ready"
+        return reply
+
+    def _save_reply_images(self, reply, imgs):
+        """把回复里的图片存到 memory/web_model_images/<批次>/，正文里写成
+        ![说明](cx-webimg:<批次>/<文件名>)。调用方（视频笔记）再把它们移进笔记自己的图片目录。
+        能下载原图就下原图（带登录 cookie 请求 / 页面里读取），都不行就截图那张图。"""
+        import base64
+        import uuid
+        batch = time.strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
+        d = IMG_DIR / batch
+        saved = {}
+        for it in imgs:
+            i = it.get("i")
+            src = it.get("src") or ""
+            data, ext = b"", ".png"
+            try:
+                if src.startswith("data:"):
+                    head, _, b64 = src.partition(",")
+                    data = base64.b64decode(b64)
+                    ext = ".jpg" if "jpeg" in head or "jpg" in head else (".webp" if "webp" in head else ".png")
+                elif src.startswith("http"):
+                    r = self._context.request.get(src, timeout=30000)
+                    if r.ok:
+                        data = r.body()
+                        ct = (r.headers.get("content-type") or "").lower()
+                        ext = ".jpg" if "jpeg" in ct else (".webp" if "webp" in ct else
+                                                          (".gif" if "gif" in ct else ".png"))
+                        if not ct.startswith("image/"):
+                            data = b""
+            except Exception as e:
+                self._log("图片 %s 直接下载失败：%s" % (i, str(e).split(chr(10))[0][:60]))
+                data = b""
+            if not data:
+                du = self._safe(lambda: self._page.evaluate(_IMG_DATAURL_JS, i), "") or ""
+                if du.startswith("data:image"):
+                    head, _, b64 = du.partition(",")
+                    try:
+                        data = base64.b64decode(b64)
+                        ext = ".jpg" if "jpeg" in head else (".webp" if "webp" in head else
+                                                           (".gif" if "gif" in head else ".png"))
+                    except Exception:
+                        data = b""
+            if not data:
+                try:
+                    loc = self._page.locator('[data-cx-img="%s"]' % i).first
+                    loc.scroll_into_view_if_needed(timeout=5000)
+                    data = loc.screenshot(timeout=15000)
+                    ext = ".png"
+                    self._log("图片 %s 下载不了，改为截图保存" % i)
+                except Exception as e:
+                    self._log("图片 %s 截图也失败：%s" % (i, str(e).split(chr(10))[0][:60]))
+                    data = b""
+            if len(data) < 200:
+                continue
+            try:
+                d.mkdir(parents=True, exist_ok=True)
+                fn = "ai-%d%s" % (i, ext)
+                (d / fn).write_bytes(data)
+                saved[i] = (batch + "/" + fn, it.get("alt") or "示意图")
+            except Exception:
+                pass
+        if saved:
+            self._log("✓ 已保存回复里的 %d 张图片" % len(saved))
+
+        def _sub(m):
+            k = int(m.group(2))
+            if k in saved:
+                return "![%s](cx-webimg:%s)" % (m.group(1) or saved[k][1], saved[k][0])
+            return ""                                   # 没存下来的图就不留占位
+        reply = re.sub(r"!\[([^\]]*)\]\(cx-webimg:(\d+)\)", _sub, reply or "")
+        # 不在抓到的正文里的图（例如图片挂在回复外层），补到末尾
+        missing = [v for v in saved.values() if ("cx-webimg:" + v[0]) not in reply]
+        if missing:
+            reply = reply.rstrip() + "\n\n" + "\n\n".join(
+                "![%s](cx-webimg:%s)" % (alt, rel) for rel, alt in missing) + "\n"
         return reply
 
     # ──────────── 发送相关小工具（本次修复新增）────────────
@@ -1948,9 +2158,48 @@ class _WebWorker:
         skip_log = 0
         hold_log = 0
         last_prog = 0
+        blk_st = {}
+        last_blk = 0
+        img_wait_since = 0
+        IMG_WAIT_CAP = opts.get("imageWaitMs") or 480000      # 生成图片最多多等 8 分钟
 
         while (time.time() - start) * 1000 < timeout_ms:
             time.sleep(POLL)
+
+            # 每 2 秒查一次：对比框 / 出错重试 / 额度用完 / 正在生成图片
+            if time.time() - last_blk > 2:
+                last_blk = time.time()
+                act = self._handle_blockers(prompt_text, blk_st)
+                if act:
+                    last_change = time.time()
+                    warned = False
+                    stable = 0
+                    idle_confirm = 0
+                    first_hold_at = 0
+                    if act in ("skip", "prefer"):
+                        prog("已自动处理「你更喜欢哪个回复」对比框")
+                    elif act == "retry":
+                        prog("AI 池出错，已自动点重试…")
+                        think_since = 0
+                        td_since = 0
+                    continue
+                gen = self._safe(lambda: self._page.evaluate(_IMG_GEN_JS, prompt_text), None) or {}
+                if gen.get("busy"):
+                    if not img_wait_since:
+                        img_wait_since = time.time()
+                        self._log("AI 正在生成图片（%s），等图片画完再收尾…" % gen.get("busy"))
+                        prog("AI 正在生成示意图…")
+                    if (time.time() - img_wait_since) * 1000 < IMG_WAIT_CAP:
+                        last_change = time.time()
+                        warned = False
+                        stable = 0
+                        idle_confirm = 0
+                        first_hold_at = 0
+                        think_since = 0
+                        continue
+                elif img_wait_since:
+                    self._log("✓ 图片已生成完")
+                    img_wait_since = 0
 
             # 卡死信号：整页 innerText 长度
             full_len = self._safe(
@@ -2168,10 +2417,13 @@ class _WebWorker:
 
     # ════════════════════ 工具 ════════════════════
     def _safe(self, fn, default=None):
+        self._beat()
         try:
             return fn()
         except Exception:
             return default
+        finally:
+            self._beat()
 
     def _dump_diag(self, stage, err=None):
         """失败现场：整页截图 + 页面结构摘要（不含任何输入框的值）。"""
@@ -2272,6 +2524,169 @@ class _WebWorker:
 
 # 把"最新一条 AI 回复"抓成 Markdown：保留 <a href> 为可点击链接 [文字](网址)，
 # 去掉 ChatGPT 的引用角标/来源芯片（"+1""+2"、citation/footnote 之类）这些杂质。
+
+# 本次提问之后的回复区域（找不到提问气泡就用最后一条助手消息）
+_REPLY_SCOPE_JS = r"""
+    const __norm = s => (s || '').replace(/[\s\u00a0]+/g, '');
+    const __scope = (head) => {
+        const key = __norm(head).slice(0, 30);
+        const users = [...document.querySelectorAll('[data-message-author-role="user"]')];
+        let anchor = null;
+        for (let i = users.length - 1; i >= 0 && key; i--)
+            if (__norm(users[i].innerText).includes(key)) { anchor = users[i]; break; }
+        let outs = [...document.querySelectorAll('[data-message-author-role="assistant"]')];
+        if (anchor) outs = outs.filter(a => anchor.compareDocumentPosition(a) & Node.DOCUMENT_POSITION_FOLLOWING);
+        else outs = outs.slice(-1);
+        // 助手消息外面常包一层「整轮」容器，图片可能挂在那里
+        return outs.map(a => a.closest('article, [data-testid^="conversation-turn"]') || a);
+    };
+"""
+
+# AI 是否正在生成图片（生成中的提示文字 / 还没加载完或还在模糊渐显的大图）
+_IMG_GEN_JS = r"""(head) => {""" + _REPLY_SCOPE_JS + r"""
+    const GEN = /正在(创建|生成|绘制|制作)(图片|图像|插图|示意图)|(图片|图像)(正在)?生成中|Creating image|Generating image|Making (your|an) image|Image (is )?(being )?(created|generated)/i;
+    let busy = '', imgs = 0;
+    for (const root of __scope(head)) {
+        for (const el of root.querySelectorAll('span, div, p')) {
+            if (el.children.length > 4) continue;
+            const t = (el.innerText || '').trim();
+            if (t && t.length < 60 && GEN.test(t)) { busy = t.slice(0, 40); break; }
+        }
+        for (const im of root.querySelectorAll('img')) {
+            const r = im.getBoundingClientRect();
+            if (r.width < 120 || r.height < 80) continue;
+            imgs++;
+            const cs = getComputedStyle(im);
+            const blur = /blur\((?!0)/.test(cs.filter || '') || parseFloat(cs.opacity || '1') < 0.9;
+            if (!im.complete || !im.naturalWidth || blur) busy = busy || '图片还在加载';
+        }
+        if (busy) break;
+    }
+    return {busy, imgs};
+}"""
+
+# 给回复里的大图编号（data-cx-img），返回它们的信息；_GRAB_MARKDOWN_JS 会把它们写成 cx-webimg:编号
+_MARK_IMAGES_JS = r"""(head) => {""" + _REPLY_SCOPE_JS + r"""
+    for (const e of document.querySelectorAll('[data-cx-img]')) e.removeAttribute('data-cx-img');
+    const out = [], seen = new Set();
+    for (const root of __scope(head)) {
+        for (const im of root.querySelectorAll('img')) {
+            const r = im.getBoundingClientRect();
+            const w = im.naturalWidth || r.width, h = im.naturalHeight || r.height;
+            if (r.width < 80 || r.height < 60 || w < 120 || h < 80) continue;   // 头像、图标不要
+            const src = im.currentSrc || im.getAttribute('src') || '';
+            if (!src || seen.has(src)) continue;
+            seen.add(src);
+            const i = out.length + 1;
+            im.setAttribute('data-cx-img', String(i));
+            out.push({i, src, alt: (im.getAttribute('alt') || '').trim().slice(0, 60), w, h});
+        }
+    }
+    return out;
+}"""
+
+# 在页面里把图片读成 dataURL（blob:/同源图片走这里；跨域失败返回空）
+_IMG_DATAURL_JS = r"""async (i) => {
+    const im = document.querySelector('[data-cx-img="' + i + '"]');
+    if (!im) return '';
+    const src = im.currentSrc || im.src;
+    try {
+        const r = await fetch(src);
+        const b = await r.blob();
+        if (!b.size) return '';
+        return await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(''); fr.readAsDataURL(b); });
+    } catch (e) {}
+    try {
+        const c = document.createElement('canvas');
+        c.width = im.naturalWidth; c.height = im.naturalHeight;
+        c.getContext('2d').drawImage(im, 0, 0);
+        return c.toDataURL('image/png');
+    } catch (e) { return ''; }
+}"""
+
+# 页面上会挡住流程的东西：①「你更喜欢哪个回复？」对比框 ② 「出错了 / 重试」 ③ 额度用完。
+# 只看「不在 AI 回复正文里、也不在用户提问气泡里」的短文字，免得把回复内容误当成提示。
+# 要点击的按钮打上 data-cx-click="1"，由 Python 用真实点击去点。
+_BLOCKER_JS = r"""() => {
+    const vis = el => {
+        if (!el) return false;
+        const r = el.getBoundingClientRect();
+        if (r.width < 2 || r.height < 2) return false;
+        const s = getComputedStyle(el);
+        return s.visibility !== 'hidden' && s.display !== 'none' && parseFloat(s.opacity || '1') > 0.05;
+    };
+    const txt = el => (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+    const excluded = el => !!el.closest(
+        '.markdown, [class*="prose"], [data-message-author-role="user"], [contenteditable="true"], textarea, input');
+    for (const e of document.querySelectorAll('[data-cx-click]')) e.removeAttribute('data-cx-click');
+    const btns = [...document.querySelectorAll('button, [role="button"], a[role="button"]')].filter(vis);
+    const btnText = b => (txt(b) || b.getAttribute('aria-label') || '').trim();
+    const shortHit = (re, maxLen) => {
+        let best = null;
+        for (const el of document.querySelectorAll('h1,h2,h3,h4,h5,p,span,div,legend,strong,section,[role="alert"]')) {
+            if (el.children.length > 8) continue;
+            const t = txt(el);
+            if (!t || t.length > maxLen || !re.test(t)) continue;
+            if (!vis(el) || excluded(el)) continue;
+            // 包着提问气泡 / 回复正文的大容器不算，只认提示本身那一小块
+            if (el.querySelector('[data-message-author-role], .markdown, [class*="prose"]')) continue;
+            if (!best || t.length < best.t.length) best = {el, t};
+        }
+        return best;
+    };
+    const out = {compare: false, error: '', quota: '', click: '', lens: []};
+
+    // ① 对比框
+    const CMP = /你更喜欢哪(个|一个|条)|更喜欢哪个(回复|回答|选项)|你觉得哪个(回复|回答)更好|Which (response|one|answer) do you prefer|Which response is (better|more helpful)/i;
+    const cmp = shortHit(CMP, 160);
+    if (cmp) {
+        out.compare = true; out.text = cmp.t.slice(0, 80);
+        const skip = btns.find(b => /^(跳过|略过|Skip)$/i.test(btnText(b)));
+        if (skip) { skip.setAttribute('data-cx-click', '1'); out.click = 'skip'; return out; }
+        const prefer = btns.filter(b => /更喜欢这|偏好这|选这个|I prefer this|Prefer this|This one is better|选择此回复/i.test(btnText(b)));
+        if (prefer.length) {
+            let best = null, bestLen = -1;
+            for (const b of prefer) {
+                // 往上找到「这一边回复」的容器：文字够多、但不包含另一个「更喜欢这个」按钮
+                let box = b, cur = b;
+                for (let i = 0; i < 10; i++) {
+                    const p = cur.parentElement;
+                    if (!p || p === document.body) break;
+                    if (prefer.some(o => o !== b && p.contains(o))) break;
+                    box = p; cur = p;
+                }
+                const L = Math.max(0, txt(box).length - btnText(b).length);
+                out.lens.push(L);
+                if (L > bestLen) { bestLen = L; best = b; }
+            }
+            if (best) { best.setAttribute('data-cx-click', '1'); out.click = 'prefer'; }
+        }
+        return out;
+    }
+
+    // ② 额度用完（这张卡不能用了 → 直接换卡）
+    const QUOTA = /(usage|rate|message)\s*(cap|limit)|You['’]ve (reached|hit) (the|your)|limit reached|Too many requests|已达到.{0,12}(上限|限制)|额度(已)?(用完|用尽|耗尽|不足)|次数(已)?用(完|尽)|超出.{0,8}(限制|额度|上限)|请求过于频繁|今日.{0,8}(已用完|上限)|配额(已)?(用完|用尽)/i;
+    const q = shortHit(QUOTA, 220);
+    if (q) { out.quota = q.t.slice(0, 120); return out; }
+
+    // ③ 出错了 → 点「重试 / 重新生成」
+    const ERR = /Something went wrong|An error occurred|Error in message stream|Network error|network connection|出错了|发生(了)?错误|生成.{0,6}(时)?出错|网络(错误|异常|连接)|连接(已)?中断|请求失败/i;
+    const er = shortHit(ERR, 220);
+    if (er) {
+        out.error = er.t.slice(0, 120);
+        const RETRY = /^(重试|重新生成|再试一次|重新尝试|Retry|Regenerate|Try again)$/i;
+        let retry = null;
+        let anc = er.el;
+        for (let i = 0; i < 5 && anc && !retry; i++) {
+            retry = [...anc.querySelectorAll('button, [role="button"]')].find(b => vis(b) && RETRY.test(btnText(b)));
+            anc = anc.parentElement;
+        }
+        if (!retry) retry = btns.find(b => RETRY.test(btnText(b)) && !excluded(b));
+        if (retry) { retry.setAttribute('data-cx-click', '1'); out.click = 'retry'; }
+    }
+    return out;
+}"""
+
 _GRAB_MARKDOWN_JS = r"""(anchorText) => {
     // 只看「本次提问气泡」之后的内容：找到最后一个包含提问开头的用户气泡，作为锚点
     let __cxAnchor = null;
@@ -2349,8 +2764,10 @@ _GRAB_MARKDOWN_JS = r"""(anchorText) => {
             if(/^(thead|tbody|tfoot|tr|td|th|colgroup|col)$/.test(tag)) continue;  // 已由 table 处理，跳过防重复
             if(tag==='img'){                                                       // ★图片
                 const src=el.getAttribute('src')||el.currentSrc||'';
-                const alt=(el.getAttribute('alt')||'图片').trim();
-                if(src && !/^data:/.test(src)) out += '\n!['+alt+']('+src+')\n';
+                const alt=(el.getAttribute('alt')||'图片').trim().replace(/[\[\]]/g,'');
+                const mk=el.getAttribute('data-cx-img');
+                if(mk) out += '\n!['+(alt||'示意图')+'](cx-webimg:'+mk+')\n';      // 由程序下载到本地
+                else if(src && !/^(data|blob):/.test(src)) out += '\n!['+alt+']('+src+')\n';
                 continue;
             }
             if(tag==='a'){
@@ -2670,6 +3087,151 @@ _PROBE_JS = r"""() => {
 }"""
 
 
+WATCHDOG_SEC = 300          # 浏览器 5 分钟没有任何动静 → 判定卡死，强制重启
+
+
+def _browser_child_pids():
+    """本进程（含 Playwright 驱动）下面所有浏览器进程的 pid。拿不到就返回空集合。"""
+    try:
+        import psutil
+        out = set()
+        for c in psutil.Process().children(recursive=True):
+            try:
+                n = (c.name() or "").lower()
+            except Exception:
+                continue
+            if any(k in n for k in ("chrome", "msedge", "chromium", "headless_shell")):
+                out.add(c.pid)
+        return out
+    except Exception:
+        pass
+    if os.name == "nt":
+        try:
+            import subprocess
+            ps = ("$all = Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,Name;"
+                  "$all | ConvertTo-Json -Compress")
+            raw = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True,
+                                 timeout=20, creationflags=0x08000000).stdout
+            rows = json.loads(raw.decode("utf-8", "replace") or "[]")
+            kids, me = {}, os.getpid()
+            for r in rows:
+                kids.setdefault(r.get("ParentProcessId"), []).append(r)
+            out, stack = set(), [me]
+            while stack:
+                for r in kids.get(stack.pop(), []):
+                    stack.append(r.get("ProcessId"))
+                    if any(k in (r.get("Name") or "").lower() for k in ("chrome", "msedge", "chromium")):
+                        out.add(r.get("ProcessId"))
+            return out
+        except Exception:
+            return set()
+    return set()
+
+
+def _kill_pids(pids):
+    n = 0
+    for pid in pids or ():
+        try:
+            import psutil
+            pr = psutil.Process(pid)
+            for c in pr.children(recursive=True):
+                try:
+                    c.kill()
+                except Exception:
+                    pass
+            pr.kill()
+            n += 1
+            continue
+        except ImportError:
+            pass
+        except Exception:
+            continue
+        try:
+            if os.name == "nt":
+                import subprocess
+                subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True,
+                               timeout=15, creationflags=0x08000000)
+            else:
+                os.kill(pid, 9)
+            n += 1
+        except Exception:
+            pass
+    return n
+
+
+def _requeue_job(job):
+    """被放弃的 worker 手里排着的 job，转交给新的 worker（等结果的人不受影响）。"""
+    _worker()._ensure_thread()
+    _worker()._jobs.put(job)
+
+
+def _reset_worker(w, why, box=None, done=None):
+    """看门狗：强制结束浏览器进程；worker 线程还是回不来，就整个换一个新 worker。"""
+    try:
+        w._log("⚠ 看门狗：%s → 强制关闭浏览器，下一条会重新打开" % why)
+    except Exception:
+        pass
+    killed = 0
+    try:
+        killed = w._kill_browser_procs()
+    except Exception:
+        pass
+    if done is not None and done.wait(90 if killed else 15):
+        return                                    # worker 已经从卡死中恢复
+    global _WORKER
+    with _WORKER_LOCK:
+        if _WORKER is not w:
+            return
+        w._dead = True
+        nw = _WebWorker()
+        nw._logger = w._logger
+        _WORKER = nw
+    # 旧 worker 队列里还没开始的 job 转给新 worker
+    moved = 0
+    while True:
+        try:
+            job = w._jobs.get_nowait()
+        except Exception:
+            break
+        nw._ensure_thread()
+        nw._jobs.put(job)
+        moved += 1
+    nw._ensure_thread()
+    try:
+        nw._log("⚠ 看门狗：旧的浏览器线程卡死回不来，已换一个新的（转交排队任务 %d 个）" % moved)
+    except Exception:
+        pass
+
+
+def probe_pool():
+    """（可在任意线程调用）快速测一下 AI 池网站现在能不能连上。返回 (能否连上, 说明)。
+    不碰正在用的浏览器。"""
+    try:
+        w = _WebWorker()
+        w._logger = lambda *_a, **_k: None
+        cfg = load_config()
+        w._resolve_routes(cfg)
+        fixed = (cfg.get("aiPoolProxy") or "auto").lower()
+        if fixed in ("direct", "system", "proxy"):
+            modes = [fixed]
+        else:
+            modes = []
+            learned = _load_routes().get("netMode")
+            for m in ([learned] if learned else []) + (["proxy"] if w._cfg_proxy() else []) + ["system", "direct"]:
+                if m and m not in modes:
+                    modes.append(m)
+        names = {"proxy": "走代理", "system": "系统代理", "direct": "直连"}
+        errs = []
+        for m in modes:
+            ok, why = w._probe_one(m)
+            if ok:
+                return True, names.get(m, m)
+            errs.append("%s：%s" % (names.get(m, m), why))
+        return False, "；".join(errs)
+    except Exception as e:
+        return False, str(e)[:120]
+
+
 class _Stuck(Exception):
     """对应参考代码里 e.code === 'STUCK'：卡死，可换卡重试。"""
     pass
@@ -2704,8 +3266,14 @@ def web_complete(prompt, on_progress=None, **opts):
     """同步阻塞：把 prompt 发给网页 ChatGPT，返回回复纯文本。"""
     if not is_available():
         raise RuntimeError("Playwright 未安装：pip install playwright && python -m playwright install chromium")
+    # 总时限跟着本次要等的时长走（视频分析最多等 40 分钟）：两次尝试 + 换卡/登录的余量。
+    # 以前固定 12 分钟，GPT 想久一点就被判失败，而它其实还占着浏览器 → 重试也跟着超时。
+    wait_s = (opts.get("timeout") or 600000) / 1000.0
+    attempts = 1 if opts.get("disableCardSwitch") else 2
+    total = max(720, int(wait_s * attempts + 900))
     return _worker().submit("web_complete",
-                            {"prompt": prompt, "on_progress": on_progress, **opts})
+                            {"prompt": prompt, "on_progress": on_progress, **opts},
+                            timeout=total)
 
 
 def test_login(on_progress=None):

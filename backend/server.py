@@ -415,7 +415,7 @@ def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None
             and not os.environ.get("OPENAI_ADMIN_KEY"):
         s_use_local, s_model = False, "web"
 
-    _web_kw = dict(core.VIDEO_ANALYSIS_WEB_OPTS) if core.is_web_model(s_model) else {}
+    _web_kw = dict(core.VIDEO_ANALYSIS_WEB_OPTS, saveImages=True) if core.is_web_model(s_model) else {}
     try:
         client = core.make_client_for(s_model, s_use_local, on_progress=on_progress)
         resp = client.chat.completions.create(
@@ -433,13 +433,61 @@ def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None
             client = core.make_client_for("web", False, on_progress=on_progress)
             resp = client.chat.completions.create(
                 model="web", messages=[{"role": "user", "content": prompt}],
-                **dict(core.VIDEO_ANALYSIS_WEB_OPTS))
+                **dict(core.VIDEO_ANALYSIS_WEB_OPTS, saveImages=True))
             out = (resp.choices[0].message.content or "").strip()
             if out:
                 return _bold_point_titles(out)
             raise RuntimeError("空回复")
         except Exception as e2:
             return f"（分析出错：AI 池两次都没成功（{e2}）。请稍后在这条笔记上点「AI 分析」重试）"
+
+
+def _cx_adopt_web_images(analysis, note_stem):
+    """AI 池回复里生成的示意图：web_model 先存在 memory/web_model_images/<批次>/，
+    正文里写成 ![说明](cx-webimg:<批次>/<文件>)。这里把图片移进这条笔记自己的图片目录
+    （video_notes/shots/<笔记名>/，删笔记时一起删），并把地址换成 /video_shot 的本地地址。
+    图片找不到就把那行去掉，不留坏图。"""
+    if not analysis or "cx-webimg:" not in analysis:
+        return analysis
+    import shutil as _shutil
+    try:
+        import web_model as _wm
+        src_root = _wm.IMG_DIR
+    except Exception:
+        import agent_core
+        src_root = agent_core.MEMORY_DIR / "web_model_images"
+    dst = _cx_shots_dir() / note_stem
+    base = "http://127.0.0.1:%d/video_shot?n=%s&f=" % (PORT, urllib.parse.quote(note_stem))
+    used_batches = set()
+
+    def _sub(m):
+        alt, rel = m.group(1), m.group(2)
+        if ".." in rel or "\\" in rel or rel.count("/") != 1:
+            return ""
+        batch, fn = rel.split("/")
+        sp = src_root / batch / fn
+        if not sp.exists():
+            return ""
+        try:
+            dst.mkdir(parents=True, exist_ok=True)
+            out = fn
+            k = 2
+            while (dst / out).exists():
+                stem, ext = os.path.splitext(fn)
+                out = "%s-%d%s" % (stem, k, ext)
+                k += 1
+            _shutil.move(str(sp), str(dst / out))
+            used_batches.add(batch)
+            return "![%s](%s%s)" % (alt or "示意图", base, urllib.parse.quote(out))
+        except Exception:
+            return ""
+    out = re.sub(r"!\[([^\]]*)\]\(cx-webimg:([^)\s]+)\)", _sub, analysis)
+    for b in used_batches:
+        try:
+            (src_root / b).rmdir()            # 批次目录空了就删掉
+        except Exception:
+            pass
+    return out
 
 
 def _split_title_from_analysis(text):
@@ -852,6 +900,30 @@ def _cx_suggest_tag(title, analysis, use_local=True, model="qwen2.5"):
     return _clean_ai_tags(raw)
 
 
+# 提取队列里「AI 分析没成功」的笔记：队列跑完后自动交给批量补分析
+_video_failed_notes = []          # [(笔记文件名, use_local, model)]
+_VIDEO_AUTO_RETRY = 2             # 提取失败的任务自动重新排队，最多再试几次
+# 明显重试也没用的错误（链接本身不对 / 视频没了 / 用户取消），不自动重排
+_VIDEO_NO_RETRY = ("Unsupported URL", "已取消", "不存在", "已删除", "已被删除", "私密", "Private video",
+                   "This video is unavailable", "Video unavailable", "非法", "找不到文件", "文件不存在")
+
+
+def _video_flush_failed_notes():
+    """队列空了：把分析没成功的笔记交给批量补分析（挂机时不用人去点）。"""
+    if not _video_failed_notes:
+        return
+    items = list(_video_failed_notes)
+    del _video_failed_notes[:]
+    names = []
+    for nm, _ul, _m in items:
+        if nm not in names:
+            names.append(nm)
+    try:
+        _note_batch_enqueue(names, items[-1][1], items[-1][2], "视频队列里分析没成功的笔记")
+    except Exception as e:
+        _clog("视频", "⚠ 自动补分析没能开始：%s" % e)
+
+
 def _video_worker():
     """逐个处理队列里的视频，一次一个。"""
     import time as _time
@@ -869,6 +941,7 @@ def _video_worker():
                 _video_state["detail"] = ""
                 _video_current["job"] = None
                 _save_video_queue()          # 队列清空，写盘（之后重启不会再有残留任务）
+                _threading.Thread(target=_video_flush_failed_notes, daemon=True).start()
                 return
             job = _video_q.pop(0)
             # 规范化 URL：历史持久化里可能存了 iesdouyin 分享页长链（yt-dlp 不认，
@@ -1150,6 +1223,11 @@ def _video_worker():
                                if c.isalnum() or c in " 　-_") or "video"
                 fname = (f"{ts.strftime('%Y%m%d-%H%M%S')}-{safe}.md"
                          .replace(" ", "_"))
+                # AI 池回复里的示意图：移进这条笔记的图片目录
+                try:
+                    analysis = _cx_adopt_web_images(analysis, fname[:-3])
+                except Exception:
+                    pass
 
                 # ★插图 / 跳转原片后处理：把 AI 插的标记替换成真截图 / 跳转链接。
                 #   截图存到 video_notes/shots/<笔记stem>/，前端通过 /video_shot 取。
@@ -1212,6 +1290,10 @@ def _video_worker():
                     pass
                 res["analysis"] = analysis
                 res["saved_as"] = fname
+                if (analysis or "").lstrip().startswith("（分析出错"):
+                    # 文字稿已存好，只是 AI 分析没成功：队列跑完后自动补
+                    _video_failed_notes.append((fname, job.get("use_local", True), job.get("model", "qwen2.5")))
+                    _clog("视频", "⚠ 《%s》文字稿已保存，但 AI 分析没成功，队列跑完后会自动补分析" % title[:20])
                 # 让「提取完成」的结果卡 / 视频列表也直接显示中文标题（原标题另存一份备查）
                 res["title_original"] = title
                 res["title"] = display_title
@@ -1287,6 +1369,23 @@ def _video_worker():
             # 这条处理完（成功或失败都算处理过），从持久化里移除，避免重启又跑一遍
             with _video_lock:
                 _video_current["job"] = None
+                # 失败的任务自动排到队尾再试（最多再试 _VIDEO_AUTO_RETRY 次），挂机时不用人管
+                try:
+                    _r = _video_state.get("result") or {}
+                    _err = str(_r.get("error") or "")
+                    if (not _r.get("ok") and not _r.get("cancelled") and not _video_cancel.get("all")
+                            and not any(k in _err for k in _VIDEO_NO_RETRY)
+                            and int(job.get("auto_retry") or 0) < _VIDEO_AUTO_RETRY):
+                        job["auto_retry"] = int(job.get("auto_retry") or 0) + 1
+                        job["fail_count"] = 0
+                        _video_q.append(job)
+                        _video_state["queue"] = [{"url": j["url"], "title": j.get("title") or ""}
+                                                 for j in _video_q]
+                        _video_state["queue_len"] = len(_video_q)
+                        _clog("视频", "🔁 这条没成功，已排到队尾自动重试（第 %d / %d 次）"
+                              % (job["auto_retry"], _VIDEO_AUTO_RETRY))
+                except Exception:
+                    pass
                 _save_video_queue()
         # 继续处理下一个
 
@@ -1308,12 +1407,72 @@ def _time_now():
     return _t.time()
 
 
-def _note_batch_worker(names, use_local, model):
+_BATCH_BACKOFF_MIN = [3, 5, 10, 20, 30]     # 连续失败后自动等多久再接着跑（分钟），之后都按 30 分钟
+_BATCH_MAX_TRIES = 4                       # 每条笔记最多试几次
+
+
+def _batch_sleep(seconds, why):
+    """批量分析里的「等一会儿再接着跑」：可被「停止」/「现在就继续」打断。返回是否被停止。"""
     import time as _time
+    _note_batch["waiting"] = why
+    _note_batch["resume_at"] = _time.time() + seconds
+    _note_batch["resume_now"] = False
     try:
-        for name in names:
+        while _time.time() < _note_batch["resume_at"]:
             if _note_batch["stop"]:
+                return True
+            if _note_batch.get("resume_now"):
                 break
+            _time.sleep(1)
+        return bool(_note_batch["stop"])
+    finally:
+        _note_batch["waiting"] = ""
+        _note_batch["resume_at"] = 0
+
+
+def _pool_ready_for_batch():
+    """接着跑之前先测一下 AI 池网站能不能连上。返回 (能否连上, 说明)。"""
+    try:
+        import web_model
+        if hasattr(web_model, "probe_pool"):
+            return web_model.probe_pool()
+    except Exception as e:
+        return False, str(e)[:120]
+    return True, ""
+
+
+def _note_batch_worker(names, use_local, model):
+    """一条一条补分析。挂机友好：
+    · 连续 2 条失败不再永久暂停，而是等 3 / 5 / 10 / 20 / 30 分钟后自动接着跑，接着跑之前先测 AI 池能不能连上；
+    · 每条最多试 4 次；整批跑完后，把失败的再补一遍；
+    · 跑的过程中新加进来的笔记（视频队列里分析失败的）也会接着补。"""
+    import time as _time
+    tries = {}
+    pending = list(names)
+    backoff_i = 0
+    try:
+        while not _note_batch["stop"]:
+            extra = _note_batch.get("extra") or []
+            if extra:
+                _note_batch["extra"] = []
+                for nm in extra:
+                    if nm not in pending:
+                        pending.append(nm)
+                        _note_batch["total"] += 1
+            if not pending:
+                # 第一遍跑完：失败但还没试满的，再补一遍
+                again = [n for n in _note_batch.get("failed_names", [])
+                         if tries.get(n, 0) < _BATCH_MAX_TRIES and (_cx_video_dir() / n).exists()]
+                if not again:
+                    break
+                _note_batch["failed_names"] = []
+                _clog("视频", "🔁 批量补分析：第一遍跑完，再补一遍没成功的 %d 条" % len(again))
+                _note_batch["round"] = _note_batch.get("round", 1) + 1
+                pending = again
+                continue
+            name = pending.pop(0)
+            if not (_cx_video_dir() / name).exists():
+                continue                          # 期间被删掉了
             # 等单条补分析（如果有人在点单条）先结束，再占用
             while True:
                 with _note_an_lock:
@@ -1327,32 +1486,97 @@ def _note_batch_worker(names, use_local, model):
             if _note_batch["stop"]:
                 break
             _note_batch["current"] = name
+            tries[name] = tries.get(name, 0) + 1
             _note_analyze_worker(name, use_local, model)     # 同步跑完这一条
             with _note_an_lock:
                 ok = bool(_note_an_state.get("ok"))
                 err = _note_an_state.get("error") or ""
-            _note_batch["done"] += 1
             if ok:
+                _note_batch["done"] += 1
                 _note_batch["ok"] += 1
                 _note_batch["streak"] = 0
+                backoff_i = 0
+                _note_batch["paused"] = ""
+                if name in _note_batch.get("failed_names", []):
+                    _note_batch["failed_names"].remove(name)
+                _note_batch["errors"] = [x for x in _note_batch["errors"] if x.get("name") != name]
             else:
-                _note_batch["fail"] += 1
                 _note_batch["streak"] = _note_batch.get("streak", 0) + 1
-                _note_batch["errors"] = (_note_batch["errors"] + [{"name": name, "error": err[:160]}])[-20:]
+                _note_batch["errors"] = ([x for x in _note_batch["errors"] if x.get("name") != name]
+                                         + [{"name": name, "error": err[:160]}])[-20:]
+                if tries[name] < _BATCH_MAX_TRIES:
+                    fl = _note_batch.setdefault("failed_names", [])
+                    if name not in fl:
+                        fl.append(name)
+                else:
+                    _note_batch["done"] += 1
+                    _note_batch["fail"] += 1
+                    _clog("视频", "✖ %s 已试 %d 次都没成功，先跳过：%s" % (name[:40], tries[name], err[:80]))
                 if _note_batch["streak"] >= 2:
-                    # 连着两条都失败，多半是 AI 池本身打不开：先停下，别一条接一条白跑
-                    _note_batch["paused"] = ("连续 %d 条都没成功，已自动暂停。最后一次的原因：%s"
-                                             % (_note_batch["streak"], err[:160]))
-                    _clog("视频", "⏸ 批量补分析自动暂停：%s" % _note_batch["paused"])
-                    break
+                    # 连着两条都失败，多半是 AI 池本身出了问题：等一会儿再自动接着跑（不再永久暂停）
+                    mins = _BATCH_BACKOFF_MIN[min(backoff_i, len(_BATCH_BACKOFF_MIN) - 1)]
+                    backoff_i += 1
+                    _note_batch["paused"] = ("连续 %d 条没成功（%s），%d 分钟后自动接着跑"
+                                             % (_note_batch["streak"], err[:120], mins))
+                    _clog("视频", "⏸ 批量补分析：%s" % _note_batch["paused"])
+                    if _batch_sleep(mins * 60, _note_batch["paused"]):
+                        break
+                    # 接着跑之前先测 AI 池能不能连上；连不上就继续等下一档
+                    while not _note_batch["stop"]:
+                        okp, why = _pool_ready_for_batch()
+                        if okp:
+                            _clog("视频", "▶ AI 池能连上了（%s），批量补分析接着跑" % (why or "测通"))
+                            break
+                        mins = _BATCH_BACKOFF_MIN[min(backoff_i, len(_BATCH_BACKOFF_MIN) - 1)]
+                        backoff_i += 1
+                        _note_batch["paused"] = "AI 池还是连不上（%s），%d 分钟后再试" % (why[:100], mins)
+                        _clog("视频", "⏸ 批量补分析：%s" % _note_batch["paused"])
+                        if _batch_sleep(mins * 60, _note_batch["paused"]):
+                            break
+                    _note_batch["streak"] = 0
+                    _note_batch["paused"] = ""
+                    # 刚才失败的这条，恢复后先重试它
+                    fl = _note_batch.get("failed_names", [])
+                    if tries[name] < _BATCH_MAX_TRIES and name in fl:
+                        fl.remove(name)
+                        pending.insert(0, name)
             _time.sleep(1)
     finally:
+        # 没试满就被停掉的，计成失败，方便看
+        for n in _note_batch.get("failed_names", []):
+            _note_batch["done"] += 1
+            _note_batch["fail"] += 1
+        _note_batch["failed_names"] = []
         _note_batch["running"] = False
         _note_batch["current"] = ""
+        _note_batch["waiting"] = ""
         _note_batch["finished"] = _time.time()
         _clog("视频", "📦 批量补分析结束：完成 %d / %d（成功 %d，失败 %d）%s" % (
             _note_batch["done"], _note_batch["total"], _note_batch["ok"], _note_batch["fail"],
             "，已手动停止" if _note_batch["stop"] else ""))
+
+
+def _note_batch_enqueue(names, use_local=True, model="qwen2.5", why=""):
+    """把笔记交给批量补分析：正在跑就追加进去，没在跑就开一批。返回加入的条数。"""
+    d = _cx_video_dir()
+    names = [n for n in names if n and (d / n).exists()]
+    if not names:
+        return 0
+    if _note_batch["running"]:
+        ex = _note_batch.setdefault("extra", [])
+        for n in names:
+            if n not in ex:
+                ex.append(n)
+        _clog("视频", "📦 %s：%d 条加进正在跑的批量补分析" % (why or "补分析", len(names)))
+        return len(names)
+    _note_batch.update({"running": True, "total": len(names), "done": 0, "ok": 0, "fail": 0,
+                        "current": "", "stop": False, "errors": [], "started": _time_now(), "finished": 0,
+                        "streak": 0, "paused": "", "waiting": "", "resume_at": 0, "extra": [],
+                        "failed_names": [], "round": 1})
+    _clog("视频", "📦 %s：开始批量补分析 %d 条（每条换一张新的 AI 卡）" % (why or "补分析", len(names)))
+    _threading.Thread(target=_note_batch_worker, args=(names, use_local, model),
+                      daemon=True, name="note-batch").start()
+    return len(names)
 
 
 def _parse_saved_note(text):
@@ -1438,6 +1662,10 @@ def _note_analyze_worker(name, use_local, model):
             # AI 池没成功：不把报错当分析结果存进笔记（保持「未分析」，以后还能再补）
             raise RuntimeError((analysis or "").strip().strip("（）")[:200])
         title_from_ai, analysis = _split_title_from_analysis(analysis)
+        try:
+            analysis = _cx_adopt_web_images(analysis, note_stem)    # AI 池生成的示意图存进笔记
+        except Exception:
+            pass
 
         stage("AI 分析", "归纳标签…")
         try:
@@ -1925,6 +2153,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_video_notes_list()
         if path == "/video_note_analyze_batch":
             b = dict(_note_batch)
+            b["resume_in"] = max(0, int((b.get("resume_at") or 0) - _time_now())) if b.get("resume_at") else 0
             with _note_an_lock:
                 b["stage"] = _note_an_state.get("stage", "")
             return self._send(b)
@@ -4095,10 +4324,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._send({"error": "非法路径"}, 400)
         try:
             p = _cx_shots_dir() / n / f
-            if not p.exists() or p.suffix.lower() not in (".jpg", ".jpeg", ".png"):
+            if not p.exists() or p.suffix.lower() not in (".jpg", ".jpeg", ".png", ".webp", ".gif"):
                 return self._send({"error": "找不到截图"}, 404)
             data = p.read_bytes()
-            ctype = "image/png" if p.suffix.lower() == ".png" else "image/jpeg"
+            ctype = {".png": "image/png", ".webp": "image/webp",
+                     ".gif": "image/gif"}.get(p.suffix.lower(), "image/jpeg")
             return self._send_bytes(data, ctype)
         except Exception as e:
             return self._send({"error": str(e)}, 200)
@@ -4279,6 +4509,9 @@ class Handler(BaseHTTPRequestHandler):
         if body.get("stop"):
             _note_batch["stop"] = True
             return self._send({"ok": True, "stopping": True})
+        if body.get("resume_now"):
+            _note_batch["resume_now"] = True
+            return self._send({"ok": True})
         if _note_batch["running"]:
             return self._send({"ok": False, "error": "已经有一批在分析了（%d/%d），等它结束或先点「停止」"
                                                     % (_note_batch["done"], _note_batch["total"])})
@@ -4290,13 +4523,7 @@ class Handler(BaseHTTPRequestHandler):
                 names.append(nm)
         if not names:
             return self._send({"ok": False, "error": "没有可分析的笔记"})
-        _note_batch.update({"running": True, "total": len(names), "done": 0, "ok": 0, "fail": 0,
-                            "current": "", "stop": False, "errors": [], "started": _time_now(), "finished": 0,
-                            "streak": 0, "paused": ""})
-        _clog("视频", "📦 开始批量补分析：%d 条（每条换一张新的 AI 卡）" % len(names))
-        _threading.Thread(target=_note_batch_worker,
-                          args=(names, body.get("use_local", True), body.get("model", "qwen2.5")),
-                          daemon=True, name="note-batch").start()
+        _note_batch_enqueue(names, body.get("use_local", True), body.get("model", "qwen2.5"), "手动批量")
         return self._send({"ok": True, "total": len(names)})
 
     def _handle_video_note_get(self, name):
