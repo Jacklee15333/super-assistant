@@ -122,37 +122,132 @@ def get_lines(since=0, limit=2000):
 
 
 # ════════════════════ 启动时的黑窗口（只在 Windows 上） ════════════════════
+# v56：v55 只对 GetConsoleWindow() 拿到的窗口操作。用户用的是 Windows Terminal（带标签页的那种），
+# 这时拿到的是一个看不见的「替身窗口」，对它最小化没反应。现在改成找到真正显示出来的那个窗口：
+#   ① 替身窗口的「主人」（Windows Terminal 会把自己设成替身窗口的 owner）；
+#   ② 把这个标签页的标题改成一个独一无二的名字，再按标题找窗口；
+#   ③ 老式控制台（conhost）就是 GetConsoleWindow() 本身。
+# 后端如果没挂在黑窗口上，就顺着父进程（powershell / cmd）临时挂过去找。
+CONSOLE_TITLE = "超能小助 · 后台日志（软件左下角「终端」里也能看）"
 
-def _console_hwnd():
-    if sys.platform != "win32":
-        return 0
+
+def _win_api():
+    import ctypes
+    from ctypes import wintypes
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    H = wintypes.HWND
+    kernel32.GetConsoleWindow.restype = H
+    user32.GetWindow.restype = H
+    user32.GetWindow.argtypes = [H, ctypes.c_uint]
+    user32.GetAncestor.restype = H
+    user32.GetAncestor.argtypes = [H, ctypes.c_uint]
+    user32.FindWindowW.restype = H
+    user32.FindWindowW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR]
+    user32.IsWindowVisible.argtypes = [H]
+    user32.IsIconic.argtypes = [H]
+    user32.ShowWindow.argtypes = [H, ctypes.c_int]
+    user32.SetForegroundWindow.argtypes = [H]
+    user32.GetClassNameW.argtypes = [H, wintypes.LPWSTR, ctypes.c_int]
+    kernel32.SetConsoleTitleW.argtypes = [wintypes.LPCWSTR]
+    kernel32.AttachConsole.argtypes = [wintypes.DWORD]
+    return ctypes, user32, kernel32
+
+
+def _class_name(ctypes, user32, h):
+    buf = ctypes.create_unicode_buffer(256)
     try:
-        import ctypes
-        return int(ctypes.windll.kernel32.GetConsoleWindow() or 0)
+        user32.GetClassNameW(h, buf, 256)
     except Exception:
-        return 0
+        return ""
+    return buf.value
+
+
+def _attach_parent_console(kernel32):
+    """后端自己没挂在黑窗口上时：顺着父进程找 powershell / cmd，临时挂到它的黑窗口上。"""
+    try:
+        import psutil
+        p = psutil.Process()
+        for _ in range(8):
+            p = p.parent()
+            if p is None:
+                return False
+            if (p.name() or "").lower() in ("powershell.exe", "pwsh.exe", "cmd.exe"):
+                return bool(kernel32.AttachConsole(p.pid))
+    except Exception:
+        return False
+    return False
+
+
+def _find_console_windows():
+    """返回 (要操作的窗口列表, 说明)。"""
+    import time as _t
+    ctypes, user32, kernel32 = _win_api()
+    hwnd = kernel32.GetConsoleWindow()
+    attached = False
+    if not hwnd and _attach_parent_console(kernel32):
+        attached = True
+        hwnd = kernel32.GetConsoleWindow()
+    if not hwnd:
+        return [], "没有找到启动时的黑窗口（可能不是用 start.bat 启动的）", None
+    cands = []
+
+    def add(h):
+        if h and h not in cands and user32.IsWindowVisible(h):
+            cands.append(h)
+
+    add(user32.GetWindow(hwnd, 4))          # GW_OWNER：Windows Terminal 的真窗口
+    add(user32.GetAncestor(hwnd, 3))        # GA_ROOTOWNER
+    try:
+        kernel32.SetConsoleTitleW(CONSOLE_TITLE)
+        for _ in range(12):                 # Windows Terminal 改标题有一点点延迟
+            h = user32.FindWindowW(None, CONSOLE_TITLE)
+            if h:
+                if h != hwnd:
+                    add(h)
+                break
+            _t.sleep(0.1)
+    except Exception:
+        pass
+    kind = "Windows Terminal" if any(
+        "CASCADIA" in _class_name(ctypes, user32, h).upper() for h in cands) else "控制台"
+    if not cands:
+        cands = [hwnd]                      # 老式控制台：它本身就是真窗口
+    return cands, kind, (kernel32 if attached else None)
 
 
 def console_window(action):
     """action: minimize | show | status。返回 (是否做到, 说明)。"""
-    hwnd = _console_hwnd()
-    if not hwnd:
-        return False, "没有找到启动时的黑窗口（可能不是用 start.bat 启动的）"
-    if action == "status":
-        return True, "找到了黑窗口"
+    if sys.platform != "win32":
+        return False, "不是 Windows，没有黑窗口可控制"
     try:
-        import ctypes
-        user32 = ctypes.windll.user32
+        cands, kind, detach = _find_console_windows()
+    except Exception as e:
+        return False, "找黑窗口出错：%s" % e
+    if not cands:
+        return False, kind
+    try:
+        _ctypes, user32, _k = _win_api()
+        if action == "status":
+            return True, "找到了黑窗口（%s）" % kind
         if action == "minimize":
-            user32.ShowWindow(hwnd, 6)            # SW_MINIMIZE
-            return True, "已把黑窗口最小化（在任务栏里还能点开）"
+            for h in cands:
+                user32.ShowWindow(h, 6)            # SW_MINIMIZE
+            return True, "已把黑窗口最小化（%s，在任务栏里还能点开）" % kind
         if action == "show":
-            user32.ShowWindow(hwnd, 9)            # SW_RESTORE
-            try:
-                user32.SetForegroundWindow(hwnd)
-            except Exception:
-                pass
-            return True, "已显示黑窗口"
+            for h in cands:
+                user32.ShowWindow(h, 9)            # SW_RESTORE
+                try:
+                    user32.SetForegroundWindow(h)
+                except Exception:
+                    pass
+            return True, "已显示黑窗口（%s）" % kind
+        return False, "不认识的操作：%s" % action
     except Exception as e:
         return False, "操作黑窗口失败：%s" % e
-    return False, "不认识的操作：%s" % action
+    finally:
+        if detach is not None:
+            try:
+                detach.FreeConsole()
+            except Exception:
+                pass

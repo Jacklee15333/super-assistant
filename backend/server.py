@@ -2727,7 +2727,10 @@ class Handler(BaseHTTPRequestHandler):
             # v55：启动时的黑窗口：最小化 / 显示
             if _log_capture is None:
                 return self._send({"ok": False, "message": "日志收集没启用"})
-            ok, msg = _log_capture.console_window((body or {}).get("action", "status"))
+            _act = (body or {}).get("action", "status")
+            ok, msg = _log_capture.console_window(_act)
+            if _act != "status":
+                _clog("黑窗口", ("✓ " if ok else "✗ ") + msg)
             return self._send({"ok": ok, "message": msg})
         if path == "/video_note_analyze":
             return self._handle_video_note_analyze(body)
@@ -4465,7 +4468,21 @@ class Handler(BaseHTTPRequestHandler):
                         break
                 if analyzed and any("（分析出错" in ln for ln in lines[:120]):
                     analyzed = False      # 以前 AI 失败时把报错存成了分析：当作未分析，可重新补
-                items.append({"name": p.name, "title": title, "author": author,
+                # v56：提取时间（「最新提取」按它筛）：优先用文件名开头的时间，没有就用文件修改时间
+                _ts = 0
+                _m = re.match(r"(\d{8})-(\d{6})", p.name)
+                if _m:
+                    try:
+                        import datetime as _dt_ts
+                        _ts = _dt_ts.datetime.strptime(_m.group(1) + _m.group(2), "%Y%m%d%H%M%S").timestamp()
+                    except Exception:
+                        _ts = 0
+                if not _ts:
+                    try:
+                        _ts = p.stat().st_mtime
+                    except Exception:
+                        _ts = 0
+                items.append({"name": p.name, "title": title, "author": author, "ts": _ts,
                               "analyzed": analyzed,
                               "folder": mapping.get(p.name, "")})
             # 顺手清理：分组表里指向已删除笔记的残留条目

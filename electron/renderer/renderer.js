@@ -3482,6 +3482,9 @@ async function loadVideoNotes() {
       }
     });
 
+    // v56：置顶的「最新提取」（按提取时间筛选、分页）
+    try { vnRenderRecent(list, notes, folders); } catch (e) { console.error(e); }
+
     // 先渲染各文件夹（可折叠，默认收起，记住展开状态），再渲染未分组的散笔记
     vnRenderBatchBar(list, notes);
 
@@ -9284,3 +9287,162 @@ async function vnLivePoll() {
   }
   _vnLiveTimer = setTimeout(vnLivePoll, open ? 1500 : 4000);
 }
+
+
+// ════════════════════ v56：视频笔记 · 置顶的「最新提取」 ════════════════════
+// 按提取时间筛：最近一天 / 七天 / 1 个月 / 3 个月 / 半年 / 一年；新的在前，每页 50 条。
+const VN_RECENT_RANGES = [
+  ["1d", "最近一天", 1], ["7d", "最近七天", 7], ["30d", "1 个月", 30],
+  ["90d", "3 个月", 90], ["180d", "半年", 182], ["365d", "一年", 365],
+];
+const VN_RECENT_PAGE_SIZE = 50;
+let _vnRecentPage = 1;
+
+function vnRecentPrefs() {
+  const def = { open: true, range: "7d" };
+  try { return Object.assign(def, JSON.parse(localStorage.getItem("vnRecent") || "{}")); } catch (_) { return def; }
+}
+function vnRecentSave(p) { try { localStorage.setItem("vnRecent", JSON.stringify(p)); } catch (_) {} }
+
+// 提取时间（毫秒）：后端给的 ts，没有就从文件名开头的 20260708-095408 解析
+function vnNoteTime(n) {
+  if (n && n.ts) return n.ts * 1000;
+  const m = /^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/.exec((n && n.name) || "");
+  return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime() : 0;
+}
+
+function vnFmtWhen(ms) {
+  const d = new Date(ms), now = new Date();
+  const p2 = (x) => String(x).padStart(2, "0");
+  const hm = p2(d.getHours()) + ":" + p2(d.getMinutes());
+  const day0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  if (ms >= day0) return "今天 " + hm;
+  if (ms >= day0 - 86400000) return "昨天 " + hm;
+  if (d.getFullYear() === now.getFullYear()) return p2(d.getMonth() + 1) + "-" + p2(d.getDate()) + " " + hm;
+  return d.getFullYear() + "-" + p2(d.getMonth() + 1) + "-" + p2(d.getDate());
+}
+
+function vnRenderRecent(list, notes, folders) {
+  const prefs = vnRecentPrefs();
+  const now = Date.now();
+  const timed = (notes || []).map((n) => [vnNoteTime(n), n]).filter((x) => x[0] > 0)
+    .sort((a, b) => b[0] - a[0]);
+  const inRange = (days) => timed.filter((x) => now - x[0] <= days * 86400000);
+
+  const wrap = document.createElement("div");
+  wrap.className = "vn-recent"; wrap.id = "vnRecent";
+  const head = document.createElement("div");
+  head.className = "video-note-item vn-group-head vn-recent-head";
+  head.title = "按提取时间列出最近的视频笔记（点击展开 / 收起）";
+  const caret = document.createElement("span"); caret.className = "vn-caret";
+  const nm = document.createElement("span"); nm.className = "vn-name"; nm.textContent = "最新提取";
+  const pin = document.createElement("span"); pin.className = "vn-recent-pin"; pin.textContent = "置顶";
+  const cnt = document.createElement("span"); cnt.className = "vn-count";
+  head.appendChild(caret); head.appendChild(nm); head.appendChild(pin); head.appendChild(cnt);
+
+  const box = document.createElement("div"); box.className = "vn-recent-box";
+  const chips = document.createElement("div"); chips.className = "vn-recent-ranges";
+  const itemsBox = document.createElement("div"); itemsBox.className = "vn-recent-items";
+  const pager = document.createElement("div"); pager.className = "vn-recent-pager";
+  box.appendChild(chips); box.appendChild(itemsBox); box.appendChild(pager);
+
+  VN_RECENT_RANGES.forEach(([key, label, days]) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "vn-recent-chip"; b.dataset.key = key;
+    b.innerHTML = escapeHtml(label) + "<b>" + inRange(days).length + "</b>";
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      prefs.range = key; _vnRecentPage = 1; vnRecentSave(prefs); draw();
+    });
+    chips.appendChild(b);
+  });
+
+  function pagerBtn(text, page, disabled) {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = text; b.disabled = disabled;
+    b.addEventListener("click", () => {
+      _vnRecentPage = page; draw();
+      head.scrollIntoView({ block: "start", behavior: "smooth" });
+    });
+    return b;
+  }
+
+  function draw() {
+    const r = VN_RECENT_RANGES.find((x) => x[0] === prefs.range) || VN_RECENT_RANGES[1];
+    const sel = inRange(r[2]);
+    cnt.textContent = "（" + r[1] + " " + sel.length + " 条）";
+    chips.querySelectorAll(".vn-recent-chip").forEach((b) => b.classList.toggle("active", b.dataset.key === r[0]));
+    const pages = Math.max(1, Math.ceil(sel.length / VN_RECENT_PAGE_SIZE));
+    if (_vnRecentPage > pages) _vnRecentPage = pages;
+    if (_vnRecentPage < 1) _vnRecentPage = 1;
+    itemsBox.innerHTML = "";
+    if (!sel.length) {
+      const em = document.createElement("div");
+      em.className = "vn-recent-empty";
+      em.textContent = r[1] + "里没有提取过视频，点上面换一个更长的时间看看。";
+      itemsBox.appendChild(em);
+    }
+    const start = (_vnRecentPage - 1) * VN_RECENT_PAGE_SIZE;
+    sel.slice(start, start + VN_RECENT_PAGE_SIZE).forEach(([t, n]) => {
+      const it = makeVideoNoteItem(n, folders);
+      const tm = document.createElement("span");
+      tm.className = "vn-recent-time"; tm.textContent = vnFmtWhen(t);
+      tm.title = "提取时间：" + new Date(t).toLocaleString();
+      it.insertBefore(tm, it.firstChild);
+      itemsBox.appendChild(it);
+    });
+    pager.innerHTML = "";
+    pager.hidden = pages <= 1;
+    if (pages > 1) {
+      const p = _vnRecentPage;
+      pager.appendChild(pagerBtn("首页", 1, p === 1));
+      pager.appendChild(pagerBtn("上一页", p - 1, p === 1));
+      const info = document.createElement("span");
+      info.textContent = "第 " + p + " / " + pages + " 页（共 " + sel.length + " 条，每页 " + VN_RECENT_PAGE_SIZE + " 条）";
+      pager.appendChild(info);
+      pager.appendChild(pagerBtn("下一页", p + 1, p === pages));
+      pager.appendChild(pagerBtn("末页", pages, p === pages));
+    }
+  }
+
+  const applyOpen = (open) => { box.style.display = open ? "" : "none"; caret.textContent = open ? "▾" : "▸"; };
+  applyOpen(prefs.open !== false);
+  head.addEventListener("click", () => {
+    prefs.open = box.style.display === "none";
+    applyOpen(prefs.open); vnRecentSave(prefs);
+  });
+  wrap.appendChild(head); wrap.appendChild(box);
+  list.appendChild(wrap);
+  draw();
+}
+
+// ════════════════════ v56：左侧栏折叠 / 展开 ════════════════════
+// 折叠后只留一列图标（鼠标停在图标上会显示名字），再点一次展开。状态会记住。
+(function initSidebarCollapse() {
+  const btn = document.getElementById("sbCollapseBtn");
+  const app = document.querySelector(".app");
+  if (!btn || !app) return;
+  const apply = (c) => {
+    app.classList.toggle("sb-collapsed", !!c);
+    btn.title = c ? "展开侧栏" : "折叠侧栏";
+    if (c) {
+      document.querySelectorAll(".sidebar .nav-item, .sidebar .nav-action, .sidebar .sb-new").forEach((el) => {
+        if (el.title) return;
+        const sp = el.querySelector("span");
+        if (sp && sp.textContent.trim()) el.title = sp.textContent.trim();
+      });
+    }
+    setTimeout(() => {
+      try { termDrawerPlace(); } catch (e) {}
+      window.dispatchEvent(new Event("resize"));
+    }, 220);
+  };
+  let c = false;
+  try { c = localStorage.getItem("cxSidebarCollapsed") === "1"; } catch (_) {}
+  apply(c);
+  btn.addEventListener("click", () => {
+    const nc = !app.classList.contains("sb-collapsed");
+    apply(nc);
+    try { localStorage.setItem("cxSidebarCollapsed", nc ? "1" : "0"); } catch (_) {}
+  });
+})();

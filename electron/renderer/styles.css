@@ -2245,3 +2245,48 @@ body.lv-standalone .lv-root { height: 100%; }
 .vn-live-zoom { position: fixed; inset: 0; z-index: 9999; background: rgba(0, 0, 0, .75); display: flex;
   align-items: center; justify-content: center; cursor: zoom-out; }
 .vn-live-zoom img { max-width: 94vw; max-height: 92vh; box-shadow: 0 10px 40px rgba(0, 0, 0, .5); border-radius: 6px; background: #fff; }
+
+/* ════════════════ v56：左侧栏折叠 ════════════════ */
+.sidebar { transition: width .18s ease, padding .18s ease; }
+.sb-top .sb-collapse { margin-left: auto; }
+.sb-col-arrow { transition: transform .18s; transform-box: fill-box; transform-origin: center; }
+.app.sb-collapsed .sb-col-arrow { transform: rotate(180deg); }
+.app.sb-collapsed .sidebar { width: 60px; padding: 0 8px; overflow-x: hidden; }
+.app.sb-collapsed .sb-top { justify-content: center; padding: 0; margin: 0 -8px 4px; }
+.app.sb-collapsed .sb-top #appMenuBtn,
+.app.sb-collapsed .sb-top .brand { display: none; }
+.app.sb-collapsed .sb-top .sb-collapse { margin: 0; }
+.app.sb-collapsed .sb-new { justify-content: center; padding: 0; }
+.app.sb-collapsed .sb-new span { display: none; }
+.app.sb-collapsed .nav-group-label { display: none; }
+.app.sb-collapsed .nav-group.collapsed .nav-group-items { display: flex; }
+.app.sb-collapsed .nav-group { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
+.app.sb-collapsed .nav-item,
+.app.sb-collapsed .nav-action { justify-content: center; padding: 0; }
+.app.sb-collapsed .nav-item span,
+.app.sb-collapsed .nav-action span { display: none; }
+.app.sb-collapsed .convo-section { display: none; }
+.app.sb-collapsed .sidebar-foot { flex-direction: column; align-items: center; gap: 2px; }
+
+/* ════════════════ v56：视频笔记 · 置顶的「最新提取」 ════════════════ */
+.vn-recent { margin: 0 0 10px; }
+.vn-recent-pin { flex: 0 0 auto; font-size: 11px; font-weight: 400; color: var(--accent);
+  border: 1px solid var(--accent); border-radius: 8px; padding: 0 6px; line-height: 16px; }
+.vn-recent-box { margin: 4px 0 8px 16px; }
+.vn-recent-ranges { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 8px; }
+.vn-recent-chip { border: 1px solid var(--line-strong); background: transparent; color: var(--text);
+  border-radius: 14px; padding: 3px 11px; font-size: 12px; cursor: pointer; }
+.vn-recent-chip b { font-weight: 500; margin-left: 5px; color: var(--text-dim); }
+.vn-recent-chip:hover { background: var(--bg-hover); }
+.vn-recent-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.vn-recent-chip.active b { color: rgba(255, 255, 255, .85); }
+.vn-recent-time { flex: 0 0 auto; min-width: 84px; font-size: 12px; color: var(--text-dim);
+  font-variant-numeric: tabular-nums; }
+.vn-recent-empty { font-size: 13px; color: var(--text-dim); padding: 10px 12px; }
+.vn-recent-pager { display: flex; align-items: center; justify-content: center; flex-wrap: wrap;
+  gap: 8px; margin: 10px 0 4px; font-size: 12px; color: var(--text-dim); }
+.vn-recent-pager[hidden] { display: none; }
+.vn-recent-pager button { border: 1px solid var(--line-strong); background: transparent; color: var(--text);
+  border-radius: 7px; padding: 3px 10px; font-size: 12px; cursor: pointer; }
+.vn-recent-pager button:hover:not(:disabled) { background: var(--bg-hover); }
+.vn-recent-pager button:disabled { opacity: .4; cursor: default; }
