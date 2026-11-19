@@ -409,6 +409,47 @@ def _looks_hallucinated(t):
     return False
 
 
+def _utterances(audio, loose=False):
+    """v99：按停顿把声音切成一句一句（[开始样本, 结束样本]），每句约 1~8 秒。
+    太碎的（不到 0.8 秒、离下一句又很近）并到一起；超过 8 秒的硬切开。"""
+    from faster_whisper.vad import get_speech_timestamps, VadOptions
+    opts = VadOptions(threshold=0.15 if loose else 0.25, min_speech_duration_ms=200, max_speech_duration_s=8,
+                      min_silence_duration_ms=300, speech_pad_ms=150)
+    out = []
+    for t in get_speech_timestamps(audio, vad_options=opts, sampling_rate=_SR):
+        a, b = int(t["start"]), int(t["end"])
+        if out:
+            pa, pb = out[-1]
+            short = (pb - pa) < 0.8 * _SR or (b - a) < 0.8 * _SR
+            if short and (a - pb) < 0.4 * _SR and (b - pa) <= 8 * _SR:
+                out[-1][1] = b
+                continue
+        out.append([a, b])
+    return out
+
+
+def _anime_segments(model, audio, loose=False):
+    """v99：Anime-Whisper 是拿一句一句的配音训练的，不给细的时间点。
+    所以先按停顿切成一句一句，每句单独交给它听：字幕时间就是这句话真正的开始 / 结束（对得上画面），
+    而且这正是它最擅长的用法，认得也更准。逐句产出（start/end 相对于 audio）。"""
+    from types import SimpleNamespace as _NS
+    for a, b in _utterances(audio, loose):
+        _check_cancel()
+        clip = audio[a:b]
+        if len(clip) < int(0.25 * _SR):
+            continue
+        res, _inf = model.transcribe(clip, language="ja", vad_filter=False, without_timestamps=True,
+                                     condition_on_previous_text=False, initial_prompt=None, beam_size=5,
+                                     repetition_penalty=1.1, no_repeat_ngram_size=10)
+        res = list(res)
+        text = "".join((r.text or "").strip() for r in res).strip()
+        if not text or _looks_hallucinated(text):
+            continue
+        yield _NS(start=a / _SR, end=b / _SR, text=text,
+                  no_speech_prob=max([getattr(r, "no_speech_prob", 0) or 0 for r in res] or [0]),
+                  avg_logprob=min([getattr(r, "avg_logprob", 0) or 0 for r in res] or [0]))
+
+
 def _fill_gaps(model, full, total, seg_list, progress_cb=None):
     """v87：主识别跑完后，找「明显漏掉的大段」再补识别一次（不跳静音）。
     漏掉的情况：结尾还剩 6 秒以上没字、或者两句之间空了 12 秒以上。
@@ -438,7 +479,10 @@ def _fill_gaps(model, full, total, seg_list, progress_cb=None):
         if len(clip) < _SR:          # 不到 1 秒
             continue
         try:
-            res, _inf = model.transcribe(clip, language=_whisper_lang(), vad_filter=False,
+            if _LANG.get("noprompt"):                  # v99：Anime-Whisper 补听也一句一句来（时间对得上）
+                res = _anime_segments(model, clip, loose=True)
+            else:
+              res, _inf = model.transcribe(clip, language=_whisper_lang(), vad_filter=False,
                                          condition_on_previous_text=False,
                                          initial_prompt=_lang_prompt())
             for sg in res:
@@ -1724,10 +1768,17 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
         # 不给提示、不拿上一段当提示，并且压住「同一句反复刷」的毛病
         _kw.update(chunk_length=10, condition_on_previous_text=False, without_timestamps=True,
                    repetition_penalty=1.1, no_repeat_ngram_size=10)
-    segments, info = model.transcribe(
-        audio_input, language=_whisper_lang(), vad_filter=True,
-        initial_prompt=_lang_prompt(),                  # v87：带标点、简体；v95：按选的语言
-        vad_parameters=_vad, **_kw)
+    if MODEL_MAP.get(level) == "anime" and not isinstance(audio_input, str):
+        # v99：先按停顿切成一句一句，再一句一句听——字幕时间对得上
+        from types import SimpleNamespace as _NS
+        if progress_cb:
+            progress_cb("语音转文字", "Anime-Whisper：先按停顿把声音切成一句一句，再一句一句听（字幕时间对得上）…")
+        segments, info = _anime_segments(model, audio_input), _NS(duration=len(audio_input) / _SR)
+    else:
+        segments, info = model.transcribe(
+            audio_input, language=_whisper_lang(), vad_filter=True,
+            initial_prompt=_lang_prompt(),                  # v87：带标点、简体；v95：按选的语言
+            vad_parameters=_vad, **_kw)
     # ── 进度分母 total：优先用我们自己解码出来的真实音频秒数（最准），
     #    没有再退回 whisper 报告的 duration。这一份是「整段」时长，和下面
     #    加了 offset 的 seg_end 同基准，百分比才不会偏。
