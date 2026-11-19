@@ -410,6 +410,46 @@ def _looks_hallucinated(t):
     return False
 
 
+def _word_ts_on():
+    """v103：外语（日语、英语…）用逐字时间做字幕；中文暂时保持原样。"""
+    return _LANG["v"] != "zh"
+
+
+def _cues_from_words(words, offset=0.0):
+    """v103：用每个字 / 词的开始、结束时间切字幕条：
+    停顿超过 0.6 秒、一句话说完（。！？）、一条太长（7 秒 / 32 个字）就另起一条。
+    每条的时间 = 第一个字开始 ~ 最后一个字结束，字幕跟着嘴型走。返回 [{start, end, text}]，没有字返回 None。"""
+    ws = [w for w in (words or []) if (getattr(w, "word", "") or "").strip()]
+    if not ws:
+        return None
+    cues, cur = [], []
+
+    def flush():
+        txt = "".join(w.word for w in cur).strip()
+        if txt:
+            cues.append({"start": round(float(cur[0].start) + offset, 2),
+                         "end": round(float(cur[-1].end) + offset, 2), "text": txt})
+
+    for w in ws:
+        if cur:
+            gap = float(w.start) - float(cur[-1].end)
+            dur = float(w.end) - float(cur[0].start)
+            ln = len("".join(x.word for x in cur).strip())
+            last = cur[-1].word.strip()[-1:]
+            if (gap > 0.6 or dur > 7 or ln >= 32 or (ln >= 18 and last in "、，,…")
+                    or (ln >= 4 and last in "。！？!?")):
+                flush()
+                cur = []
+        cur.append(w)
+    if cur:
+        flush()
+    for i, c in enumerate(cues):                     # 太短的显示不过来：至少 0.5 秒（别盖住下一条）
+        if c["end"] - c["start"] < 0.5:
+            nxt = cues[i + 1]["start"] if i + 1 < len(cues) else c["start"] + 0.5
+            c["end"] = round(max(c["end"], min(c["start"] + 0.5, nxt)), 2)
+    return cues
+
+
 def _utterances(audio, loose=False):
     """v99：按停顿把声音切成一句一句（[开始样本, 结束样本]），每句约 1~8 秒。
     太碎的（不到 0.8 秒、离下一句又很近）并到一起；超过 8 秒的硬切开。"""
@@ -496,7 +536,8 @@ def _fill_uncovered(model, full, seg_list, progress_cb=None):
         if len(clip) < int(0.3 * _SR):
             continue
         try:
-            res, _inf = model.transcribe(clip, language=_whisper_lang(), vad_filter=False, without_timestamps=True,
+            res, _inf = model.transcribe(clip, language=_whisper_lang(), vad_filter=False,
+                                         without_timestamps=not _word_ts_on(), word_timestamps=_word_ts_on(),
                                          condition_on_previous_text=False, initial_prompt=_lang_prompt(), beam_size=5)
             res = list(res)
         except ExtractCancelled:
@@ -517,7 +558,12 @@ def _fill_uncovered(model, full, seg_list, progress_cb=None):
                        if float(x.get("end") or 0) >= a - 3 and float(x.get("start") or 0) <= b + 3)
         if len(t) >= 4 and t.strip("。、！？…") in near:   # 旁边已经认出来了，不重复
             continue
-        got.append({"start": round(a, 2), "end": round(b, 2), "text": t})
+        ws = [w for r in res for w in (getattr(r, "words", None) or [])]
+        cues = _cues_from_words(ws, a0) if ws else None
+        if cues:                                       # v103：按逐字时间收紧（可能拆成几条）
+            got.extend(cues)
+        else:
+            got.append({"start": round(a, 2), "end": round(b, 2), "text": t})
         if progress_cb and (i + 1) % 5 == 0:
             progress_cb("检查漏听", "已核对 %d / %d 处，补回 %d 句…" % (i + 1, len(merged), len(got)))
     return got
@@ -556,7 +602,7 @@ def _fill_gaps(model, full, total, seg_list, progress_cb=None):
                 res = _anime_segments(model, clip, loose=True)
             else:
               res, _inf = model.transcribe(clip, language=_whisper_lang(), vad_filter=False,
-                                         condition_on_previous_text=False,
+                                         condition_on_previous_text=False, word_timestamps=_word_ts_on(),
                                          initial_prompt=_lang_prompt())
             for sg in res:
                 t = (sg.text or "").strip()
@@ -565,8 +611,12 @@ def _fill_gaps(model, full, total, seg_list, progress_cb=None):
                 _ns, _lp = (0.8, -1.3) if _ja_mode() else (0.6, -1.0)       # v97：日语模式小声的也收
                 if (getattr(sg, "no_speech_prob", 0) or 0) > _ns or (getattr(sg, "avg_logprob", 0) or 0) < _lp:
                     continue
-                got.append({"start": round(a0 + float(sg.start or 0), 2),
-                            "end": round(a0 + float(sg.end or 0), 2), "text": t})
+                cues = _cues_from_words(getattr(sg, "words", None), a0) if _word_ts_on() else None
+                if cues:                               # v103：逐字时间
+                    got.extend(cues)
+                else:
+                    got.append({"start": round(a0 + float(sg.start or 0), 2),
+                                "end": round(a0 + float(sg.end or 0), 2), "text": t})
         except ExtractCancelled:
             raise
         except Exception as e:
@@ -1850,6 +1900,8 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
     if MODEL_MAP.get(level, "").startswith("kotoba"):
         # kotoba-whisper 官方建议：按 15 秒一段听，不拿上一段的结果当提示（减少「复读」和编造）
         _kw.update(chunk_length=15, condition_on_previous_text=False)
+    if _word_ts_on() and MODEL_MAP.get(level) != "anime":
+        _kw["word_timestamps"] = True                # v103：逐字时间——字幕和画面对得上
     elif MODEL_MAP.get(level) == "anime":
         # v98：Anime-Whisper 是拿一句一句的短配音训练的：按 10 秒一段听、不带时间戳（每段一句）、
         # 不给提示、不拿上一段当提示，并且压住「同一句反复刷」的毛病
@@ -1905,11 +1957,16 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
         if t:
             parts.append(t)
             # 记录带时间戳的分段（截图/跳转原片要用）；时间戳已整体加 offset，连续不串
-            seg_list.append({
-                "start": round(float(seg_start), 2),
-                "end": round(float(seg_end), 2),
-                "text": t,
-            })
+            cues = _cues_from_words(getattr(seg, "words", None), offset) if _word_ts_on() else None
+            if cues:                                   # v103：按逐字时间拆成一条一条字幕
+                seg_list.extend(cues)
+                seg_end = max(seg_end, cues[-1]["end"])
+            else:
+                seg_list.append({
+                    "start": round(float(seg_start), 2),
+                    "end": round(float(seg_end), 2),
+                    "text": t,
+                })
         if seg_end > last_end:
             last_end = seg_end
         n += 1
