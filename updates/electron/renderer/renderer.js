@@ -10791,6 +10791,7 @@ function vMakeCollapsible(card, key) {
   card.addEventListener("click", (e) => {           // 收起时点卡片任何地方都能展开
     if (card.classList.contains("v-collapsed") && !e.target.closest(".v-card-head")) set(false);
   });
+  card._vSetCollapsed = set;                       // v75：别处要打开它时用（比如点了博主头像）
   let c = false;
   try { c = localStorage.getItem(key) === "1"; } catch (_) {}
   set(c);
@@ -10852,6 +10853,7 @@ function snProgressCard(title, els) {
       stack.append(left, prog, right);
       cg.replaceWith(stack);
       vMakeCollapsible(left, "snCreatorsCollapsed");
+      vMakeCollapsible(right, "snCreatorsNewCollapsed");     // v75：「新视频」也能收起
     }
     // ── 网站新动态 ──
     const wp = document.querySelector('#view-sniff .sn-tabpane[data-pane="web"]');
@@ -10879,6 +10881,7 @@ function snProgressCard(title, els) {
       wg.replaceWith(stack);
       vMakeCollapsible(start, "snWebStartCollapsed");
       vMakeCollapsible(srcCard, "snWebSrcCollapsed");
+      vMakeCollapsible(feedCard, "snWebFeedCollapsed");      // v75：「新动向」也能收起
     }
   } catch (e) {
     console.warn("嗅探页换新结构没成功，保留原来的样子：", e);
@@ -10998,7 +11001,7 @@ renderCreators = function (list) {
     _cwTilesMark();
     // 有博主还没头像：后台在取，过一会儿再刷新一次列表把头像换上（最多 3 次）
     if (_cwViewMode === "avatar" && _cwAvRetry < 3 &&
-        _cwLastList.some((c) => !c.avatar && ["youtube", "douyin", "bilibili"].includes(c.platform))) {
+        _cwLastList.some((c) => !c.avatar && ["youtube", "douyin", "bilibili", "x"].includes(c.platform))) {
       _cwAvRetry++;
       setTimeout(() => { try { loadCreators(); } catch (_) {} }, 45000);
     }
@@ -11059,3 +11062,12 @@ function _cwSortBar() {
   bar.hidden = !(_cwVideos || []).length;
 }
 
+// v75：点博主（头像或列表里的）看他的视频时，「新视频」卡片收起着就先展开，不然看不到
+var _cwOpenCreatorVideosOrig = openCreatorVideos;
+openCreatorVideos = function (cid, title) {
+  try {
+    const card = document.getElementById("cwVideoView")?.closest(".v-collapsible");
+    if (card && card.classList.contains("v-collapsed") && card._vSetCollapsed) card._vSetCollapsed(false);
+  } catch (_) {}
+  return _cwOpenCreatorVideosOrig(cid, title);
+};

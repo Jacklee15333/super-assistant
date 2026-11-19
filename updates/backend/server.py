@@ -959,9 +959,11 @@ def _vn_src_noun_of_file(name):
     return None
 
 
-# ════════════════ v74：嗅探的博主头像 ════════════════
-# 和视频页的「博主资料」共用（按名字）：已经有头像的直接用；没有的在后台去主页取（YouTube / 抖音 / B站），
-# 一次一个、慢慢来；6 小时内不重复试。已经绑过主页、手动解除过的不碰。
+# ════════════════ v74 / v75：嗅探的博主头像 ════════════════
+# 和视频页的「博主资料」共用（按名字）：已经有头像的直接用；没有的在后台一个一个去取：
+#   · X：用你存的 X Cookie 问 X 要头像（和扫推文同一个接口），不行再用公开服务；
+#   · YouTube / 抖音 / B站：链接是主页就按主页取；不是主页（比如 YouTube 搜索链接）或者主页取不到，
+#     就从他的视频找到主页再取。取不到的在终端里写明原因，30 分钟后再试。用户手动解除过的不碰。
 _cw_av = {"running": False, "tried": {}}
 
 
@@ -981,29 +983,105 @@ def _cw_attach_avatars(creators):
                 c["avatar"] = {"key": key, "v": int(fp.stat().st_mtime)}
             except Exception:
                 pass
-        elif (key and (c.get("url") or "").startswith("http") and c.get("platform") in ("youtube", "douyin", "bilibili")
-              and not p.get("url") and not p.get("no_auto") and now - _cw_av["tried"].get(c.get("id"), 0) > 6 * 3600):
-            todo.append((c.get("id"), key, c.get("url")))
+        elif (key and c.get("platform") in ("youtube", "douyin", "bilibili", "x") and not p.get("no_auto")
+              and now - _cw_av["tried"].get(c.get("id"), 0) > 1800):
+            todo.append(dict(c))
     if todo and not _cw_av["running"]:
         _cw_av["running"] = True
         _threading.Thread(target=_cw_fill_avatars, args=(todo,), daemon=True).start()
 
 
+def _cw_video_urls(cw, cid, limit=3):
+    urls = []
+    try:
+        for v in ((cw.get_cached_videos(cid) or {}).get("videos") or []):
+            u = (v.get("url") or "").strip()
+            if u.startswith("http") and u not in urls:
+                urls.append(u)
+    except Exception:
+        pass
+    try:
+        for f in (cw.get_findings() or []):
+            if str(f.get("creator_id")) == str(cid):
+                u = (f.get("url") or "").strip()
+                if u.startswith("http") and u not in urls:
+                    urls.append(u)
+    except Exception:
+        pass
+    return urls[:limit]
+
+
+def _cw_one_avatar(_cpf, cw, c):
+    """给一个博主取头像。返回 (怎么取到的, 没取到的原因)。"""
+    key, url, plat = (c.get("title") or "").strip(), (c.get("url") or "").strip(), c.get("platform")
+    has = lambda: bool(_cpf._avatar_file(_cpf.profile_state(key)))
+    errs = []
+    if plat == "x":
+        try:
+            import x_watch
+            import base64
+            img = x_watch.user_avatar(url)
+            data = _cpf._download_avatar(img, "x") if img else b""
+            if data:
+                ok, msg = _cpf.set_avatar_data(key, "data:image/jpeg;base64," + base64.b64encode(data).decode())
+                if ok and has():
+                    return "X 头像", ""
+                errs.append(str(msg)[:80])
+            else:
+                errs.append("X 没给头像（X 的 Cookie 过期了的话，在嗅探页重新粘一次 Cookie）")
+        except Exception as e:
+            errs.append(str(e)[:80])
+        return "", "；".join(errs)
+    p = _cpf.profile_state(key)
+    is_home = plat in ("douyin", "bilibili") or bool(re.search(r"youtube\.com/(@|channel/|c/|user/)", url))
+    if is_home and not p.get("url"):
+        try:
+            ok, info = _cpf.bind(key, url)[:2]
+            if has():
+                return "主页", ""
+            errs.append("主页：" + (str(info)[:60] if not ok else "主页上没找到头像"))
+        except Exception as e:
+            errs.append("主页：" + str(e)[:60])
+    vurls = _cw_video_urls(cw, c.get("id"), limit=8)
+    # YouTube 搜索链接列出来的东西里，常常第一条就是他的频道本身 → 直接当主页用（最准）
+    chans = [u for u in vurls if re.search(r"youtube\.com/(@|channel/|c/|user/)", u)]
+    if plat == "youtube" and chans and not _cpf.profile_state(key).get("url"):
+        try:
+            ok, info = _cpf.bind(key, chans[0])[:2]
+            if has():
+                return "他的频道", ""
+            errs.append("频道：" + (str(info)[:60] if not ok else "频道页上没找到头像"))
+        except Exception as e:
+            errs.append("频道：" + str(e)[:60])
+    vurls = [u for u in vurls if u not in chans][:3]
+    if vurls:
+        try:
+            ok, info, _k = _cpf.auto_bind_from_videos(key, vurls, force=True)
+            if has():
+                return "从他的视频找到主页", ""
+            errs.append("视频：" + str(info)[:80])
+        except Exception as e:
+            errs.append("视频：" + str(e)[:60])
+    elif not is_home:
+        errs.append("链接不是主页，也还没有他的视频（先扫一遍）")
+    return "", "；".join(errs) or "没取到"
+
+
 def _cw_fill_avatars(todo):
     try:
         import creator_profiles as _cpf
-        got = 0
-        for cid, key, url in todo:
-            _cw_av["tried"][cid] = _time_now()
+        import creator_watch as _cw
+        for c in todo:
+            _cw_av["tried"][c.get("id")] = _time_now()
             try:
-                ok, info = _cpf.bind(key, url)[:2]
-                if ok and isinstance(info, dict) and info.get("has_avatar", True):
-                    got += 1
-            except Exception:
-                pass
+                how, why = _cw_one_avatar(_cpf, _cw, c)
+            except Exception as e:
+                how, why = "", str(e)[:80]
+            if how:
+                _clog("嗅探", "✓ 给「%s」取到了头像（%s）" % (c.get("title"), how))
+            else:
+                _clog("嗅探", "✗「%s」的头像没取到：%s（30 分钟后再试）" % (c.get("title"), why))
             _time_log.sleep(1.5)
-        if got:
-            _clog("嗅探", "给 %d 个博主取到了头像" % got)
     finally:
         _cw_av["running"] = False
 
