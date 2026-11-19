@@ -969,6 +969,7 @@ def scan_one(cid):
                     "title": v.get("title") or "", "when": v.get("when") or "",
                     "uploader": v.get("uploader") or "",
                     "text": v.get("text") or "",   # X 推文全文（视频平台为空）
+                    "x": v.get("x") or None,        # v94：转发原帖 / 引用 / 链接（拆「博主原话 + 链接原文」用）
                     "found_at": _now_iso(),
                 })
                 new_count += 1
@@ -1127,7 +1128,8 @@ def get_finding_meta(creator_id=None, vid=None, url="", store=None):
         t = f.get("title") or ""
         return {"text": f.get("text") or "", "platform": f.get("platform") or "",
                 "uploader": f.get("uploader") or "", "title": t,
-                "title_zh": f.get("title_zh") or (zh_map.get(t) if isinstance(zh_map, dict) else "") or ""}
+                "title_zh": f.get("title_zh") or (zh_map.get(t) if isinstance(zh_map, dict) else "") or "",
+                "x": f.get("x")}
     for f in store.get("findings", []):
         if vid is not None and f.get("vid") == vid and (
                 creator_id is None or f.get("creator_id") == creator_id):

@@ -184,7 +184,7 @@ def _resolve_model(size):
     return size
 
 
-def _compose_from_segments(seg_list):
+def _compose_from_segments(seg_list, lang=None):
     """v88/v89：用带时间的分句拼原文——不用 AI，一定成功。
     · 句子之间按停顿补标点：停顿比这个人平时的停顿明显长 → 句号；短 → 逗号；
       一句已经很长了也会断成句号（语速快、几乎不停顿的人也不会一逗到底）；结尾是「吗」→ 问号；
@@ -213,29 +213,35 @@ def _compose_from_segments(seg_list):
             sg["end"] = float(sg["end"])
         except Exception:
             sg["end"] = st0
+    L = lang or _LANG["v"]                      # v95：日语用「、。」，英语等用「, .」和空格
+    cjk = L in ("zh", "ja", "yue", "auto")
+    comma = "、" if L == "ja" else ("，" if cjk else ",")
+    stop = "。" if cjk else "."
+    sep = "" if cjk else " "
+    k = 1 if cjk else 2.6                       # 拼音文字一句话字母多，长度门槛放宽
     gaps = [max(0.0, segs[i + 1]["start"] - segs[i]["end"]) for i in range(len(segs) - 1)]
     srt = sorted(gaps) or [0.0]
     pick = lambda q: srt[min(len(srt) - 1, int(len(srt) * q))]
     g_sent = max(0.3, pick(0.6))        # 比这个人六成的停顿都长 → 句号
     g_para = max(0.8, pick(0.85))       # 比八成五的停顿都长 → 可以分段
-    ends = "。！？!?…；;，,、：:"
+    ends = "。！？!?…；;，,、：:."
     paras, cur, sent = [], "", 0
     for i, sg in enumerate(segs):
         t = sg["text"]
         last = i == len(segs) - 1
         gap = 9.9 if last else gaps[i]
         sent += len(t)
-        if t[-1] not in ends and t.endswith(("吗", "吗啊")):
+        if t[-1] not in ends and L == "zh" and t.endswith(("吗", "吗啊")):
             t += "？"
         elif t[-1] not in ends:
-            if last or gap >= g_sent or sent >= 60 or (sent >= 36 and gap >= pick(0.4)):
-                t += "？" if t.endswith(("吗", "吗啊", "么")) else "。"
+            if last or gap >= g_sent or sent >= 60 * k or (sent >= 36 * k and gap >= pick(0.4)):
+                t += "？" if (L == "zh" and t.endswith(("吗", "吗啊", "么"))) else stop
             else:
-                t += "，"
-        if t[-1] in "。！？!?…":
+                t += comma
+        if t[-1] in "。！？!?….":
             sent = 0
-        cur += t
-        if last or (t[-1] in "。！？!?…" and ((len(cur) >= 120 and gap >= g_para) or len(cur) >= 220)):
+        cur += (sep if cur else "") + t
+        if last or (t[-1] in "。！？!?…." and ((len(cur) >= 120 * k and gap >= g_para) or len(cur) >= 220 * k)):
             paras.append(cur)
             cur = ""
     if cur:
@@ -317,6 +323,33 @@ MODEL_MAP = {
 # v87：给 whisper 的开头提示——让它输出标点、用简体字（不影响内容，只影响格式）
 _ZH_PROMPT = "以下是普通话的句子，有标点符号。"
 
+# v95：视频里说的是什么话。同一时间只有一个提取在跑（extract_gate），所以用一个「当前任务的语言」就够了
+LANGS = {
+    "zh": ("中文", _ZH_PROMPT),
+    "ja": ("日语", "以下は日本語の会話です。句読点を付けて書きます。"),
+    "en": ("英语", "Hello, welcome. This is an English transcript, with punctuation."),
+    "ko": ("韩语", "다음은 한국어 대화입니다. 문장 부호를 붙여 씁니다."),
+    "yue": ("粤语", "以下係廣東話嘅句子，有標點符號。"),
+    "auto": ("自动识别", None),
+}
+_LANG = {"v": "zh"}
+
+
+def lang_label(code):
+    return LANGS.get(code or "zh", ("中文", None))[0]
+
+
+def _set_lang(lang):
+    _LANG["v"] = lang if lang in LANGS else "zh"
+
+
+def _whisper_lang():
+    return None if _LANG["v"] == "auto" else _LANG["v"]
+
+
+def _lang_prompt():
+    return LANGS.get(_LANG["v"], LANGS["zh"])[1]
+
 # v87：whisper 在没人说话 / 只有音乐的地方常会「编」出来的话，补漏时一律丢掉
 _HALLU = ("请不吝点赞", "订阅转发", "打赏支持", "明镜与点点", "Amara.org", "字幕由", "字幕提供",
           "谢谢观看", "感谢观看", "優優獨播", "优优独播", "YoYo", "中文字幕", "请订阅", "欢迎订阅",
@@ -363,9 +396,9 @@ def _fill_gaps(model, full, total, seg_list, progress_cb=None):
         if len(clip) < _SR:          # 不到 1 秒
             continue
         try:
-            res, _inf = model.transcribe(clip, language="zh", vad_filter=False,
+            res, _inf = model.transcribe(clip, language=_whisper_lang(), vad_filter=False,
                                          condition_on_previous_text=False,
-                                         initial_prompt=_ZH_PROMPT)
+                                         initial_prompt=_lang_prompt())
             for sg in res:
                 t = (sg.text or "").strip()
                 if _looks_hallucinated(t):
@@ -1577,7 +1610,7 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
     if job_dir is not None:
         prog = _load_progress(job_dir)
         # 只有同一个模型档位的半成品才接着用；档位变了就从头转（音频仍复用、不重下）
-        if prog and prog.get("level") == level:
+        if prog and prog.get("level") == level and (prog.get("lang") or "zh") == _LANG["v"]:   # v95：换了语言就重新听
             parts = list(prog.get("parts") or [])
             seg_list = list(prog.get("segments") or [])
             try:
@@ -1630,8 +1663,8 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
     # 的位置，导致进度百分比相对真实音频忽快忽慢。这里把静音判定阈值调大一点
     # （只把较长的停顿当静音切掉），减少碎片化、让进度更线性，也略微提速。
     segments, info = model.transcribe(
-        audio_input, language="zh", vad_filter=True,
-        initial_prompt=_ZH_PROMPT,                      # v87：带标点、简体
+        audio_input, language=_whisper_lang(), vad_filter=True,
+        initial_prompt=_lang_prompt(),                  # v87：带标点、简体；v95：按选的语言
         vad_parameters={"min_silence_duration_ms": 800,
                         "speech_pad_ms": 200})
     # ── 进度分母 total：优先用我们自己解码出来的真实音频秒数（最准），
@@ -1659,7 +1692,7 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
         # 续传切片场景 new_last_end 本就 ≥ old_end；从头重转时只有追上才覆盖
         if new_last_end + 0.01 >= old_end:
             _save_progress(job_dir, {
-                "url": None, "level": level, "total": total,
+                "url": None, "level": level, "lang": _LANG["v"], "total": total,
                 "last_end": new_last_end, "parts": new_parts,
                 "segments": new_seg_list})
 
@@ -1725,7 +1758,7 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
     # 是最靠后的进度，直接写完整结果（不走保护，确保最终文字稿完整落盘）。
     if job_dir is not None and can_resume:
         _save_progress(job_dir, {
-            "url": None, "level": level, "total": total,
+            "url": None, "level": level, "lang": _LANG["v"], "total": total,
             "last_end": total or last_end, "parts": parts,
             "segments": seg_list})
     raw = "".join(parts).strip()
@@ -1752,7 +1785,7 @@ def _video_file_dir(url):
     return d
 
 
-def extract(url, level="balanced", progress_cb=None, need_video=False, mode="auto"):
+def extract(url, level="balanced", progress_cb=None, need_video=False, mode="auto", lang="zh"):
     """
     主流程：解析链接 -> 下载音频 -> 语音识别 -> 返回文字稿。
     progress_cb(stage, detail) 用来实时报告"现在在干什么"。
@@ -1766,6 +1799,7 @@ def extract(url, level="balanced", progress_cb=None, need_video=False, mode="aut
       · "subtitle_only" —— 优先字幕；万一拿不到，仍回退听写保证有结果；
       · "transcribe"    —— 跳过字幕，直接下视频听写（字幕可能不全/有错时更准更全）。
     """
+    _set_lang(lang)                     # v95：这次视频说的是什么话
     def step(s, d=""):
         if progress_cb:
             progress_cb(s, d)
@@ -1994,13 +2028,14 @@ def check_deps_local():
     return missing
 
 
-def extract_local(file_path, level="balanced", progress_cb=None):
+def extract_local(file_path, level="balanced", progress_cb=None, lang="zh"):
     """把本地音/视频文件直接听写成文字稿。
     跳过链接解析与下载，直接走 faster-whisper。
 
     返回结构与 extract() 完全一致（ok/title/uploader/url/transcript/segments/source…），
     这样上层 worker 的后续处理（AI 分析、存笔记、插图）可以原样复用。
     标题默认用文件名（不含扩展名），交给 AI 分析时若识别出更好的标题会覆盖。"""
+    _set_lang(lang)                     # v95：这次视频说的是什么话
     def step(s, d=""):
         if progress_cb:
             progress_cb(s, d)

@@ -306,8 +306,17 @@ def _walk_tweets(data):
             except Exception:
                 pass
             if tid and text:
-                out.append({"id": str(tid), "text": text, "when": when, "name": uname})
+                out.append({"id": str(tid), "text": text, "when": when, "name": uname, "x": _snap(tr)})
     return out
+
+
+def _snap(t):
+    """v94：转发的原帖全文、引用的帖子、链接的真实地址——存下来，提取时拆成「博主原话 + 链接原文」"""
+    try:
+        import tweet_parts
+        return tweet_parts.snapshot(t)
+    except Exception:
+        return None
 
 
 def _clean_tweet_title(text):
@@ -443,7 +452,7 @@ def _parse_syndication_json(data):
                 name = u.get("name") or ""
             if tid and text:
                 tweets.append({"id": tid, "text": text, "when": when,
-                               "name": (u.get("name") or "")})
+                               "name": (u.get("name") or ""), "x": _snap(tw)})
     except Exception:
         pass
     return tweets, name
@@ -526,6 +535,7 @@ def list_recent(url, limit=20):
             "text": t.get("text") or "",
             "when": t.get("when") or "",
             "uploader": t.get("name") or name,
+            "x": t.get("x"),
         })
     return {"name": name, "videos": videos, "total": len(videos),
             "error": _last_error}

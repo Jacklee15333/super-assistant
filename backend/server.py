@@ -80,7 +80,7 @@ def _clog(tag, msg):
 # 这些接口是前端**定时高频轮询**或页面加载时被动拉取的（查状态/进度/列表/配置），
 # 一旦打印就会把控制台刷爆、淹没真正有用的操作日志，所以一律静音、不记。
 _LOG_QUIET_PATHS = {
-    "/ping", "/video_failed", "/video_note_tidy_status", "/phone_inbox/status", "/feishu_inbox/status", "/feishu_inbox/alive", "/feishu_inbox/incoming", "/video_progress", "/video_health", "/video_deps", "/video_notes", "/creator_profiles_batch", "/creator/avatars_status", "/creator/discover",
+    "/ping", "/video_note_subs", "/x_note_rebuild_status", "/video_failed", "/video_note_tidy_status", "/phone_inbox/status", "/feishu_inbox/status", "/feishu_inbox/alive", "/feishu_inbox/incoming", "/video_progress", "/video_health", "/video_deps", "/video_notes", "/creator_profiles_batch", "/creator/avatars_status", "/creator/discover",
     "/video_note_analyze_progress", "/sniff/feed", "/sniff/discover", "/video_note_analyze_batch",
     "/chat_progress", "/heartbeat/status", "/lumi/status", "/lumi/evolve_status",
     "/web_model/state", "/web_model/config", "/loop/status", "/insight/status",
@@ -1852,7 +1852,7 @@ _VIDEO_STUCK_SEC = 600            # v90：一条任务这么久（秒）没有�
 # 「已存的视频笔记」上面会显示「提取失败（N）」，每条可以「重新提取」或删掉。
 # 同一个链接只记一条（再失败就更新原因和次数）；以后提取成功了自动从清单里拿掉。
 _vf_lock = _threading.Lock()
-_VF_KEEP = ("url", "local_path", "title", "level", "mode", "use_local", "model", "screenshot", "link",
+_VF_KEEP = ("url", "local_path", "title", "level", "lang", "mode", "use_local", "model", "screenshot", "link",
             "analyze", "author", "note_folder", "creator_url")
 
 
@@ -2129,14 +2129,15 @@ def _video_worker():
             elif local_path:
                 # 本地文件任务：跳过链接解析与下载，直接听写本地文件
                 res = video_transcribe.extract_local(
-                    local_path, level=job["level"], progress_cb=cb)
+                    local_path, level=job["level"], progress_cb=cb, lang=job.get("lang") or "zh")
             elif _dimp is not None and _dimp.article_url(job["url"]):
                 # v65：不是视频网站的链接 → 先当文章读；读不到正文，再当视频试一次（和以前一样）
                 res = _dimp.extract_url(job["url"], progress_cb=cb)
                 if (not res.get("ok")) and res.get("try_video") and not _video_cancel.get("all"):
                     cb("解析链接", "没读到文章正文，试试当视频提取…")
                     _r2 = video_transcribe.extract(job["url"], level=job["level"], progress_cb=cb,
-                                                   need_video=do_screenshot, mode=sub_mode)
+                                                   need_video=do_screenshot, mode=sub_mode,
+                                                   lang=job.get("lang") or "zh")
                     if isinstance(_r2, dict) and (_r2.get("ok") or _r2.get("cancelled")):
                         res = _r2
                     else:
@@ -2146,7 +2147,7 @@ def _video_worker():
                 res = video_transcribe.extract(job["url"], level=job["level"],
                                                progress_cb=cb,
                                                need_video=do_screenshot,
-                                               mode=sub_mode)
+                                               mode=sub_mode, lang=job.get("lang") or "zh")
             if isinstance(res, dict) and res.get("source") in ("doc", "article"):
                 do_screenshot = do_link = False      # v65：文档 / 文章没有画面，也没有时间轴
                 if res.get("ok"):
@@ -2161,7 +2162,7 @@ def _video_worker():
                     and res.get("source") not in ("doc", "article") and not _video_cancel.get("all")):
                 try:
                     import transcript_tidy as _tt
-                    if _tt.auto_on() and len(_tt._bare(res["transcript"])) >= 60:
+                    if _tt.auto_on() and (job.get("lang") or "zh") == "zh" and len(_tt._bare(res["transcript"])) >= 60:
                         cb("整理原文", "让 AI 加标点、按意思分段…")
                         _new, _msg = _tidy_text(res["transcript"], progress=lambda m: cb("整理原文", m),
                                                 force=True, wait_pool=False)
@@ -2201,7 +2202,7 @@ def _video_worker():
                     if segments:
                         _payload = {
                             "url": clean_url,
-                            "link": bool(job.get("link")),
+                            "link": bool(job.get("link")), "lang": job.get("lang") or "zh", "local_path": job.get("local_path") or "",
                             "segments": [
                                 dict({"start": s.get("start", 0),
                                       "text": (s.get("text") or "")},
@@ -2719,7 +2720,7 @@ def _parse_saved_note(text):
             continue
         meta.append("- " + bare)
     # 文字稿：'## 📝 完整文字稿' 之后的所有内容
-    tmark = (text or "").find("完整文字稿")
+    tmark = _tmark((text or ""))
     transcript = ""
     if tmark >= 0:
         tstart = text.find("\n", tmark)
@@ -2811,6 +2812,234 @@ class _AIGate:
 _ai_gate = _AIGate()
 
 
+def _tmark(text):
+    """v94：「完整文字稿」那一节从哪开始——认标题行「## 📝 完整文字稿」（取最后一个），
+    不认正文里随口提到的「完整文字稿」四个字（以前 AI 分析里写了这几个字，原文就被切错了）。找不到返回 -1。"""
+    text = text or ""
+    ms = list(re.finditer(r"^#{1,3}\s*(?:📝\s*)?完整文字稿\s*$", text, re.M))
+    if ms:
+        return ms[-1].start()
+    return text.find("完整文字稿")
+
+
+# ════════════════ v95：字幕模式 + 翻译成中文 + 导出字幕 ════════════════
+# 时间轴（video_notes/segments/<笔记>.json）里每句有开始 / 结束时间和原文；翻译后每句多一个 zh。
+# 翻译是「一行对一行」地让 AI 翻（带编号），所以中文和时间一一对上，能直接做成双语字幕。
+_tr_state = {}            # 笔记名 -> {running, msg, ok, done, total}
+_tr_lock = _threading.Lock()
+TR_CHUNK = 40
+
+
+def _subs_path(name):
+    return _cx_segments_dir() / (name[:-3] + ".json")
+
+
+def _subs_load(name):
+    try:
+        d = json.loads(_subs_path(name).read_text(encoding="utf-8", errors="replace"))
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def _subs_fix(segs):
+    """补结束时间（老时间轴只有开始时间）：到下一句开始为止，最长按每秒 4 个字估。"""
+    out = []
+    for i, sg in enumerate(segs):
+        t = (sg.get("text") or "").strip()
+        if not t:
+            continue
+        st = float(sg.get("start") or 0)
+        en = sg.get("end")
+        nxt = float(segs[i + 1].get("start") or 0) if i + 1 < len(segs) else None
+        if en is None:
+            en = st + max(1.2, len(t) / 4.0)
+            if nxt is not None and nxt > st:
+                en = min(en, nxt)
+        out.append(dict(sg, start=round(st, 2), end=round(max(float(en), st + 0.3), 2), text=t))
+    return out
+
+
+def _srt_ts(t):
+    t = max(0.0, float(t))
+    h, r = divmod(t, 3600)
+    m, sec = divmod(r, 60)
+    return "%02d:%02d:%02d,%03d" % (h, m, int(sec), int(round((sec - int(sec)) * 1000)) % 1000)
+
+
+def _make_srt(segs, mode):
+    lines, n = [], 0
+    for sg in segs:
+        o, z = sg.get("text") or "", (sg.get("zh") or "").strip()
+        body = z if mode == "zh" else (o + ("\n" + z if z else "") if mode == "both" else o)
+        if not body.strip():
+            continue
+        n += 1
+        lines.append("%d\n%s --> %s\n%s\n" % (n, _srt_ts(sg["start"]), _srt_ts(sg["end"]), body))
+    return "\n".join(lines)
+
+
+def _tr_worker(name):
+    st = _tr_state[name]
+    try:
+        d = _subs_load(name)
+        segs = d.get("segments") or []
+        if not segs:
+            raise RuntimeError("这条笔记没有时间轴（太早以前提取的，或者是文章 / 文档），没法逐句翻译")
+        import video_transcribe as _vt
+        lab = _vt.lang_label(d.get("lang") or "auto")
+        todo = [i for i, sg in enumerate(segs) if (sg.get("text") or "").strip() and not (sg.get("zh") or "").strip()]
+        chunks = [todo[i:i + TR_CHUNK] for i in range(0, len(todo), TR_CHUNK)]
+        st.update(total=len(chunks), done=0)
+        _clog("翻译", "▶ 开始：%s（%d 句，分 %d 段问 AI）" % (name[:40], len(todo), len(chunks)))
+        miss = 0
+        for ci, idx in enumerate(chunks):
+            st["msg"] = "翻译第 %d / %d 段…" % (ci + 1, len(chunks))
+            for attempt in range(2):
+                want = [i for i in idx if not (segs[i].get("zh") or "").strip()]
+                if not want:
+                    break
+                body = "\n".join("%d|%s" % (k + 1, segs[i]["text"].replace("\n", " ")) for k, i in enumerate(want))
+                prompt = ("下面是一段%s视频的字幕，每行一句，行首是编号。请把每一行翻译成自然、通顺的简体中文。\n"
+                          "要求：\n1. 一行对一行，编号不变，不要合并、拆分或漏掉任何一行；\n"
+                          "2. 只输出「编号|译文」，每行一条，不要任何解释、标题或多余的话；\n"
+                          "3. 人名、地名、专有名词用常见的中文译法，没有通行译法的保留原文；\n"
+                          "4. 口语就译成口语，语气词可以意译。\n\n=== 字幕 ===\n%s" % (
+                              lab if lab not in ("自动识别",) else "外语", body))
+                reply = _tidy_llm(prompt, wait_pool=True)
+                got = {}
+                for ln in (reply or "").splitlines():
+                    m = re.match(r"^\s*(\d+)\s*[|｜]\s*(.+?)\s*$", ln)
+                    if m:
+                        got[int(m.group(1))] = m.group(2)
+                for k, i in enumerate(want):
+                    if got.get(k + 1):
+                        segs[i]["zh"] = got[k + 1]
+            miss += sum(1 for i in idx if not (segs[i].get("zh") or "").strip())
+            d["segments"] = segs
+            d["zh_done"] = True
+            _subs_path(name).write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")   # 每段都存，断了下次接着翻
+            st["done"] = ci + 1
+        msg = "翻译好了（%d 句）" % len(todo) + ("，有 %d 句 AI 没给译文，可以再点一次补上" % miss if miss else "")
+        st.update(running=False, ok=True, msg=msg)
+        _clog("翻译", "✓ %s：%s" % (name[:40], msg))
+    except Exception as e:
+        st.update(running=False, ok=False, msg="没翻译成：%s" % str(e)[:200])
+        _clog("翻译", "没翻译成：%s" % e)
+
+
+# ════════════════ v94：推文笔记 =「🗣 博主原话」+「🔗 链接原文」════════════════
+# 存的时候先用手头的数据拆好（马上存），再在后台联网补全：取完整推文、解开短链、读链接里的文章，
+# 写回笔记的「完整文字稿」那一节（AI 分析那部分不动）。老的推文笔记可以在阅读页点按钮重新整理。
+_xr_lock = _threading.Lock()
+_xr_state = {"running": False, "total": 0, "done": 0, "current": "", "msg": "", "ok": 0, "fail": 0, "last": {}}
+_xr_queue = []
+
+
+def _xsrc_dir():
+    d = _cx_video_dir() / "xsrc"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _xsrc_save(name, url, text, snap, author):
+    try:
+        (_xsrc_dir() / (name[:-3] + ".json")).write_text(json.dumps(
+            {"url": url, "text": text, "x": snap, "author": author}, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _x_parts_md(url, text, snap, author, deep=False, progress=None):
+    import tweet_parts as _tp
+    try:
+        return _tp.to_markdown(_tp.build(url, text, snap, author, deep=deep, progress=progress))
+    except Exception as e:
+        _clog("推文", "拆「博主原话 / 链接原文」出错，先存原文：%s" % e)
+        return text
+
+
+def _x_note_rebuild(name, progress=None):
+    """重新整理一条推文笔记的「完整文字稿」：联网取完整推文、链接原文。返回说明文字。"""
+    import tweet_parts as _tp
+    p = _cx_video_dir() / name
+    md = p.read_text(encoding="utf-8", errors="replace")
+    if not _tp.is_tweet_note(md):
+        raise RuntimeError("这条不是推文笔记")
+    url = (re.search(r"来源链接：\s*(\S+)", md) or [None, ""])[1]
+    author = (re.search(r"作者：\s*(.+)", md) or [None, ""])[1].strip()
+    src = {}
+    try:
+        src = json.loads((_xsrc_dir() / (name[:-3] + ".json")).read_text(encoding="utf-8"))
+    except Exception:
+        src = {}
+    # 文字稿那一节从哪开始：新的「完整文字稿」或老的「推文原文」
+    m = re.search(r"^##\s*📝\s*(完整文字稿|推文原文)\s*$", md, re.M)
+    if not m:
+        raise RuntimeError("这条笔记里没找到推文原文")
+    old_body = md[m.end():].strip()
+    text = src.get("text") or ""
+    if not text:
+        if "### 🗣 博主原话" in old_body:          # 已经是新格式、又没有原始数据：拿「博主原话」那段
+            seg = old_body.split("### 🗣 博主原话", 1)[1].split("### 🔗 链接原文", 1)[0].strip()
+            text = "" if seg.startswith("（这条是转发") else seg
+        else:
+            text = old_body
+    new_body = _x_parts_md(url, text, src.get("x"), author or src.get("author") or "", deep=True, progress=progress)
+    cur = p.read_text(encoding="utf-8", errors="replace")       # 写回前再读一次，别盖掉别人刚写的分析
+    m2 = re.search(r"^##\s*📝\s*(完整文字稿|推文原文)\s*$", cur, re.M)
+    if not m2:
+        raise RuntimeError("这条笔记刚被改过，请再点一次")
+    head = cur[:m2.start()].rstrip()
+    if "## 🤖 AI 分析" in head and not head.endswith("---"):
+        head += "\n\n---"
+    p.write_text(head + "\n\n## 📝 完整文字稿\n\n" + new_body.strip() + "\n", encoding="utf-8")
+    if not src:
+        _xsrc_save(name, url, text, None, author)
+    n_ref = new_body.count("\n#### ")
+    return "整理好了：博主原话 + %d 条链接原文" % n_ref if n_ref else "整理好了（这条没有转发、引用或链接）"
+
+
+def _xr_worker():
+    while True:
+        with _xr_lock:
+            if not _xr_queue:
+                _xr_state.update(running=False, current="")
+                return
+            name = _xr_queue.pop(0)
+            _xr_state["current"] = name
+        try:
+            msg = _x_note_rebuild(name, progress=lambda m: _xr_state.update(msg=m))
+            with _xr_lock:
+                _xr_state["ok"] += 1
+                _xr_state["last"][name] = {"ok": True, "msg": msg}
+            _clog("推文", "✓ %s：%s" % (name[16:46], msg))
+        except Exception as e:
+            with _xr_lock:
+                _xr_state["fail"] += 1
+                _xr_state["last"][name] = {"ok": False, "msg": str(e)[:200]}
+            _clog("推文", "没整理成 %s：%s" % (name[16:46], e))
+        with _xr_lock:
+            _xr_state["done"] += 1
+
+
+def _xr_enqueue(names):
+    with _xr_lock:
+        add = [n for n in names if n not in _xr_queue and n != _xr_state.get("current")]
+        if not add:
+            return 0
+        if not _xr_state["running"]:
+            _xr_state.update(running=True, total=0, done=0, ok=0, fail=0, msg="")
+        _xr_queue.extend(add)
+        _xr_state["total"] += len(add)
+        for n in add:
+            _xr_state["last"].pop(n, None)
+        start = not any(t.name == "x-rebuild" for t in _threading.enumerate())
+    if start:
+        _threading.Thread(target=_xr_worker, name="x-rebuild", daemon=True).start()
+    return len(add)
+
+
 # ════════════════ v88：整理原文（AI 加标点、按意思分段）════════════════
 _tidy_state = {}          # 笔记名 -> {"running", "msg", "ok", "transcript"}
 _tidy_lock = _threading.Lock()
@@ -2862,7 +3091,7 @@ def _note_tidy_worker(name):
     try:
         p = _cx_video_dir() / name
         text = p.read_text(encoding="utf-8", errors="replace")
-        tmark = text.find("完整文字稿")
+        tmark = _tmark(text)
         tstart = text.find("\n", tmark) if tmark >= 0 else -1
         if tstart < 0:
             raise RuntimeError("这条笔记里没找到文字稿")
@@ -2888,9 +3117,9 @@ def _note_tidy_worker(name):
             msg = "按说话停顿加了标点、分了段（AI 这次没整理成：%s）" % msg.replace("没整理成：", "")
         if new.strip() != old:
             cur = p.read_text(encoding="utf-8", errors="replace")     # 写回前再读一次，别盖掉别人刚写的
-            if cur[cur.find("完整文字稿"):].find(old[:50]) < 0:
+            if cur[_tmark(cur):].find(old[:50]) < 0:
                 raise RuntimeError("这条笔记刚被别的操作改过，请再点一次")
-            k = cur.find("\n", cur.find("完整文字稿"))
+            k = cur.find("\n", _tmark(cur))
             p.write_text(cur[:k] + "\n\n" + new.strip() + "\n", encoding="utf-8")
         st.update(running=False, ok=new.strip() != old, msg=msg, transcript=new.strip())
         _clog("整理原文", "%s：%s" % ("✓" if new.strip() != old else "—", msg))
@@ -3584,6 +3813,31 @@ class Handler(BaseHTTPRequestHandler):
             if not data:
                 return self._send({"error": "还没有画面"}, 404)
             return self._send_bytes(data, "image/jpeg")
+        if path == "/video_note_subs":                # v95：字幕（时间轴 + 原文 + 中文）
+            nm = os.path.basename((qs.get("name") or [""])[0])
+            d = _subs_load(nm)
+            segs = _subs_fix(d.get("segments") or [])
+            import video_transcribe as _vt
+            lang = d.get("lang") or "zh"
+            lp = d.get("local_path") or ""
+            with _tr_lock:
+                tr = dict(_tr_state.get(nm) or {})
+            return self._send({"ok": bool(segs), "lang": lang, "lang_label": _vt.lang_label(lang),
+                               "segments": segs, "has_zh": any(x.get("zh") for x in segs),
+                               "local_path": lp, "local_ok": bool(lp and os.path.isfile(lp)), "translate": tr})
+        if path == "/video_note_srt":                 # v95：导出字幕文件
+            nm = os.path.basename((qs.get("name") or [""])[0])
+            mode = (qs.get("mode") or ["orig"])[0]
+            srt = _make_srt(_subs_fix(_subs_load(nm).get("segments") or []), mode)
+            return self._send_bytes(("\ufeff" + srt).encode("utf-8"), "text/plain; charset=utf-8")
+        if path == "/x_note_rebuild_status":          # v94
+            with _xr_lock:
+                st = dict(_xr_state)
+                nm = (qs.get("name") or [""])[0]
+                st["mine"] = _xr_state["last"].get(nm) if nm else None
+                st["queued"] = nm in _xr_queue or nm == _xr_state.get("current")
+                st.pop("last", None)
+            return self._send(st)
         if path == "/video_failed":                   # v90：提取失败清单
             items = _vf_load()
             items.reverse()                            # 最近失败的在上面
@@ -4128,6 +4382,58 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_video_detect_subtitle(body)
         if path == "/video_install":
             return self._handle_video_install(body)
+        if path == "/video_note_translate":           # v95：逐句翻译成中文（后台做）
+            nm = os.path.basename((body.get("name") or "").strip())
+            if not nm.endswith(".md") or not (_cx_video_dir() / nm).exists():
+                return self._send({"ok": False, "error": "找不到这条笔记"})
+            if not (_subs_load(nm).get("segments")):
+                return self._send({"ok": False, "error": "这条笔记没有时间轴（太早以前提取的，或者是文章 / 文档），没法逐句翻译"})
+            with _tr_lock:
+                cur = _tr_state.get(nm)
+                if cur and cur.get("running"):
+                    return self._send({"ok": True, "running": True})
+                if body.get("redo"):
+                    d = _subs_load(nm)
+                    for sg in d.get("segments") or []:
+                        sg.pop("zh", None)
+                    _subs_path(nm).write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+                _tr_state[nm] = {"running": True, "msg": "准备翻译…", "ok": False, "done": 0, "total": 0}
+            _threading.Thread(target=_tr_worker, args=(nm,), daemon=True).start()
+            return self._send({"ok": True, "running": True})
+        if path == "/video_note_srt_save":            # v95：字幕存到本地视频旁边（播放器自动加载）
+            nm = os.path.basename((body.get("name") or "").strip())
+            mode = body.get("mode") or "zh"
+            d = _subs_load(nm)
+            lp = d.get("local_path") or ""
+            if not (lp and os.path.isfile(lp)):
+                return self._send({"ok": False, "error": "找不到原来的视频文件（只有「导入本地文件」的视频能存到旁边）"})
+            import video_transcribe as _vt
+            suf = {"zh": ".zh", "both": ".双语", "orig": "." + (d.get("lang") or "orig")}.get(mode, ".zh")
+            out = os.path.splitext(lp)[0] + suf + ".srt"
+            try:
+                with open(out, "w", encoding="utf-8-sig") as fh:
+                    fh.write(_make_srt(_subs_fix(d.get("segments") or []), mode))
+            except Exception as e:
+                return self._send({"ok": False, "error": "存不进去：%s" % e})
+            return self._send({"ok": True, "path": out})
+        if path == "/x_note_rebuild":                 # v94：推文笔记重新整理成「博主原话 + 链接原文」
+            import tweet_parts as _tp
+            if body.get("all"):
+                names = []
+                for fp in sorted(_cx_video_dir().glob("*.md")):
+                    try:
+                        with open(fp, encoding="utf-8", errors="replace") as fh:
+                            if _tp.is_tweet_note(fh.read(1500)):
+                                names.append(fp.name)
+                    except Exception:
+                        pass
+            else:
+                nm = os.path.basename((body.get("name") or "").strip())
+                if not nm.endswith(".md") or not (_cx_video_dir() / nm).exists():
+                    return self._send({"ok": False, "error": "找不到这条笔记"})
+                names = [nm]
+            n = _xr_enqueue(names)
+            return self._send({"ok": True, "queued": n, "total": len(names)})
         if path == "/video_failed":                   # v90：重新提取 / 删掉失败的任务
             action = (body.get("action") or "").strip()
             items = _vf_load()
@@ -4797,11 +5103,15 @@ class Handler(BaseHTTPRequestHandler):
                             it["title"] = meta.get("title") or ""
                         if not it.get("title_zh"):
                             it["title_zh"] = meta.get("title_zh") or ""
+                        if not it.get("x"):
+                            it["x"] = meta.get("x")
                         try:
                             # v89：马上存成笔记，不在这里等 AI（以前每条推文要排队调两次 AI，点了半天没反应）；
                             #      需要时在笔记上点「🤖 AI 分析」，和视频笔记一样
-                            self._save_x_note(it, tweet_text, use_local, model, analyze=False)
+                            _xfn = self._save_x_note(it, tweet_text, use_local, model, analyze=False)
                             x_saved += 1
+                            if _xfn:
+                                _xr_enqueue([_xfn])     # v94：后台抓链接里的原帖 / 文章，补全「链接原文」
                         except Exception as _xe:
                             _clog("嗅探", "推文存笔记没成功：%s" % _xe)
                         new_marks.append({"creator_id": cid, "vid": vid, "url": u,
@@ -5890,8 +6200,9 @@ class Handler(BaseHTTPRequestHandler):
                    f"- 状态：未分析\n"
                    f"{orig_line}\n"
                    f"## 🤖 AI 分析\n\n{placeholder}\n\n"
-                   f"---\n\n## 📝 完整文字稿\n\n{tweet_text}\n")
+                   f"---\n\n## 📝 完整文字稿\n\n{_x_parts_md(url, tweet_text, item.get('x'), uploader)}\n")
             (d / fname).write_text(doc, encoding="utf-8")
+            _xsrc_save(fname, url, tweet_text, item.get("x"), uploader)
             return fname
         # 让模型把推文整理成中文笔记（推文可能是英文）。失败就退回原文。
         analysis = ""
@@ -5939,6 +6250,7 @@ class Handler(BaseHTTPRequestHandler):
         url = body.get("url", "").strip()
         local_path = (body.get("local_path") or "").strip()
         level = body.get("level", "balanced")
+        lang = (body.get("lang") or "zh").strip()          # v95：视频里说的是什么话（日语、英语…）
         use_local = body.get("use_local", True)
         model = body.get("model", "qwen2.5")
         # 新增：插图 / 跳转原片开关（前端「视频」面板的两个勾选）
@@ -5996,7 +6308,7 @@ class Handler(BaseHTTPRequestHandler):
                 "url": "local://" + local_path,   # 占位，仅用于去重/显示，不会真的去下载
                 "local_path": local_path,
                 "title": title,
-                "level": level, "use_local": use_local, "model": model,
+                "level": level, "lang": lang, "use_local": use_local, "model": model,
                 "screenshot": do_screenshot, "link": do_link, "mode": mode,
                 "analyze": do_analyze,
                 "author": author, "note_folder": note_folder,
@@ -6015,7 +6327,7 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             _art = ""
         if _art:
-            pos = _enqueue_video({"url": url, "level": level,
+            pos = _enqueue_video({"url": url, "level": level, "lang": lang,
                                   "use_local": use_local, "model": model,
                                   "screenshot": False, "link": False,
                                   "mode": mode, "analyze": do_analyze,
@@ -6050,7 +6362,7 @@ class Handler(BaseHTTPRequestHandler):
             if not has_subtitle:
                 return self._send({"need": missing})
 
-        pos = _enqueue_video({"url": url, "level": level,
+        pos = _enqueue_video({"url": url, "level": level, "lang": lang,
                               "use_local": use_local, "model": model,
                               "screenshot": do_screenshot, "link": do_link,
                               "mode": mode, "analyze": do_analyze,
@@ -6575,7 +6887,7 @@ class Handler(BaseHTTPRequestHandler):
                             title = s[:60]
                             break
                     aMark = txt.find("AI 分析")
-                    tMark = txt.find("完整文字稿")
+                    tMark = _tmark(txt)
                     analysis = ""
                     if aMark >= 0:
                         a0 = txt.find("\n", aMark)
