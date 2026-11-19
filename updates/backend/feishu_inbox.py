@@ -147,6 +147,9 @@ def _token(app_id=None, app_secret=None, force=False):
         with _lock:
             _tok.update(v=r["tenant_access_token"], exp=time.time() + int(r.get("expire") or 3600), key=key)
         return r["tenant_access_token"], ""
+    if r.get("code") == 21001 or "platform policy" in str(r.get("msg") or "").lower():
+        return "", ("飞书拒绝了这个应用（平台策略限制，不是 ID / Secret 填错）。多半是应用建在了「豆包账号」这类个人团队下："
+                    "在飞书开放平台右上角头像里切到一个正式的团队 / 企业，重新建应用再填进来")
     return "", "App ID 或 App Secret 不对（飞书说：%s）" % (r.get("msg") or r.get("code"))
 
 

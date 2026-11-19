@@ -11580,7 +11580,12 @@ async function _phPoll() {
     if (_phSeq >= 0 && st.seq > _phSeq && st.recent && st.recent.length) {
       const x = st.recent[0];
       _phToast((x.src === "飞书" ? "💬 飞书发来：" : "📱 手机发来：") + (x.title || x.url).slice(0, 40) + (x.ok ? "（已加进队列）" : "（没加进去，点开看原因）"));
-      if (x.ok && typeof loadVideoNotes === "function") setTimeout(() => { try { loadVideoNotes(); } catch (e) {} }, 1500);
+      // v85：手机 / 飞书发来的任务，和在电脑上点「提取并分析」一样：开始盯进度条，做完自动刷新「最新提取」
+      if (x.ok) {
+        try { if (typeof pollVideoProgress === "function") pollVideoProgress(); } catch (e) {}
+        try { if (typeof setVideoStatus === "function")
+          setVideoStatus((x.src === "飞书" ? "💬 飞书" : "📱 手机") + "发来一个链接，已开始处理…", "ok"); } catch (e) {}
+      }
     }
     _phSeq = st.seq;
     const m = document.getElementById("phModal");
