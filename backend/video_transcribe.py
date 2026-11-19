@@ -228,7 +228,9 @@ def models_info():
                 if p.is_dir() and "faster-whisper" in n:
                     # 友好显示：精准/均衡/快速
                     label = n
-                    if "medium" in n:
+                    if "large" in n:
+                        label = "超精准模型 (large-v3)"
+                    elif "medium" in n:
                         label = "精准模型 (medium)"
                     elif "small" in n:
                         label = "均衡模型 (small)"
@@ -250,7 +252,74 @@ MODEL_MAP = {
     "speed": "base",
     "balanced": "small",
     "accurate": "medium",
+    "ultra": "large-v3",      # v87：超精准（大模型，约 3GB，显卡上跑；方言、快语速认得更准）
 }
+
+# v87：给 whisper 的开头提示——让它输出标点、用简体字（不影响内容，只影响格式）
+_ZH_PROMPT = "以下是普通话的句子，有标点符号。"
+
+# v87：whisper 在没人说话 / 只有音乐的地方常会「编」出来的话，补漏时一律丢掉
+_HALLU = ("请不吝点赞", "订阅转发", "打赏支持", "明镜与点点", "Amara.org", "字幕由", "字幕提供",
+          "谢谢观看", "感谢观看", "優優獨播", "优优独播", "YoYo", "中文字幕", "请订阅", "欢迎订阅",
+          "点赞订阅", "下集再见", "我们下期再见")
+
+
+def _looks_hallucinated(t):
+    t = (t or "").strip()
+    if not t:
+        return True
+    if any(h.lower() in t.lower() for h in _HALLU):
+        return True
+    if len(t) >= 12 and len(set(t)) <= len(t) / 4:      # 同几个字反复刷屏
+        return True
+    return False
+
+
+def _fill_gaps(model, full, total, seg_list, progress_cb=None):
+    """v87：主识别跑完后，找「明显漏掉的大段」再补识别一次（不跳静音）。
+    漏掉的情况：结尾还剩 6 秒以上没字、或者两句之间空了 12 秒以上。
+    主识别会自动跳过「没人说话」的地方（vad_filter），语速快、背景音大、方言重时，
+    它偶尔把整段话也当成没人说话跳过——结尾那几十秒最容易被吞。返回补到的分段列表。"""
+    if full is None or not total:
+        return []
+    segs = sorted(seg_list, key=lambda x: x.get("start", 0))
+    gaps, prev = [], 0.0
+    for sg in segs:
+        st = float(sg.get("start") or 0)
+        if st - prev > 12:
+            gaps.append((prev, st))
+        prev = max(prev, float(sg.get("end") or 0))
+    if total - prev > 6:
+        gaps.append((prev, total))
+    if not gaps:
+        return []
+    got = []
+    sec = sum(b - a for a, b in gaps)
+    if progress_cb:
+        progress_cb("检查漏识别", "有 %d 段共 %d 秒没认出字，再仔细听一遍…" % (len(gaps), int(sec)))
+    for a, b in gaps[:20]:
+        _check_cancel()
+        a0 = max(0.0, a - 0.5)
+        clip = full[int(a0 * _SR): int(min(total, b + 0.5) * _SR)]
+        if len(clip) < _SR:          # 不到 1 秒
+            continue
+        try:
+            res, _inf = model.transcribe(clip, language="zh", vad_filter=False,
+                                         condition_on_previous_text=False,
+                                         initial_prompt=_ZH_PROMPT)
+            for sg in res:
+                t = (sg.text or "").strip()
+                if _looks_hallucinated(t):
+                    continue
+                if (getattr(sg, "no_speech_prob", 0) or 0) > 0.6 or (getattr(sg, "avg_logprob", 0) or 0) < -1.0:
+                    continue
+                got.append({"start": round(a0 + float(sg.start or 0), 2),
+                            "end": round(a0 + float(sg.end or 0), 2), "text": t})
+        except ExtractCancelled:
+            raise
+        except Exception as e:
+            print("[video] 补识别出错（不影响已有结果）：%s" % e, flush=True)
+    return got
 
 
 def _find_url(text):
@@ -1475,6 +1544,7 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
     # ── 尝试用「切片续转」：解码整段音频，从 offset 秒处切片，时间戳整体加 offset ──
     audio_input = path
     total = 0.0
+    full = None
     can_resume = False
     _resume_offset_kept = offset   # 记下从 progress.json 读回的进度，decode 失败时别丢
     try:
@@ -1517,6 +1587,7 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
     # （只把较长的停顿当静音切掉），减少碎片化、让进度更线性，也略微提速。
     segments, info = model.transcribe(
         audio_input, language="zh", vad_filter=True,
+        initial_prompt=_ZH_PROMPT,                      # v87：带标点、简体
         vad_parameters={"min_silence_duration_ms": 800,
                         "speech_pad_ms": 200})
     # ── 进度分母 total：优先用我们自己解码出来的真实音频秒数（最准），
@@ -1586,6 +1657,25 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
                                 f"已识别 {pct}%（{int(last_end)} 秒 / 共 {int(denom)} 秒）")
                 else:
                     progress_cb("语音转文字", f"已识别到第 {int(last_end)} 秒…")
+
+    # v87：补漏——结尾 / 中间被当成「没人说话」跳过的大段，再不跳静音地听一遍
+    try:
+        extra = _fill_gaps(model, full, total, seg_list, progress_cb)
+    except ExtractCancelled:
+        raise
+    except Exception as e:
+        extra = []
+        print("[video] 补漏出错（不影响已有结果）：%s" % e, flush=True)
+    if extra:
+        seg_list = sorted(seg_list + extra, key=lambda x: x.get("start", 0))
+        parts = [x["text"] for x in seg_list]
+        last_end = max(last_end, max(x["end"] for x in extra))
+    if progress_cb:
+        _chars = sum(len(x) for x in parts)
+        _spoken_end = max([float(x.get("end") or 0) for x in seg_list] or [0])
+        progress_cb("识别完成", "共 %d 字；讲话识别到第 %d 秒 / 音频共 %d 秒%s" % (
+            _chars, int(_spoken_end), int(total or last_end),
+            ("（补回来 %d 句）" % len(extra)) if extra else ""))
 
     # 收尾再存一次（让进度落到接近 100%）。此刻是整段转写完成，last_end 已到末尾，
     # 是最靠后的进度，直接写完整结果（不走保护，确保最终文字稿完整落盘）。

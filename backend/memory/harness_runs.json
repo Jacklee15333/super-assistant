@@ -1,245 +1,5 @@
 [
   {
-    "id": "video-1795059680126",
-    "ts": "11-19 11:41:20",
-    "kind": "video",
-    "title": "Agent 暴雷了？还有搞头吗？ #Agent面试 #agent学习路线 #AI学习路线 #大模型 #大学生校招",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "保存",
-      "博主主页"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "保存": 1,
-      "博主主页": 1
-    },
-    "steps": 6,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 37,
-    "note": "✅ 已完成《Agent 暴雷了？还有搞头吗？ #Ag》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795059969530",
-    "ts": "11-19 11:46:09",
-    "kind": "video",
-    "title": "老郭以挑战规则始，以捍卫规则终，一个周期 #人生智慧 #郭德纲于谦 #商业 #真实生活分享计划",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "加载语音模型",
-      "语音转文字",
-      "保存",
-      "博主主页"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "保存": 1,
-      "博主主页": 1
-    },
-    "steps": 7,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 85,
-    "note": "✅ 已完成《老郭以挑战规则始，以捍卫规则终，一个周期》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795060128431",
-    "ts": "11-19 11:48:48",
-    "kind": "video",
-    "title": "11.19一年前的恐吓，人红不能飘 #热点 #国际",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "保存",
-      "博主主页"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "保存": 1,
-      "博主主页": 1
-    },
-    "steps": 6,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 58,
-    "note": "✅ 已完成《11.19一年前的恐吓，人红不能飘 #热》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795060552475",
-    "ts": "11-19 11:55:52",
-    "kind": "video",
-    "title": "没被社会毒打过就不可能知道的真相！#认知思维  #社会真相  #职场  #社交",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "保存",
-      "博主主页"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "保存": 1,
-      "博主主页": 1
-    },
-    "steps": 6,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 53,
-    "note": "✅ 已完成《没被社会毒打过就不可能知道的真相！#认知》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795061635738",
-    "ts": "11-19 12:13:55",
-    "kind": "video",
-    "title": "Coze倒闭了？ #人工智能",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "加载语音模型",
-      "语音转文字",
-      "保存",
-      "博主主页"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "保存": 1,
-      "博主主页": 1
-    },
-    "steps": 7,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 37,
-    "note": "✅ 已完成《Coze倒闭了？ #人工智能》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795062518431",
-    "ts": "11-19 12:28:38",
-    "kind": "video",
-    "title": "精致女生跟王朝公主见面：还海外去领奖？ #精致女生 #我的观影报告",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "加载语音模型",
-      "语音转文字",
-      "保存",
-      "博主主页"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "保存": 1,
-      "博主主页": 1
-    },
-    "steps": 7,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 25,
-    "note": "✅ 已完成《精致女生跟王朝公主见面：还海外去领奖？ 》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795063659902",
-    "ts": "11-19 12:47:39",
-    "kind": "video",
-    "title": "百万老外国“中文四六级”独木桥了！ #全球创作者计划 #零基础看懂全球",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "加载语音模型",
-      "语音转文字",
-      "保存",
-      "博主主页"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "保存": 1,
-      "博主主页": 1
-    },
-    "steps": 7,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 53,
-    "note": "✅ 已完成《百万老外国“中文四六级”独木桥了！ #全》，继续处理下一个（还剩 1 个）"
-  },
-  {
-    "id": "video-1795063713546",
-    "ts": "11-19 12:48:33",
-    "kind": "video",
-    "title": "爱奇艺骚操作，还我会员费。为无辜被版权围猎牵连的小商家发声！ #爱奇艺起诉各大租车行#爱奇艺起诉B站",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "保存",
-      "博主主页"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "保存": 1,
-      "博主主页": 1
-    },
-    "steps": 6,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 33,
-    "note": "✅ 已完成《爱奇艺骚操作，还我会员费。为无辜被版权围》，队列已清空，等待新任务"
-  },
-  {
     "id": "video-1795065619674",
     "ts": "11-19 13:20:19",
     "kind": "video",
@@ -1426,5 +1186,215 @@
     "tokens_est": 0,
     "seconds": 34,
     "note": "✅ 已完成《学术圈新瓜！AI生成的论文1cm有12个》，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1795087988078",
+    "ts": "11-19 19:33:08",
+    "kind": "video",
+    "title": "视频提取：.com/mA26Up2S4Mk/ 复制此链接，打开Dou音搜索，直接观看视频！",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1
+    },
+    "steps": 4,
+    "error": "提取失败：An error happened while trying to locate the files on the Hub and we cannot find the appropriate snapshot folder for the specified revision on the local disk. Please check your internet connection and try again.",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 9,
+    "note": "⚠ 这条没成功，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1795087998070",
+    "ts": "11-19 19:33:18",
+    "kind": "video",
+    "title": "视频提取：.com/mA26Up2S4Mk/ 复制此链接，打开Dou音搜索，直接观看视频！",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1
+    },
+    "steps": 4,
+    "error": "提取失败：An error happened while trying to locate the files on the Hub and we cannot find the appropriate snapshot folder for the specified revision on the local disk. Please check your internet connection and try again.",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "⚠ 这条没成功，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1795087998977",
+    "ts": "11-19 19:33:18",
+    "kind": "video",
+    "title": "视频提取：.com/mA26Up2S4Mk/ 复制此链接，打开Dou音搜索，直接观看视频！",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1
+    },
+    "steps": 4,
+    "error": "提取失败：An error happened while trying to locate the files on the Hub and we cannot find the appropriate snapshot folder for the specified revision on the local disk. Please check your internet connection and try again.",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "⚠ 这条没成功，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1795088748573",
+    "ts": "11-19 19:45:48",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/uJtgeabzec0/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型",
+      "语音转文字"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1
+    },
+    "steps": 5,
+    "error": "已取消",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 164,
+    "note": "🛑 已按你的要求取消（队列已清空）"
+  },
+  {
+    "id": "video-1795088921917",
+    "ts": "11-19 19:48:41",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/rK10-k-1V4k/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1
+    },
+    "steps": 4,
+    "error": "提取失败：An error happened while trying to locate the files on the Hub and we cannot find the appropriate snapshot folder for the specified revision on the local disk. Please check your internet connection and try again.",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 9,
+    "note": "⚠ 这条没成功，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1795088931881",
+    "ts": "11-19 19:48:51",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/rK10-k-1V4k/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1
+    },
+    "steps": 4,
+    "error": "提取失败：An error happened while trying to locate the files on the Hub and we cannot find the appropriate snapshot folder for the specified revision on the local disk. Please check your internet connection and try again.",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "⚠ 这条没成功，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1795088932604",
+    "ts": "11-19 19:48:52",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/rK10-k-1V4k/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1
+    },
+    "steps": 4,
+    "error": "提取失败：An error happened while trying to locate the files on the Hub and we cannot find the appropriate snapshot folder for the specified revision on the local disk. Please check your internet connection and try again.",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "⚠ 这条没成功，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1795089773305",
+    "ts": "11-19 20:02:53",
+    "kind": "video",
+    "title": "一辈子不出国，汇率如何洗劫你的钱包？ 别觉得汇率与你无关！#经济学 #金融常识 #认知提升 #财经 #抖音精选app征稿中",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型",
+      "语音转文字",
+      "检查漏识别",
+      "识别完成",
+      "保存"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1,
+      "检查漏识别": 1,
+      "识别完成": 1,
+      "保存": 1
+    },
+    "steps": 8,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 222,
+    "note": "✅ 已完成《一辈子不出国，汇率如何洗劫你的钱包？ 别》，队列已清空，等待新任务"
   }
 ]

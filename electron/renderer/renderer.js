@@ -2055,7 +2055,7 @@ function askImportOptions(cfg) {
     levelSel.className = "text-input";
     levelSel.style.cssText = "flex:1 1 auto";
     [["speed", "快速（糙）"], ["balanced", "均衡（推荐）"],
-     ["accurate", "精准（慢）"]].forEach(([v, t]) => {
+     ["accurate", "精准（慢）"], ["ultra", "超精准（大模型）"]].forEach(([v, t]) => {
       const o = document.createElement("option");
       o.value = v; o.textContent = t; levelSel.appendChild(o);
     });
@@ -11814,6 +11814,21 @@ function _phSyncDefaults() {
     }).catch(() => {});
   } catch (e) {}
 }
+// v87：质量下拉框加「超精准（大模型）」：large-v3，方言 / 快语速认得更准；第一次用要下载约 3GB 模型
+(function _addUltraLevel() {
+  const sel = document.getElementById("videoLevel");
+  if (!sel || sel.querySelector('option[value="ultra"]')) return;
+  const o = document.createElement("option");
+  o.value = "ultra";
+  o.textContent = "超精准（大模型）";
+  o.title = "用 large-v3 大模型，方言、语速快的也认得准；需要显卡，第一次用要下载约 3GB 模型";
+  sel.appendChild(o);
+  try {
+    const saved = localStorage.getItem("videoLevelPick");
+    if (saved && sel.querySelector('option[value="' + saved + '"]')) sel.value = saved;
+  } catch (e) {}
+  sel.addEventListener("change", () => { try { localStorage.setItem("videoLevelPick", sel.value); } catch (e) {} });
+})();
 (function _phBoot() {
   setTimeout(_phSyncDefaults, 5000);
   const lv = document.getElementById("videoLevel");

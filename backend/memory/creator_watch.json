@@ -5450,32 +5450,6 @@
       "creator_id": "cw1782801275097820",
       "creator_title": "Elon Musk",
       "platform": "x",
-      "vid": "2123295424056598774",
-      "url": "https://x.com/elonmusk/status/2123295424056598774",
-      "title": "RT @marsrepublica: Elon gave two talks today at DealBook and TomorrowX Summit, r",
-      "when": "20261119",
-      "uploader": "Elon Musk",
-      "text": "RT @marsrepublica: Elon gave two talks today at DealBook and TomorrowX Summit, revealing more about SpaceX's plans than most earnings calls…",
-      "found_at": "2026-11-19 14:07",
-      "title_zh": "今天，马斯克在DealBook和TomorrowX Summit发表了两次演讲"
-    },
-    {
-      "creator_id": "cw1782801275097820",
-      "creator_title": "Elon Musk",
-      "platform": "x",
-      "vid": "2123294397555225054",
-      "url": "https://x.com/elonmusk/status/2123294397555225054",
-      "title": "RT @milichab: One-shot your trip with @bot",
-      "when": "20261119",
-      "uploader": "Elon Musk",
-      "text": "RT @milichab: One-shot your trip with @bot",
-      "found_at": "2026-11-19 14:07",
-      "title_zh": "用@bot轻松搞定你的旅行"
-    },
-    {
-      "creator_id": "cw1782801275097820",
-      "creator_title": "Elon Musk",
-      "platform": "x",
       "vid": "2123288098331414533",
       "url": "https://x.com/elonmusk/status/2123288098331414533",
       "title": "Exactly",
@@ -14356,6 +14330,20 @@
       "url": "https://x.com/elonmusk/status/2075367885438890134",
       "title": "Starmind https://t.co/JJhfTw04Px",
       "at": "2026-07-10 16:30"
+    },
+    "cw1782801275097820|2123295424056598774": {
+      "creator_id": "cw1782801275097820",
+      "vid": "2123295424056598774",
+      "url": "https://x.com/elonmusk/status/2123295424056598774",
+      "title": "RT @marsrepublica: Elon gave two talks today at DealBook and TomorrowX Summit, r",
+      "at": "2026-11-19 20:09"
+    },
+    "cw1782801275097820|2123294397555225054": {
+      "creator_id": "cw1782801275097820",
+      "vid": "2123294397555225054",
+      "url": "https://x.com/elonmusk/status/2123294397555225054",
+      "title": "RT @milichab: One-shot your trip with @bot",
+      "at": "2026-11-19 20:09"
     }
   }
 }
