@@ -2506,6 +2506,66 @@ class _WebWorker:
         head = (prompt_text or "").replace(" ", "").replace("\n", "")[:80]
         return bool(head) and head in (current or "").replace(" ", "").replace("\n", "")[:200]
 
+    def _strip_echo(self, current, prompt_text):
+        """v69：新页面上，探针往上爬过了头，抓到的是「提问 + 回复」一整块 → 只留后面的回复。
+        先看抓到的文字是不是以整段提问开头（最准）；不是的话，在提问那一段范围里找提问的最后 60 个字。
+        剩下的如果其实还是提问的一部分，就不算（返回空串）。"""
+        p = re.sub(r"\s+", "", prompt_text or "")
+        if len(p) < 40 or not current:
+            return ""
+        idx = [i for i, ch in enumerate(current) if not ch.isspace()]
+        norm = "".join(current[i] for i in idx)
+        end = -1
+        s0 = norm.find(p[:40])
+        if s0 >= 0 and norm[s0:s0 + len(p)] == p:
+            end = s0 + len(p)
+        else:
+            tail = p[-60:]
+            k = norm[:len(p) + 800].rfind(tail)
+            if k >= 0:
+                end = k + len(tail)
+        if end <= 0 or end >= len(norm):
+            return ""
+        rest = current[idx[end - 1] + 1:].strip()
+        rest = "\n".join(ln for ln in rest.split("\n") if not re.match(
+            r"\s*(思考了|已思考|思考用时|Thought for|ChatGPT\s*(说|said)|你说|You said|显示更多|显示全部|收起|Show more|Show less)", ln)).strip()
+        return rest if self._not_prompt(rest, prompt_text) else ""
+
+    def _not_prompt(self, text, prompt_text):
+        """v69：读到的「回复」其实是提问的一段 → 不算。"""
+        t = re.sub(r"\s+", "", text or "")[:60]
+        return bool(t) and t not in re.sub(r"\s+", "", prompt_text or "")
+
+    def _dump_reply_diag(self, prompt_text, chosen):
+        """v69：一直只看到提问回显时，存一份页面结构（不含正文，只有标签、类名、字数），方便找原因。"""
+        try:
+            outline = self._safe(lambda: self._page.evaluate(r"""() => {
+                const out = []; let n = 0;
+                const walk = (el, d) => {
+                    if (n > 1500 || d > 30) return;
+                    const txt = (el.innerText || '').trim();
+                    if (!txt) return;
+                    const own = [...el.childNodes].filter(x => x.nodeType === 3).map(x => x.textContent).join('').trim();
+                    out.push({d, t: el.tagName.toLowerCase(), c: String(el.className && el.className.baseVal !== undefined ? el.className.baseVal : (el.className || '')).slice(0, 80),
+                              r: el.getAttribute('data-message-author-role') || el.getAttribute('data-testid') || el.getAttribute('role') || '',
+                              n: txt.length, s: own.slice(0, 16), w: Math.round(el.getBoundingClientRect().width)});
+                    n++;
+                    for (const c of el.children) walk(c, d + 1);
+                };
+                walk(document.body, 0);
+                return out;
+            }"""), [])
+            d = MEMORY_DIR / "web_model_diag"
+            d.mkdir(parents=True, exist_ok=True)
+            fn = d / ("%s-reply.json" % time.strftime("%Y%m%d-%H%M%S"))
+            fn.write_text(json.dumps({"why": "一直只抓到提问回显", "url": self._safe(lambda: self._page.url, ""),
+                                      "prompt_head": (prompt_text or "")[:60], "prompt_tail": (prompt_text or "")[-40:],
+                                      "chosen_head": (chosen or "")[:120], "chosen_len": len(chosen or ""),
+                                      "outline": outline}, ensure_ascii=False), encoding="utf-8")
+            self._log("已存一份页面结构到 %s（推送到 GitHub 后可以帮忙看原因）" % fn.name)
+        except Exception as e:
+            self._log("存页面结构没成功：%s" % e)
+
     def _structural_reply(self, prompt_text):
         """v68：按页面结构读本轮回复（1.2 秒内重复调用直接用上次的结果，省得太频繁）。"""
         now = time.time()
@@ -2513,12 +2573,14 @@ class _WebWorker:
             return self._struct_last
         self._struct_at = now
         r = self._safe(lambda: self._page.evaluate(_STRUCT_REPLY_JS, prompt_text or ""), None) or {}
-        self._struct_last = (r.get("text") or "").strip() if r.get("found") else ""
+        t = (r.get("text") or "").strip() if r.get("found") else ""
+        self._struct_last = t if self._not_prompt(t, prompt_text) else ""
         return self._struct_last
 
     def _wait_for_reply(self, timeout_ms, baseline, prompt_text, opts, prog):
         start = time.time()
         self._struct_at, self._struct_last, self._struct_noted = 0, "", False
+        self._strip_noted, echo_dumped = False, False
         expects_json = bool(opts.get("expectsJson"))
         min_expected = opts.get("minExpectedLength") or (300 if expects_json else 0)
         required_markers = [m for m in (opts.get("requiredMarkers") or [])
@@ -2667,6 +2729,11 @@ class _WebWorker:
             #      以前就一直当成「AI 还没回」干等。这时改用「提问气泡后面、输入框前面的内容」当回复。
             if prompt_text and len(prompt_text) > 100 and (not current or self._looks_echo(current, prompt_text)):
                 alt = self._structural_reply(prompt_text)
+                if not alt and current:
+                    alt = self._strip_echo(current, prompt_text)     # v69：抓到「提问 + 回复」连在一起 → 去掉提问
+                    if alt and not self._strip_noted:
+                        self._strip_noted = True
+                        self._log("抓到的是「提问 + 回复」连在一起的一整块 → 去掉前面的提问，只读回复")
                 if alt:
                     if not self._struct_noted:
                         self._struct_noted = True
@@ -2700,6 +2767,9 @@ class _WebWorker:
                     if time.time() - skip_log > 5:
                         self._log("抓到的是 prompt 回显，等真实 AI 回复...")
                         skip_log = time.time()
+                    if not echo_dumped and time.time() - echo_since > 45:
+                        echo_dumped = True
+                        self._dump_reply_diag(prompt_text, current)
                     continue
 
             # 防模板标记
@@ -2948,10 +3018,17 @@ class _WebWorker:
         pg = self._page
         if pg is None or self._context is None:
             raise RuntimeError("AI 池浏览器还没打开")
+        if pg.is_closed():
+            raise RuntimeError("AI 池浏览器的页面已经关了（可能被手动关掉了），下一条任务会自动重新打开")
         if self._cdp is None or self._cdp_page is not pg:
             self._cdp = self._context.new_cdp_session(pg)
             self._cdp_page = pg
-        return self._cdp, self._cdp.send("Browser.getWindowForTarget")["windowId"]
+        try:
+            return self._cdp, self._cdp.send("Browser.getWindowForTarget")["windowId"]
+        except Exception:
+            self._cdp = self._context.new_cdp_session(pg)        # v69：会话失效了（换过卡 / 页面跳转过）→ 重连一次
+            self._cdp_page = pg
+            return self._cdp, self._cdp.send("Browser.getWindowForTarget")["windowId"]
 
     def _visible_bounds(self):
         """显示时放到屏幕中间（隐藏前记下过位置就用原来的位置）。"""
@@ -3097,6 +3174,7 @@ _REPLY_SCOPE_JS = r"""
         const SKIP = {SCRIPT: 1, STYLE: 1, NOSCRIPT: 1, TEXTAREA: 1, SVG: 1, TEMPLATE: 1};
         const UI = /^(显示更多|显示全部|收起|展开|Show more|Show less|编辑|复制|Edit|Copy|你说[：:]?|You said:?)$/i;
         const small = el => { const t = N(el.textContent); return !t || t.length <= 8 || UI.test((el.innerText || '').trim()); };
+        const inPrompt = el => { const t = N(el.textContent); return t.length >= 6 && P.includes(t); };   // v69：提问的另一段
         const matched = new Set(), order = [];
         for (const el of document.body.getElementsByTagName('*')) {
             if (SKIP[(el.tagName || '').toUpperCase()]) continue;
@@ -3117,7 +3195,7 @@ _REPLY_SCOPE_JS = r"""
                 const par = bb.parentElement;
                 if (comp && par.contains(comp)) break;
                 let fine = true;
-                for (const c of par.children) if (c !== bb && !small(c)) { fine = false; break; }
+                for (const c of par.children) if (c !== bb && !small(c) && !inPrompt(c)) { fine = false; break; }
                 if (!fine) break;
                 bb = par;
             }
@@ -3134,7 +3212,7 @@ _REPLY_SCOPE_JS = r"""
                 const t = (sib.innerText || '').trim();
                 if (!t || UI.test(t)) continue;
                 if (sib.getBoundingClientRect().width < 120) continue;
-                if (hits(N(t)) >= 2) continue;                                  // 还是提问本身（藏着的第二份）
+                if (hits(N(t)) >= 2 || P.includes(N(t))) continue;              // 还是提问本身（藏着的第二份 / 提问的一段）
                 parts.push(t); nodes.push(sib);
             }
             if (node) node = node.parentElement;
@@ -3328,6 +3406,7 @@ _GRAB_MARKDOWN_JS = r"""(anchorText) => {
         const SKIP = {SCRIPT: 1, STYLE: 1, NOSCRIPT: 1, TEXTAREA: 1, SVG: 1, TEMPLATE: 1};
         const UI = /^(显示更多|显示全部|收起|展开|Show more|Show less|编辑|复制|Edit|Copy|你说[：:]?|You said:?)$/i;
         const small = el => { const t = N(el.textContent); return !t || t.length <= 8 || UI.test((el.innerText || '').trim()); };
+        const inPrompt = el => { const t = N(el.textContent); return t.length >= 6 && P.includes(t); };   // v69：提问的另一段
         const matched = new Set(), order = [];
         for (const el of document.body.getElementsByTagName('*')) {
             if (SKIP[(el.tagName || '').toUpperCase()]) continue;
@@ -3348,7 +3427,7 @@ _GRAB_MARKDOWN_JS = r"""(anchorText) => {
                 const par = bb.parentElement;
                 if (comp && par.contains(comp)) break;
                 let fine = true;
-                for (const c of par.children) if (c !== bb && !small(c)) { fine = false; break; }
+                for (const c of par.children) if (c !== bb && !small(c) && !inPrompt(c)) { fine = false; break; }
                 if (!fine) break;
                 bb = par;
             }
@@ -3365,7 +3444,7 @@ _GRAB_MARKDOWN_JS = r"""(anchorText) => {
                 const t = (sib.innerText || '').trim();
                 if (!t || UI.test(t)) continue;
                 if (sib.getBoundingClientRect().width < 120) continue;
-                if (hits(N(t)) >= 2) continue;                                  // 还是提问本身（藏着的第二份）
+                if (hits(N(t)) >= 2 || P.includes(N(t))) continue;              // 还是提问本身（藏着的第二份 / 提问的一段）
                 parts.push(t); nodes.push(sib);
             }
             if (node) node = node.parentElement;

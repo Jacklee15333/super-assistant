@@ -2291,6 +2291,7 @@ def _note_batch_worker(names, use_local, model):
             if ok:
                 _note_batch["done"] += 1
                 _note_batch["ok"] += 1
+                _note_batch["ok_names"] = (list(_note_batch.get("ok_names") or []) + [name])[-2000:]   # v69：清单里马上去掉
                 _note_batch["streak"] = 0
                 backoff_i = 0
                 _note_batch["paused"] = ""
@@ -2366,7 +2367,7 @@ def _note_batch_enqueue(names, use_local=True, model="qwen2.5", why=""):
                 ex.append(n)
         _clog("视频", "📦 %s：%d 条加进正在跑的批量补分析" % (why or "补分析", len(names)))
         return len(names)
-    _note_batch.update({"running": True, "total": len(names), "done": 0, "ok": 0, "fail": 0,
+    _note_batch.update({"running": True, "total": len(names), "done": 0, "ok": 0, "fail": 0, "ok_names": [],
                         "current": "", "stop": False, "errors": [], "started": _time_now(), "finished": 0,
                         "streak": 0, "paused": "", "waiting": "", "resume_at": 0, "extra": [],
                         "failed_names": [], "round": 1})

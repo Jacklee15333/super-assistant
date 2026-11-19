@@ -3606,7 +3606,7 @@ function exportVideoMd(data) {
 async function loadVideoNotes() {
   const list = document.getElementById("videoNotesList");
   if (!list) return;
-  list.innerHTML = "<div class='dash-loading'>加载中…</div>";
+  if (!list.children.length) list.innerHTML = "<div class='dash-loading'>加载中…</div>";   // v69：已有内容就先留着，新的到了再换（页面不跳）
   try {
     const resp = await fetch(BACKEND + "/video_notes");
     const data = await resp.json();
@@ -3894,7 +3894,10 @@ function vnUnIsOpen() {
   try { return localStorage.getItem("vnUnOpen") !== "0"; } catch (_) { return true; }
 }
 
+let _vnUnTodo = [], _vnUnRender = null, _vnUnTitle = null;
 function vnBuildUnList(todo) {
+  todo = (todo || []).slice();
+  _vnUnTodo = todo;
   const box = document.createElement("div");
   box.className = "vn-un"; box.id = "vnUnList";
   const head = document.createElement("div");
@@ -3903,6 +3906,7 @@ function vnBuildUnList(todo) {
   const caret = document.createElement("span"); caret.className = "vn-caret";
   const ttl = document.createElement("span"); ttl.className = "vn-un-title";
   ttl.textContent = todo.length ? "还没分析的笔记（" + todo.length + " 条）" : "所有笔记都分析过了";
+  _vnUnTitle = ttl;
   const tip = document.createElement("span"); tip.className = "vn-un-tip";
   tip.textContent = todo.length ? "按批量分析的顺序排列，点一条就能打开看原文" : "";
   head.appendChild(caret); head.appendChild(ttl); head.appendChild(tip);
@@ -3911,6 +3915,7 @@ function vnBuildUnList(todo) {
   box.appendChild(rows);
   if (!todo.length) { caret.textContent = ""; return box; }
   const render = () => {
+    todo = _vnUnTodo;
     rows.innerHTML = "";
     todo.slice(0, _vnUnShown).forEach((n, i) => rows.appendChild(vnUnRow(n, i + 1)));
     const left = todo.length - Math.min(_vnUnShown, todo.length);
@@ -3923,6 +3928,7 @@ function vnBuildUnList(todo) {
     }
   };
   const apply = (open) => { rows.hidden = !open; caret.textContent = open ? "▾" : "▸"; };
+  _vnUnRender = render;
   render();
   apply(vnUnIsOpen());
   head.addEventListener("click", () => {
@@ -3960,9 +3966,25 @@ function vnUnRow(n, idx) {
   return r;
 }
 
+// v69：分析完的笔记马上从清单里拿掉，标题上的条数跟着少一个（不用整页刷新）
+function vnUnDrop(names) {
+  if (!names || !names.length || !_vnUnTodo.length) return;
+  const gone = new Set(names);
+  const left = _vnUnTodo.filter((n) => !gone.has(n.name));
+  if (left.length === _vnUnTodo.length) return;
+  _vnUnTodo = left;
+  if (_vnUnTitle && document.body.contains(_vnUnTitle)) {
+    _vnUnTitle.textContent = left.length ? "还没分析的笔记（" + left.length + " 条）" : "所有笔记都分析过了";
+  }
+  const bar = document.getElementById("vnBatchBar");
+  if (bar) bar.dataset.todo = String(left.length);
+  if (_vnUnRender) { _vnUnRender(); }
+}
+
 let _vnUnLast = null;
 function vnUnMark(d) {
   _vnUnLast = d;
+  if (d && d.ok_names && d.ok_names.length) vnUnDrop(d.ok_names);
   const box = document.getElementById("vnUnList");
   if (!box) return;
   const errs = {};
@@ -4411,6 +4433,7 @@ function vnAnState(name, st, text) {
       if (_noteAnStopReq) b.disabled = true;
     } else if (st === "done") {
       b.textContent = "✓ 分析好了，点开看";
+      setTimeout(() => vnUnDrop([name]), 0);
     } else {
       b.textContent = st === "stopped" ? "🤖 AI 分析（已停止，可以再点）"
         : st === "fail" ? "🤖 AI 分析（没成功，再试一次）" : (b.dataset.anLabel || "🤖 AI 分析");
