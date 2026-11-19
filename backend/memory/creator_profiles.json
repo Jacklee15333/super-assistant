@@ -2109,5 +2109,271 @@
     "handle": "1920168071",
     "avatar_src": "https://p3-pc.douyinpic.com/aweme/100x100/aweme-avatar/tos-cn-i-c9aec8xkvj_797f690e4c924dd086844029b6010088.jpeg?from=327834062",
     "avatar_file": "bbda16e3a09e55d5.jpg"
+  },
+  "Google 官方博客（News from Google）": {
+    "key": "Google 官方博客（News from Google）",
+    "platform": "web",
+    "home": "https://blog.google/",
+    "name": "blog.google",
+    "updated": 1795067509,
+    "url": "https://blog.google/",
+    "signature": "Get the latest news and stories about Google products, technology and innovation on News from Google, Google's official blog.",
+    "avatar_file": "9d67301c9e27b7d2.png"
+  },
+  "Google DeepMind 官方博客": {
+    "key": "Google DeepMind 官方博客",
+    "platform": "web",
+    "home": "https://deepmind.google/blog/",
+    "name": "Google DeepMind",
+    "updated": 1795067511,
+    "url": "https://deepmind.google/blog/",
+    "signature": "Discover our latest AI breakthroughs, projects, and updates.",
+    "avatar_file": "1969be52fdc900af.png"
+  },
+  "Google Search Central": {
+    "key": "Google Search Central",
+    "platform": "web",
+    "home": "https://developers.google.com/search/blog?hl=zh-cn",
+    "name": "Google for Developers",
+    "updated": 1795067513,
+    "url": "https://developers.google.com/search/blog?hl=zh-cn",
+    "signature": "欢迎订阅 Google 搜索中心博客，及时获悉官方算法更新、Google 搜索新功能公告以及搜索引擎优化 (SEO) 最佳做法。",
+    "avatar_file": "fb417e93a10422fd.png"
+  },
+  "TechCrunch Google 专题": {
+    "key": "TechCrunch Google 专题",
+    "platform": "web",
+    "home": "https://techcrunch.com/tag/Google/",
+    "name": "TechCrunch",
+    "updated": 1795067515,
+    "url": "https://techcrunch.com/tag/Google/",
+    "signature": "Read the latest news and analysis about Google on TechCrunch.",
+    "avatar_file": "1d0e2bd5002209ab.png"
+  },
+  "量子位": {
+    "key": "量子位",
+    "platform": "web",
+    "home": "https://www.qbitai.com/",
+    "name": "量子位",
+    "updated": 1795067516,
+    "url": "https://www.qbitai.com/",
+    "signature": "追踪人工智能新趋势，报道科技行业新突破",
+    "avatar_file": "6b999bbf027c2a53.ico"
+  },
+  "Google 官方 YouTube": {
+    "key": "Google 官方 YouTube",
+    "url": "https://www.youtube.com/@Google",
+    "platform": "youtube",
+    "updated": 1795067519,
+    "home": "https://www.youtube.com/channel/UCK8sQmJBp8GCxrOtXWBpyEA",
+    "name": "Google",
+    "followers": 14700000,
+    "signature": "Here to help. \n\nReimagining how AI can make your life better and help you explore your creativity, connect with the world, and discover new possibilities. Browse our latest product demos, unboxings, developer roundtables, podcasts, tips, tricks and more. Subscribe for the latest product updates, inn",
+    "uid": "UCK8sQmJBp8GCxrOtXWBpyEA",
+    "avatar_src": "https://yt3.googleusercontent.com/bAseQlKvNmjdLQrvYWm_q3QDp8C8YKyYI-nYJewgOkPi0JU1_3X9oFgjrEdzkOlXzLGFxFbnsw=s0",
+    "avatar_file": "b3518bd9e8a3636b.png"
+  },
+  "Google DeepMind 官方 YouTube": {
+    "key": "Google DeepMind 官方 YouTube",
+    "url": "https://www.youtube.com/@GoogleDeepMind",
+    "platform": "youtube",
+    "updated": 1795067523,
+    "home": "https://www.youtube.com/channel/UCP7jMXSY2xbc3KCAE0MHQ-A",
+    "name": "Google DeepMind",
+    "followers": 943000,
+    "signature": "We live in an exciting time when AI research and technology are delivering extraordinary advances. In the coming years, AI — and ultimately artificial general intelligence (AGI) — has the potential to drive one of the greatest transformations in history.\n\nWe’re a team of scientists, engineers, ethic",
+    "uid": "UCP7jMXSY2xbc3KCAE0MHQ-A",
+    "avatar_src": "https://yt3.googleusercontent.com/xofhdRNoyqgAB_YpJgAQeasGtE6gTEXpR2v1vyMmtqlRCmoEUIsTGJcavUORLhhKQk3b9UeUFw=s0",
+    "avatar_file": "29faeaf6dfe968c8.png"
+  },
+  "Google 官方 X 账号": {
+    "key": "Google 官方 X 账号",
+    "avatar_file": "fcce2e0d0c002579.jpg",
+    "avatar_manual": true,
+    "updated": 1795067526
+  },
+  "Marques Brownlee（MKBHD）": {
+    "key": "Marques Brownlee（MKBHD）",
+    "url": "https://www.youtube.com/@mkbhd",
+    "platform": "youtube",
+    "updated": 1795067528,
+    "home": "https://www.youtube.com/channel/UCBJycsmduvYEL83R_U4JriQ",
+    "name": "Marques Brownlee",
+    "followers": 21400000,
+    "signature": "MKBHD: Quality Tech Videos | YouTuber | Geek | Consumer Electronics | Tech Head | Internet Personality!\n\nbusiness@MKBHD.com\n\nNYC",
+    "uid": "UCBJycsmduvYEL83R_U4JriQ",
+    "avatar_src": "https://yt3.googleusercontent.com/qu4TmIaYUlS41-dJ9gZ7DUR3nilvmB5_11i6OKSdvNnBNiyOusZP1bMN6ICnuxtjFBb6ioKgRQ=s0",
+    "avatar_file": "bd633912ef8e56ee.jpg"
+  },
+  "科技美学": {
+    "key": "科技美学",
+    "url": "https://space.bilibili.com/3766866",
+    "platform": "bilibili",
+    "updated": 1795067530,
+    "home": "https://space.bilibili.com/3766866",
+    "uid": "3766866",
+    "name": "科技美学",
+    "followers": 4473164,
+    "signature": "每天分享有价值信息，请搜索【科技美学】/【大家测】/【那岩】",
+    "works": 1714,
+    "avatar_src": "https://i0.hdslb.com/bfs/face/c5276ec59b55aeafa6aac7c9cf8e498df8ec1d8c.jpg",
+    "avatar_file": "8e81f3d60699c123.jpg"
+  },
+  "Anthropic 官方新闻": {
+    "key": "Anthropic 官方新闻",
+    "platform": "web",
+    "home": "https://www.anthropic.com/news",
+    "name": "Newsroom",
+    "updated": 1795067641,
+    "url": "https://www.anthropic.com/news",
+    "signature": "Anthropic is an AI safety and research company that's working to build reliable, interpretable, and steerable AI systems.",
+    "avatar_file": "fa41cb720fbcb56a.png"
+  },
+  "Anthropic 官方研究": {
+    "key": "Anthropic 官方研究",
+    "platform": "web",
+    "home": "https://www.anthropic.com/research",
+    "name": "Research",
+    "updated": 1795067648,
+    "url": "https://www.anthropic.com/research",
+    "signature": "Anthropic is an AI safety and research company that's working to build reliable, interpretable, and steerable AI systems.",
+    "avatar_file": "7ea3c25268568957.png"
+  },
+  "Anthropic 官方 X": {
+    "key": "Anthropic 官方 X",
+    "avatar_file": "b99e0874d0c2d9d1.jpg",
+    "avatar_manual": true,
+    "updated": 1795067656
+  },
+  "Boris Cherny": {
+    "key": "Boris Cherny",
+    "avatar_file": "9511ee87e5b1d656.jpg",
+    "avatar_manual": true,
+    "updated": 1795067665
+  },
+  "Anthropic 官方 YouTube": {
+    "key": "Anthropic 官方 YouTube",
+    "url": "https://www.youtube.com/@anthropic-ai",
+    "platform": "youtube",
+    "updated": 1795067667,
+    "home": "https://www.youtube.com/channel/UCrDwWp7EBBv4NwvScIpBDOA",
+    "name": "Anthropic",
+    "followers": 843000,
+    "signature": "We’re an AI safety and research company. Talk to our AI assistant Claude on claude.com. Download Claude on desktop, iOS, or Android. \n\nWe believe AI will have a vast impact on the world. Anthropic is dedicated to building systems that people can rely on and generating research about the opportunitie",
+    "uid": "UCrDwWp7EBBv4NwvScIpBDOA",
+    "avatar_src": "https://yt3.googleusercontent.com/ux-GXUpB4PkI-qXVOpj9gGEiCkytT0Q78ka4srlxOm_Y3m1gEh5qy8Vu6vTjGSDztMT0NybtC7I=s0",
+    "avatar_file": "b62e5bb5ab981905.png"
+  },
+  "Chris Olah": {
+    "key": "Chris Olah",
+    "avatar_file": "244cbff3c118c00b.jpg",
+    "avatar_manual": true,
+    "updated": 1795067676
+  },
+  "Claude 官方 YouTube": {
+    "key": "Claude 官方 YouTube",
+    "url": "https://www.youtube.com/@claude",
+    "platform": "youtube",
+    "updated": 1795067679,
+    "home": "https://www.youtube.com/channel/UCV03SRZXJEz-hchIAogeJOg",
+    "name": "Claude",
+    "followers": 761000,
+    "signature": "The AI for problem solvers. Built by Anthropic to be safe, accurate, and secure. Talk to Claude on claude.ai or download the app on desktop & mobile.",
+    "uid": "UCV03SRZXJEz-hchIAogeJOg",
+    "avatar_src": "https://yt3.googleusercontent.com/_AYZE3VGGjlD8tLScyYLu9jQ_mUQYpCoeUNb4mP1hjGO-xaZr5_X4bhL3Zv9wHdnuU4rnycSTg=s0",
+    "avatar_file": "3a4811281d777369.png"
+  },
+  "TechCrunch Anthropic 专题": {
+    "key": "TechCrunch Anthropic 专题",
+    "platform": "web",
+    "home": "https://techcrunch.com/tag/anthropic/",
+    "name": "TechCrunch",
+    "updated": 1795067681,
+    "url": "https://techcrunch.com/tag/anthropic/",
+    "signature": "Read the latest news and analysis about Anthropic, an artificial intelligence startup, founded as a public benefit company, on TechCrunch.",
+    "avatar_file": "d43502d0e1c9592f.png"
+  },
+  "InfoQ 中文站": {
+    "key": "InfoQ 中文站",
+    "platform": "web",
+    "home": "https://www.infoq.cn/",
+    "name": "InfoQ",
+    "updated": 1795067683,
+    "url": "https://www.infoq.cn/",
+    "signature": "InfoQ是一个实践驱动的社区资讯站点，致力于促进软件开发及相关领域知识与创新的传播。提供架构，云计算，AI，前端，大数据，Java，软件开发，编程等技术资讯及技术会议，搭建连接中国技术高端社区与国际主流技术社区的桥梁。",
+    "avatar_file": "f84d2a241438b161.webp"
+  },
+  "机器之心": {
+    "key": "机器之心",
+    "platform": "web",
+    "home": "https://pro.jiqizhixin.com/industry",
+    "name": "机器之心",
+    "updated": 1795067684,
+    "url": "https://pro.jiqizhixin.com/industry",
+    "signature": "机器之心",
+    "avatar_file": "841f9d0e7dd768e9.ico"
+  },
+  "OpenAI 官方 YouTube": {
+    "key": "OpenAI 官方 YouTube",
+    "url": "https://www.youtube.com/@OpenAI",
+    "platform": "youtube",
+    "updated": 1795067777,
+    "home": "https://www.youtube.com/channel/UCXZCJLdBC09xxGZ6gcdrc6A",
+    "name": "OpenAI",
+    "followers": 2120000,
+    "signature": "OpenAI’s mission is to ensure that artificial general intelligence benefits all of humanity.",
+    "uid": "UCXZCJLdBC09xxGZ6gcdrc6A",
+    "avatar_src": "https://yt3.googleusercontent.com/MopgmVAFV9BqlzOJ-UINtmutvEPcNe5IbKMmP_4vZZo3vnJXcZGtybUBsXaEVxkmxKyGqX9R=s0",
+    "avatar_file": "4b6624390d4b6ddd.png"
+  },
+  "The Decoder": {
+    "key": "The Decoder",
+    "platform": "web",
+    "home": "https://the-decoder.com/",
+    "name": "The Decoder",
+    "updated": 1795067780,
+    "url": "https://the-decoder.com/",
+    "signature": "Artificial Intelligence is changing the world. THE DECODER brings you all the news about AI.",
+    "avatar_file": "c946036f72ec2ab2.png"
+  },
+  "AI Explained": {
+    "key": "AI Explained",
+    "url": "https://www.youtube.com/@aiexplained-official",
+    "platform": "youtube",
+    "updated": 1795067782,
+    "home": "https://www.youtube.com/channel/UCNJ1Ymd5yFuUPtn21xtRbbw",
+    "name": "AI Explained",
+    "followers": 459000,
+    "signature": "Covering the biggest news of the century - the arrival of smarter-than-human AI. The author of Simple Bench, exposing the remaining human-LLM reasoning gap. \n\nSolo Developer of LM Council: https://lmcouncil.ai - Code - INSIDER15\n\nJoin me at AI Insiders, with exclusive videos and a 1000+ network of A",
+    "uid": "UCNJ1Ymd5yFuUPtn21xtRbbw",
+    "avatar_src": "https://yt3.googleusercontent.com/GFuvgO3IZvs5XkYOxyLoWQto2lyY6-7Ob-7sfZRyoann4eBgvBMxuGgSVU1cvBgRCgAn41St7g=s0",
+    "avatar_file": "b02383b8bd765967.jpg"
+  },
+  "橘鸦Juya": {
+    "key": "橘鸦Juya",
+    "url": "https://space.bilibili.com/285286947",
+    "platform": "bilibili",
+    "updated": 1795067784,
+    "home": "https://space.bilibili.com/285286947",
+    "uid": "285286947",
+    "name": "橘鸦Juya",
+    "followers": 135214,
+    "signature": "记录人类完蛋全过程 | 每日更新",
+    "works": 700,
+    "avatar_src": "https://i0.hdslb.com/bfs/face/afa12816f678f482a7333289d82437208b8d8cbf.jpg",
+    "avatar_file": "510df2943f3ae5c5.jpg"
+  },
+  "WorldofAI": {
+    "key": "WorldofAI",
+    "url": "https://www.youtube.com/@intheworldofai",
+    "platform": "youtube",
+    "updated": 1795067787,
+    "home": "https://www.youtube.com/channel/UC2WmuBuFq6gL08QYG-JjXKw",
+    "name": "WorldofAI",
+    "followers": 255000,
+    "signature": "World of AI is here to push the creative use of Artificial Intelligence (AI) applications for simple day-to-day tasks!\n\nHere at WOA, you will find tips, tricks, and guides using AI applications to help you out in your day-to-day life. Going to strive to make your life easier! I will show you how and",
+    "uid": "UC2WmuBuFq6gL08QYG-JjXKw",
+    "avatar_src": "https://yt3.googleusercontent.com/Aee59geVCIWJz9y7AzVdnY3I1jPR1S4VFF4kIkNJ46VD6jrEGhH2VszD-vKly0XhHz_sLBN3u4A=s0",
+    "avatar_file": "f2fd4b29dfdcd489.png"
   }
 }
