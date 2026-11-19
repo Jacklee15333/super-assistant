@@ -280,79 +280,185 @@ _SEND_STATE_JS = r"""() => {
 }"""
 
 
-def _win_taskbar_set(show):
-    """v63（Windows）：把挪到屏幕外的 AI 池浏览器窗口从任务栏拿掉 / 放回来。
-    v62 是「先藏一下窗口再显示」来刷新任务栏，副作用是 Chrome 可能不再重画页面（实时画面看不到了）。
-    现在完全不碰窗口的显示状态：① 加上「工具窗口」样式（Alt+Tab 和任务栏以后都不再收它）；
-    ② 用系统的任务栏接口（ITaskbarList）直接删掉它的按钮。显示时反过来。
-    只认「Chrome 窗口 + 在屏幕外」的那一个，不会动你自己开的浏览器。返回认到了几个窗口。"""
+# ════════════════ 任务栏：只藏 AI 池自己的浏览器窗口 ════════════════
+# v67 修好误伤：v62～v66 按「窗口在屏幕外」认 AI 池窗口，可 Windows 里**最小化的窗口都在屏幕外**（-32000），
+# 结果你自己最小化着的 Chrome（还有 Edge 等同类窗口）也被从任务栏拿掉了，再最小化就变成屏幕左下角一个个小条。
+# 现在只按「进程号」认：只有 AI 池自己启动的那个浏览器的窗口才会被藏；认不出就什么都不做。
+_WS_EX_TOOLWINDOW, _WS_EX_APPWINDOW = 0x00000080, 0x00040000
+_WS_MINIMIZEBOX, _WS_MAXIMIZEBOX = 0x00020000, 0x00010000
+
+
+def _win_user32():
+    import ctypes
+    from ctypes import wintypes
+    user32 = ctypes.windll.user32
+    get = getattr(user32, "GetWindowLongPtrW", user32.GetWindowLongW)
+    setl = getattr(user32, "SetWindowLongPtrW", user32.SetWindowLongW)
+    get.restype, get.argtypes = ctypes.c_ssize_t, [wintypes.HWND, ctypes.c_int]
+    setl.restype, setl.argtypes = ctypes.c_ssize_t, [wintypes.HWND, ctypes.c_int, ctypes.c_ssize_t]
+    return ctypes, wintypes, user32, get, setl
+
+
+def _enum_windows():
+    """所有看得见的顶层窗口：hwnd、进程号、类名、是否最小化、左边位置、有没有主人窗口、样式。"""
+    ctypes, wintypes, user32, get, _setl = _win_user32()
+    out = []
+    proto = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+    def cb(hwnd, _lp):
+        try:
+            if not user32.IsWindowVisible(hwnd):
+                return True
+            buf = ctypes.create_unicode_buffer(64)
+            user32.GetClassNameW(hwnd, buf, 64)
+            pid = wintypes.DWORD()
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            r = wintypes.RECT()
+            user32.GetWindowRect(hwnd, ctypes.byref(r))
+            out.append({"hwnd": hwnd, "pid": pid.value, "cls": buf.value, "iconic": bool(user32.IsIconic(hwnd)),
+                        "left": r.left, "owned": bool(user32.GetWindow(hwnd, 4)),
+                        "style": get(hwnd, -16) & 0xFFFFFFFF, "ex": get(hwnd, -20) & 0xFFFFFFFF})
+        except Exception:
+            pass
+        return True
+    user32.EnumWindows(proto(cb), 0)
+    return out
+
+
+def _pick_pool_windows(wins, pids, show):
+    """AI 池自己的浏览器窗口：只按进程号认。藏的时候还要求它确实被挪到了屏幕外、而且不是最小化。"""
+    pids = set(pids or ())
+    if not pids:
+        return []
+    hits = []
+    for w in wins:
+        if w["pid"] not in pids or w["cls"] != "Chrome_WidgetWin_1" or w["owned"]:
+            continue
+        if not show and (w["iconic"] or w["left"] > OFFSCREEN_X // 2):
+            continue
+        hits.append(w["hwnd"])
+    return hits
+
+
+def _pick_broken_windows(wins, skip_pids, names):
+    """以前的版本误伤的窗口：Chrome / Edge 的正常窗口（能最小化也能最大化），却被加上了「工具窗口」样式。"""
+    out = []
+    for w in wins:
+        if w["cls"] != "Chrome_WidgetWin_1" or w["owned"] or w["pid"] in skip_pids:
+            continue
+        if not (w["ex"] & _WS_EX_TOOLWINDOW):
+            continue
+        if not (w["style"] & _WS_MINIMIZEBOX) or not (w["style"] & _WS_MAXIMIZEBOX):
+            continue
+        if names.get(w["pid"], "") not in ("chrome.exe", "msedge.exe"):
+            continue
+        out.append(w["hwnd"])
+    return out
+
+
+def _win_proc_name(pid):
+    try:
+        import ctypes
+        from ctypes import wintypes
+        k32 = ctypes.windll.kernel32
+        h = k32.OpenProcess(0x1000, False, pid)            # PROCESS_QUERY_LIMITED_INFORMATION
+        if not h:
+            return ""
+        try:
+            buf = ctypes.create_unicode_buffer(520)
+            n = wintypes.DWORD(520)
+            if k32.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(n)):
+                return os.path.basename(buf.value).lower()
+        finally:
+            k32.CloseHandle(h)
+    except Exception:
+        pass
+    return ""
+
+
+def _set_toolwindow(hwnds, tool):
+    ctypes, wintypes, user32, get, setl = _win_user32()
+    flags = 0x1 | 0x2 | 0x4 | 0x10 | 0x20   # 不改大小/位置/层级、不抢焦点，只让新样式生效
+    for hwnd in hwnds:
+        ex = get(hwnd, -20)
+        new = ((ex | _WS_EX_TOOLWINDOW) & ~_WS_EX_APPWINDOW) if tool else ((ex | _WS_EX_APPWINDOW) & ~_WS_EX_TOOLWINDOW)
+        if new != ex:
+            setl(hwnd, -20, new)
+            user32.SetWindowPos(hwnd, None, 0, 0, 0, 0, flags)
+
+
+def _taskbar_tabs(hwnds, show):
+    """用系统的任务栏接口（ITaskbarList）给这些窗口加回 / 删掉任务栏按钮。"""
+    try:
+        import ctypes
+        from ctypes import wintypes
+        ole32 = ctypes.windll.ole32
+
+        class _GUID(ctypes.Structure):
+            _fields_ = [("a", ctypes.c_ulong), ("b", ctypes.c_ushort), ("c", ctypes.c_ushort),
+                        ("d", ctypes.c_ubyte * 8)]
+
+        def guid(t):
+            g = _GUID()
+            ole32.CLSIDFromString(ctypes.c_wchar_p(t), ctypes.byref(g))
+            return g
+        ole32.CoInitializeEx(None, 2)
+        clsid = guid("{56FDF344-FD6D-11d0-958A-006097C9A090}")     # TaskbarList
+        iid = guid("{56FDF342-FD6D-11d0-958A-006097C9A090}")       # ITaskbarList
+        ptr = ctypes.c_void_p()
+        if ole32.CoCreateInstance(ctypes.byref(clsid), None, 1, ctypes.byref(iid), ctypes.byref(ptr)) == 0 \
+                and ptr.value:
+            vt = ctypes.cast(ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
+            fn = ctypes.WINFUNCTYPE
+            hr_init = fn(ctypes.c_long, ctypes.c_void_p)(vt[3])
+            add_tab = fn(ctypes.c_long, ctypes.c_void_p, wintypes.HWND)(vt[4])
+            del_tab = fn(ctypes.c_long, ctypes.c_void_p, wintypes.HWND)(vt[5])
+            release = fn(ctypes.c_ulong, ctypes.c_void_p)(vt[2])
+            hr_init(ptr)
+            for hwnd in hwnds:
+                (add_tab if show else del_tab)(ptr, hwnd)
+            release(ptr)
+    except Exception:
+        pass
+
+
+def _win_taskbar_set(show, pids=None):
+    """把挪到屏幕外的 AI 池浏览器窗口从任务栏拿掉 / 放回来（不碰窗口的显示状态，实时画面照常）。
+    v67：pids = AI 池自己启动的浏览器进程。只动这些进程的窗口；没有 pids 就什么都不做。返回动了几个窗口。"""
+    import sys as _sys
+    if _sys.platform != "win32" or not pids:
+        return 0
+    try:
+        hits = _pick_pool_windows(_enum_windows(), pids, show)
+        if hits:
+            _set_toolwindow(hits, tool=not show)
+            _taskbar_tabs(hits, show)
+        return len(hits)
+    except Exception:
+        return 0
+
+
+def repair_taskbar(exclude_pids=()):
+    """v67：把以前版本误伤的 Chrome / Edge 窗口放回任务栏（软件启动时做一次）。
+    不碰 AI 池自己的浏览器（exclude_pids）、不碰本软件自己的窗口。返回修好了几个。"""
     import sys as _sys
     if _sys.platform != "win32":
         return 0
     try:
-        import ctypes
-        from ctypes import wintypes
-        user32, ole32 = ctypes.windll.user32, ctypes.windll.ole32
-        GWL_EXSTYLE, WS_EX_TOOLWINDOW, WS_EX_APPWINDOW = -20, 0x00000080, 0x00040000
-        get = getattr(user32, "GetWindowLongPtrW", user32.GetWindowLongW)
-        setl = getattr(user32, "SetWindowLongPtrW", user32.SetWindowLongW)
-        get.restype, get.argtypes = ctypes.c_ssize_t, [wintypes.HWND, ctypes.c_int]
-        setl.restype, setl.argtypes = ctypes.c_ssize_t, [wintypes.HWND, ctypes.c_int, ctypes.c_ssize_t]
-        hits = []
-        proto = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
-
-        def cb(hwnd, _lp):
-            try:
-                if not user32.IsWindowVisible(hwnd):
-                    return True
-                buf = ctypes.create_unicode_buffer(64)
-                user32.GetClassNameW(hwnd, buf, 64)
-                if buf.value != "Chrome_WidgetWin_1":
-                    return True
-                r = wintypes.RECT()
-                user32.GetWindowRect(hwnd, ctypes.byref(r))
-                if r.left <= OFFSCREEN_X // 2:
-                    hits.append(hwnd)
-            except Exception:
-                pass
-            return True
-        user32.EnumWindows(proto(cb), 0)
-        if not hits:
-            return 0
-        flags = 0x1 | 0x2 | 0x4 | 0x10 | 0x20   # 不改大小/位置/层级、不抢焦点，只让新样式生效
-        for hwnd in hits:
-            ex = get(hwnd, GWL_EXSTYLE)
-            new = ((ex | WS_EX_APPWINDOW) & ~WS_EX_TOOLWINDOW) if show else ((ex | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW)
-            if new != ex:
-                setl(hwnd, GWL_EXSTYLE, new)
-                user32.SetWindowPos(hwnd, None, 0, 0, 0, 0, flags)
+        wins = _enum_windows()
+        skip = set(exclude_pids or ()) | {os.getpid()}
         try:
-            class _GUID(ctypes.Structure):
-                _fields_ = [("a", ctypes.c_ulong), ("b", ctypes.c_ushort), ("c", ctypes.c_ushort),
-                            ("d", ctypes.c_ubyte * 8)]
-
-            def guid(t):
-                g = _GUID()
-                ole32.CLSIDFromString(ctypes.c_wchar_p(t), ctypes.byref(g))
-                return g
-            ole32.CoInitializeEx(None, 2)
-            clsid = guid("{56FDF344-FD6D-11d0-958A-006097C9A090}")     # TaskbarList
-            iid = guid("{56FDF342-FD6D-11d0-958A-006097C9A090}")       # ITaskbarList
-            ptr = ctypes.c_void_p()
-            if ole32.CoCreateInstance(ctypes.byref(clsid), None, 1, ctypes.byref(iid), ctypes.byref(ptr)) == 0 \
-                    and ptr.value:
-                vt = ctypes.cast(ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
-                fn = ctypes.WINFUNCTYPE
-                hr_init = fn(ctypes.c_long, ctypes.c_void_p)(vt[3])
-                add_tab = fn(ctypes.c_long, ctypes.c_void_p, wintypes.HWND)(vt[4])
-                del_tab = fn(ctypes.c_long, ctypes.c_void_p, wintypes.HWND)(vt[5])
-                release = fn(ctypes.c_ulong, ctypes.c_void_p)(vt[2])
-                hr_init(ptr)
-                for hwnd in hits:
-                    (add_tab if show else del_tab)(ptr, hwnd)
-                release(ptr)
+            skip.add(os.getppid())
         except Exception:
             pass
+        names = {}
+        for w in wins:
+            if w["cls"] == "Chrome_WidgetWin_1" and (w["ex"] & _WS_EX_TOOLWINDOW) and w["pid"] not in names:
+                names[w["pid"]] = _win_proc_name(w["pid"])
+        hits = _pick_broken_windows(wins, skip, names)
+        if hits:
+            _set_toolwindow(hits, tool=False)
+            _taskbar_tabs(hits, True)
         return len(hits)
     except Exception:
         return 0
@@ -2775,7 +2881,7 @@ class _WebWorker:
             # v62：隐藏状态下每 20 秒看一眼：任务栏按钮被 Chrome 自己加回来了就再拿掉
             if _LIVE.get("visible") is False and time.time() - getattr(self, "_taskbar_check", 0) > 20:
                 self._taskbar_check = time.time()
-                _win_taskbar_set(False)
+                _win_taskbar_set(False, self._browser_pids)
             now = time.time()
             if self._quiet_shots or _LIVE["watch_until"] < now:
                 return
@@ -2854,7 +2960,7 @@ class _WebWorker:
             set_b({"windowState": "normal"})
             cur = bounds()
         if visible:
-            _win_taskbar_set(True)        # v62：先放回任务栏（这时窗口还在屏幕外，好认）
+            _win_taskbar_set(True, self._browser_pids)        # v62：先放回任务栏（这时窗口还在屏幕外，好认）
             set_b(self._visible_bounds())
             # 先最小化再还原：Windows 会把它放到最上面
             set_b({"windowState": "minimized"})
@@ -2875,7 +2981,7 @@ class _WebWorker:
             return False, "系统不允许把窗口挪到屏幕外"
         _live_set(visible=False)
         time.sleep(0.2)
-        n_tb = _win_taskbar_set(False)    # v62：任务栏和 Alt+Tab 里也不显示
+        n_tb = _win_taskbar_set(False, self._browser_pids)    # v62：任务栏和 Alt+Tab 里也不显示
         self._taskbar_check = time.time()
         return True, "已隐藏 AI 池浏览器（挪到屏幕外，任务栏里也不显示，照常在后台工作）" if n_tb else \
             "已隐藏 AI 池浏览器（挪到屏幕外，照常在后台工作）"

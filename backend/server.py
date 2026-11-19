@@ -1964,12 +1964,18 @@ def _video_worker():
                 uploader = (res.get("uploader") or job.get("author") or "").strip()
                 clean_url = res.get("url") or job["url"]
                 video_path = res.get("video_path")
-                analysis = _cx_analyze_transcript(
-                    transcript, title, job["use_local"], job["model"],
-                    on_progress=lambda m: cb("AI 分析", m),
-                    segments=segments,
-                    do_screenshot=do_screenshot, do_link=do_link,
-                    src_noun=res.get("src_noun"))
+                _ai_t = _ai_gate.acquire("视频提取《%s》的 AI 分析" % (title or "")[:24],      # v67：排队等 AI 池
+                                         on_wait=lambda b: cb("排队等 AI", b),
+                                         should_stop=lambda: bool(_video_cancel.get("all")))
+                if _ai_t is None:
+                    analysis = "（分析出错：已取消）"
+                else:
+                    analysis = _cx_analyze_transcript(
+                        transcript, title, job["use_local"], job["model"],
+                        on_progress=lambda m: cb("AI 分析", m),
+                        segments=segments,
+                        do_screenshot=do_screenshot, do_link=do_link,
+                        src_noun=res.get("src_noun"))
                 # ★标题翻译（随分析一起完成）：分析模型已被要求在开头输出「中文标题：xxx」，
                 #   这里把它抽出来当中文标题，并从正文里删掉这行（避免笔记里重复出现）。
                 title_from_ai, analysis = _split_title_from_analysis(analysis)
@@ -2045,6 +2051,8 @@ def _video_worker():
                     except Exception:
                         title_zh = ""
                 display_title = title_zh or title
+                _ai_gate.release(_ai_t)          # v67：AI 用完了，让给排队的下一件事
+                _ai_t = None
                 orig_line = (f"- 原标题：{title}\n" if title_zh else "")
                 doc = (f"# {display_title}\n\n"
                        f"- 来源链接：{clean_url}\n"
@@ -2092,6 +2100,7 @@ def _video_worker():
             _video_state["result"] = {"ok": False, "error": str(e)}
         finally:
             tick["on"] = False
+            _ai_gate.release_thread()        # v67：保险，万一出错没还 AI 池
             _video_state["result_id"] += 1
             try:
                 video_transcribe.extract_gate.release()
@@ -2400,7 +2409,119 @@ def _parse_saved_note(text):
     return title, meta, transcript, tags
 
 
+# ════════════════ v67：AI 池一次只做一件事（先来先做，排队时看得到前面在做什么） ════════════════
+def _ai_slots():
+    """AI 池同时能做几件事。现在只有一个网站（一个浏览器、一个干活的线程），所以是 1。
+    以后加了第二个网站（各自一个浏览器）就改成网站个数，那时视频分析和批量分析可以同时进行。"""
+    return 1
+
+
+class _AIGate:
+    def __init__(self):
+        self._cv = _threading.Condition()
+        self._queue = []              # 排队的（先来先做）
+        self._holders = {}            # 正在用 AI 池的：票 → (说明, 开始时间, 线程号)
+
+    def _busy_locked(self):
+        if not self._holders:
+            return "马上就轮到"
+        return "、".join("「%s」" % w for w, _t, _i in self._holders.values()) + " 正在用 AI 池，做完就轮到这一条"
+
+    def acquire(self, what, on_wait=None, should_stop=None):
+        """排队等 AI 池。轮到了返回一张票（用完要 release）；等的时候被停止了返回 None。
+        on_wait(说明)：前面在做的事情变了才调用一次（不会刷屏）。"""
+        t = object()
+        last = None
+        with self._cv:
+            self._queue.append(t)
+        try:
+            while True:
+                with self._cv:
+                    if self._queue and self._queue[0] is t and len(self._holders) < max(1, _ai_slots()):
+                        self._queue.pop(0)
+                        self._holders[t] = (what, _time_now(), _threading.get_ident())
+                        if last is not None:
+                            _clog("AI池", "▶ 轮到「%s」" % what)
+                        return t
+                    busy = self._busy_locked()
+                if should_stop is not None and should_stop():
+                    with self._cv:
+                        if t in self._queue:
+                            self._queue.remove(t)
+                        self._cv.notify_all()
+                    return None
+                if busy != last:
+                    if last is None:
+                        _clog("AI池", "⏳「%s」排队等 AI 池：%s" % (what, busy))
+                    last = busy
+                    if on_wait is not None:
+                        try:
+                            on_wait(busy)
+                        except Exception:
+                            pass
+                with self._cv:
+                    self._cv.wait(1.0)
+        except BaseException:
+            with self._cv:
+                if t in self._queue:
+                    self._queue.remove(t)
+                self._cv.notify_all()
+            raise
+
+    def release(self, t):
+        if t is None:
+            return
+        with self._cv:
+            self._holders.pop(t, None)
+            self._cv.notify_all()
+
+    def release_thread(self):
+        """保险：这个线程还拿着的票全部还回去（出错没走到 release 时用）。"""
+        me = _threading.get_ident()
+        with self._cv:
+            for t in [t for t, v in self._holders.items() if v[2] == me]:
+                self._holders.pop(t, None)
+            self._cv.notify_all()
+
+    def status(self):
+        with self._cv:
+            return {"slots": max(1, _ai_slots()), "waiting": len(self._queue),
+                    "busy": [{"what": w, "since": int(t0)} for w, t0, _i in self._holders.values()]}
+
+
+_ai_gate = _AIGate()
+
+
 def _note_analyze_worker(name, use_local, model):
+    """v67：批量分析的每一篇、单条「AI 分析」都走这里：先排队等 AI 池（一次只做一件事），轮到了再分析。"""
+    in_batch = bool(_note_batch.get("running")) and _note_batch.get("current") == name
+    short = re.sub(r"^\d{8}-\d{6}-", "", name or "")[:-3][:24]
+    if in_batch:
+        what = "批量分析 第 %d / %d 篇《%s》" % (min(_note_batch.get("total", 0), _note_batch.get("done", 0) + 1),
+                                           _note_batch.get("total", 0), short)
+    else:
+        what = "分析《%s》" % short
+
+    def on_wait(busy):
+        with _note_an_lock:
+            _note_an_state.update({"running": True, "name": name, "stage": "排队等 AI 池：" + busy})
+
+    def should_stop():
+        return bool(_note_batch.get("stop")) if in_batch else bool(_note_an_state.get("stop_req"))
+    t = _ai_gate.acquire(what, on_wait=on_wait, should_stop=should_stop)
+    if t is None:
+        with _note_an_lock:
+            _note_an_state.update({"running": False, "stage": "", "ok": False,
+                                   "error": "分析出错：已按你的要求停止（还没轮到 AI 池）"})
+            _note_an_state["done_id"] = _note_an_state.get("done_id", 0) + 1
+        return
+    try:
+        return _note_analyze_worker_inner(name, use_local, model)
+    finally:
+        _ai_gate.release(t)
+
+
+def _note_analyze_worker_inner(name, use_local, model):
     """后台线程：读一条「未分析」笔记 → AI 分析 / 补标签 / 翻标题 → 原地重写 md。
     与提取流水线里的 AI 分析共用同一套函数，产出格式完全一致；
     若存在 segments 侧车文件、且当初勾了「跳转原片」，会照常打时间标记（方案 B）。
@@ -2906,7 +3027,7 @@ class Handler(BaseHTTPRequestHandler):
             "stage": (an.get("stage") or "") if same else "",
             "note_started": (an.get("started_at") or 0) if same else 0,
         }
-        return {"pool": pool, "batch": batch, "now": _time_now()}
+        return {"pool": pool, "batch": batch, "ai_gate": _ai_gate.status(), "now": _time_now()}
 
     def _send(self, obj, status=200):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
@@ -3626,6 +3747,7 @@ class Handler(BaseHTTPRequestHandler):
                 running = bool(_note_an_state.get("running"))
                 if running:
                     _note_an_state["stage"] = "正在停止…"
+                    _note_an_state["stop_req"] = True          # v67：还在排队的也能停
             if not running:
                 return self._send({"ok": True, "message": "现在没有在分析"})
             try:
@@ -5591,7 +5713,10 @@ class Handler(BaseHTTPRequestHandler):
             if _note_an_state["running"]:
                 return self._send({"ok": False,
                                    "error": "已有一条笔记正在补分析，请等它完成后再点。"})
-            _note_an_state.update({"running": True, "name": name,
+            if _note_batch.get("running"):
+                return self._send({"ok": False, "error": "批量 AI 分析正在进行（AI 池一次只做一件事）。"
+                                   "这一条等批量做完再点，或者先点批量那一行的「停止」。"})
+            _note_an_state.update({"running": True, "name": name, "stop_req": False,
                                    "stage": "准备", "error": "", "ok": False})
         if not _note_batch.get("running"):
             try:
@@ -6021,5 +6146,19 @@ def main():
         server.shutdown()
 
 
+def _startup_repair_taskbar():
+    """v67：以前的版本把你最小化着的 Chrome 也从任务栏拿掉了（变成左下角的小条）——启动时放回去。"""
+    try:
+        import time as _t
+        _t.sleep(3)
+        import web_model
+        n = web_model.repair_taskbar()
+        if n:
+            _clog("AI池", "✓ 修好了 %d 个被以前版本误藏的浏览器窗口（放回任务栏了）" % n)
+    except Exception:
+        pass
+
+
 if __name__ == "__main__":
+    _threading.Thread(target=_startup_repair_taskbar, daemon=True).start()
     main()
