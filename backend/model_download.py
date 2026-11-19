@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import threading
 import time
@@ -33,13 +34,13 @@ REPOS = {
     "large-v3": "Systran/faster-whisper-large-v3",
     "kotoba-v2": "kotoba-tech/kotoba-whisper-v2.0-faster",     # v97：日语专用
 }
-APPROX_GB = {"kotoba-v2": 1.5, "tiny": 0.08, "base": 0.15, "small": 0.48, "medium": 1.5, "large-v2": 3.1, "large-v3": 3.1}
+APPROX_GB = {"anime": 1.6, "kotoba-v2": 1.5, "tiny": 0.08, "base": 0.15, "small": 0.48, "medium": 1.5, "large-v2": 3.1, "large-v3": 3.1}
 
 # 小文件先下（坏了马上知道），最后下 model.bin
 SMALL_REQUIRED = ["config.json", "tokenizer.json"]
 VOCAB = ["vocabulary.json", "vocabulary.txt"]          # 两种写法有一个就行
 PREPROC = "preprocessor_config.json"                    # large-v3 必须有（128 维特征），别的型号没有这个文件
-NEED_PREPROC = {"large-v3", "kotoba-v2"}
+NEED_PREPROC = {"large-v3", "kotoba-v2", "anime"}
 # kotoba-whisper 是在 large-v3 上训练的（128 维特征）。仓库里万一没放特征配置，就按 large-v3 的写一份
 _DEFAULT_PREPROC = {"chunk_length": 30, "feature_extractor_type": "WhisperFeatureExtractor", "feature_size": 128,
                     "hop_length": 160, "n_fft": 400, "n_samples": 480000, "nb_max_frames": 3000,
@@ -251,10 +252,160 @@ def _is_cancel(e):
     return type(e).__name__ in ("ExtractCancelled", "KeyboardInterrupt")
 
 
+# ════════════════ v98：要「转格式」的模型（Anime-Whisper）════════════════
+# Anime-Whisper 只发布了原始格式（PyTorch / transformers），软件的识别引擎用的是 CTranslate2 格式。
+# 做法：第一次用时 ① 下载原始模型 ② 装转换工具（transformers + PyTorch 的 CPU 版，只装一次）
+# ③ 在这台电脑上转成 CTranslate2 格式（float16，显卡照样加速）④ 删掉原始文件省空间。以后直接用转好的。
+CONVERT = {"anime": "litagin/anime-whisper"}
+_HF_SKIP = re.compile(r"(\.md$|\.gitattributes$|\.png$|\.jpg$|\.gif$|^\.|/|optimizer|training_args|\.bin\.index|"
+                      r"pytorch_model.*\.bin$|tf_model|flax_model|\.msgpack$|\.h5$|\.onnx)")
+_HF_FALLBACK = ["config.json", "generation_config.json", "model.safetensors", "preprocessor_config.json",
+                "tokenizer.json", "tokenizer_config.json", "vocab.json", "merges.txt", "added_tokens.json",
+                "special_tokens_map.json", "normalizer.json"]
+
+
+def _hf_files(opener, ep, repo):
+    """仓库里有哪些文件（镜像的查询接口不通就用常见的文件名单）。"""
+    try:
+        req = urllib.request.Request("%s/api/models/%s" % (ep, repo), headers={"User-Agent": UA})
+        with opener.open(req, timeout=20) as r:
+            d = json.loads(r.read().decode("utf-8", "replace"))
+        names = [x.get("rfilename") for x in d.get("siblings") or [] if x.get("rfilename")]
+        names = [n for n in names if not _HF_SKIP.search(n)]
+        if any(n.endswith(".safetensors") for n in names):
+            return names
+    except Exception:
+        pass
+    return list(_HF_FALLBACK)
+
+
+def _py_ok(code):
+    import subprocess
+    import sys
+    flags = 0x08000000 if sys.platform == "win32" else 0
+    try:
+        r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=300, creationflags=flags)
+        return r.returncode == 0, ((r.stdout or "") + (r.stderr or ""))[-1500:]
+    except Exception as e:
+        return False, str(e)
+
+
+def _ensure_converter(progress):
+    ok, _ = _py_ok("import transformers, torch, ctranslate2")
+    if ok:
+        return
+    if progress:
+        progress("第一次用要装转换工具（transformers + PyTorch CPU 版，约 300MB，只装一次）…")
+    import gpu_accel
+    pk = ["transformers>=4.40", "torch"]
+    ok, how = gpu_accel._pip_install(pk)
+    if not ok:
+        tail = (str(how or "").strip().splitlines() or ["网络问题"])[-1]
+        raise RuntimeError("转换工具没装上（%s）" % tail[:200])
+    ok, out = _py_ok("import transformers, torch")
+    if not ok:
+        raise RuntimeError("转换工具装了但用不了：%s" % ((out or "").strip().splitlines() or ["原因不明"])[-1][:200])
+
+
+def _download_convert(size, root, progress=None, check=None):
+    repo = CONVERT[size]
+    root = Path(root)
+    final = root / ("faster-whisper-%s" % size)
+    raw = root / ("%s-原始文件" % size)
+    raw.mkdir(parents=True, exist_ok=True)
+    say = (lambda m: progress(m)) if progress else (lambda m: None)
+    errs = []
+    got = False
+    for label, ep, proxy in _sources():
+        op = _opener(proxy)
+        say("%s：查模型文件清单…" % label)
+        try:
+            names = _hf_files(op, ep, repo)
+            big = [n for n in names if n.endswith(".safetensors")]
+            for n in names:
+                if n in big or (raw / n).is_file():
+                    continue
+                try:
+                    _fetch(op, "%s/%s/resolve/main/%s" % (ep, repo, n), raw / n, check=check)
+                except _NotFound:
+                    if n == "config.json":
+                        raise RuntimeError("仓库里没找到 config.json")
+            for n in big:
+                if (raw / n).is_file():
+                    continue
+                st = {"t0": time.time(), "last": 0.0, "b0": None}
+
+                def report(have, total, _n=n, _st=st, _label=label):
+                    now = time.time()
+                    if _st["b0"] is None:
+                        _st["b0"] = have
+                    if now - _st["last"] < 1.0:
+                        return
+                    _st["last"] = now
+                    sp = max(0, have - _st["b0"]) / max(0.5, now - _st["t0"])
+                    tot = total or int(approx_gb(size) * 1024 ** 3)
+                    m = "%s：下载 Anime-Whisper %s / %s" % (_label, _gb(have), _gb(tot))
+                    if sp > 0:
+                        left = max(0, tot - have) / sp
+                        m += " · %.1f MB/s · 还要约 %s" % (sp / 1024 ** 2, ("%d 分钟" % max(1, round(left / 60))) if left >= 60 else "%d 秒" % left)
+                    say(m)
+                _fetch(op, "%s/%s/resolve/main/%s" % (ep, repo, n), raw / n, report=report, check=check)
+            if not any(raw.glob("*.safetensors")):
+                raise RuntimeError("没下到模型权重文件")
+            got = True
+            break
+        except Exception as e:
+            if _is_cancel(e):
+                raise
+            errs.append("%s：%s" % (label, (str(e) or type(e).__name__)[:160]))
+            _log("✗ %s 没下成：%s" % (label, e))
+    if not got:
+        raise RuntimeError("Anime-Whisper 没下载下来（下好的部分留着，下次接着下）——" + "；".join(errs))
+    # 分词表 / 特征配置：原始仓库没带的话，用 large-v3 的（Anime-Whisper 是在它这一系上训练的，分词表一样）
+    if not (raw / "preprocessor_config.json").is_file():
+        (raw / "preprocessor_config.json").write_text(json.dumps(_DEFAULT_PREPROC), encoding="utf-8")
+    if not (raw / "tokenizer.json").is_file():
+        say("补一个分词表文件…")
+        for label, ep, proxy in _sources():
+            try:
+                _fetch(_opener(proxy), "%s/Systran/faster-whisper-large-v3/resolve/main/tokenizer.json" % ep,
+                       raw / "tokenizer.json", check=check)
+                break
+            except Exception as e:
+                if _is_cancel(e):
+                    raise
+    if check:
+        check()
+    _ensure_converter(progress)
+    say("把模型转成软件能用的格式（几分钟，只做这一次）…")
+    tmp = root / ("faster-whisper-%s.converting" % size)
+    if tmp.exists():
+        shutil.rmtree(tmp, ignore_errors=True)
+    copy = [f for f in ("tokenizer.json", "preprocessor_config.json") if (raw / f).is_file()]
+    code = ("import sys; from ctranslate2.converters.transformers import main; "
+            "sys.argv=['ct2', '--model', %r, '--output_dir', %r, '--quantization', 'float16', '--copy_files'] + %r; main()"
+            % (str(raw), str(tmp), copy))
+    ok, out = _py_ok(code)
+    if not ok or not _complete(tmp, "large-v3"):
+        raise RuntimeError("转格式没成功：%s" % (out.strip().splitlines()[-1] if out.strip() else "原因不明"))
+    if final.exists():
+        shutil.rmtree(final, ignore_errors=True)
+    tmp.rename(final)
+    shutil.rmtree(raw, ignore_errors=True)
+    _log("✓ Anime-Whisper 准备好了：%s" % final)
+    return str(final)
+
+
 def download(size, root, progress=None, check=None):
     """把 size 型号的模型下载到 root/faster-whisper-<size>/，返回文件夹路径。
     progress(说明) 报进度；check() 用来取消（抛异常即中断，下好的部分留着下次续传）。
     所有来源都失败时抛 RuntimeError，说明里带每个来源的真实原因。"""
+    if size in CONVERT:
+        with _locks_guard:
+            lk = _locks.setdefault(size, threading.Lock())
+        with lk:
+            have = find_local(size, root)
+            return have or _download_convert(size, root, progress, check)
     repo = REPOS.get(size)
     if not repo:
         raise RuntimeError("不认识的模型型号：%s" % size)

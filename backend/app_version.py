@@ -5,5 +5,5 @@
   - 后端黑窗口第一行也会打印它。
 看到新版本号，就说明更新已经成功加载。
 """
-APP_VERSION = "v97"
-VERSION_NOTE = ("日语专用识别模型（kotoba-whisper）；日语模式：小声的先放大、静音检测放宽、空 4 秒就再听一遍，尽量一句不漏")
+APP_VERSION = "v99"
+VERSION_NOTE = ("Anime-Whisper 改成先按停顿切成一句一句、再一句一句听：字幕时间对得上，认得也更准")

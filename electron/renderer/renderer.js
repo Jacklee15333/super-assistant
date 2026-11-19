@@ -2055,7 +2055,7 @@ function askImportOptions(cfg) {
     levelSel.className = "text-input";
     levelSel.style.cssText = "flex:1 1 auto";
     [["speed", "快速（糙）"], ["balanced", "均衡（推荐）"],
-     ["accurate", "精准（慢）"], ["ultra", "超精准（大模型）"], ["ja", "日语专用（kotoba）"]].forEach(([v, t]) => {
+     ["accurate", "精准（慢）"], ["ultra", "超精准（大模型）"], ["ja", "日语专用（kotoba）"], ["anime", "日语·情绪/小声（Anime）"]].forEach(([v, t]) => {
       const o = document.createElement("option");
       o.value = v; o.textContent = t; levelSel.appendChild(o);
     });
@@ -12787,13 +12787,19 @@ async function _vtSubBar(resultEl, data) {
   o.value = "ja"; o.textContent = "日语专用（kotoba-whisper）";
   o.title = "专门识别日语的模型，日语比「超精准」更准、更快；第一次用要下载约 1.5GB";
   sel.appendChild(o);
+  // v98：日语·情绪 / 小声（Anime-Whisper）——带情绪、小声、喘息、语气夸张的说话认得更准
+  const o2 = document.createElement("option");
+  o2.value = "anime"; o2.textContent = "日语·情绪 / 小声（Anime-Whisper）";
+  o2.title = "用动漫、游戏配音训练的日语模型：带情绪、小声、喘息、语气夸张的说话认得更准；" +
+    "第一次用要下载约 1.6GB，再在你电脑上转一次格式（几分钟，只做一次）";
+  sel.appendChild(o2);
   try {
     const saved = localStorage.getItem("videoLevelPick");
-    if (saved === "ja") sel.value = "ja";
+    if (saved === "ja" || saved === "anime") sel.value = saved;
   } catch (e) {}
   const sync = () => {
     const lang = document.getElementById("videoLang");
-    if (sel.value === "ja" && lang && lang.value !== "ja") {
+    if ((sel.value === "ja" || sel.value === "anime") && lang && lang.value !== "ja") {
       lang.value = "ja";
       try { localStorage.setItem("videoLangPick", "ja"); } catch (_) {}
     }

@@ -1,61 +1,5 @@
 [
   {
-    "id": "video-1795065906510",
-    "ts": "11-19 13:25:06",
-    "kind": "video",
-    "title": "一个人就能开公司 你以为开公司要很多人？恰恰相反，这个时代，一个人就够了。 \n先说为什么。以前开公司，靠的是人力杠杆——用别人的时间替你赚钱。所以公司越大越值钱。但今天不一样了。AI能代替很多人，自媒体能帮你放大。一个替你干活，一个帮你扩大",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "保存"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "保存": 1
-    },
-    "steps": 5,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 115,
-    "note": "✅ 已完成《一个人就能开公司 你以为开公司要很多人？》，继续处理下一个（还剩 1 个）"
-  },
-  {
-    "id": "video-1795066022158",
-    "ts": "11-19 13:27:02",
-    "kind": "video",
-    "title": "本月GitHub十大神级项目，三个在治AI审美 这个月GitHub涨星最多的10个项目，一次看完：本地AI配音VoiceStudio、Cloudflare安全审计、Matt Pocock技能包、Orca和T3 Code两个AI编程工作台、让",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "保存",
-      "博主主页"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "保存": 1,
-      "博主主页": 1
-    },
-    "steps": 6,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 32,
-    "note": "✅ 已完成《本月GitHub十大神级项目，三个在治A》，队列已清空，等待新任务"
-  },
-  {
     "id": "video-1795066921818",
     "ts": "11-19 13:42:01",
     "kind": "video",
@@ -1408,5 +1352,47 @@
     "tokens_est": 0,
     "seconds": 125,
     "note": "✅ 已完成《FC2 PPV 862588 【個人撮影》，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1795096287118",
+    "ts": "11-19 21:51:27",
+    "kind": "video",
+    "title": "视频提取：ても可愛らしい、黒髪女子大生のあおいちゃんに中出し！【妄想動画】 (1).mp4",
+    "tools": [
+      "读取文件",
+      "下载语音模型"
+    ],
+    "tool_count": {
+      "读取文件": 1,
+      "下载语音模型": 1
+    },
+    "steps": 2,
+    "error": "本地文件提取失败：转格式没成功：ValueError: numpy.dtype size changed, may indicate binary incompatibility. Expected 96 from C header, got 88 from PyObject",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 222,
+    "note": "⚠ 这条没成功，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1795096528493",
+    "ts": "11-19 21:55:28",
+    "kind": "video",
+    "title": "视频提取：ても可愛らしい、黒髪女子大生のあおいちゃんに中出し！【妄想動画】 (1).mp4",
+    "tools": [
+      "读取文件",
+      "下载语音模型"
+    ],
+    "tool_count": {
+      "读取文件": 1,
+      "下载语音模型": 1
+    },
+    "steps": 2,
+    "error": "本地文件提取失败：转格式没成功：ValueError: numpy.dtype size changed, may indicate binary incompatibility. Expected 96 from C header, got 88 from PyObject",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 8,
+    "note": "⚠ 这条没成功，队列已清空，等待新任务"
   }
 ]

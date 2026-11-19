@@ -290,10 +290,12 @@ def models_info():
         if d.exists():
             for p in sorted(d.iterdir()):
                 n = p.name
-                if p.is_dir() and "faster-whisper" in n and not n.endswith(".downloading") and ".bak-" not in n:
+                if p.is_dir() and "faster-whisper" in n and not n.endswith((".downloading", ".converting")) and ".bak-" not in n:
                     # 友好显示：精准/均衡/快速
                     label = n
-                    if "kotoba" in n:
+                    if n.endswith("-anime"):
+                        label = "日语·情绪 / 小声模型 (Anime-Whisper)"
+                    elif "kotoba" in n:
                         label = "日语专用模型 (kotoba-whisper)"
                     elif "large" in n:
                         label = "超精准模型 (large-v3)"
@@ -321,6 +323,7 @@ MODEL_MAP = {
     "accurate": "medium",
     "ultra": "large-v3",      # v87：超精准（大模型，约 3GB，显卡上跑；方言、快语速认得更准）
     "ja": "kotoba-v2",        # v97：日语专用（kotoba-whisper v2，用几万小时日语训练，日语比 large-v3 准、还快）
+    "anime": "anime",         # v98：日语·情绪 / 小声（Anime-Whisper：动漫、游戏配音训练，带情绪、小声、喘息的说话认得准）
 }
 
 # v87：给 whisper 的开头提示——让它输出标点、用简体字（不影响内容，只影响格式）
@@ -384,6 +387,8 @@ def _whisper_lang():
 
 
 def _lang_prompt():
+    if _LANG.get("noprompt"):          # v98：Anime-Whisper 作者建议不要给开头提示（给了容易编造）
+        return None
     return LANGS.get(_LANG["v"], LANGS["zh"])[1]
 
 # v87：whisper 在没人说话 / 只有音乐的地方常会「编」出来的话，补漏时一律丢掉
@@ -402,6 +407,47 @@ def _looks_hallucinated(t):
     if len(t) >= 12 and len(set(t)) <= len(t) / 4:      # 同几个字反复刷屏
         return True
     return False
+
+
+def _utterances(audio, loose=False):
+    """v99：按停顿把声音切成一句一句（[开始样本, 结束样本]），每句约 1~8 秒。
+    太碎的（不到 0.8 秒、离下一句又很近）并到一起；超过 8 秒的硬切开。"""
+    from faster_whisper.vad import get_speech_timestamps, VadOptions
+    opts = VadOptions(threshold=0.15 if loose else 0.25, min_speech_duration_ms=200, max_speech_duration_s=8,
+                      min_silence_duration_ms=300, speech_pad_ms=150)
+    out = []
+    for t in get_speech_timestamps(audio, vad_options=opts, sampling_rate=_SR):
+        a, b = int(t["start"]), int(t["end"])
+        if out:
+            pa, pb = out[-1]
+            short = (pb - pa) < 0.8 * _SR or (b - a) < 0.8 * _SR
+            if short and (a - pb) < 0.4 * _SR and (b - pa) <= 8 * _SR:
+                out[-1][1] = b
+                continue
+        out.append([a, b])
+    return out
+
+
+def _anime_segments(model, audio, loose=False):
+    """v99：Anime-Whisper 是拿一句一句的配音训练的，不给细的时间点。
+    所以先按停顿切成一句一句，每句单独交给它听：字幕时间就是这句话真正的开始 / 结束（对得上画面），
+    而且这正是它最擅长的用法，认得也更准。逐句产出（start/end 相对于 audio）。"""
+    from types import SimpleNamespace as _NS
+    for a, b in _utterances(audio, loose):
+        _check_cancel()
+        clip = audio[a:b]
+        if len(clip) < int(0.25 * _SR):
+            continue
+        res, _inf = model.transcribe(clip, language="ja", vad_filter=False, without_timestamps=True,
+                                     condition_on_previous_text=False, initial_prompt=None, beam_size=5,
+                                     repetition_penalty=1.1, no_repeat_ngram_size=10)
+        res = list(res)
+        text = "".join((r.text or "").strip() for r in res).strip()
+        if not text or _looks_hallucinated(text):
+            continue
+        yield _NS(start=a / _SR, end=b / _SR, text=text,
+                  no_speech_prob=max([getattr(r, "no_speech_prob", 0) or 0 for r in res] or [0]),
+                  avg_logprob=min([getattr(r, "avg_logprob", 0) or 0 for r in res] or [0]))
 
 
 def _fill_gaps(model, full, total, seg_list, progress_cb=None):
@@ -433,7 +479,10 @@ def _fill_gaps(model, full, total, seg_list, progress_cb=None):
         if len(clip) < _SR:          # 不到 1 秒
             continue
         try:
-            res, _inf = model.transcribe(clip, language=_whisper_lang(), vad_filter=False,
+            if _LANG.get("noprompt"):                  # v99：Anime-Whisper 补听也一句一句来（时间对得上）
+                res = _anime_segments(model, clip, loose=True)
+            else:
+              res, _inf = model.transcribe(clip, language=_whisper_lang(), vad_filter=False,
                                          condition_on_previous_text=False,
                                          initial_prompt=_lang_prompt())
             for sg in res:
@@ -1710,13 +1759,26 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
         _vad = {"threshold": 0.25, "min_silence_duration_ms": 1500, "speech_pad_ms": 600}
     else:
         _vad = {"min_silence_duration_ms": 800, "speech_pad_ms": 200}
+    _LANG["noprompt"] = MODEL_MAP.get(level) == "anime"
     if MODEL_MAP.get(level, "").startswith("kotoba"):
         # kotoba-whisper 官方建议：按 15 秒一段听，不拿上一段的结果当提示（减少「复读」和编造）
         _kw.update(chunk_length=15, condition_on_previous_text=False)
-    segments, info = model.transcribe(
-        audio_input, language=_whisper_lang(), vad_filter=True,
-        initial_prompt=_lang_prompt(),                  # v87：带标点、简体；v95：按选的语言
-        vad_parameters=_vad, **_kw)
+    elif MODEL_MAP.get(level) == "anime":
+        # v98：Anime-Whisper 是拿一句一句的短配音训练的：按 10 秒一段听、不带时间戳（每段一句）、
+        # 不给提示、不拿上一段当提示，并且压住「同一句反复刷」的毛病
+        _kw.update(chunk_length=10, condition_on_previous_text=False, without_timestamps=True,
+                   repetition_penalty=1.1, no_repeat_ngram_size=10)
+    if MODEL_MAP.get(level) == "anime" and not isinstance(audio_input, str):
+        # v99：先按停顿切成一句一句，再一句一句听——字幕时间对得上
+        from types import SimpleNamespace as _NS
+        if progress_cb:
+            progress_cb("语音转文字", "Anime-Whisper：先按停顿把声音切成一句一句，再一句一句听（字幕时间对得上）…")
+        segments, info = _anime_segments(model, audio_input), _NS(duration=len(audio_input) / _SR)
+    else:
+        segments, info = model.transcribe(
+            audio_input, language=_whisper_lang(), vad_filter=True,
+            initial_prompt=_lang_prompt(),                  # v87：带标点、简体；v95：按选的语言
+            vad_parameters=_vad, **_kw)
     # ── 进度分母 total：优先用我们自己解码出来的真实音频秒数（最准），
     #    没有再退回 whisper 报告的 duration。这一份是「整段」时长，和下面
     #    加了 offset 的 seg_end 同基准，百分比才不会偏。
@@ -1849,7 +1911,7 @@ def extract(url, level="balanced", progress_cb=None, need_video=False, mode="aut
       · "subtitle_only" —— 优先字幕；万一拿不到，仍回退听写保证有结果；
       · "transcribe"    —— 跳过字幕，直接下视频听写（字幕可能不全/有错时更准更全）。
     """
-    _set_lang("ja" if level == "ja" else lang)   # v95：这次视频说的是什么话；v97：日语专用模型一定按日语
+    _set_lang("ja" if level in ("ja", "anime") else lang)   # v95：视频说的是什么话；v97/v98：日语专用模型一定按日语
     def step(s, d=""):
         if progress_cb:
             progress_cb(s, d)
@@ -2085,7 +2147,7 @@ def extract_local(file_path, level="balanced", progress_cb=None, lang="zh"):
     返回结构与 extract() 完全一致（ok/title/uploader/url/transcript/segments/source…），
     这样上层 worker 的后续处理（AI 分析、存笔记、插图）可以原样复用。
     标题默认用文件名（不含扩展名），交给 AI 分析时若识别出更好的标题会覆盖。"""
-    _set_lang("ja" if level == "ja" else lang)   # v95：这次视频说的是什么话；v97：日语专用模型一定按日语
+    _set_lang("ja" if level in ("ja", "anime") else lang)   # v95：视频说的是什么话；v97/v98：日语专用模型一定按日语
     def step(s, d=""):
         if progress_cb:
             progress_cb(s, d)

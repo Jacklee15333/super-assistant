@@ -1,0 +1,11 @@
+超能小助 · 视频提取诊断
+==============================
+时间：2026-11-19 21:55:37
+链接：G:\迅雷下载\FC2 PPV 862588 【個人撮影】本気で感じる姿がとても可愛らしい、黒髪女子大生のあおいちゃんに中出し！【妄想動画】 (1).mp4
+失败阶段：extract_local
+yt-dlp 版本：2026.10.26
+curl_cffi 版本：0.17.0
+系统：Windows-11-10.0.26200-SP0
+
+详细错误：
+转格式没成功：ValueError: numpy.dtype size changed, may indicate binary incompatibility. Expected 96 from C header, got 88 from PyObject
