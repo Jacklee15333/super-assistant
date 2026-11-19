@@ -2822,3 +2822,18 @@ body.dark .vn-fail-why { color: #f0956a; }
 .vn-fail-clear { border: 0.5px solid var(--line-strong); background: transparent; color: var(--text-dim);
   border-radius: 8px; padding: 4px 10px; font-size: 12.5px; cursor: pointer; margin-left: 6px; }
 .vn-fail-clear:hover { color: var(--text); }
+
+/* ── v91：笔记阅读页 ── */
+.vn-reader { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
+.vn-reader[hidden] { display: none !important; }
+.vn-reader-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 14px;
+  padding: 10px 24px; background: var(--bg); border-bottom: 0.5px solid var(--line); }
+.vn-reader-back { flex: 0 0 auto; border: 0.5px solid var(--line-strong); background: var(--bg-elev, #fff);
+  color: var(--text); border-radius: 9px; padding: 6px 14px; font-size: 13.5px; cursor: pointer; }
+.vn-reader-back:hover { border-color: var(--accent); color: var(--accent); }
+.vn-reader-title { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 14px; color: var(--text-dim); }
+.vn-reader-body { padding: 18px 24px 40px; }
+.vn-reader-content { max-width: 1000px; margin: 0 auto; }
+@keyframes vnBackFlash { 0%, 40% { background: var(--accent-soft); box-shadow: 0 0 0 2px var(--accent); } 100% { background: transparent; box-shadow: none; } }
+.vn-back-flash { animation: vnBackFlash 2.6s ease; border-radius: 8px; }

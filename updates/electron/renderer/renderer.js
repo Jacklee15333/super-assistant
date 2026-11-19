@@ -4447,9 +4447,9 @@ function showVnFolderMenu(anchor, note, folders) {
 }
 
 async function openVideoNote(name) {
-  const resultEl = document.getElementById("videoResult");
+  // v91：笔记在单独的「阅读页」里打开（左上角「← 返回」回到列表原来的位置），不再塞进「处理进度」
+  const resultEl = vnReaderShow(name);
   resultEl.innerHTML = "<div class='dash-loading'>读取中…</div>";
-  setVideoStatus("");
   try {
     const resp = await fetch(BACKEND + "/video_note?name=" + encodeURIComponent(name));
     const data = await resp.json();
@@ -4458,7 +4458,10 @@ async function openVideoNote(name) {
     const parsed = parseVideoNote(data.content || "");
     parsed._noteName = name;     // 视频板块的笔记，归类为 video，可在页面内加标签
     parsed._noteCat = "video";
-    mountVideoResult(parsed);
+    if (_vnReaderName !== name) return;          // 读取时已经换了别的笔记 / 已经返回了
+    mountVideoResult(parsed, resultEl);
+    _currentVideo = parsed;                      // 朗读、复制、导出用的「当前这篇」
+    vnReaderSetTitle(parsed.title || name.replace(/\.md$/, ""));
     // 「仅提取」模式存的未分析笔记：在「AI 分析」页里给一个就地补做的按钮
     if (/-\s*状态[：:]\s*未分析/.test(data.content || "")) {
       const pane = resultEl.querySelector("#vAnalysis");
@@ -4468,7 +4471,8 @@ async function openVideoNote(name) {
         pane.appendChild(b);
       }
     }
-    resultEl.scrollIntoView({ behavior: "smooth", block: "start" });
+    const rd = document.getElementById("vnReader");
+    if (rd) rd.scrollTop = 0;
   } catch (e) {
     resultEl.innerHTML = "<div class='dash-empty'>出错：" + escapeHtml(e.message) + "</div>";
   }
@@ -4583,7 +4587,7 @@ function pollNoteAnalyze(name, reopen) {
         setVideoStatus("✅ 这条笔记的 AI 分析已补好并保存。", "ok",
                        { priority: true, holdMs: 8000 });
         loadVideoNotes();
-        if (reopen && name) openVideoNote(name);
+        if (reopen && name && vnReaderIsOpen() && _vnReaderName === name) openVideoNote(name);
       } else {
         setVideoStatus("⚠ 补分析没成功：" + (p.error || "未知原因"), "warn",
                        { priority: true, holdMs: 8000 });
@@ -12275,3 +12279,98 @@ async function vnFailAct(action, ids, all, btn) {
   if (btn) btn.disabled = false;
   vnFailRefresh();
 }
+
+
+// ════════════════════ v91：笔记阅读页 ════════════════════
+// 点笔记标题 → 整个视频页换成这篇笔记的阅读页；左上角「← 返回」（或按 Esc、鼠标侧键「后退」）
+// 回到列表，而且回到刚才的位置——列表滚到哪儿还是哪儿，刚看的那条闪一下，不用再往下翻找。
+let _vnReaderName = "";
+let _vnReaderBack = null;      // {el: 滚动的那一层, top: 滚到哪儿}
+
+function vnReaderIsOpen() {
+  const rd = document.getElementById("vnReader");
+  return !!(rd && !rd.hidden);
+}
+
+function vnReaderEnsure() {
+  let rd = document.getElementById("vnReader");
+  if (rd) return rd;
+  const view = document.getElementById("view-video");
+  rd = document.createElement("div");
+  rd.id = "vnReader"; rd.className = "vn-reader"; rd.hidden = true;
+  rd.innerHTML = '<div class="vn-reader-bar">' +
+    '<button type="button" class="vn-reader-back" title="回到列表刚才的位置（也可以按 Esc）">← 返回</button>' +
+    '<span class="vn-reader-title"></span></div>' +
+    '<div class="vn-reader-body"><div class="dash-content video-result vn-reader-content"></div></div>';
+  rd.querySelector(".vn-reader-back").addEventListener("click", vnReaderClose);
+  (view || document.body).appendChild(rd);
+  return rd;
+}
+
+function vnReaderSetTitle(t) {
+  const el = document.querySelector("#vnReader .vn-reader-title");
+  if (el) { el.textContent = t || ""; el.title = t || ""; }
+}
+
+// 打开阅读页，返回放笔记内容的那一格。已经开着（比如在阅读页里又点开了别的）就不重记返回位置
+function vnReaderShow(name) {
+  const rd = vnReaderEnsure();
+  const pane = document.querySelector("#view-video .video-pane");
+  if (!vnReaderIsOpen()) {
+    const list = document.getElementById("videoNotesList") || pane;
+    const sc = (typeof vnScrollParent === "function" && list) ? vnScrollParent(list) : pane;
+    _vnReaderBack = { el: sc, top: sc ? sc.scrollTop : 0 };
+    // 进度卡里如果正摆着一篇笔记（老版本打开的），先收起来，免得两篇的按钮 id 撞在一起
+    const vr = document.getElementById("videoResult");
+    if (vr && vr.querySelector("[id]")) { vr._vnStash = document.createDocumentFragment(); while (vr.firstChild) vr._vnStash.appendChild(vr.firstChild); }
+    if (pane) pane.style.display = "none";
+    rd.hidden = false;
+  }
+  _vnReaderName = name;
+  vnReaderSetTitle((name || "").replace(/\.md$/, "").replace(/^\d{8}-\d{6}-/, ""));
+  return rd.querySelector(".vn-reader-content");
+}
+
+function vnReaderClose() {
+  const rd = document.getElementById("vnReader");
+  if (!rd || rd.hidden) return;
+  const name = _vnReaderName;
+  rd.hidden = true;
+  rd.querySelector(".vn-reader-content").innerHTML = "";    // 清掉，免得按钮 id 和别处重复
+  _vnReaderName = "";
+  const vr = document.getElementById("videoResult");
+  if (vr && vr._vnStash) { if (!vr.firstChild) vr.appendChild(vr._vnStash); vr._vnStash = null; }
+  const pane = document.querySelector("#view-video .video-pane");
+  if (pane) pane.style.display = "";
+  const back = _vnReaderBack;
+  _vnReaderBack = null;
+  const restore = () => {
+    if (back && back.el) back.el.scrollTop = back.top;
+    // 列表在这期间刷新过、那条挪了位置：按名字找到它，不在眼前就滚过去；闪一下
+    const list = document.getElementById("videoNotesList");
+    const row = list && name ? Array.from(list.querySelectorAll("[data-name]")).find((x) => x.dataset.name === name && x.offsetParent) : null;
+    if (row) {
+      const r = row.getBoundingClientRect();
+      if (r.bottom < 60 || r.top > window.innerHeight - 40) row.scrollIntoView({ block: "center" });
+      row.classList.remove("vn-flash", "vn-back-flash"); void row.offsetWidth;
+      row.classList.add("vn-back-flash");
+      setTimeout(() => row.classList.remove("vn-back-flash"), 2600);
+    }
+  };
+  restore();
+  requestAnimationFrame(restore);          // 等页面排好版再对一次位置
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || !vnReaderIsOpen()) return;
+  const t = e.target;
+  if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+  if (document.querySelector(".vn-merge-mask, .modal.open, .ask-mask")) return;     // 有弹框时 Esc 先关弹框
+  const v = document.getElementById("view-video");
+  if (v && !v.classList.contains("active")) return;
+  e.preventDefault();
+  vnReaderClose();
+});
+window.addEventListener("mouseup", (e) => {          // 鼠标侧键「后退」
+  if (e.button === 3 && vnReaderIsOpen()) { e.preventDefault(); vnReaderClose(); }
+});
