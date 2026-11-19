@@ -1000,23 +1000,24 @@
                   </div>
                   </div></details>
                   <!-- v78：搜索推荐：想看什么 → AI 池联网找前 N 个网站 / 博主，勾选后一键加进来 -->
-                  <details class="sn-fold" id="cwFindFold"><summary><svg class="sn-fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>搜索推荐</summary>
+                  <details class="sn-fold cwf-panel" id="cwFindFold"><summary><svg class="sn-fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>搜索推荐</summary>
                     <div class="sn-fold-body">
                       <div class="cw-find-tip">输入你想看的领域，AI 池会联网找出这个行业最值得关注的网站和博主（官方博客、新闻页、YouTube、B站、抖音、X 都有），勾选后一键加进「关注的博主」。</div>
                       <div class="sn-row" style="margin:10px 0">
-                        <input type="text" id="cwFindKw" class="sn-input" style="flex:1;min-width:150px" placeholder="想看什么？比如：AI 芯片、跨境电商、新能源汽车" />
-                        <select id="cwFindN" class="sn-input" style="flex:0 0 auto">
+                        <input type="text" id="cwFindKw" class="sn-input cwf-kw" style="flex:1;min-width:150px" placeholder="想看什么？比如：AI 芯片、跨境电商、新能源汽车" />
+                        <select id="cwFindN" class="sn-input cwf-n" style="flex:0 0 auto">
                           <option value="5">前 5 个</option><option value="10" selected>前 10 个</option>
                           <option value="15">前 15 个</option><option value="20">前 20 个</option>
                         </select>
-                        <button class="sn-btn primary" id="cwFindBtn">搜索</button>
+                        <button class="sn-btn primary cwf-btn" id="cwFindBtn">搜索</button>
                       </div>
-                      <div id="cwFindStage" class="cw-find-stage" hidden></div>
-                      <div id="cwFindList" class="cw-find-list"></div>
-                      <div class="sn-row cw-find-acts" id="cwFindActs" hidden>
-                        <label class="cw-find-all"><input type="checkbox" id="cwFindAll" /> 全选能用的</label>
+                      <div id="cwFindStage" class="cw-find-stage cwf-stage" hidden></div>
+                      <div class="cwf-live" hidden></div>
+                      <div id="cwFindList" class="cw-find-list cwf-list"></div>
+                      <div class="sn-row cw-find-acts cwf-acts" id="cwFindActs" hidden>
+                        <label class="cw-find-all"><input type="checkbox" id="cwFindAll" class="cwf-all" /> 全选能用的</label>
                         <span class="sn-spacer"></span>
-                        <button class="sn-btn primary" id="cwFindAdd">加入关注的博主</button>
+                        <button class="sn-btn primary cwf-add" id="cwFindAdd">加入关注的博主</button>
                       </div>
                     </div></details>
 <details class="sn-fold"><summary><svg class="sn-fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>自动扫描设置</summary>

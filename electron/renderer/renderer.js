@@ -10138,6 +10138,7 @@ function vnCpbBar(groups) {
 
 function vnCpbRender(bar, d) {
   if (!bar) return;
+  if (d) bar._last = d;
   const running = !!(d && d.running);
   const mode = running ? "run" : "idle";
   if (bar.dataset.mode !== mode) {
@@ -10179,9 +10180,12 @@ function vnCpbRender(bar, d) {
     note.hidden = !d.note; note.textContent = d.note ? "⏸ " + d.note : "";
     const ws = document.getElementById("vnWallSum");
     if (ws) ws.textContent = "正在识别博主主页 " + d.done + " / " + d.total + " · 成功 " + (d.ok + d.noav);
+    vnCpbIcon(bar, true, 0);
+    bar.hidden = false;
     return;
   }
   const todo = vnCpbTodo(bar._groups);
+  vnCpbIcon(bar, false, todo.length);
   const btn = bar.querySelector(".vn-cpb-btn"), sum = bar.querySelector(".vn-cpb-sum");
   btn.disabled = !todo.length;
   btn.textContent = todo.length ? "🔍 一键识别博主主页（" + todo.length + " 个还没主页）" : "✓ 博主都有主页了";
@@ -10221,8 +10225,41 @@ function vnCpbRender(bar, d) {
       bar.appendChild(listEl);
     }
   } else {
-    sum.textContent = "根据每个博主最近的视频自动找主页，取头像和资料。";
+    sum.textContent = "";
   }
+  bar.hidden = !(d && d.finished && d.total);      // v79：平时不占地方；识别时显示进度，识别完显示结果
+}
+
+// v79：「一键识别博主主页」→ 博主标题行里的小图标（🔍 + 还没主页的个数）；识别时图标转圈，进度在下面
+function vnCpbIcon(bar, running, todoN) {
+  const head = bar._head || document.querySelector(".vn-wall-head");
+  if (!head) return;
+  let ic = head.querySelector(".vn-cpb-icon");
+  if (!ic) {
+    ic = document.createElement("button");
+    ic.type = "button"; ic.className = "vn-cpb-icon";
+    ic.innerHTML = '<span class="vn-cpb-ico">🔍</span><span class="vn-cpb-n"></span>';
+    ic.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (ic.dataset.running === "1") return;
+      const todo = vnCpbTodo(bar._groups);
+      if (todo.length) vnCpbStart(todo);
+    });
+    const ws = head.querySelector("#vnWallSum");
+    const ttl = head.querySelector(".vn-chead-title");
+    if (ws) ws.after(ic); else if (ttl) ttl.after(ic); else head.appendChild(ic);
+  }
+  const ws2 = head.querySelector("#vnWallSum");            // 「还有 N 个没主页」那行字后加上来的：图标挪到它后面
+  if (ws2 && ic.previousElementSibling !== ws2) ws2.after(ic);
+  ic.dataset.running = running ? "1" : "0";
+  ic.classList.toggle("busy", !!running);
+  ic.disabled = !running && !todoN;
+  const n = ic.querySelector(".vn-cpb-n");
+  n.textContent = todoN ? String(todoN) : "";
+  n.hidden = !todoN || !!running;
+  ic.title = running ? "正在识别博主主页…（进度在下面，可以随时点「停止」）"
+    : todoN ? "一键识别博主主页：还有 " + todoN + " 个博主没主页。根据每个博主最近的视频自动找到他的主页，取头像、昵称、粉丝数和简介"
+    : "博主都有主页了";
 }
 
 async function vnCpbStart(keys) {
@@ -10661,7 +10698,7 @@ function vnRenderIconView(list, notes, folders, byFolder, ungrouped) {
     head.appendChild(wcaret);
     const ttl = document.createElement("span");
     ttl.className = "vn-chead-title";
-    ttl.textContent = "博主 · 文件夹（" + groups.length + "）";
+    ttl.textContent = "博主（" + groups.length + "）";
     head.appendChild(ttl);
     const sorts = document.createElement("div");
     sorts.className = "vn-csorts";
@@ -10678,7 +10715,10 @@ function vnRenderIconView(list, notes, folders, byFolder, ungrouped) {
     head.appendChild(sorts);
     wrap.appendChild(head);
     const wbody = document.createElement("div"); wbody.className = "vn-wall-body";
-    wbody.appendChild(vnCpbBar(groups));      // v60：一键识别博主主页
+    const cpb = vnCpbBar(groups);             // v60：一键识别博主主页（v79：按钮变成标题行里的小图标 🔍）
+    cpb._head = head;
+    vnCpbRender(cpb, cpb._last || null);
+    wbody.appendChild(cpb);
     const tip = document.createElement("div");
     tip.className = "vn-auto-tip";
     tip.textContent = "圆角方形是你建的文件夹，圆形是按作者自动分的组。点头像进去看笔记。个别没找到主页的，" +
@@ -11225,18 +11265,25 @@ function _cwProfileLine(cid) {
 }
 
 
-// ════════════════════ v78：嗅探 · 网站也能当「博主」盯 + 搜索推荐 ════════════════════
+// ════════════════════ v78 / v79：嗅探 · 网站也能当「博主」盯 + 搜索推荐 ════════════════════
 // 「添加博主」：不是视频平台的链接（官方博客、新闻页……）按「网站」加进来，网站图标当头像，扫描时读 RSS / 网页里的新文章。
 // 「搜索推荐」：输入想看的领域 → AI 池联网找出前 N 个网站和博主 → 勾选 → 一键加进「关注的博主」。
+// v79：嗅探页、视频页各有一个搜索面板（.cwf-panel），共用后台同一次搜索；搜索时面板里显示 AI 实时画面。
 _CW_PLAT_ICON.web = "🌐";
 var _cwFindTimer = null, _cwFindRes = [], _cwFindAdded = {}, _cwFindLast = {};
+var _cwFindGone = new Set();        // v80：已经加好的，从推荐清单里拿掉
 
-function _cwFindRender(st) {
-  const stage = document.getElementById("cwFindStage"), list = document.getElementById("cwFindList");
-  const acts = document.getElementById("cwFindActs"), btn = document.getElementById("cwFindBtn");
+function _cwfPanels() { return [...document.querySelectorAll(".cwf-panel")]; }
+function _cwfShown(root) { const k = root.querySelector(".cwf-kw"); return !!(k && k.offsetParent !== null); }
+
+function _cwfRenderPanel(root, st) {
+  const stage = root.querySelector(".cwf-stage"), list = root.querySelector(".cwf-list");
+  const acts = root.querySelector(".cwf-acts"), btn = root.querySelector(".cwf-btn");
   if (!list || !stage) return;
   st = st || {};
   if (btn) { btn.disabled = !!st.running; btn.textContent = st.running ? "搜索中…" : "搜索"; }
+  const kw = root.querySelector(".cwf-kw");
+  if (kw && st.keyword && !kw.value && st.running) kw.value = st.keyword;
   const msg = st.error ? "没搜成：" + st.error : (st.stage || "");
   stage.hidden = !msg && !st.note;
   stage.classList.toggle("err", !!st.error);
@@ -11245,6 +11292,7 @@ function _cwFindRender(st) {
   _cwFindRes = res;
   const checked = new Set([...list.querySelectorAll(".cw-find-row input:checked")].map((i) => i.dataset.u));
   list.innerHTML = res.map((it, i) => {
+    if (_cwFindGone.has(it.url)) return "";
     const added = _cwFindAdded[it.url];
     const dis = !!it.exists || added === true || it.status === "fail";
     const txt = added === true ? "✓ 已加入" : typeof added === "string" ? "✗ " + added
@@ -11261,45 +11309,98 @@ function _cwFindRender(st) {
         (it.why ? '<div class="cw-find-why">' + escapeHtml(it.why) + "</div>" : "") + "</div>" +
       '<span class="cw-find-st ' + cls + '">' + escapeHtml(txt) + "</span></label>";
   }).join("");
-  if (acts) acts.hidden = !res.length || !!st.running;
+  if (acts) acts.hidden = !res.some((it) => !_cwFindGone.has(it.url)) || !!st.running;
+}
+
+function _cwFindRender(st) { _cwfPanels().forEach((r) => _cwfRenderPanel(r, st)); }
+
+// AI 实时画面（小号）：AI 池浏览器的实时截图 + 它正在写的回复，样子和「批量 AI 分析」里的一样
+function aiLiveBuild() {
+  const box = document.createElement("div");
+  box.className = "vn-live ai-live-mini";
+  box.innerHTML =
+    '<div class="vn-live-head"><span class="vn-live-title">AI 实时画面</span><span class="vn-live-sum ai-live-sum"></span></div>' +
+    '<div class="vn-live-body">' +
+      '<div class="vn-live-stage ai-live-stage"></div>' +
+      '<div class="vn-live-grid">' +
+        '<div class="vn-live-shotbox" title="点击放大"><img class="ai-live-shot" alt="" hidden />' +
+          '<div class="vn-live-shotnote ai-live-note">等待画面…</div></div>' +
+        '<div class="vn-live-side"><pre class="vn-live-reply ai-live-reply"></pre></div>' +
+      "</div>" +
+    "</div>";
+  box.querySelector(".vn-live-shotbox").addEventListener("click", () => {
+    const img = box.querySelector(".ai-live-shot");
+    if (img && !img.hidden && img.src && typeof vnLiveZoom === "function") vnLiveZoom(img.src);
+  });
+  return box;
+}
+
+function aiLiveUpdate(box, d) {
+  const p = (d && d.pool) || {};
+  box.querySelector(".ai-live-stage").textContent = p.stage ? "AI 池：" + p.stage + (p.busy ? "" : "（空闲）") : "";
+  const img = box.querySelector(".ai-live-shot"), note = box.querySelector(".ai-live-note");
+  if (p.has_shot && p.shot_ts && (p.shot_ts !== box._ts || img.hidden)) {
+    box._ts = p.shot_ts;
+    img.src = BACKEND + "/ai_live_shot?t=" + encodeURIComponent(p.shot_ts);
+    img.hidden = false;
+  }
+  if (!p.hasBrowser) note.textContent = p.headless ? "AI 池是后台模式（不显示浏览器），这里只有文字进度" : "AI 池浏览器还没打开（换卡 / 启动中）";
+  else if (p.shot_err) note.textContent = "截图暂时失败，文字进度照常更新";
+  else if (p.shot_ts) {
+    const ago = Math.max(0, Math.round((d.now || 0) - p.shot_ts));
+    note.textContent = ago <= 3 ? "实时画面 · 点击放大" : "画面更新于 " + ago + " 秒前 · 点击放大";
+  } else note.textContent = "等待画面…";
+  const rep = box.querySelector(".ai-live-reply");
+  const nearBottom = rep.scrollHeight - rep.scrollTop - rep.clientHeight < 40;
+  let txt = p.reply_tail || "";
+  if (p.reply_len > txt.length) txt = "…（前面还有 " + (p.reply_len - txt.length) + " 字）\n" + txt;
+  if (!txt) txt = p.busy ? "AI 还没开始写回复（可能在换卡、选模型、联网搜索中…）" : "（AI 池在排队或空闲，马上开始）";
+  if (rep.textContent !== txt) { rep.textContent = txt; if (nearBottom) rep.scrollTop = rep.scrollHeight; }
 }
 
 async function _cwFindPoll() {
   clearTimeout(_cwFindTimer);
-  try {
-    const st = await (await fetch(BACKEND + "/creator/discover", { cache: "no-store" })).json();
-    _cwFindLast = st;
-    _cwFindRender(st);
-    if (st.running) _cwFindTimer = setTimeout(_cwFindPoll, 1500);
-  } catch (_) {
-    _cwFindTimer = setTimeout(_cwFindPoll, 4000);
-  }
+  let st;
+  try { st = await (await fetch(BACKEND + "/creator/discover", { cache: "no-store" })).json(); }
+  catch (_) { _cwFindTimer = setTimeout(_cwFindPoll, 4000); return; }
+  _cwFindLast = st;
+  _cwFindRender(st);
+  const panels = _cwfPanels();
+  const watch = !!st.running && panels.some(_cwfShown) && !document.hidden;
+  let live = null;
+  if (watch) { try { live = await (await fetch(BACKEND + "/ai_live?watch=1", { cache: "no-store" })).json(); } catch (_) {} }
+  panels.forEach((r) => {
+    const slot = r.querySelector(".cwf-live");
+    if (!slot) return;
+    slot.hidden = !st.running;
+    if (!st.running) return;
+    let box = slot.querySelector(".ai-live-mini");
+    if (!box) { box = aiLiveBuild(); slot.appendChild(box); }
+    if (live && _cwfShown(r)) aiLiveUpdate(box, live);
+  });
+  if (st.running) _cwFindTimer = setTimeout(_cwFindPoll, watch ? 1500 : 3000);
 }
 
-document.getElementById("cwFindBtn")?.addEventListener("click", async () => {
-  const box = document.getElementById("cwFindKw");
+async function _cwfStart(root) {
+  const box = root.querySelector(".cwf-kw");
   const kw = (box?.value || "").trim();
   if (!kw) { box?.focus(); return; }
   _cwFindAdded = {};
-  const n = parseInt(document.getElementById("cwFindN")?.value || "10", 10);
+  _cwFindGone = new Set();
+  _cwfPanels().forEach((r) => { const k = r.querySelector(".cwf-kw"); if (k && r !== root) k.value = kw; });
+  const n = parseInt(root.querySelector(".cwf-n")?.value || "10", 10);
   try {
     const d = await (await fetch(BACKEND + "/creator/discover", { method: "POST", headers: { "Content-Type": "application/json" },
                                                                 body: JSON.stringify({ keyword: kw, n }) })).json();
-    if (!d.ok) { _cwFindRender({ error: d.message || "没开始" }); return; }
+    if (!d.ok) { _cwFindRender(Object.assign({}, _cwFindLast, { error: d.message || "没开始", running: false })); return; }
   } catch (e) { _cwFindRender({ error: e.message }); return; }
   _cwFindPoll();
-});
-document.getElementById("cwFindKw")?.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") document.getElementById("cwFindBtn")?.click();
-});
-document.getElementById("cwFindAll")?.addEventListener("change", (e) => {
-  document.querySelectorAll("#cwFindList .cw-find-row input:not(:disabled)").forEach((i) => { i.checked = e.target.checked; });
-});
-document.getElementById("cwFindAdd")?.addEventListener("click", async (e) => {
-  const btn = e.currentTarget;
-  const picks = [...document.querySelectorAll("#cwFindList .cw-find-row input:checked")]
-    .map((i) => _cwFindRes[+i.dataset.i]).filter(Boolean);
-  if (!picks.length) { if (typeof _cwSetStatus === "function") _cwSetStatus("先勾选要加的"); return; }
+}
+
+async function _cwfAdd(root, btn) {
+  const picks = [...root.querySelectorAll(".cwf-list .cw-find-row input:checked")].map((i) => _cwFindRes[+i.dataset.i]).filter(Boolean);
+  const say = (m) => { if (typeof _cwSetStatus === "function") _cwSetStatus(m); const sg = root.querySelector(".cwf-stage"); if (sg) { sg.hidden = false; sg.textContent = m; } };
+  if (!picks.length) { say("先勾选要加的"); return; }
   btn.disabled = true;
   let n = 0;
   for (const it of picks) {
@@ -11314,12 +11415,85 @@ document.getElementById("cwFindAdd")?.addEventListener("click", async (e) => {
     _cwFindRender(Object.assign({}, _cwFindLast, { results: _cwFindRes }));
   }
   btn.disabled = false; btn.textContent = "加入关注的博主";
-  const cb = document.getElementById("cwFindAll"); if (cb) cb.checked = false;
-  try { loadCreators(); } catch (_) {}
-  const okN = picks.filter((it) => _cwFindAdded[it.url] === true).length;
-  if (typeof _cwSetStatus === "function")
-    _cwSetStatus("加好了 " + okN + " 个" + (okN < picks.length ? "，" + (picks.length - okN) + " 个没加成（看每行右边的原因）" : "") +
-                 "。头像会在后台自动取，下次扫描起报新内容");
-});
-_cwFindPoll();
+  const cb = root.querySelector(".cwf-all"); if (cb) cb.checked = false;
+  const okList = picks.filter((it) => _cwFindAdded[it.url] === true);
+  const okN = okList.length, bad = picks.length - okN;
+  okList.forEach((it) => _cwFindGone.add(it.url));       // v80：加好的从清单里拿掉，只留没加成的（看原因）
+  _cwFindRender(Object.assign({}, _cwFindLast, { results: _cwFindRes }));
+  try { await loadCreators(); } catch (_) {}
+  const msg = okN ? "✓ 加好了 " + okN + " 个，在「嗅探 · 关注的博主」里" + (bad ? "；" + bad + " 个没加成，原因写在推荐清单里" : "") +
+                    "。头像会在后台自动取，下次扫描起报新内容"
+                  : bad + " 个都没加成，原因写在每行右边";
+  say(msg);
+  if (!okN || bad) return;                                // 有没加成的：留在这里，方便看原因
+  // v80：全都加好了 → 搜索面板自己收起，跳到「博主列表」，新加的头像闪两下
+  const det = root.closest("details");
+  if (det) {
+    det.open = false;
+    const lh = document.getElementById("cwListToggle");
+    if (lh && lh.classList.contains("collapsed")) lh.click();
+    const ids = new Set(_cwLastList.filter((c) => okList.some((it) => it.url === c.url)).map((c) => c.id));
+    const tiles = [...document.querySelectorAll("#cwList .cw-creator")].filter((t) => ids.has(t.dataset.id));
+    tiles.forEach((t) => { t.classList.remove("cw-justadded"); void t.offsetWidth; t.classList.add("cw-justadded"); });
+    setTimeout(() => (tiles[0] || document.getElementById("cwListBody"))?.scrollIntoView({ behavior: "smooth", block: "center" }), 300);
+    setTimeout(() => tiles.forEach((t) => t.classList.remove("cw-justadded")), 5200);
+  } else {
+    const body = root.closest(".vfind")?.querySelector(".vfind-head");
+    if (body && !root.hidden) body.click();               // 视频页：面板收起
+    if (typeof setVideoStatus === "function") setVideoStatus(msg + "（去嗅探页就能看到）", "ok");
+  }
+}
 
+function _cwfBind(root) {
+  if (!root || root._cwfBound) return;
+  root._cwfBound = true;
+  root.querySelector(".cwf-btn")?.addEventListener("click", () => _cwfStart(root));
+  root.querySelector(".cwf-kw")?.addEventListener("keydown", (e) => { if (e.key === "Enter") _cwfStart(root); });
+  root.querySelector(".cwf-all")?.addEventListener("change", (e) => {
+    root.querySelectorAll(".cwf-list .cw-find-row input:not(:disabled)").forEach((i) => { i.checked = e.target.checked; });
+  });
+  root.querySelector(".cwf-add")?.addEventListener("click", (e) => _cwfAdd(root, e.currentTarget));
+  root.closest("details")?.addEventListener("toggle", () => _cwFindPoll());
+}
+
+// 视频页的搜索面板：放在「开始提取」卡片里、「维护工具」上面，样子和「维护工具」一样能折叠
+function vFindBuild() {
+  const card = document.querySelector(".v-card-extract");
+  const tools = card && card.querySelector(":scope > .video-tools");
+  if (!card || !tools || document.getElementById("vFind")) return null;
+  const wrap = document.createElement("div");
+  wrap.id = "vFind"; wrap.className = "vfind";
+  wrap.innerHTML =
+    '<div class="vfind-head" role="button" tabindex="0">' +
+      '<span class="vfind-caret">▸</span><span>🔎 搜索推荐</span>' +
+      '<span class="vfind-sub">（想看什么 → 找出这个领域最值得关注的博主和网站）</span></div>' +
+    '<div class="vfind-body cwf-panel" hidden>' +
+      '<div class="cw-find-tip" style="margin-top:0">输入你想看的领域，AI 池联网找出最值得关注的博主和网站（YouTube、B站、抖音、X、官方博客、新闻页都有）。' +
+        "勾选后加进「嗅探 · 关注的博主」：以后他们有新视频 / 新文章，在嗅探页一扫就出来，再挑着提取。</div>" +
+      '<div class="vfind-row">' +
+        '<input type="text" class="text-input cwf-kw" placeholder="想看什么？比如：AI 芯片、跨境电商、新能源汽车" />' +
+        '<select class="text-input cwf-n"><option value="5">前 5 个</option><option value="10" selected>前 10 个</option>' +
+          '<option value="15">前 15 个</option><option value="20">前 20 个</option></select>' +
+        '<button type="button" class="send-btn cwf-btn">搜索</button></div>' +
+      '<div class="cw-find-stage cwf-stage" hidden></div><div class="cwf-live" hidden></div><div class="cw-find-list cwf-list"></div>' +
+      '<div class="cw-find-acts cwf-acts" hidden><label class="cw-find-all"><input type="checkbox" class="cwf-all" /> 全选能用的</label>' +
+        '<span style="flex:1"></span><button type="button" class="send-btn cwf-add">加入关注的博主</button></div>' +
+    "</div>";
+  card.insertBefore(wrap, tools);
+  const head = wrap.querySelector(".vfind-head"), body = wrap.querySelector(".vfind-body"), caret = wrap.querySelector(".vfind-caret");
+  const apply = (open) => { body.hidden = !open; caret.textContent = open ? "▾" : "▸"; };
+  let open = false;
+  try { open = localStorage.getItem("vFindOpen") === "1"; } catch (_) {}
+  apply(open);
+  head.addEventListener("click", () => {
+    open = body.hidden;
+    apply(open);
+    try { localStorage.setItem("vFindOpen", open ? "1" : "0"); } catch (_) {}
+    _cwFindPoll();
+  });
+  return body;
+}
+
+vFindBuild();
+_cwfPanels().forEach(_cwfBind);
+_cwFindPoll();
