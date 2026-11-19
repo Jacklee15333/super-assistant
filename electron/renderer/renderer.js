@@ -11011,7 +11011,7 @@ renderCreators = function (list) {
     if (_cwCurrentCreator.id && !document.getElementById("cwVideoView")?.hidden) _cwProfileLine(_cwCurrentCreator.id);
     // 有博主还没头像：后台在取，过一会儿再刷新一次列表把头像换上（最多 3 次）
     if (_cwViewMode === "avatar" && _cwAvRetry < 3 &&
-        _cwLastList.some((c) => !c.avatar && ["youtube", "douyin", "bilibili", "x"].includes(c.platform))) {
+        _cwLastList.some((c) => !c.avatar && ["youtube", "douyin", "bilibili", "x", "web"].includes(c.platform))) {
       _cwAvRetry++;
       setTimeout(() => { try { loadCreators(); } catch (_) {} }, 45000);
     }
@@ -11091,7 +11091,7 @@ openCreatorVideos = function (cid, title) {
 var _cwParseState = null, _cwParseTimer = null, _cwParseDone = -1, _cwParseErrOpen = false, _cwParsePolled = false;
 
 function _cwParseNeed() {
-  return _cwLastList.filter((c) => !c.avatar && ["youtube", "douyin", "bilibili", "x"].includes(c.platform)).length;
+  return _cwLastList.filter((c) => !c.avatar && ["youtube", "douyin", "bilibili", "x", "web"].includes(c.platform)).length;
 }
 
 function _cwParseBar() {
@@ -11223,4 +11223,103 @@ function _cwProfileLine(cid) {
     _cwParseStart([cid], true);
   });
 }
+
+
+// ════════════════════ v78：嗅探 · 网站也能当「博主」盯 + 搜索推荐 ════════════════════
+// 「添加博主」：不是视频平台的链接（官方博客、新闻页……）按「网站」加进来，网站图标当头像，扫描时读 RSS / 网页里的新文章。
+// 「搜索推荐」：输入想看的领域 → AI 池联网找出前 N 个网站和博主 → 勾选 → 一键加进「关注的博主」。
+_CW_PLAT_ICON.web = "🌐";
+var _cwFindTimer = null, _cwFindRes = [], _cwFindAdded = {}, _cwFindLast = {};
+
+function _cwFindRender(st) {
+  const stage = document.getElementById("cwFindStage"), list = document.getElementById("cwFindList");
+  const acts = document.getElementById("cwFindActs"), btn = document.getElementById("cwFindBtn");
+  if (!list || !stage) return;
+  st = st || {};
+  if (btn) { btn.disabled = !!st.running; btn.textContent = st.running ? "搜索中…" : "搜索"; }
+  const msg = st.error ? "没搜成：" + st.error : (st.stage || "");
+  stage.hidden = !msg && !st.note;
+  stage.classList.toggle("err", !!st.error);
+  stage.innerHTML = escapeHtml(msg) + (st.note ? '<div class="cw-find-note">' + escapeHtml(st.note) + "</div>" : "");
+  const res = st.results || [];
+  _cwFindRes = res;
+  const checked = new Set([...list.querySelectorAll(".cw-find-row input:checked")].map((i) => i.dataset.u));
+  list.innerHTML = res.map((it, i) => {
+    const added = _cwFindAdded[it.url];
+    const dis = !!it.exists || added === true || it.status === "fail";
+    const txt = added === true ? "✓ 已加入" : typeof added === "string" ? "✗ " + added
+      : it.exists ? "已在关注的博主里" : it.status === "ok" ? "✓ " + (it.detail || "能打开")
+      : it.status === "fail" ? "✗ " + (it.detail || "打不开") : it.status === "checking" ? "检查中…" : (it.detail || "");
+    const cls = (added === true || it.status === "ok") ? "ok" : (typeof added === "string" || it.status === "fail") ? "fail" : "";
+    return '<label class="cw-find-row' + (dis ? " off" : "") + '">' +
+      '<input type="checkbox" data-i="' + i + '" data-u="' + escapeHtml(it.url) + '"' +
+        (dis ? " disabled" : (checked.has(it.url) ? " checked" : "")) + ">" +
+      '<span class="cw-find-ico">' + (_CW_PLAT_ICON[it.platform] || "🌐") + "</span>" +
+      '<div class="cw-find-main"><div class="cw-find-name">' + escapeHtml(it.name || "") +
+        '<span class="cw-find-kind">' + escapeHtml(it.kind || "") + (it.region ? " · " + escapeHtml(it.region) : "") + "</span></div>" +
+        '<a class="cw-find-url" href="' + escapeHtml(it.url) + '" target="_blank">' + escapeHtml(it.url) + "</a>" +
+        (it.why ? '<div class="cw-find-why">' + escapeHtml(it.why) + "</div>" : "") + "</div>" +
+      '<span class="cw-find-st ' + cls + '">' + escapeHtml(txt) + "</span></label>";
+  }).join("");
+  if (acts) acts.hidden = !res.length || !!st.running;
+}
+
+async function _cwFindPoll() {
+  clearTimeout(_cwFindTimer);
+  try {
+    const st = await (await fetch(BACKEND + "/creator/discover", { cache: "no-store" })).json();
+    _cwFindLast = st;
+    _cwFindRender(st);
+    if (st.running) _cwFindTimer = setTimeout(_cwFindPoll, 1500);
+  } catch (_) {
+    _cwFindTimer = setTimeout(_cwFindPoll, 4000);
+  }
+}
+
+document.getElementById("cwFindBtn")?.addEventListener("click", async () => {
+  const box = document.getElementById("cwFindKw");
+  const kw = (box?.value || "").trim();
+  if (!kw) { box?.focus(); return; }
+  _cwFindAdded = {};
+  const n = parseInt(document.getElementById("cwFindN")?.value || "10", 10);
+  try {
+    const d = await (await fetch(BACKEND + "/creator/discover", { method: "POST", headers: { "Content-Type": "application/json" },
+                                                                body: JSON.stringify({ keyword: kw, n }) })).json();
+    if (!d.ok) { _cwFindRender({ error: d.message || "没开始" }); return; }
+  } catch (e) { _cwFindRender({ error: e.message }); return; }
+  _cwFindPoll();
+});
+document.getElementById("cwFindKw")?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") document.getElementById("cwFindBtn")?.click();
+});
+document.getElementById("cwFindAll")?.addEventListener("change", (e) => {
+  document.querySelectorAll("#cwFindList .cw-find-row input:not(:disabled)").forEach((i) => { i.checked = e.target.checked; });
+});
+document.getElementById("cwFindAdd")?.addEventListener("click", async (e) => {
+  const btn = e.currentTarget;
+  const picks = [...document.querySelectorAll("#cwFindList .cw-find-row input:checked")]
+    .map((i) => _cwFindRes[+i.dataset.i]).filter(Boolean);
+  if (!picks.length) { if (typeof _cwSetStatus === "function") _cwSetStatus("先勾选要加的"); return; }
+  btn.disabled = true;
+  let n = 0;
+  for (const it of picks) {
+    btn.textContent = "正在加 " + (++n) + " / " + picks.length + "…";
+    try {
+      const d = await (await fetch(BACKEND + "/creator/add", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: it.url, platform: "auto", title: it.name || "" }) })).json();
+      _cwFindAdded[it.url] = d.ok ? true : (d.message || "没加成");
+    } catch (err) {
+      _cwFindAdded[it.url] = err.message;
+    }
+    _cwFindRender(Object.assign({}, _cwFindLast, { results: _cwFindRes }));
+  }
+  btn.disabled = false; btn.textContent = "加入关注的博主";
+  const cb = document.getElementById("cwFindAll"); if (cb) cb.checked = false;
+  try { loadCreators(); } catch (_) {}
+  const okN = picks.filter((it) => _cwFindAdded[it.url] === true).length;
+  if (typeof _cwSetStatus === "function")
+    _cwSetStatus("加好了 " + okN + " 个" + (okN < picks.length ? "，" + (picks.length - okN) + " 个没加成（看每行右边的原因）" : "") +
+                 "。头像会在后台自动取，下次扫描起报新内容");
+});
+_cwFindPoll();
 

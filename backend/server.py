@@ -80,7 +80,7 @@ def _clog(tag, msg):
 # 这些接口是前端**定时高频轮询**或页面加载时被动拉取的（查状态/进度/列表/配置），
 # 一旦打印就会把控制台刷爆、淹没真正有用的操作日志，所以一律静音、不记。
 _LOG_QUIET_PATHS = {
-    "/ping", "/video_progress", "/video_health", "/video_deps", "/video_notes", "/creator_profiles_batch", "/creator/avatars_status",
+    "/ping", "/video_progress", "/video_health", "/video_deps", "/video_notes", "/creator_profiles_batch", "/creator/avatars_status", "/creator/discover",
     "/video_note_analyze_progress", "/sniff/feed", "/sniff/discover", "/video_note_analyze_batch",
     "/chat_progress", "/heartbeat/status", "/lumi/status", "/lumi/evolve_status",
     "/web_model/state", "/web_model/config", "/loop/status", "/insight/status",
@@ -988,7 +988,7 @@ def _cw_attach_avatars(creators):
                 c["avatar"] = {"key": key, "v": int(fp.stat().st_mtime)}
             except Exception:
                 pass
-        elif (key and c.get("platform") in ("youtube", "douyin", "bilibili", "x") and not p.get("no_auto")
+        elif (key and c.get("platform") in ("youtube", "douyin", "bilibili", "x", "web") and not p.get("no_auto")
               and now - _cw_av["tried"].get(c.get("id"), 0) > 1800):
             todo.append(dict(c))
     if todo and not _cw_av["running"]:
@@ -1014,7 +1014,7 @@ def _cw_avatar_start(ids=None, force=False):
     for c in creator_watch.list_creators():
         if ids and str(c.get("id")) not in ids:
             continue
-        if c.get("platform") not in ("youtube", "douyin", "bilibili", "x"):
+        if c.get("platform") not in ("youtube", "douyin", "bilibili", "x", "web"):
             continue
         p = raw.get((c.get("title") or "").strip()) or {}
         if not force and _cpf._avatar_file(p):
@@ -1054,7 +1054,19 @@ def _cw_one_avatar(_cpf, cw, c, force=False):
     key, url, plat = (c.get("title") or "").strip(), (c.get("url") or "").strip(), c.get("platform")
     has = lambda: bool(_cpf._avatar_file(_cpf.profile_state(key)))
     errs = []
-    if force and plat != "x" and _cpf.profile_state(key).get("url"):
+    if plat == "web":                                 # v78：网站：网站图标当头像，顺便存名字和简介
+        try:
+            import site_watch
+            info = site_watch.site_info(url)
+            data, _src = site_watch.icon_bytes(url, info)
+            site_watch.save_profile(key, info, data or None)
+            if data and has():
+                return "网站图标", ""
+            errs.append("网站上没找到能用的图标" if not data else "图标存不进去")
+        except Exception as e:
+            errs.append(str(e)[:80])
+        return "", "；".join(errs)
+    if force and plat not in ("x", "web") and _cpf.profile_state(key).get("url"):
         try:
             ok, info = _cpf.refresh(key)[:2]          # v76：已经绑过主页 → 按主页重新取一遍
             if ok and has():
@@ -3638,6 +3650,13 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send({"feed": [], "error": str(e)}, 200)
 
+        if path == "/creator/discover":
+            # v78：博主页「搜索推荐」的进度和结果（前端轮询）
+            try:
+                import creator_discover
+                return self._send(creator_discover.status())
+            except Exception as e:
+                return self._send({"running": False, "error": str(e), "results": []})
         if path == "/creator/avatars_status":
             # v76：「一键解析博主主页」的进度
             st = {k: v for k, v in _cw_av.items() if k != "tried"}
@@ -3951,6 +3970,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_video_note_set_author(body)
         if path == "/video_folder":
             return self._handle_video_folder(body)
+        if path == "/creator/discover":
+            # v78：搜索推荐：输入想看的领域，AI 池联网找前 N 个网站 / 博主
+            try:
+                import creator_discover
+                return self._send(creator_discover.start(body.get("keyword", ""), body.get("n", 10)))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
         if path == "/creator/avatars":
             # v76：一键解析博主主页 {action: start, ids?: [...], force?: bool} / {action: stop}
             if (body.get("action") or "start") == "stop":

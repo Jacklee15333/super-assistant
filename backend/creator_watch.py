@@ -204,13 +204,13 @@ def _detect_platform(url):
     return ""
 
 
-_PLATFORM_LABEL = {"youtube": "YouTube", "bilibili": "B站", "douyin": "抖音", "x": "X"}
+_PLATFORM_LABEL = {"youtube": "YouTube", "bilibili": "B站", "douyin": "抖音", "x": "X", "web": "网站"}   # v78：网站
 
 # 这些平台抓内容需要登录 Cookie；前端添加时应弹框让用户粘 Cookie。
 _LOGIN_REQUIRED_PLATFORMS = {"x"}
 
 # 这些是「还没识别出真实昵称」时用的占位名；之后一旦探到真名就替换掉。
-_GENERIC_TITLES = {"", "YouTube博主", "B站博主", "抖音博主", "X博主", "博主"}
+_GENERIC_TITLES = {"", "YouTube博主", "B站博主", "抖音博主", "X博主", "网站博主", "博主"}
 
 
 def _is_generic_title(t):
@@ -245,7 +245,7 @@ def add_creator(url, platform="auto", title=""):
         return {"ok": False, "message": "主页链接要以 http:// 或 https:// 开头"}
     plat = platform if platform in _PLATFORM_LABEL else _detect_platform(url)
     if not plat:
-        return {"ok": False, "message": "认不出这是哪个平台的主页（支持抖音 / B站 / YouTube / X）"}
+        plat = "web"           # v78：不是视频平台的链接 → 当网站来盯（官方博客、新闻页……）
     store = _load()
     creators = store.get("creators", [])
     if any((c.get("url") or "").strip() == url for c in creators):
@@ -673,11 +673,20 @@ def list_recent(platform, url, limit=_DEFAULT_PER_SCAN):
     if plat == "x":
         import x_watch
         return x_watch.list_recent(url, limit)
+    if plat == "web":
+        import site_watch                      # v78：网站：RSS 或网页里的文章链接
+        return site_watch.list_items(url, limit)
     raise RuntimeError("不支持的平台：%s" % plat)
 
 
 def detect_name(platform, url):
     """只为「自动识别博主名字」用：尽量快地拿到博主昵称。拿不到返回空串，绝不抛异常。"""
+    if platform == "web":
+        try:
+            import site_watch
+            return site_watch.site_info(url).get("name") or ""
+        except Exception:
+            return ""
     plat = platform if platform in _PLATFORM_LABEL else _detect_platform(url)
     try:
         if plat == "x":

@@ -89,7 +89,8 @@ def get_avatar(key):
     if not fp:
         return None, None
     ext = fp.suffix.lower()
-    ctype = {".png": "image/png", ".webp": "image/webp", ".gif": "image/gif"}.get(ext, "image/jpeg")
+    ctype = {".png": "image/png", ".webp": "image/webp", ".gif": "image/gif", ".ico": "image/x-icon",
+             ".svg": "image/svg+xml"}.get(ext, "image/jpeg")
     return fp.read_bytes(), ctype
 
 
@@ -350,6 +351,10 @@ def _img_ext(b):
         return ".webp"
     if b[:6] in (b"GIF87a", b"GIF89a"):
         return ".gif"
+    if b[:4] == b"\x00\x00\x01\x00":            # v78：网站图标常见的 .ico
+        return ".ico"
+    if b"<svg" in b[:600].lower():                   # v78：网站图标也可能是 svg
+        return ".svg"
     return ""
 
 
