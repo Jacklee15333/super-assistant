@@ -411,6 +411,12 @@ def _looks_hallucinated(t):
     return False
 
 
+def _word_ts_wanted():
+    """v105：逐字时间 / 按说话声音收紧字幕，先默认关掉（用户觉得 v102 的效果更好）。
+    想试的话设环境变量 CX_WORD_TS=1。关着时识别和字幕跟 v102 完全一样。"""
+    return os.environ.get("CX_WORD_TS", "") == "1"
+
+
 def _word_ts_on():
     """v103：外语（日语、英语…）用逐字时间做字幕；中文暂时保持原样。
     v104：而且要这个模型「单独试过、确认不会崩」（_wts_check）才用。"""
@@ -2098,7 +2104,7 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
         # kotoba-whisper 官方建议：按 15 秒一段听，不拿上一段的结果当提示（减少「复读」和编造）
         _kw.update(chunk_length=15, condition_on_previous_text=False)
     _OPTS["wts"] = False
-    if _LANG["v"] != "zh" and MODEL_MAP.get(level) != "anime" and full is not None:
+    if _word_ts_wanted() and _LANG["v"] != "zh" and MODEL_MAP.get(level) != "anime" and full is not None:
         _ok, _reload = _wts_check(MODEL_MAP.get(level, "small"), full, progress_cb)   # v104：先单独试过，确认不会闪退
         if _reload:
             _model_cache.pop(MODEL_MAP.get(level, "small"), None)
@@ -2226,7 +2232,8 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
         parts = [x["text"] for x in seg_list]
         last_end = max(last_end, max(x["end"] for x in extra))
     # v104：外语没用上逐字时间（模型试过不行）：按真正有人说话的声音收紧字幕时间
-    if _LANG["v"] != "zh" and not _OPTS.get("wts") and MODEL_MAP.get(level) != "anime" and full is not None and seg_list:
+    if (_word_ts_wanted() and _LANG["v"] != "zh" and not _OPTS.get("wts") and MODEL_MAP.get(level) != "anime"
+            and full is not None and seg_list):
         try:
             seg_list = _snap_to_speech(seg_list, full)
         except Exception as e:
