@@ -88,14 +88,16 @@
     "key": "Elon Musk",
     "url": "https://x.com/elonmusk",
     "platform": "x",
-    "updated": 1794984380,
+    "updated": 1795064498,
     "auto": true,
     "source_video": "https://x.com/elonmusk/status/2075372185158377948",
     "home": "https://x.com/elonmusk",
     "name": "@elonmusk",
     "uid": "elonmusk",
     "handle": "elonmusk",
-    "avatar_src": ""
+    "avatar_src": "",
+    "avatar_file": "5423c661eb1e606f.jpg",
+    "avatar_manual": true
   },
   "情感独眼兽": {
     "key": "情感独眼兽",
@@ -1826,17 +1828,32 @@
   },
   "Karpathy": {
     "key": "Karpathy",
-    "url": "https://www.youtube.com/results?search_query=Karpathy",
+    "url": "https://www.youtube.com/channel/UCXUPKJO5MZQN11PqgIvyuvQ",
     "platform": "youtube",
-    "updated": 1795063513,
-    "error": "YouTube 没连上（\u001b[0;31mERROR:\u001b[0m Unsupported URL: https://www.youtube.com/results）。看看「设置 → 联网与代理」里的代理是否可用"
+    "updated": 1795064470,
+    "auto": true,
+    "source_video": "https://www.youtube.com/watch?v=7xTGNNLPyMI",
+    "home": "https://www.youtube.com/channel/UCXUPKJO5MZQN11PqgIvyuvQ",
+    "name": "Andrej Karpathy",
+    "followers": 1770000,
+    "uid": "UCXUPKJO5MZQN11PqgIvyuvQ",
+    "avatar_src": "https://yt3.googleusercontent.com/ytc/AIdro_nDvyq2NoPL626bk1IbxQ94SfQsD-B0qgZchghtQNkLWoEz=s0",
+    "avatar_file": "afaa98fae792f293.jpg"
   },
   "李沐": {
     "key": "李沐",
-    "url": "https://www.youtube.com/results?search_query=%E6%9D%8E%E6%B2%90",
+    "url": "https://www.youtube.com/channel/UC0A_o_SecRDmFYcTHiL6opg",
     "platform": "youtube",
-    "updated": 1795063517,
-    "error": "YouTube 没连上（\u001b[0;31mERROR:\u001b[0m Unsupported URL: https://www.youtube.com/results）。看看「设置 → 联网与代理」里的代理是否可用"
+    "updated": 1795064476,
+    "auto": true,
+    "source_video": "https://www.youtube.com/watch?v=k5qhQXn6d3I",
+    "home": "https://www.youtube.com/channel/UC0A_o_SecRDmFYcTHiL6opg",
+    "name": "曾寶儀的人生藏寶圖",
+    "followers": 75700,
+    "signature": "《曾寶儀的人生藏寶圖》啟航啦！🏴‍☠\n金鐘主持人 曾寶儀 化身船長，\n在汪洋人生大海中，她將透過聲音陪伴你，一起更靠近、認識自己。\n寶儀在「成為自己」的路上，遇到了什麼生命寶藏呢？\n＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿\n\n💎 一同上船尋寶，繪製你的人生藏寶圖！💎\n\n￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣￣\n📧 合作需求 ➔ bowielifemap@gmail.com\n📧 聽眾投稿 ➔ askbowielifemap@gmail.com\n💎 主持人FB ➔ 曾寶儀Bowie\n💎 主持人IG ➔ bowie0221\n⛏ 贊助鏟子 ➔ https://bit.ly/39AliSk",
+    "uid": "UC0A_o_SecRDmFYcTHiL6opg",
+    "avatar_src": "https://yt3.googleusercontent.com/_o-PB8AH6afLkH6KlsAA_nZCadXhuxbKO4CdAoquZdC2ilYmCudtwEc2KLziAfWREIUJ1Ds6=s0",
+    "avatar_file": "2a02c76fe39dda7f.jpg"
   },
   "Hung-yi Lee": {
     "key": "Hung-yi Lee",
@@ -1911,5 +1928,35 @@
     "handle": "chengzidengdeng",
     "avatar_src": "https://p3-pc.douyinpic.com/aweme/100x100/aweme-avatar/tos-cn-avt-0015_ea76a45317aa0e937c637243cada17ba.jpeg?from=327834062",
     "avatar_file": "2d00330e7fb7952e.jpg"
+  },
+  "@karpathy": {
+    "key": "@karpathy",
+    "avatar_file": "f131a3c1bfce8638.jpg",
+    "avatar_manual": true,
+    "updated": 1795064485
+  },
+  "Donald J. Trump": {
+    "key": "Donald J. Trump",
+    "avatar_file": "95569faa32d1196f.jpg",
+    "avatar_manual": true,
+    "updated": 1795064493
+  },
+  "NVIDIA": {
+    "key": "NVIDIA",
+    "avatar_file": "088472395b269710.jpg",
+    "avatar_manual": true,
+    "updated": 1795064504
+  },
+  "OpenAI": {
+    "key": "OpenAI",
+    "avatar_file": "a19ee5a9fdc19109.jpg",
+    "avatar_manual": true,
+    "updated": 1795064508
+  },
+  "Sam Altman": {
+    "key": "Sam Altman",
+    "avatar_file": "2379fc7b496957ff.jpg",
+    "avatar_manual": true,
+    "updated": 1795064513
   }
 }

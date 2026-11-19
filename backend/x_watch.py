@@ -201,6 +201,45 @@ def _gql_user_id(handle, ck):
         return "", ""
 
 
+def user_avatar(url):
+    """v75：X 博主的头像地址（400×400 的大图）。先用你存的 X Cookie 问 X（和扫推文是同一个接口），
+    不行再用两个不用登录的公开服务。拿不到返回空串。"""
+    handle = detect_handle(url) if "/" in (url or "") else (url or "").strip().lstrip("@")
+    if not handle:
+        return ""
+    big = lambda u: re.sub(r"_normal(\.\w+)$", r"_400x400\1", u or "")
+    ck = _load_cookie()
+    if ck:
+        var = {"screen_name": handle, "withSafetyModeUserFields": True}
+        feat = {"hidden_profile_likes_enabled": True, "hidden_profile_subscriptions_enabled": True,
+                "responsive_web_graphql_exclude_directive_enabled": True, "verified_phone_label_enabled": False,
+                "subscriptions_verification_info_is_identity_verified_enabled": True,
+                "subscriptions_verification_info_verified_since_enabled": True,
+                "highlights_tweets_tab_ui_enabled": True, "creator_subscriptions_tweet_preview_api_enabled": True,
+                "responsive_web_graphql_skip_user_profile_image_extensions_enabled": False,
+                "responsive_web_graphql_timeline_navigation_enabled": True}
+        q = urllib.parse.urlencode({"variables": json.dumps(var), "features": json.dumps(feat)})
+        try:
+            data = _http_get_json("https://x.com/i/api/graphql/G3KGOASz96M-Qu0nwmGXNg/UserByScreenName?" + q,
+                                  _gql_headers(ck))
+            u = (((data.get("data") or {}).get("user") or {}).get("result") or {})
+            img = ((u.get("legacy") or {}).get("profile_image_url_https")
+                   or (u.get("avatar") or {}).get("image_url") or "")
+            if img:
+                return big(img)
+        except Exception:
+            pass
+    try:
+        data = _http_get_json("https://api.fxtwitter.com/" + urllib.parse.quote(handle),
+                              {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124 Safari/537.36"})
+        img = ((data or {}).get("user") or {}).get("avatar_url") or ""
+        if img:
+            return big(img)
+    except Exception:
+        pass
+    return "https://unavatar.io/x/%s?fallback=false" % urllib.parse.quote(handle)
+
+
 def _gql_user_tweets(user_id, ck, count=20):
     """UserTweets → 推文列表。返回原始 instructions（调用方再解析）。失败返回 None。"""
     var = {"userId": user_id, "count": count, "includePromotedContent": False,

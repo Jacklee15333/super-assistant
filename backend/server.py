@@ -80,7 +80,7 @@ def _clog(tag, msg):
 # 这些接口是前端**定时高频轮询**或页面加载时被动拉取的（查状态/进度/列表/配置），
 # 一旦打印就会把控制台刷爆、淹没真正有用的操作日志，所以一律静音、不记。
 _LOG_QUIET_PATHS = {
-    "/ping", "/video_progress", "/video_health", "/video_deps", "/video_notes", "/creator_profiles_batch",
+    "/ping", "/video_progress", "/video_health", "/video_deps", "/video_notes", "/creator_profiles_batch", "/creator/avatars_status",
     "/video_note_analyze_progress", "/sniff/feed", "/sniff/discover", "/video_note_analyze_batch",
     "/chat_progress", "/heartbeat/status", "/lumi/status", "/lumi/evolve_status",
     "/web_model/state", "/web_model/config", "/loop/status", "/insight/status",
@@ -959,10 +959,13 @@ def _vn_src_noun_of_file(name):
     return None
 
 
-# ════════════════ v74：嗅探的博主头像 ════════════════
-# 和视频页的「博主资料」共用（按名字）：已经有头像的直接用；没有的在后台去主页取（YouTube / 抖音 / B站），
-# 一次一个、慢慢来；6 小时内不重复试。已经绑过主页、手动解除过的不碰。
-_cw_av = {"running": False, "tried": {}}
+# ════════════════ v74 / v75：嗅探的博主头像 ════════════════
+# 和视频页的「博主资料」共用（按名字）：已经有头像的直接用；没有的在后台一个一个去取：
+#   · X：用你存的 X Cookie 问 X 要头像（和扫推文同一个接口），不行再用公开服务；
+#   · YouTube / 抖音 / B站：链接是主页就按主页取；不是主页（比如 YouTube 搜索链接）或者主页取不到，
+#     就从他的视频找到主页再取。取不到的在终端里写明原因，30 分钟后再试。用户手动解除过的不碰。
+_cw_av = {"running": False, "tried": {}, "stop": False, "manual": False, "total": 0, "done": 0, "ok": 0, "fail": 0,
+          "current_id": "", "current": "", "errors": [], "started": 0, "finished": 0}   # v76：一键解析的进度
 
 
 def _cw_attach_avatars(creators):
@@ -976,36 +979,166 @@ def _cw_attach_avatars(creators):
         key = (c.get("title") or "").strip()
         p = raw.get(key) or {}
         fp = _cpf._avatar_file(p) if p else None
+        if p:                                            # v76：主页资料（点头像时显示）
+            c["profile"] = {k: p.get(k) for k in ("name", "followers", "works", "signature", "home", "url", "error")
+                            if p.get(k) not in (None, "")}
+            c["profile"]["platform_label"] = getattr(_cpf, "PLATFORM_LABEL", {}).get(p.get("platform") or "", "")
         if fp:
             try:
                 c["avatar"] = {"key": key, "v": int(fp.stat().st_mtime)}
             except Exception:
                 pass
-        elif (key and (c.get("url") or "").startswith("http") and c.get("platform") in ("youtube", "douyin", "bilibili")
-              and not p.get("url") and not p.get("no_auto") and now - _cw_av["tried"].get(c.get("id"), 0) > 6 * 3600):
-            todo.append((c.get("id"), key, c.get("url")))
+        elif (key and c.get("platform") in ("youtube", "douyin", "bilibili", "x") and not p.get("no_auto")
+              and now - _cw_av["tried"].get(c.get("id"), 0) > 1800):
+            todo.append(dict(c))
     if todo and not _cw_av["running"]:
-        _cw_av["running"] = True
+        _cw_av_begin(todo, manual=False)
         _threading.Thread(target=_cw_fill_avatars, args=(todo,), daemon=True).start()
 
 
-def _cw_fill_avatars(todo):
+def _cw_av_begin(todo, manual):
+    _cw_av.update({"running": True, "stop": False, "manual": manual, "total": len(todo), "done": 0, "ok": 0,
+                   "fail": 0, "current_id": "", "current": "", "errors": [], "started": _time_now(), "finished": 0})
+
+
+def _cw_avatar_start(ids=None, force=False):
+    """v76：「一键解析博主主页」/ 单个博主的 🔍。ids 为空 = 所有还没头像的博主；
+    force = 已经有头像的也重新解析一遍（刷新头像、粉丝数、简介）。返回 (ok, 说明)。"""
+    if _cw_av["running"]:
+        return False, "正在解析，等这一轮做完（或者先点「停止」）"
+    import creator_watch
+    import creator_profiles as _cpf
+    raw = _cpf.list_raw()
+    ids = [str(i) for i in (ids or []) if i]
+    todo = []
+    for c in creator_watch.list_creators():
+        if ids and str(c.get("id")) not in ids:
+            continue
+        if c.get("platform") not in ("youtube", "douyin", "bilibili", "x"):
+            continue
+        p = raw.get((c.get("title") or "").strip()) or {}
+        if not force and _cpf._avatar_file(p):
+            continue
+        if p.get("no_auto") and not ids:
+            continue                                 # 你手动解除过的：一键解析不碰；单独点 🔍 的照做
+        todo.append(dict(c))
+    if not todo:
+        return False, ("这个平台的主页解析不了" if ids else "所有博主都有头像了")
+    _cw_av_begin(todo, manual=True)
+    _threading.Thread(target=_cw_fill_avatars, args=(todo, force), daemon=True).start()
+    return True, "开始解析 %d 个博主的主页" % len(todo)
+
+
+def _cw_video_urls(cw, cid, limit=3):
+    urls = []
+    try:
+        for v in ((cw.get_cached_videos(cid) or {}).get("videos") or []):
+            u = (v.get("url") or "").strip()
+            if u.startswith("http") and u not in urls:
+                urls.append(u)
+    except Exception:
+        pass
+    try:
+        for f in (cw.get_findings() or []):
+            if str(f.get("creator_id")) == str(cid):
+                u = (f.get("url") or "").strip()
+                if u.startswith("http") and u not in urls:
+                    urls.append(u)
+    except Exception:
+        pass
+    return urls[:limit]
+
+
+def _cw_one_avatar(_cpf, cw, c, force=False):
+    """给一个博主取头像（和主页资料）。返回 (怎么取到的, 没取到的原因)。"""
+    key, url, plat = (c.get("title") or "").strip(), (c.get("url") or "").strip(), c.get("platform")
+    has = lambda: bool(_cpf._avatar_file(_cpf.profile_state(key)))
+    errs = []
+    if force and plat != "x" and _cpf.profile_state(key).get("url"):
+        try:
+            ok, info = _cpf.refresh(key)[:2]          # v76：已经绑过主页 → 按主页重新取一遍
+            if ok and has():
+                return "刷新了主页资料", ""
+            errs.append("主页：" + str(info)[:60])
+        except Exception as e:
+            errs.append("主页：" + str(e)[:60])
+    if plat == "x":
+        try:
+            import x_watch
+            import base64
+            img = x_watch.user_avatar(url)
+            data = _cpf._download_avatar(img, "x") if img else b""
+            if data:
+                ok, msg = _cpf.set_avatar_data(key, "data:image/jpeg;base64," + base64.b64encode(data).decode())
+                if ok and has():
+                    return "X 头像", ""
+                errs.append(str(msg)[:80])
+            else:
+                errs.append("X 没给头像（X 的 Cookie 过期了的话，在嗅探页重新粘一次 Cookie）")
+        except Exception as e:
+            errs.append(str(e)[:80])
+        return "", "；".join(errs)
+    p = _cpf.profile_state(key)
+    is_home = plat in ("douyin", "bilibili") or bool(re.search(r"youtube\.com/(@|channel/|c/|user/)", url))
+    if is_home and not p.get("url"):
+        try:
+            ok, info = _cpf.bind(key, url)[:2]
+            if has():
+                return "主页", ""
+            errs.append("主页：" + (str(info)[:60] if not ok else "主页上没找到头像"))
+        except Exception as e:
+            errs.append("主页：" + str(e)[:60])
+    vurls = _cw_video_urls(cw, c.get("id"), limit=8)
+    # YouTube 搜索链接列出来的东西里，常常第一条就是他的频道本身 → 直接当主页用（最准）
+    chans = [u for u in vurls if re.search(r"youtube\.com/(@|channel/|c/|user/)", u)]
+    if plat == "youtube" and chans and not _cpf.profile_state(key).get("url"):
+        try:
+            ok, info = _cpf.bind(key, chans[0])[:2]
+            if has():
+                return "他的频道", ""
+            errs.append("频道：" + (str(info)[:60] if not ok else "频道页上没找到头像"))
+        except Exception as e:
+            errs.append("频道：" + str(e)[:60])
+    vurls = [u for u in vurls if u not in chans][:3]
+    if vurls:
+        try:
+            ok, info, _k = _cpf.auto_bind_from_videos(key, vurls, force=True)
+            if has():
+                return "从他的视频找到主页", ""
+            errs.append("视频：" + str(info)[:80])
+        except Exception as e:
+            errs.append("视频：" + str(e)[:60])
+    elif not is_home:
+        errs.append("链接不是主页，也还没有他的视频（先扫一遍）")
+    return "", "；".join(errs) or "没取到"
+
+
+def _cw_fill_avatars(todo, force=False):
     try:
         import creator_profiles as _cpf
-        got = 0
-        for cid, key, url in todo:
-            _cw_av["tried"][cid] = _time_now()
+        import creator_watch as _cw
+        for c in todo:
+            if _cw_av["stop"]:
+                _clog("嗅探", "解析博主主页：你点了停止")
+                break
+            _cw_av["current_id"], _cw_av["current"] = str(c.get("id") or ""), c.get("title") or ""
+            _cw_av["tried"][c.get("id")] = _time_now()
             try:
-                ok, info = _cpf.bind(key, url)[:2]
-                if ok and isinstance(info, dict) and info.get("has_avatar", True):
-                    got += 1
-            except Exception:
-                pass
-            _time_log.sleep(1.5)
-        if got:
-            _clog("嗅探", "给 %d 个博主取到了头像" % got)
+                how, why = _cw_one_avatar(_cpf, _cw, c, force)
+            except Exception as e:
+                how, why = "", str(e)[:80]
+            _cw_av["done"] += 1
+            if how:
+                _cw_av["ok"] += 1
+                _clog("嗅探", "✓ 给「%s」取到了头像（%s）" % (c.get("title"), how))
+            else:
+                _cw_av["fail"] += 1
+                _cw_av["errors"] = (_cw_av["errors"] + [{"id": str(c.get("id") or ""), "name": c.get("title") or "",
+                                                         "why": why}])[-40:]
+                _clog("嗅探", "✗「%s」的头像没取到：%s（30 分钟后再试）" % (c.get("title"), why))
+            _time_log.sleep(1.0)
     finally:
-        _cw_av["running"] = False
+        _cw_av.update({"running": False, "current_id": "", "current": "", "finished": _time_now()})
 
 
 def _vn_creator_after_save(job, res, cb=None):
@@ -3505,6 +3638,11 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send({"feed": [], "error": str(e)}, 200)
 
+        if path == "/creator/avatars_status":
+            # v76：「一键解析博主主页」的进度
+            st = {k: v for k, v in _cw_av.items() if k != "tried"}
+            st["now"] = _time_now()
+            return self._send(st)
         if path == "/creator/list":
             # 博主监控：清单 + 配置（每天几点自动扫等）
             try:
@@ -3813,6 +3951,16 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_video_note_set_author(body)
         if path == "/video_folder":
             return self._handle_video_folder(body)
+        if path == "/creator/avatars":
+            # v76：一键解析博主主页 {action: start, ids?: [...], force?: bool} / {action: stop}
+            if (body.get("action") or "start") == "stop":
+                _cw_av["stop"] = True
+                return self._send({"ok": True, "message": "正在停止…"})
+            try:
+                ok, msg = _cw_avatar_start(body.get("ids") or [], bool(body.get("force")))
+            except Exception as e:
+                ok, msg = False, "出错：%s" % e
+            return self._send({"ok": ok, "message": msg})
         if path == "/creator_merge":
             # v64：合并博主 {src, dst}；撤销 {action: "undo", id}
             try:
