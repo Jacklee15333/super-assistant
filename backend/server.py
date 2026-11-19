@@ -1852,7 +1852,7 @@ _VIDEO_STUCK_SEC = 600            # v90：一条任务这么久（秒）没有�
 # 「已存的视频笔记」上面会显示「提取失败（N）」，每条可以「重新提取」或删掉。
 # 同一个链接只记一条（再失败就更新原因和次数）；以后提取成功了自动从清单里拿掉。
 _vf_lock = _threading.Lock()
-_VF_KEEP = ("url", "local_path", "title", "level", "lang", "mode", "use_local", "model", "screenshot", "link",
+_VF_KEEP = ("url", "local_path", "title", "level", "lang", "vocal", "mode", "use_local", "model", "screenshot", "link",
             "analyze", "author", "note_folder", "creator_url")
 
 
@@ -2129,7 +2129,8 @@ def _video_worker():
             elif local_path:
                 # 本地文件任务：跳过链接解析与下载，直接听写本地文件
                 res = video_transcribe.extract_local(
-                    local_path, level=job["level"], progress_cb=cb, lang=job.get("lang") or "zh")
+                    local_path, level=job["level"], progress_cb=cb, lang=job.get("lang") or "zh",
+                    vocal=bool(job.get("vocal")))
             elif _dimp is not None and _dimp.article_url(job["url"]):
                 # v65：不是视频网站的链接 → 先当文章读；读不到正文，再当视频试一次（和以前一样）
                 res = _dimp.extract_url(job["url"], progress_cb=cb)
@@ -2137,7 +2138,7 @@ def _video_worker():
                     cb("解析链接", "没读到文章正文，试试当视频提取…")
                     _r2 = video_transcribe.extract(job["url"], level=job["level"], progress_cb=cb,
                                                    need_video=do_screenshot, mode=sub_mode,
-                                                   lang=job.get("lang") or "zh")
+                                                   lang=job.get("lang") or "zh", vocal=bool(job.get("vocal")))
                     if isinstance(_r2, dict) and (_r2.get("ok") or _r2.get("cancelled")):
                         res = _r2
                     else:
@@ -2147,7 +2148,8 @@ def _video_worker():
                 res = video_transcribe.extract(job["url"], level=job["level"],
                                                progress_cb=cb,
                                                need_video=do_screenshot,
-                                               mode=sub_mode, lang=job.get("lang") or "zh")
+                                               mode=sub_mode, lang=job.get("lang") or "zh",
+                                               vocal=bool(job.get("vocal")))
             if isinstance(res, dict) and res.get("source") in ("doc", "article"):
                 do_screenshot = do_link = False      # v65：文档 / 文章没有画面，也没有时间轴
                 if res.get("ok"):
@@ -6357,6 +6359,7 @@ class Handler(BaseHTTPRequestHandler):
         local_path = (body.get("local_path") or "").strip()
         level = body.get("level", "balanced")
         lang = (body.get("lang") or "zh").strip()          # v95：视频里说的是什么话（日语、英语…）
+        vocal = bool(body.get("vocal"))                    # v102：识别前先分离人声
         use_local = body.get("use_local", True)
         model = body.get("model", "qwen2.5")
         # 新增：插图 / 跳转原片开关（前端「视频」面板的两个勾选）
@@ -6414,7 +6417,7 @@ class Handler(BaseHTTPRequestHandler):
                 "url": "local://" + local_path,   # 占位，仅用于去重/显示，不会真的去下载
                 "local_path": local_path,
                 "title": title,
-                "level": level, "lang": lang, "use_local": use_local, "model": model,
+                "level": level, "lang": lang, "vocal": vocal, "use_local": use_local, "model": model,
                 "screenshot": do_screenshot, "link": do_link, "mode": mode,
                 "analyze": do_analyze,
                 "author": author, "note_folder": note_folder,
@@ -6433,7 +6436,7 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             _art = ""
         if _art:
-            pos = _enqueue_video({"url": url, "level": level, "lang": lang,
+            pos = _enqueue_video({"url": url, "level": level, "lang": lang, "vocal": vocal,
                                   "use_local": use_local, "model": model,
                                   "screenshot": False, "link": False,
                                   "mode": mode, "analyze": do_analyze,
@@ -6468,7 +6471,7 @@ class Handler(BaseHTTPRequestHandler):
             if not has_subtitle:
                 return self._send({"need": missing})
 
-        pos = _enqueue_video({"url": url, "level": level, "lang": lang,
+        pos = _enqueue_video({"url": url, "level": level, "lang": lang, "vocal": vocal,
                               "use_local": use_local, "model": model,
                               "screenshot": do_screenshot, "link": do_link,
                               "mode": mode, "analyze": do_analyze,

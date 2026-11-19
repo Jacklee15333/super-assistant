@@ -339,6 +339,7 @@ LANGS = {
     "auto": ("自动识别", None),
 }
 _LANG = {"v": "zh"}
+_OPTS = {"vocal": False}       # v102：识别前先分离人声（去掉背景音乐、杂音）
 
 
 def _ja_mode():
@@ -448,6 +449,78 @@ def _anime_segments(model, audio, loose=False):
         yield _NS(start=a / _SR, end=b / _SR, text=text,
                   no_speech_prob=max([getattr(r, "no_speech_prob", 0) or 0 for r in res] or [0]),
                   avg_logprob=min([getattr(r, "avg_logprob", 0) or 0 for r in res] or [0]))
+
+
+def _fill_uncovered(model, full, seg_list, progress_cb=None):
+    """v101：逐句查漏（日语模式）。原来的补漏只管「整整 4 秒以上一个字都没认出」的空档，
+    两句之间夹着的一句短话（比如对方插了一句）就漏掉了。这里：
+      ① 用静音检测把整段音频里「像是有人在说话」的地方全找出来；
+      ② 和已经认出来的字对一下：一处话只有不到 4 成被认出来 → 当成漏了；
+      ③ 漏了的一处一处单独再听，时间就用这句话真正的开始 / 结束；
+      ④ 编出来的、拿不准的、字多得离谱（复读）的、和旁边已认出的话重复的，都不要。"""
+    from faster_whisper.vad import get_speech_timestamps, VadOptions
+    opts = VadOptions(threshold=0.3, min_speech_duration_ms=300, max_speech_duration_s=12,
+                      min_silence_duration_ms=400, speech_pad_ms=200)
+    total = len(full) / _SR
+    regions = [(t["start"] / _SR, t["end"] / _SR)
+               for t in get_speech_timestamps(full, vad_options=opts, sampling_rate=_SR)]
+    have = sorted((float(x.get("start") or 0), float(x.get("end") or 0)) for x in seg_list)
+
+    def covered(a, b):
+        tot = 0.0
+        for st, en in have:
+            if en <= a:
+                continue
+            if st >= b:
+                break
+            tot += min(b, en) - max(a, st)
+        return tot / max(0.01, b - a)
+
+    merged = []
+    for a, b in regions:
+        if b - a < 0.4 or covered(a, b) >= 0.4:
+            continue
+        if merged and a - merged[-1][1] < 0.8 and b - merged[-1][0] <= 15:
+            merged[-1][1] = b
+        else:
+            merged.append([a, b])
+    if not merged:
+        return []
+    if progress_cb:
+        progress_cb("检查漏听", "逐句核对：有 %d 处像是有人在说话、但没认出字，一处一处再听…" % len(merged))
+    got = []
+    for i, (a, b) in enumerate(merged[:300]):
+        _check_cancel()
+        a0, b0 = max(0.0, a - 0.3), min(total, b + 0.3)
+        clip = full[int(a0 * _SR): int(b0 * _SR)]
+        if len(clip) < int(0.3 * _SR):
+            continue
+        try:
+            res, _inf = model.transcribe(clip, language=_whisper_lang(), vad_filter=False, without_timestamps=True,
+                                         condition_on_previous_text=False, initial_prompt=_lang_prompt(), beam_size=5)
+            res = list(res)
+        except ExtractCancelled:
+            raise
+        except Exception as e:
+            print("[video] 逐句补听出错（跳过这一处）：%s" % e, flush=True)
+            continue
+        t = "".join((r.text or "").strip() for r in res).strip()
+        if not t or _looks_hallucinated(t):
+            continue
+        nsp = max([getattr(r, "no_speech_prob", 0) or 0 for r in res] or [0])
+        lp = min([getattr(r, "avg_logprob", 0) or 0 for r in res] or [0])
+        if nsp > 0.8 or lp < -1.2:
+            continue
+        if len(t) > (b0 - a0) * 14 + 6:                 # 一秒十几个字以上：多半是复读 / 编的
+            continue
+        near = "".join(x.get("text") or "" for x in seg_list + got
+                       if float(x.get("end") or 0) >= a - 3 and float(x.get("start") or 0) <= b + 3)
+        if len(t) >= 4 and t.strip("。、！？…") in near:   # 旁边已经认出来了，不重复
+            continue
+        got.append({"start": round(a, 2), "end": round(b, 2), "text": t})
+        if progress_cb and (i + 1) % 5 == 0:
+            progress_cb("检查漏听", "已核对 %d / %d 处，补回 %d 句…" % (i + 1, len(merged), len(got)))
+    return got
 
 
 def _fill_gaps(model, full, total, seg_list, progress_cb=None):
@@ -1697,7 +1770,8 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
     if job_dir is not None:
         prog = _load_progress(job_dir)
         # 只有同一个模型档位的半成品才接着用；档位变了就从头转（音频仍复用、不重下）
-        if prog and prog.get("level") == level and (prog.get("lang") or "zh") == _LANG["v"]:   # v95：换了语言就重新听
+        if (prog and prog.get("level") == level and (prog.get("lang") or "zh") == _LANG["v"]
+                and bool(prog.get("vocal")) == bool(_OPTS.get("vocal"))):          # v102：开 / 关人声分离也要重新听   # v95：换了语言就重新听
             parts = list(prog.get("parts") or [])
             seg_list = list(prog.get("segments") or [])
             try:
@@ -1711,9 +1785,22 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
     full = None
     can_resume = False
     _resume_offset_kept = offset   # 记下从 progress.json 读回的进度，decode 失败时别丢
+    src_path = path
+    if _OPTS.get("vocal"):
+        # v102：先把背景音乐、杂音去掉，只留人声，再识别（结果有缓存，同一个文件只分离一次）
+        try:
+            import vocal_sep
+            src_path = vocal_sep.separate(path, _models_dir(), progress_cb, _check_cancel)
+        except ExtractCancelled:
+            raise
+        except Exception as e:
+            src_path = path
+            print("[人声分离] 没分离成，按原声识别：%s" % e, flush=True)
+            if progress_cb:
+                progress_cb("人声分离", "没分离成（%s），这次按原声识别" % str(e)[:80])
     try:
         from faster_whisper.audio import decode_audio
-        full = decode_audio(path, sampling_rate=_SR)
+        full = decode_audio(src_path, sampling_rate=_SR)
         total = round(len(full) / _SR, 2)
         if _ja_mode():
             full = _boost_quiet(full)                   # v97：小声的先放大，再识别
@@ -1737,7 +1824,7 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
         #   · 关键：**不要**抹掉 progress.json 里已读回的进度。decode 可能只是这次偶发
         #     失败，下次启动若能 decode 成功，就还能从 _resume_offset_kept 处接着切片续转。
         #     若这次就从头转完了，收尾存盘会用新的完整结果覆盖，也不冲突。
-        audio_input = path
+        audio_input = src_path                 # v102：分离了人声就用人声
         offset = 0.0
         parts = []
         seg_list = []
@@ -1804,7 +1891,7 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
         # 续传切片场景 new_last_end 本就 ≥ old_end；从头重转时只有追上才覆盖
         if new_last_end + 0.01 >= old_end:
             _save_progress(job_dir, {
-                "url": None, "level": level, "lang": _LANG["v"], "total": total,
+                "url": None, "level": level, "lang": _LANG["v"], "vocal": bool(_OPTS.get("vocal")), "total": total,
                 "last_end": new_last_end, "parts": new_parts,
                 "segments": new_seg_list})
 
@@ -1847,6 +1934,20 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
                 else:
                     progress_cb("语音转文字", f"已识别到第 {int(last_end)} 秒…")
 
+    # v101：日语模式先逐句查漏（两句之间夹着的短话也补上）
+    more = []
+    if _ja_mode() and full is not None and MODEL_MAP.get(level) != "anime":
+        try:
+            more = _fill_uncovered(model, full, seg_list, progress_cb)
+        except ExtractCancelled:
+            raise
+        except Exception as e:
+            more = []
+            print("[video] 逐句查漏出错（不影响已有结果）：%s" % e, flush=True)
+        if more:
+            seg_list = sorted(seg_list + more, key=lambda x: x.get("start", 0))
+            parts = [x["text"] for x in seg_list]
+            last_end = max(last_end, max(x["end"] for x in more))
     # v87：补漏——结尾 / 中间被当成「没人说话」跳过的大段，再不跳静音地听一遍
     try:
         extra = _fill_gaps(model, full, total, seg_list, progress_cb)
@@ -1855,7 +1956,11 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
     except Exception as e:
         extra = []
         print("[video] 补漏出错（不影响已有结果）：%s" % e, flush=True)
-    if extra:
+    if more:
+        extra = list(more) + list(extra or [])
+        seg_list = sorted(seg_list + [x for x in extra if x not in more], key=lambda x: x.get("start", 0))
+        parts = [x["text"] for x in seg_list]
+    elif extra:
         seg_list = sorted(seg_list + extra, key=lambda x: x.get("start", 0))
         parts = [x["text"] for x in seg_list]
         last_end = max(last_end, max(x["end"] for x in extra))
@@ -1870,7 +1975,7 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
     # 是最靠后的进度，直接写完整结果（不走保护，确保最终文字稿完整落盘）。
     if job_dir is not None and can_resume:
         _save_progress(job_dir, {
-            "url": None, "level": level, "lang": _LANG["v"], "total": total,
+            "url": None, "level": level, "lang": _LANG["v"], "vocal": bool(_OPTS.get("vocal")), "total": total,
             "last_end": total or last_end, "parts": parts,
             "segments": seg_list})
     raw = "".join(parts).strip()
@@ -1897,7 +2002,7 @@ def _video_file_dir(url):
     return d
 
 
-def extract(url, level="balanced", progress_cb=None, need_video=False, mode="auto", lang="zh"):
+def extract(url, level="balanced", progress_cb=None, need_video=False, mode="auto", lang="zh", vocal=False):
     """
     主流程：解析链接 -> 下载音频 -> 语音识别 -> 返回文字稿。
     progress_cb(stage, detail) 用来实时报告"现在在干什么"。
@@ -1912,6 +2017,7 @@ def extract(url, level="balanced", progress_cb=None, need_video=False, mode="aut
       · "transcribe"    —— 跳过字幕，直接下视频听写（字幕可能不全/有错时更准更全）。
     """
     _set_lang("ja" if level in ("ja", "anime") else lang)   # v95：视频说的是什么话；v97/v98：日语专用模型一定按日语
+    _OPTS["vocal"] = bool(vocal)                                  # v102：要不要先分离人声
     def step(s, d=""):
         if progress_cb:
             progress_cb(s, d)
@@ -2140,7 +2246,7 @@ def check_deps_local():
     return missing
 
 
-def extract_local(file_path, level="balanced", progress_cb=None, lang="zh"):
+def extract_local(file_path, level="balanced", progress_cb=None, lang="zh", vocal=False):
     """把本地音/视频文件直接听写成文字稿。
     跳过链接解析与下载，直接走 faster-whisper。
 
@@ -2148,6 +2254,7 @@ def extract_local(file_path, level="balanced", progress_cb=None, lang="zh"):
     这样上层 worker 的后续处理（AI 分析、存笔记、插图）可以原样复用。
     标题默认用文件名（不含扩展名），交给 AI 分析时若识别出更好的标题会覆盖。"""
     _set_lang("ja" if level in ("ja", "anime") else lang)   # v95：视频说的是什么话；v97/v98：日语专用模型一定按日语
+    _OPTS["vocal"] = bool(vocal)                                  # v102：要不要先分离人声
     def step(s, d=""):
         if progress_cb:
             progress_cb(s, d)

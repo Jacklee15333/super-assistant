@@ -12609,7 +12609,10 @@ function vnCurLang() {
     try {
       if (/\/video_transcribe(\?|$)/.test(String(url)) && opts && typeof opts.body === "string" && opts.body.charAt(0) === "{") {
         const b = JSON.parse(opts.body);
-        if (!b.lang) { b.lang = vnCurLang(); opts = Object.assign({}, opts, { body: JSON.stringify(b) }); }
+        let changed = false;
+        if (!b.lang) { b.lang = vnCurLang(); changed = true; }
+        if (b.vocal === undefined) { b.vocal = vnCurVocal(); changed = true; }      // v102：先分离人声
+        if (changed) opts = Object.assign({}, opts, { body: JSON.stringify(b) });
       }
     } catch (_) {}
     return f0.call(this, url, opts);
@@ -12806,4 +12809,28 @@ async function _vtSubBar(resultEl, data) {
   };
   sel.addEventListener("change", sync);
   sync();
+})();
+
+
+// ════════════════════ v102：先分离人声 ════════════════════
+// 「开始提取」里一个开关：识别前先把背景音乐、环境声、杂音去掉，只留人声——小声的、背景吵的地方认得更准、更少漏。
+// 第一次用要下载人声模型（约 66MB）；有显卡的还会装一套显卡运行库（约 1～2GB，只装一次），没显卡就用 CPU（慢一些）。
+function vnCurVocal() {
+  const el = document.getElementById("videoVocal");
+  if (el) return !!el.checked;
+  try { return localStorage.getItem("videoVocalPick") === "1"; } catch (_) { return false; }
+}
+(function _vtVocalToggle() {
+  const anchor = document.querySelector("#view-video .vt-tidy-auto") || document.querySelector("#view-video .video-creator-row");
+  if (!anchor || document.getElementById("videoVocal")) return;
+  const row = document.createElement("label");
+  row.className = "vt-tidy-auto";
+  row.title = "识别前先把背景音乐、环境声、杂音去掉，只留人声，再交给语音识别：小声的、背景吵的地方认得更准、更少漏。\n" +
+    "代价是多花时间：有显卡很快；没显卡用 CPU，一小时的视频可能要多 10～20 分钟。同一个文件分离过一次就会记住，再提取不用重来。\n" +
+    "第一次用要下载人声模型（约 66MB）；有显卡的还会装一套显卡运行库（约 1～2GB，只装一次）。";
+  row.innerHTML = '<input type="checkbox" id="videoVocal"> 🎤 先分离人声（去掉背景音乐和杂音再识别，更准，多花点时间）';
+  anchor.parentNode.insertBefore(row, anchor.nextSibling);
+  const cb = row.querySelector("input");
+  try { cb.checked = localStorage.getItem("videoVocalPick") === "1"; } catch (_) {}
+  cb.addEventListener("change", () => { try { localStorage.setItem("videoVocalPick", cb.checked ? "1" : "0"); } catch (_) {} });
 })();
