@@ -1,28 +1,5 @@
 [
   {
-    "id": "video-1794881930212",
-    "ts": "11-17 10:18:50",
-    "kind": "video",
-    "title": "视频提取：.com/pqNd-ChxVco/ 复制此链接，打开Dou音搜索，直接观看视频！",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1
-    },
-    "steps": 3,
-    "error": "提取失败：ERROR: [Douyin] 7683085358866779407: Fresh cookies (not necessarily logged in) are needed; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U\n\n提示：本软件已先尝试「抖音分享页直链解析」、再用 yt-dl",
-    "outcome": "stopped",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 1,
-    "note": "⚠ 这条没成功，队列已清空，等待新任务"
-  },
-  {
     "id": "video-1794882607262",
     "ts": "11-17 10:30:07",
     "kind": "video",
@@ -1424,5 +1401,34 @@
     "tokens_est": 0,
     "seconds": 35,
     "note": "✅ 已完成《vibe coding 的浪潮开始褪去》，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1795073057025",
+    "ts": "11-19 15:24:17",
+    "kind": "video",
+    "title": "这才是一人公司opc的本质。 #人工智能",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型",
+      "语音转文字",
+      "保存"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1,
+      "保存": 1
+    },
+    "steps": 6,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 44,
+    "note": "✅ 已完成《这才是一人公司opc的本质。 #人工智能》，队列已清空，等待新任务"
   }
 ]
