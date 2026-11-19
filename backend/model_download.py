@@ -34,7 +34,7 @@ REPOS = {
     "large-v3": "Systran/faster-whisper-large-v3",
     "kotoba-v2": "kotoba-tech/kotoba-whisper-v2.0-faster",     # v97：日语专用
 }
-APPROX_GB = {"anime": 1.6, "kotoba-v2": 1.5, "tiny": 0.08, "base": 0.15, "small": 0.48, "medium": 1.5, "large-v2": 3.1, "large-v3": 3.1}
+APPROX_GB = {"anime": 2.8, "kotoba-v2": 1.5, "tiny": 0.08, "base": 0.15, "small": 0.48, "medium": 1.5, "large-v2": 3.1, "large-v3": 3.1}
 
 # 小文件先下（坏了马上知道），最后下 model.bin
 SMALL_REQUIRED = ["config.json", "tokenizer.json"]
@@ -140,7 +140,29 @@ def _sources():
     return out
 
 
-def _fetch(opener, url, dest, report=None, check=None):
+def _fetch(opener, url, dest, report=None, check=None, say=None):
+    """v99：服务器说「太忙」（429 / 503）就等一会儿在同一个源上再试，最多 4 次（等 15、30、60、90 秒）。"""
+    waits = [15, 30, 60, 90]
+    for i in range(len(waits) + 1):
+        try:
+            return _fetch1(opener, url, dest, report, check)
+        except urllib.error.HTTPError as e:
+            if e.code not in (429, 503) or i >= len(waits):
+                raise RuntimeError("服务器返回 %s %s" % (e.code, (e.reason or "")))
+            if say:
+                try:
+                    say("下载站说太忙（%s），等 %d 秒再试…" % (e.code, waits[i]))
+                except Exception:
+                    pass
+            _log("下载站返回 %s，等 %d 秒再试：%s" % (e.code, waits[i], url[-60:]))
+            end = time.time() + waits[i]
+            while time.time() < end:
+                if check:
+                    check()
+                time.sleep(1)
+
+
+def _fetch1(opener, url, dest, report=None, check=None):
     """下载一个文件到 dest（先写 dest.part，支持断点续传）。404 抛 _NotFound。返回字节数。"""
     tmp = dest.with_name(dest.name + ".part")
     have = tmp.stat().st_size if tmp.exists() else 0
@@ -155,7 +177,7 @@ def _fetch(opener, url, dest, report=None, check=None):
         if e.code == 416 and have:                 # 上次其实已经下完了
             tmp.replace(dest)
             return have
-        raise RuntimeError("服务器返回 %s %s" % (e.code, (e.reason or "")))
+        raise
     with resp:
         code = resp.getcode()
         if have and code != 206:                   # 服务器不支持续传 → 从头来
@@ -245,7 +267,7 @@ def _fetch_all(opener, ep, repo, size, part, label, progress, check):
             except Exception:
                 pass
 
-    _fetch(opener, base + BIG, part / BIG, report=report, check=check)
+    _fetch(opener, base + BIG, part / BIG, report=report, check=check, say=progress)
 
 
 def _is_cancel(e):
@@ -279,32 +301,59 @@ def _hf_files(opener, ep, repo):
     return list(_HF_FALLBACK)
 
 
-def _py_ok(code):
+def _py_ok(code, py=None, timeout=300):
     import subprocess
     import sys
     flags = 0x08000000 if sys.platform == "win32" else 0
     try:
-        r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=300, creationflags=flags)
+        r = subprocess.run([py or sys.executable, "-c", code], capture_output=True, text=True, timeout=timeout,
+                           creationflags=flags, encoding="utf-8", errors="replace")
         return r.returncode == 0, ((r.stdout or "") + (r.stderr or ""))[-1500:]
     except Exception as e:
         return False, str(e)
 
 
-def _ensure_converter(progress):
-    ok, _ = _py_ok("import transformers, torch, ctranslate2")
+def _run(cmd, timeout):
+    import subprocess
+    import sys
+    flags = 0x08000000 if sys.platform == "win32" else 0
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, creationflags=flags,
+                       encoding="utf-8", errors="replace")
+    return r.returncode == 0, ((r.stdout or "") + (r.stderr or ""))[-1500:]
+
+
+def _conv_env(root, progress):
+    """v99：转格式用一个单独的 Python 环境（models and tools/anime-convert-env）。
+    以前把转换工具装进了软件自己的环境，和已有的 numpy 版本打架（numpy.dtype size changed）。
+    单独环境里装一套全新的、互相配好的版本，转完整个删掉，不碰软件自己的东西。返回这个环境的 python。"""
+    import sys
+    env = Path(root) / "anime-convert-env"
+    py = env / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+    say = (lambda m: progress(m)) if progress else (lambda m: None)
+    if not py.exists():
+        say("准备一个单独的转换环境（不碰软件自己的环境）…")
+        shutil.rmtree(env, ignore_errors=True)
+        ok, out = _run([sys.executable, "-m", "venv", str(env)], 600)
+        if not ok or not py.exists():
+            raise RuntimeError("单独的转换环境没建起来：%s" % ((out or "").strip().splitlines() or ["原因不明"])[-1][:200])
+    ok, _ = _py_ok("import ctranslate2, transformers, torch, numpy", py=str(py))
     if ok:
-        return
-    if progress:
-        progress("第一次用要装转换工具（transformers + PyTorch CPU 版，约 300MB，只装一次）…")
+        return str(py)
     import gpu_accel
-    pk = ["transformers>=4.40", "torch"]
-    ok, how = gpu_accel._pip_install(pk)
+    pk = ["ctranslate2", "transformers>=4.40", "torch", "numpy", "safetensors"]
+    last = ""
+    for label, extra in gpu_accel._MIRRORS:
+        say("在单独环境里装转换工具（PyTorch CPU 版 + transformers + CTranslate2，约 400MB，只装一次）· %s…" % label)
+        ok, out = _run([str(py), "-m", "pip", "install", "--disable-pip-version-check", "--no-input",
+                        "--prefer-binary"] + pk + extra, 3600)
+        if ok:
+            break
+        last = ((out or "").strip().splitlines() or ["网络问题"])[-1]
+        _log("%s 装转换工具没成功：%s" % (label, last[:200]))
+    ok, out = _py_ok("import ctranslate2, transformers, torch, numpy", py=str(py))
     if not ok:
-        tail = (str(how or "").strip().splitlines() or ["网络问题"])[-1]
-        raise RuntimeError("转换工具没装上（%s）" % tail[:200])
-    ok, out = _py_ok("import transformers, torch")
-    if not ok:
-        raise RuntimeError("转换工具装了但用不了：%s" % ((out or "").strip().splitlines() or ["原因不明"])[-1][:200])
+        raise RuntimeError("转换工具没装上（%s）" % (last or ((out or "").strip().splitlines() or ["原因不明"])[-1])[:200])
+    return str(py)
 
 
 def _download_convert(size, root, progress=None, check=None):
@@ -349,7 +398,7 @@ def _download_convert(size, root, progress=None, check=None):
                         left = max(0, tot - have) / sp
                         m += " · %.1f MB/s · 还要约 %s" % (sp / 1024 ** 2, ("%d 分钟" % max(1, round(left / 60))) if left >= 60 else "%d 秒" % left)
                     say(m)
-                _fetch(op, "%s/%s/resolve/main/%s" % (ep, repo, n), raw / n, report=report, check=check)
+                _fetch(op, "%s/%s/resolve/main/%s" % (ep, repo, n), raw / n, report=report, check=check, say=say)
             if not any(raw.glob("*.safetensors")):
                 raise RuntimeError("没下到模型权重文件")
             got = True
@@ -376,7 +425,7 @@ def _download_convert(size, root, progress=None, check=None):
                     raise
     if check:
         check()
-    _ensure_converter(progress)
+    py = _conv_env(root, progress)
     say("把模型转成软件能用的格式（几分钟，只做这一次）…")
     tmp = root / ("faster-whisper-%s.converting" % size)
     if tmp.exists():
@@ -385,13 +434,14 @@ def _download_convert(size, root, progress=None, check=None):
     code = ("import sys; from ctranslate2.converters.transformers import main; "
             "sys.argv=['ct2', '--model', %r, '--output_dir', %r, '--quantization', 'float16', '--copy_files'] + %r; main()"
             % (str(raw), str(tmp), copy))
-    ok, out = _py_ok(code)
+    ok, out = _py_ok(code, py=py, timeout=3600)
     if not ok or not _complete(tmp, "large-v3"):
         raise RuntimeError("转格式没成功：%s" % (out.strip().splitlines()[-1] if out.strip() else "原因不明"))
     if final.exists():
         shutil.rmtree(final, ignore_errors=True)
     tmp.rename(final)
     shutil.rmtree(raw, ignore_errors=True)
+    shutil.rmtree(Path(root) / "anime-convert-env", ignore_errors=True)     # 转换环境用完就删，省空间
     _log("✓ Anime-Whisper 准备好了：%s" % final)
     return str(final)
 
