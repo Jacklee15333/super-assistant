@@ -261,9 +261,10 @@ function buildFloatWindow() {
   floatWin = new BrowserWindow({
     width: W, height: H, x: Math.round(x), y: Math.round(y),
     frame: false, transparent: true, resizable: false, movable: true,
-    alwaysOnTop: true, skipTaskbar: true, show: false, focusable: true,
+    alwaysOnTop: true, skipTaskbar: true, show: false, focusable: true, minimizable: false,
     webPreferences: { contextIsolation: true },
   });
+  noStrayBar(floatWin, false);   // v71：不会变成左下角的小条
   floatWin.setAlwaysOnTop(true, "screen-saver");
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>
     html,body{margin:0;padding:0;background:transparent;font-family:"Microsoft YaHei",sans-serif;}
@@ -377,7 +378,7 @@ function createPetWindow() {
   petWin = new BrowserWindow({
     width: W, height: H, x, y,
     frame: false, transparent: true, resizable: false, movable: true,
-    alwaysOnTop: true, skipTaskbar: true, show: false, focusable: true,
+    alwaysOnTop: true, skipTaskbar: true, show: false, focusable: true, minimizable: false,
     hasShadow: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -385,6 +386,7 @@ function createPetWindow() {
       nodeIntegration: false,
     },
   });
+  noStrayBar(petWin, false);   // v71：不会变成左下角的小条
   petWin.setAlwaysOnTop(true, "screen-saver");
   // 让桌宠在所有工作区可见（多桌面）
   try { petWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch (e) {}
@@ -565,9 +567,10 @@ function buildNotifFloat(n) {
   notifWin = new BrowserWindow({
     width: W, height: H, x, y,
     frame: false, transparent: true, resizable: false, movable: true,
-    alwaysOnTop: true, skipTaskbar: true, show: false, focusable: true, hasShadow: false,
+    alwaysOnTop: true, skipTaskbar: true, show: false, focusable: true, minimizable: false, hasShadow: false,
     webPreferences: { contextIsolation: true },
   });
+  noStrayBar(notifWin, true);   // v71：不会变成左下角的小条
   notifWin.setAlwaysOnTop(true, "screen-saver");
   try { notifWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch (e) {}
 
@@ -726,6 +729,24 @@ app.on("window-all-closed", () => {
 ipcMain.handle("get-backend-port", () => BACKEND_PORT);
 
 // v55：独立的「终端」窗口 —— 和启动时黑窗口里的内容一样（从后端 /logs 读），可以单独摆在一边看
+
+// v71：悬浮球 / 桌宠 / 通知这几个小窗没有标题栏、也没有任务栏按钮。它们一旦被最小化（比如按了 Win+D
+// 「显示桌面」），Windows 就会把它们变成屏幕左下角一个空白的小条，点也点不回来。
+// 所以：不让最小化；万一还是被最小化了，马上放回去（通知窗本来就该收起，就直接收起）。
+function noStrayBar(win, keepHidden) {
+  if (!win) return;
+  try { win.setMinimizable(false); } catch (_) {}
+  win.on("minimize", () => {
+    setTimeout(() => {
+      try {
+        if (win.isDestroyed()) return;
+        win.restore();
+        if (keepHidden) win.hide();
+      } catch (_) {}
+    }, 50);
+  });
+}
+
 let termWin = null;
 ipcMain.handle("open-terminal-window", () => {
   if (termWin && !termWin.isDestroyed()) {
