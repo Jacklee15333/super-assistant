@@ -92,8 +92,9 @@ def remember_defaults(body):
     try:
         with _lock:
             cfg = _load()
-            d = {k: body.get(k) for k in _DEFAULT_KEYS if k in body}
-            if d and d != cfg.get("defaults"):
+            d = dict(cfg.get("defaults") or {})
+            d.update({k: body.get(k) for k in _DEFAULT_KEYS if k in body})
+            if d != cfg.get("defaults"):
                 cfg["defaults"] = d
                 _save()
     except Exception:
@@ -286,7 +287,7 @@ def queue_text(text, analyze, source="手机", notify=None, title=""):
         return {"ok": False, "error": "软件后端还没准备好，过一会儿再发", "url": url}
     with _lock:
         d = dict(_load().get("defaults") or {})
-    body = {"level": "balanced", "use_local": True, "model": "qwen2.5", "mode": "auto",
+    body = {"level": "accurate", "use_local": True, "model": "qwen2.5", "mode": "auto",
             "screenshot": False, "link": False}
     body.update({k: v for k, v in d.items() if v is not None})
     if analyze is None:

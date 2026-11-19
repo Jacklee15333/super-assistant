@@ -11580,7 +11580,12 @@ async function _phPoll() {
     if (_phSeq >= 0 && st.seq > _phSeq && st.recent && st.recent.length) {
       const x = st.recent[0];
       _phToast((x.src === "飞书" ? "💬 飞书发来：" : "📱 手机发来：") + (x.title || x.url).slice(0, 40) + (x.ok ? "（已加进队列）" : "（没加进去，点开看原因）"));
-      if (x.ok && typeof loadVideoNotes === "function") setTimeout(() => { try { loadVideoNotes(); } catch (e) {} }, 1500);
+      // v85：手机 / 飞书发来的任务，和在电脑上点「提取并分析」一样：开始盯进度条，做完自动刷新「最新提取」
+      if (x.ok) {
+        try { if (typeof pollVideoProgress === "function") pollVideoProgress(); } catch (e) {}
+        try { if (typeof setVideoStatus === "function")
+          setVideoStatus((x.src === "飞书" ? "💬 飞书" : "📱 手机") + "发来一个链接，已开始处理…", "ok"); } catch (e) {}
+      }
     }
     _phSeq = st.seq;
     const m = document.getElementById("phModal");
@@ -11793,7 +11798,26 @@ function _phInjectButton() {
   head.appendChild(b);
   return true;
 }
+// v86：把电脑上当前选的质量（精准 / 均衡 / 快速）和 AI 模型告诉后端，手机 / 飞书发来的链接照同样的设置提取
+function _phSyncDefaults() {
+  try {
+    const lv = document.getElementById("videoLevel");
+    const body = {};
+    if (lv && lv.value) body.level = lv.value;
+    try {
+      const s = typeof settings === "function" ? settings() : null;
+      if (s) { body.use_local = s.use_local; body.model = s.model; }
+    } catch (e) {}
+    if (!Object.keys(body).length) return;
+    fetch(BACKEND + "/phone_inbox/defaults", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    }).catch(() => {});
+  } catch (e) {}
+}
 (function _phBoot() {
+  setTimeout(_phSyncDefaults, 5000);
+  const lv = document.getElementById("videoLevel");
+  if (lv) lv.addEventListener("change", () => setTimeout(_phSyncDefaults, 300));
   let tries = 0;
   const t = setInterval(() => { if (_phInjectButton() || ++tries > 40) clearInterval(t); }, 500);
   setTimeout(async () => {
