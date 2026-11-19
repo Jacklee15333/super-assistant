@@ -10849,7 +10849,7 @@ function snProgressCard(title, els) {
       const stack = document.createElement("div"); stack.className = "sn-stack";
       snAsVCard(left, "👤 关注的博主", [document.getElementById("cwCount")]);
       const prog = snProgressCard("⏳ 扫描进度", [st, log]);
-      snAsVCard(right, "🆕 新视频", []);
+      snAsVCard(right, "新视频", []);
       stack.append(left, prog, right);
       cg.replaceWith(stack);
       vMakeCollapsible(left, "snCreatorsCollapsed");
@@ -10873,7 +10873,7 @@ function snProgressCard(title, els) {
       if (guide) start.appendChild(guide);
       const prog = snProgressCard("⏳ 嗅探进度", [pr]);
       snAsVCard(srcCard, "📌 盯着的网站", [document.getElementById("sniffSrcCount")]);
-      snAsVCard(feedCard, "🆕 新动向", [document.getElementById("sniffCatActive")]);
+      snAsVCard(feedCard, "新动向", [document.getElementById("sniffCatActive")]);
       const fh = feedCard.querySelector(":scope > .v-card-head");
       fh.after(tiles);
       const stack = document.createElement("div"); stack.className = "sn-stack";
