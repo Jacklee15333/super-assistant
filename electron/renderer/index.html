@@ -326,14 +326,14 @@
 
             <div class="video-input-row">
               <input type="text" id="videoUrl" class="text-input"
-                placeholder="粘贴视频链接或整段分享文案，如 https://v.douyin.com/xxxx/" />
+                placeholder="粘贴视频 / 文章链接，或整段分享文案，如 https://v.douyin.com/xxxx/、公众号文章链接" />
               <select id="videoLevel" class="text-input" style="width:130px">
                 <option value="speed">快速（糙）</option>
                 <option value="balanced">均衡（推荐）</option>
                 <option value="accurate" selected>精准（慢）</option>
               </select>
-              <button id="videoLocalBtn" class="send-btn" title="从电脑里选一个音频/视频文件，直接提取文字（无需链接、无需下载）" style="background:var(--surface-2,#fff);color:var(--text,#222);border:0.5px solid var(--border,#3a3a3a)">📁 导入本地文件</button>
-              <button id="videoFolderBtn" class="send-btn" title="选一个文件夹，自动找出里面所有音/视频文件（包括子文件夹），逐个提取；还可以顺手统一填作者、把笔记归进同名文件夹" style="background:var(--surface-2,#fff);color:var(--text,#222);border:0.5px solid var(--border,#3a3a3a)">📂 导入文件夹</button>
+              <button id="videoLocalBtn" class="send-btn" title="从电脑里选文件导入：音频、视频会提取文字稿；PDF、Word、Excel、PPT、TXT、Markdown 等文档直接读出全文" style="background:var(--surface-2,#fff);color:var(--text,#222);border:0.5px solid var(--border,#3a3a3a)">📁 导入本地文件</button>
+              <button id="videoFolderBtn" class="send-btn" title="选一个文件夹，自动找出里面所有音视频和文档（包括子文件夹），逐个导入；还可以顺手统一填作者、把笔记归进同名文件夹" style="background:var(--surface-2,#fff);color:var(--text,#222);border:0.5px solid var(--border,#3a3a3a)">📂 导入文件夹</button>
               <button id="videoGoBtn" class="send-btn">提取并分析</button>
             </div>
 

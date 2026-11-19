@@ -2488,3 +2488,19 @@ body.lv-standalone .lv-root { height: 100%; }
 .vn-merge-note { font-size: 12px; color: #d9534f; }
 .vn-merge-cancel { border: 0.5px solid var(--line-strong); background: transparent; color: var(--text); border-radius: 8px;
   padding: 6px 14px; font-size: 13px; cursor: pointer; }
+
+
+/* ════════════════ v65：导入的文档 / 网页文章 ════════════════ */
+.vn-kind { flex: 0 0 auto; font-size: 11px; line-height: 1.55; padding: 0 6px; border-radius: 6px; margin-right: 6px;
+  border: 1px solid var(--line-strong); color: var(--text-dim); white-space: nowrap; font-weight: 600; }
+.vn-kind.k-pdf { color: #c0392b; border-color: rgba(192, 57, 43, .45); }
+.vn-kind.k-word { color: #2b5797; border-color: rgba(43, 87, 151, .45); }
+.vn-kind.k-excel { color: #1e7145; border-color: rgba(30, 113, 69, .45); }
+.vn-kind.k-ppt { color: #d24726; border-color: rgba(210, 71, 38, .45); }
+.vn-kind.k-wx { color: #07a35a; border-color: rgba(7, 163, 90, .45); }
+.vn-kind.k-web { color: #3b6fd8; border-color: rgba(59, 111, 216, .45); }
+.vn-kind.k-book { color: #8e44ad; border-color: rgba(142, 68, 173, .45); }
+body.dark .vn-kind.k-word, body.dark .vn-kind.k-web { color: #8fb0ff; }
+body.dark .vn-kind.k-pdf, body.dark .vn-kind.k-ppt { color: #ff8a73; }
+body.dark .vn-kind.k-excel, body.dark .vn-kind.k-wx { color: #5fd08f; }
+.vdone-videos:disabled { opacity: .7; cursor: default; }

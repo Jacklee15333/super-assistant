@@ -927,6 +927,37 @@ def _vn_after_bind(key, info):
     return key, "；".join(notes)
 
 
+def _vn_doc_meta(res):
+    """v65：文档 / 网页文章的笔记开头多写几行：类型、发布时间、页面里的视频。"""
+    if not isinstance(res, dict) or res.get("source") not in ("doc", "article"):
+        return ""
+    out = "- 类型：%s\n" % (res.get("doc_kind") or "文档")
+    if res.get("published"):
+        out += "- 发布时间：%s\n" % res["published"]
+    pv = [u for u in (res.get("page_videos") or []) if u and " " not in u][:8]
+    if pv:
+        out += "- 页面视频：%s\n" % " ".join(pv)
+    return out
+
+
+def _vn_src_noun_of_file(name):
+    """v65：笔记是导入的文档 / 文章 → 返回「文档」「文章」「表格」…；视频笔记返回 None。"""
+    try:
+        with open(_cx_video_dir() / name, encoding="utf-8", errors="replace") as f:
+            head = f.read(3000).split("\n")[:16]
+    except Exception:
+        return None
+    for ln in head:
+        t = ln.strip().lstrip("-").strip()
+        if t.startswith(("类型：", "类型:")):
+            try:
+                import doc_import
+                return doc_import.noun_of(t[3:].strip())
+            except Exception:
+                return "文档"
+    return None
+
+
 def _vn_creator_after_save(job, res, cb=None):
     """v59：提取完成、笔记存好后，给这条笔记的博主建「博主板块」资料（头像、昵称、粉丝数、简介）。
       · 提取卡片里填了「博主主页」→ 按它绑定（笔记没有作者时，顺便把作者填成博主昵称）；
@@ -1025,7 +1056,7 @@ def _build_timestamped_transcript(segments, limit=10000):
 
 
 def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None,
-                           segments=None, do_screenshot=False, do_link=False):
+                           segments=None, do_screenshot=False, do_link=False, src_noun=None):
     # 要插图或跳转时，给模型「带时间戳的文字稿」，它才能把标记时间打准；
     # 否则维持原样（纯文字稿），行为和以前完全一致。
     want_markers = bool(do_screenshot or do_link) and bool(segments)
@@ -1097,7 +1128,15 @@ def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None
         prompt += (
             "标记里的时间一定要用文字稿里真实出现的 [mm:ss]，不要瞎编。\n")
 
-    prompt += f"\n视频标题：{title}\n\n{_cut_note}=== 文字稿 ===\n{body_text}\n"
+    if src_noun:     # v65：导入的文档 / 网页文章：提示词里的「视频」「文字稿」换成对应的说法（只换提示词，不动原文）
+        prompt = prompt.replace(
+            "下面是一段视频的文字稿（语音识别得到，可能有个别错别字，请结合上下文理解）。",
+            "下面是一篇%s的原文（从网页或文件里提取出来的文字，可能带一点排版残留，请结合上下文理解）。" % src_noun)
+        prompt = prompt.replace("文字稿", "原文").replace("视频", src_noun)
+        _cut_note = _cut_note.replace("文字稿", "原文").replace("视频", src_noun)
+        prompt += f"\n{src_noun}标题：{title}\n\n{_cut_note}=== 原文 ===\n{body_text}\n"
+    else:
+        prompt += f"\n视频标题：{title}\n\n{_cut_note}=== 文字稿 ===\n{body_text}\n"
 
     # 视频总结的设计：原文已用本地听写提取，这一步默认交给「网页模型」分析总结。
     try:
@@ -1800,15 +1839,40 @@ def _video_worker():
             do_link = bool(job.get("link"))
             sub_mode = job.get("mode") or "auto"   # auto / subtitle_only / transcribe
             local_path = (job.get("local_path") or "").strip()
-            if local_path:
+            _dimp = None
+            try:
+                import doc_import as _dimp
+            except Exception as _e:
+                _clog("视频", "文档导入模块加载失败：%s" % _e)
+            if local_path and _dimp is not None and _dimp.is_doc_path(local_path):
+                # v65：本地文档（PDF / Word / Excel / PPT / TXT / Markdown…）：直接读出全文
+                res = _dimp.extract_file(local_path, progress_cb=cb)
+            elif local_path:
                 # 本地文件任务：跳过链接解析与下载，直接听写本地文件
                 res = video_transcribe.extract_local(
                     local_path, level=job["level"], progress_cb=cb)
+            elif _dimp is not None and _dimp.article_url(job["url"]):
+                # v65：不是视频网站的链接 → 先当文章读；读不到正文，再当视频试一次（和以前一样）
+                res = _dimp.extract_url(job["url"], progress_cb=cb)
+                if (not res.get("ok")) and res.get("try_video") and not _video_cancel.get("all"):
+                    cb("解析链接", "没读到文章正文，试试当视频提取…")
+                    _r2 = video_transcribe.extract(job["url"], level=job["level"], progress_cb=cb,
+                                                   need_video=do_screenshot, mode=sub_mode)
+                    if isinstance(_r2, dict) and (_r2.get("ok") or _r2.get("cancelled")):
+                        res = _r2
+                    else:
+                        res = {"ok": False, "error": "没读到文章正文（%s）；当视频提取也没成功（%s）" % (
+                            (res.get("error") or "")[:150], ((_r2 or {}).get("error") or "")[:150])}
             else:
                 res = video_transcribe.extract(job["url"], level=job["level"],
                                                progress_cb=cb,
                                                need_video=do_screenshot,
                                                mode=sub_mode)
+            if isinstance(res, dict) and res.get("source") in ("doc", "article"):
+                do_screenshot = do_link = False      # v65：文档 / 文章没有画面，也没有时间轴
+                if res.get("ok"):
+                    _clog("视频", "📄 读到%s《%s》：%d 字" % (res.get("doc_kind") or "文档",
+                                                          (res.get("title") or "")[:30], len(res.get("transcript") or "")))
             # ★用户点了「全部取消」：提取被中断（或恰好刚结束）→ 不再做
             #   AI 分析和保存，直接把结果标记为"已取消"。
             if _video_cancel.get("all") or (isinstance(res, dict) and res.get("cancelled")):
@@ -1874,6 +1938,7 @@ def _video_worker():
                        f"- 作者：{uploader}\n"
                        f"- 提取时间：{ts.strftime('%Y-%m-%d %H:%M')}\n"
                        f"- 状态：未分析\n"
+                       f"{_vn_doc_meta(res)}"
                        f"{tag_line}\n"
                        f"## 🤖 AI 分析\n\n{placeholder}\n\n"
                        f"---\n\n## 📝 完整文字稿\n\n{transcript}\n")
@@ -1903,7 +1968,8 @@ def _video_worker():
                     transcript, title, job["use_local"], job["model"],
                     on_progress=lambda m: cb("AI 分析", m),
                     segments=segments,
-                    do_screenshot=do_screenshot, do_link=do_link)
+                    do_screenshot=do_screenshot, do_link=do_link,
+                    src_noun=res.get("src_noun"))
                 # ★标题翻译（随分析一起完成）：分析模型已被要求在开头输出「中文标题：xxx」，
                 #   这里把它抽出来当中文标题，并从正文里删掉这行（避免笔记里重复出现）。
                 title_from_ai, analysis = _split_title_from_analysis(analysis)
@@ -1985,6 +2051,7 @@ def _video_worker():
                        f"- 作者：{uploader}\n"
                        f"- 提取时间：{ts.strftime('%Y-%m-%d %H:%M')}\n"
                        f"{orig_line}"
+                       f"{_vn_doc_meta(res)}"
                        f"{tag_line}\n"
                        f"## 🤖 AI 分析\n\n{analysis}\n\n"
                        f"---\n\n## 📝 完整文字稿\n\n{transcript}\n")
@@ -2014,7 +2081,8 @@ def _video_worker():
                 except Exception as _e:
                     _clog("博主", "整理新笔记的博主名出错：%s" % _e)
                 try:
-                    _cr = _vn_creator_after_save(job, res, cb)
+                    _cr = (None if res.get("source") in ("doc", "article")
+                           else _vn_creator_after_save(job, res, cb))
                     if _cr:
                         res["creator"] = _cr
                 except Exception as _e:
@@ -2388,7 +2456,8 @@ def _note_analyze_worker(name, use_local, model):
             transcript, title, use_local, model,
             on_progress=lambda m: stage("AI 分析", m),
             segments=segments, do_screenshot=False,
-            do_link=bool(want_link and segments))
+            do_link=bool(want_link and segments),
+            src_noun=_vn_src_noun_of_file(name))
         if (analysis or "").lstrip().startswith("（分析出错"):
             # AI 池没成功：不把报错当分析结果存进笔记（保持「未分析」，以后还能再补）
             raise RuntimeError((analysis or "").strip().strip("（）")[:200])
@@ -5085,6 +5154,12 @@ class Handler(BaseHTTPRequestHandler):
         if not url:
             return self._send({"ok": False, "has": False, "error": "请先粘贴视频链接。"})
         try:
+            import doc_import as _dimp
+            if _dimp.article_url(url):
+                return self._send({"ok": True, "has": False, "article": True})   # v65：文章链接没有字幕
+        except Exception:
+            pass
+        try:
             import video_subtitle
             info = video_subtitle.detect_subtitle(url)
             return self._send({"ok": True, **info})
@@ -5177,10 +5252,17 @@ class Handler(BaseHTTPRequestHandler):
             if not _os.path.exists(local_path):
                 return self._send({"ok": False,
                                    "error": "找不到这个文件（可能被移动或删除了）。"})
-            # 本地文件只需要 faster-whisper（不需要 yt-dlp）
-            missing = video_transcribe.check_deps_local()
-            if missing:
-                return self._send({"need": missing})
+            _is_doc = False
+            try:
+                import doc_import as _dimp
+                _is_doc = _dimp.is_doc_path(local_path)
+            except Exception:
+                pass
+            if not _is_doc:
+                # 本地文件只需要 faster-whisper（不需要 yt-dlp）；v65：文档（PDF / Word…）什么都不用装
+                missing = video_transcribe.check_deps_local()
+                if missing:
+                    return self._send({"need": missing})
             base = _os.path.basename(local_path)
             title = _os.path.splitext(base)[0] or "本地文件"
             # 入队：用 local_path 标记这是本地任务；url 放一个占位名只为显示/去重
@@ -5198,7 +5280,22 @@ class Handler(BaseHTTPRequestHandler):
 
         # ── 分支二：在线链接（原逻辑）──
         if not url:
-            return self._send({"ok": False, "error": "请先粘贴视频链接，或导入本地文件。"})
+            return self._send({"ok": False, "error": "请先粘贴视频或文章链接，或导入本地文件。"})
+
+        # v65：不是视频网站的链接（文章、网页、PDF 链接…）：不用检查视频组件，直接排队；worker 先当文章读
+        try:
+            import doc_import as _dimp
+            _art = _dimp.article_url(url)
+        except Exception:
+            _art = ""
+        if _art:
+            pos = _enqueue_video({"url": url, "level": level,
+                                  "use_local": use_local, "model": model,
+                                  "screenshot": False, "link": False,
+                                  "mode": mode, "analyze": do_analyze,
+                                  "author": author, "note_folder": note_folder,
+                                  "creator_url": ""})
+            return self._send({"queued": True, "position": pos, "article": True})
 
         # ★境外视频（YouTube 等）预检：先看代理通不通、上不上得了外网。
         #   不通就早早给一句清楚的提示，而不是让用户干等三五十秒超时。
@@ -5323,7 +5420,13 @@ class Handler(BaseHTTPRequestHandler):
                         _ts = p.stat().st_mtime
                     except Exception:
                         _ts = 0
-                items.append({"name": p.name, "title": title, "author": author, "ts": _ts,
+                kind = ""                                   # v65：导入的文档 / 文章
+                for ln in lines[1:14]:
+                    s = ln.strip().lstrip("-").strip()
+                    if s.startswith(("类型：", "类型:")):
+                        kind = s[3:].strip()[:20]
+                        break
+                items.append({"name": p.name, "title": title, "author": author, "ts": _ts, "kind": kind,
                               "analyzed": analyzed,
                               "folder": mapping.get(p.name, "")})
             # 顺手清理：分组表里指向已删除笔记的残留条目

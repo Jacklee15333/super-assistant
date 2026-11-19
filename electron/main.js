@@ -761,16 +761,25 @@ ipcMain.handle("open-terminal-window", () => {
 // 前端可主动查询当前后端状态（万一推送的 backend-status 没收到，用这个补救）
 ipcMain.handle("get-backend-status", () => lastBackendStatus);
 
-// 「导入本地文件」：弹原生文件选择框，返回用户选中的音/视频文件绝对路径数组（取消则空数组）
+// v65：能导入的文档（PDF / Word / Excel / PPT / TXT / Markdown / 网页文件 / 电子书 / RTF）
+const VN_MEDIA_EXTS = ["mp4", "mov", "mkv", "avi", "flv", "webm", "wmv", "m4v", "ts",
+                       "mp3", "wav", "m4a", "aac", "flac", "ogg", "opus", "wma", "amr"];
+const VN_DOC_EXTS = ["pdf", "docx", "docm", "doc", "wps", "xlsx", "xlsm", "xls", "et", "csv", "tsv", "pptx",
+                     "txt", "text", "md", "markdown", "html", "htm", "mhtml", "mht", "epub", "rtf", "json", "log"];
+const VN_FOLDER_DOC_EXTS = ["pdf", "docx", "docm", "doc", "wps", "xlsx", "xlsm", "xls", "et", "csv", "pptx",
+                            "txt", "md", "markdown", "html", "htm", "mhtml", "mht", "epub", "rtf"];
+
+// 「导入本地文件」：弹原生文件选择框，返回用户选中的文件绝对路径数组（取消则空数组）
+// 音频 / 视频 → 听写成文字稿；文档 → 直接读出全文（v65）
 ipcMain.handle("pick-media-files", async () => {
   try {
     const r = await dialog.showOpenDialog(mainWindow, {
-      title: "选择本地音频 / 视频文件",
+      title: "选择要导入的文件（音频、视频，或 PDF、Word、Excel、PPT、TXT、Markdown 等文档）",
       properties: ["openFile", "multiSelections"],
       filters: [
-        { name: "音频 / 视频",
-          extensions: ["mp4", "mov", "mkv", "avi", "flv", "webm", "wmv", "m4v", "ts",
-                       "mp3", "wav", "m4a", "aac", "flac", "ogg", "opus", "wma", "amr"] },
+        { name: "能导入的文件（音视频、文档）", extensions: VN_MEDIA_EXTS.concat(VN_DOC_EXTS) },
+        { name: "文档（PDF、Word、Excel、PPT、TXT、Markdown…）", extensions: VN_DOC_EXTS },
+        { name: "音频 / 视频", extensions: VN_MEDIA_EXTS },
         { name: "所有文件", extensions: ["*"] },
       ],
     });
@@ -786,13 +795,10 @@ ipcMain.handle("pick-media-files", async () => {
 // 上限 500 个文件防失控。返回 { name: 文件夹名, folder: 绝对路径, files: [绝对路径…] }，
 // 用户取消则返回 null。
 ipcMain.handle("pick-media-folder", async () => {
-  const MEDIA_EXTS = new Set([
-    ".mp4", ".mov", ".mkv", ".avi", ".flv", ".webm", ".wmv", ".m4v", ".ts",
-    ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".wma", ".amr",
-  ]);
+  const MEDIA_EXTS = new Set(VN_MEDIA_EXTS.concat(VN_FOLDER_DOC_EXTS).map((e) => "." + e));   // v65：文档也收
   try {
     const r = await dialog.showOpenDialog(mainWindow, {
-      title: "选择一个文件夹（会自动找出里面所有音/视频，包括子文件夹）",
+      title: "选择一个文件夹（会自动找出里面所有音视频和文档，包括子文件夹）",
       properties: ["openDirectory"],
     });
     if (r.canceled || !r.filePaths || !r.filePaths.length) return null;

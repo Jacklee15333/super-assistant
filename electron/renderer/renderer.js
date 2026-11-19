@@ -1624,11 +1624,11 @@ function setVideoBtnState(state) {
 async function runVideoExtract() {
   if (_videoSubmitting) return;   // 正在提交，忽略重复点击
   const url = (document.getElementById("videoUrl").value || "").trim();
-  if (!url) { setVideoStatus("先粘贴一个视频链接（整段分享文案也行）。", "warn"); return; }
+  if (!url) { setVideoStatus("先粘贴一个视频或文章链接（整段分享文案也行）。", "warn"); return; }
   // 若当前已有任务在跑：这次点击 = 把这个链接加入队列（后端自动排队尾）
   if (_videoBusyNow()) {
     if (!/https?:\/\/\S+/.test(url) && !/[\u4e00-\u9fa5]/.test(url)) {
-      setVideoStatus("这看起来不像视频链接，确认一下再加入队列。", "warn"); return;
+      setVideoStatus("这看起来不像链接，确认一下再加入队列。", "warn"); return;
     }
     _videoSubmitting = true;
     setVideoStatus("正在加入队列…");
@@ -2146,7 +2146,7 @@ async function pickAndImportFolder(targetFolder) {
     const r = await window.crayfish.pickMediaFolder();
     if (!r) return;   // 用户取消
     if (!r.files || !r.files.length) {
-      setVideoStatus("「" + (r.name || "这个文件夹") + "」里没找到音/视频文件（已自动搜过子文件夹）。", "warn");
+      setVideoStatus("「" + (r.name || "这个文件夹") + "」里没找到能导入的文件（音视频、PDF、Word、Excel、TXT…，已自动搜过子文件夹）。", "warn");
       return;
     }
     const o = await askImportOptions({
@@ -3193,7 +3193,8 @@ function mountVideoDone(res) {
   el.innerHTML = "";
   const box = document.createElement("div");
   box.className = "vdone";
-  box.innerHTML = '<span class="vdone-ok">✅ 提取完成</span>' +
+  const isDoc = res.source === "doc" || res.source === "article";
+  box.innerHTML = '<span class="vdone-ok">✅ ' + (isDoc ? "导入完成" : "提取完成") + "</span>" +
     '<span class="vdone-title">《' + escapeHtml(title) + "》</span>" +
     (au ? '<span class="vdone-who">👤 ' + escapeHtml(au) + (crTxt ? " · " + escapeHtml(crTxt) : "") + "</span>" : "");
   box.querySelector(".vdone-title").title = title;
@@ -3203,7 +3204,60 @@ function mountVideoDone(res) {
   go.title = "在下面的「最新提取」里找到这一条（点标题就能看完整笔记）";
   go.addEventListener("click", () => vnRevealRecent(res.saved_as));
   box.appendChild(go);
+  const pv = (res.page_videos || []).filter(Boolean);      // v65：文章页面里还有视频
+  if (pv.length) {
+    const vb = document.createElement("button");
+    vb.type = "button"; vb.className = "vdone-go vdone-videos";
+    vb.textContent = "🎬 页面里还有 " + pv.length + " 个视频，接着提取";
+    vb.title = pv.join("\n");
+    vb.addEventListener("click", async () => {
+      vb.disabled = true; vb.textContent = "正在加入队列…";
+      const level = (document.getElementById("videoLevel") || {}).value || "balanced";
+      let n = 0;
+      for (const u of pv) { try { await startVideoJob(u, level); n++; } catch (_) {} }
+      vb.textContent = "✓ " + n + " 个视频已加入队列";
+    });
+    box.appendChild(vb);
+  }
+  if (isDoc && res.truncated) {
+    const tr = document.createElement("span");
+    tr.className = "vdone-who"; tr.textContent = "（原文太长，只导入了前 40 万字）";
+    box.appendChild(tr);
+  }
   el.appendChild(box);
+}
+
+// ════════════════ v65：导入的文档 / 网页文章的类型标签 ════════════════
+function vnKindInfo(kind) {
+  const s = String(kind || "");
+  if (/PDF/i.test(s)) return { short: "PDF", cls: "k-pdf", color: "#c0392b" };
+  if (/Word|WPS 文字|RTF/.test(s)) return { short: /RTF/.test(s) ? "RTF" : "Word", cls: "k-word", color: "#2b5797" };
+  if (/Excel|表格/.test(s)) return { short: /CSV/.test(s) ? "CSV" : "Excel", cls: "k-excel", color: "#1e7145" };
+  if (/PPT|演示/.test(s)) return { short: "PPT", cls: "k-ppt", color: "#d24726" };
+  if (/公众号/.test(s)) return { short: "公众号", cls: "k-wx", color: "#07a35a" };
+  if (/文章|网页/.test(s)) return { short: "文章", cls: "k-web", color: "#3b6fd8" };
+  if (/Markdown/.test(s)) return { short: "MD", cls: "k-text", color: "#555c66" };
+  if (/电子书/.test(s)) return { short: "电子书", cls: "k-book", color: "#8e44ad" };
+  return { short: "文本", cls: "k-text", color: "#555c66" };
+}
+
+function vnKindBadge(kind) {
+  const k = vnKindInfo(kind);
+  const b = document.createElement("span");
+  b.className = "vn-kind " + k.cls;
+  b.textContent = k.short;
+  b.title = "导入的" + kind;
+  return b;
+}
+
+function vnDocIcon(kind) {
+  const k = vnKindInfo(kind);
+  return '<svg viewBox="0 0 48 60" aria-hidden="true"><path d="M7 2h25l13 13v41a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="#fff" stroke="#c8c8c8" stroke-width="2"/>' +
+    '<path d="M32 2v11a2 2 0 0 0 2 2h11" fill="#f1f1f1" stroke="#c8c8c8" stroke-width="2"/>' +
+    '<path d="M12 22h24M12 28h24M12 34h15" stroke="#a9b3c1" stroke-width="2.6" stroke-linecap="round"/>' +
+    '<rect x="5" y="41" width="40" height="13" rx="2" fill="' + k.color + '"/>' +
+    '<text x="25" y="50.6" text-anchor="middle" font-size="' + (k.short.length > 3 ? 7.5 : 9.5) +
+    '" font-weight="700" fill="#fff" font-family="Segoe UI, Microsoft YaHei, sans-serif">' + escapeHtml(k.short) + "</text></svg>";
 }
 
 // 滚到「最新提取」，展开它、回到第一页，把刚提取的那条闪一下
@@ -3971,6 +4025,7 @@ function makeVideoNoteItem(n, folders) {
   name.textContent = n.title || n.name;
   name.title = n.title || n.name;   // 鼠标悬停看完整标题
   name.addEventListener("click", () => openVideoNote(n.name));
+  if (n.kind) item.appendChild(vnKindBadge(n.kind));     // v65：PDF / Word / 文章…
   item.appendChild(name);
   // 作者名（蓝色醒目，和标题平级、永不被截断；有真实昵称才显示，纯数字 ID/空 后端已过滤）
   if (n.author) {
@@ -10307,7 +10362,7 @@ function vnNoteTile(n) {
   const title = n.title || (n.name || "").replace(/\.md$/, "");
   t.title = title + (n.author ? "\n作者：" + n.author : "") + (when ? "\n提取时间：" + new Date(when).toLocaleString() : "") +
     "\n\n点击打开。移动、改作者、删除等操作请切到「列表」。";
-  t.innerHTML = '<div class="vn-tile-ico">' + VN_ICO_NOTE + "</div>" +
+  t.innerHTML = '<div class="vn-tile-ico">' + (n.kind ? vnDocIcon(n.kind) : VN_ICO_NOTE) + "</div>" +
     '<div class="vn-tile-name"></div><div class="vn-tile-sub"></div>' +
     (n.analyzed === false ? '<span class="vn-tile-tag">未分析</span>' : "");
   t.querySelector(".vn-tile-name").textContent = title;
