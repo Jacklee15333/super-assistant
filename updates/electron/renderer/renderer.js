@@ -11271,6 +11271,7 @@ function _cwProfileLine(cid) {
 // v79：嗅探页、视频页各有一个搜索面板（.cwf-panel），共用后台同一次搜索；搜索时面板里显示 AI 实时画面。
 _CW_PLAT_ICON.web = "🌐";
 var _cwFindTimer = null, _cwFindRes = [], _cwFindAdded = {}, _cwFindLast = {};
+var _cwFindGone = new Set();        // v80：已经加好的，从推荐清单里拿掉
 
 function _cwfPanels() { return [...document.querySelectorAll(".cwf-panel")]; }
 function _cwfShown(root) { const k = root.querySelector(".cwf-kw"); return !!(k && k.offsetParent !== null); }
@@ -11291,6 +11292,7 @@ function _cwfRenderPanel(root, st) {
   _cwFindRes = res;
   const checked = new Set([...list.querySelectorAll(".cw-find-row input:checked")].map((i) => i.dataset.u));
   list.innerHTML = res.map((it, i) => {
+    if (_cwFindGone.has(it.url)) return "";
     const added = _cwFindAdded[it.url];
     const dis = !!it.exists || added === true || it.status === "fail";
     const txt = added === true ? "✓ 已加入" : typeof added === "string" ? "✗ " + added
@@ -11307,7 +11309,7 @@ function _cwfRenderPanel(root, st) {
         (it.why ? '<div class="cw-find-why">' + escapeHtml(it.why) + "</div>" : "") + "</div>" +
       '<span class="cw-find-st ' + cls + '">' + escapeHtml(txt) + "</span></label>";
   }).join("");
-  if (acts) acts.hidden = !res.length || !!st.running;
+  if (acts) acts.hidden = !res.some((it) => !_cwFindGone.has(it.url)) || !!st.running;
 }
 
 function _cwFindRender(st) { _cwfPanels().forEach((r) => _cwfRenderPanel(r, st)); }
@@ -11384,6 +11386,7 @@ async function _cwfStart(root) {
   const kw = (box?.value || "").trim();
   if (!kw) { box?.focus(); return; }
   _cwFindAdded = {};
+  _cwFindGone = new Set();
   _cwfPanels().forEach((r) => { const k = r.querySelector(".cwf-kw"); if (k && r !== root) k.value = kw; });
   const n = parseInt(root.querySelector(".cwf-n")?.value || "10", 10);
   try {
@@ -11413,10 +11416,32 @@ async function _cwfAdd(root, btn) {
   }
   btn.disabled = false; btn.textContent = "加入关注的博主";
   const cb = root.querySelector(".cwf-all"); if (cb) cb.checked = false;
-  try { loadCreators(); } catch (_) {}
-  const okN = picks.filter((it) => _cwFindAdded[it.url] === true).length;
-  say("加好了 " + okN + " 个" + (okN < picks.length ? "，" + (picks.length - okN) + " 个没加成（看每行右边的原因）" : "") +
-      "，在「嗅探 · 关注的博主」里。头像会在后台自动取，下次扫描起报新内容");
+  const okList = picks.filter((it) => _cwFindAdded[it.url] === true);
+  const okN = okList.length, bad = picks.length - okN;
+  okList.forEach((it) => _cwFindGone.add(it.url));       // v80：加好的从清单里拿掉，只留没加成的（看原因）
+  _cwFindRender(Object.assign({}, _cwFindLast, { results: _cwFindRes }));
+  try { await loadCreators(); } catch (_) {}
+  const msg = okN ? "✓ 加好了 " + okN + " 个，在「嗅探 · 关注的博主」里" + (bad ? "；" + bad + " 个没加成，原因写在推荐清单里" : "") +
+                    "。头像会在后台自动取，下次扫描起报新内容"
+                  : bad + " 个都没加成，原因写在每行右边";
+  say(msg);
+  if (!okN || bad) return;                                // 有没加成的：留在这里，方便看原因
+  // v80：全都加好了 → 搜索面板自己收起，跳到「博主列表」，新加的头像闪两下
+  const det = root.closest("details");
+  if (det) {
+    det.open = false;
+    const lh = document.getElementById("cwListToggle");
+    if (lh && lh.classList.contains("collapsed")) lh.click();
+    const ids = new Set(_cwLastList.filter((c) => okList.some((it) => it.url === c.url)).map((c) => c.id));
+    const tiles = [...document.querySelectorAll("#cwList .cw-creator")].filter((t) => ids.has(t.dataset.id));
+    tiles.forEach((t) => { t.classList.remove("cw-justadded"); void t.offsetWidth; t.classList.add("cw-justadded"); });
+    setTimeout(() => (tiles[0] || document.getElementById("cwListBody"))?.scrollIntoView({ behavior: "smooth", block: "center" }), 300);
+    setTimeout(() => tiles.forEach((t) => t.classList.remove("cw-justadded")), 5200);
+  } else {
+    const body = root.closest(".vfind")?.querySelector(".vfind-head");
+    if (body && !root.hidden) body.click();               // 视频页：面板收起
+    if (typeof setVideoStatus === "function") setVideoStatus(msg + "（去嗅探页就能看到）", "ok");
+  }
 }
 
 function _cwfBind(root) {

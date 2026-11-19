@@ -2684,3 +2684,10 @@ body.dark .cw-tava { background: hsl(var(--h), 30%, 28%); color: hsl(var(--h), 6
 .vfind-row { display: flex; gap: 8px; align-items: center; margin: 10px 0; flex-wrap: wrap; }
 .vfind-row .cwf-kw { flex: 1; min-width: 160px; }
 .vfind-row .cwf-n { width: 110px; flex: 0 0 auto; }
+
+/* ════════════════ v80 ════════════════ */
+/* 头像墙不限高度（原来一行一个的列表限高 520px，头像墙继承了这个限制，后面的博主被藏起来了） */
+#view-sniff #cwList.cw-wall { max-height: none !important; overflow: visible !important; }
+/* 新加进来的博主：闪两下 */
+.cw-creator.cw-justadded { animation: cwJustAdded 1.2s ease 4; }
+@keyframes cwJustAdded { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 50% { box-shadow: 0 0 0 3px var(--accent); } }
