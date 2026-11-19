@@ -5,5 +5,5 @@
   - 后端黑窗口第一行也会打印它。
 看到新版本号，就说明更新已经成功加载。
 """
-APP_VERSION = "v99"
-VERSION_NOTE = ("Anime-Whisper 改成先按停顿切成一句一句、再一句一句听：字幕时间对得上，认得也更准")
+APP_VERSION = "v100"
+VERSION_NOTE = ("Anime-Whisper 转格式改在单独的环境里做（修好 numpy 版本打架）；下载站说太忙时等一会儿再试")
