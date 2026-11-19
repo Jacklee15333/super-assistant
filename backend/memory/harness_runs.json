@@ -1,74 +1,5 @@
 [
   {
-    "id": "video-1783577095418",
-    "ts": "07-09 14:04:55",
-    "kind": "video",
-    "title": "赚钱的本质简单动作×重复 真正能赚到钱的方法,往往简单到让你不好意思。我之前也不信。总觉得赚不",
-    "tools": [
-      "读取文件",
-      "语音转文字",
-      "保存"
-    ],
-    "tool_count": {
-      "读取文件": 1,
-      "语音转文字": 1,
-      "保存": 1
-    },
-    "steps": 3,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 166,
-    "note": "✅ 已完成《赚钱的本质简单动作×重复 真正能赚到钱的》，继续处理下一个（还剩 31 个）"
-  },
-  {
-    "id": "video-1783577262076",
-    "ts": "07-09 14:07:42",
-    "kind": "video",
-    "title": "赚钱的步骤——从10.24到8000人的完整实操 昨天说发现问题解决问题就能赚钱，很多人问具体怎么做",
-    "tools": [
-      "读取文件",
-      "语音转文字",
-      "保存"
-    ],
-    "tool_count": {
-      "读取文件": 1,
-      "语音转文字": 1,
-      "保存": 1
-    },
-    "steps": 3,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 337,
-    "note": "✅ 已完成《赚钱的步骤——从10.24到8000人的》，继续处理下一个（还剩 30 个）"
-  },
-  {
-    "id": "video-1783577599654",
-    "ts": "07-09 14:13:19",
-    "kind": "video",
-    "title": "赚钱系统搭建｜日更6年不靠灵感靠系统 分享一套我的赚钱系统。资本家靠系统赚钱，机械化作业让农民没法竞",
-    "tools": [
-      "读取文件",
-      "语音转文字",
-      "保存"
-    ],
-    "tool_count": {
-      "读取文件": 1,
-      "语音转文字": 1,
-      "保存": 1
-    },
-    "steps": 3,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 487,
-    "note": "✅ 已完成《赚钱系统搭建｜日更6年不靠灵感靠系统 分》，继续处理下一个（还剩 29 个）"
-  },
-  {
     "id": "video-1783578087559",
     "ts": "07-09 14:21:27",
     "kind": "video",
@@ -1236,5 +1167,76 @@
     "tokens_est": 0,
     "seconds": 176,
     "note": "✅ 已完成《先赚钱还是先开公司？公司赚了钱，怎么拿到》，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1795052360286",
+    "ts": "11-19 09:39:20",
+    "kind": "video",
+    "title": "视频提取：s\\user\\Desktop\\01_黄仁勋辞职与英伟达供应链_分析报告.docx",
+    "tools": [
+      "解析文件",
+      "读取文件",
+      "加载语音模型",
+      "语音转文字"
+    ],
+    "tool_count": {
+      "解析文件": 1,
+      "读取文件": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1
+    },
+    "steps": 4,
+    "error": "本地文件提取失败：[Errno 1094995529] Invalid data found when processing input: 'C:\\\\Users\\\\user\\\\Desktop\\\\01_黄仁勋辞职与英伟达供应链_分析报告.docx'",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 4,
+    "note": "⚠ 这条没成功，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1795052364651",
+    "ts": "11-19 09:39:24",
+    "kind": "video",
+    "title": "视频提取：s\\user\\Desktop\\01_黄仁勋辞职与英伟达供应链_分析报告.docx",
+    "tools": [
+      "解析文件",
+      "读取文件",
+      "语音转文字"
+    ],
+    "tool_count": {
+      "解析文件": 1,
+      "读取文件": 1,
+      "语音转文字": 1
+    },
+    "steps": 3,
+    "error": "本地文件提取失败：[Errno 1094995529] Invalid data found when processing input: 'C:\\\\Users\\\\user\\\\Desktop\\\\01_黄仁勋辞职与英伟达供应链_分析报告.docx'",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "⚠ 这条没成功，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1795052364665",
+    "ts": "11-19 09:39:24",
+    "kind": "video",
+    "title": "视频提取：s\\user\\Desktop\\01_黄仁勋辞职与英伟达供应链_分析报告.docx",
+    "tools": [
+      "解析文件",
+      "读取文件",
+      "语音转文字"
+    ],
+    "tool_count": {
+      "解析文件": 1,
+      "读取文件": 1,
+      "语音转文字": 1
+    },
+    "steps": 3,
+    "error": "本地文件提取失败：[Errno 1094995529] Invalid data found when processing input: 'C:\\\\Users\\\\user\\\\Desktop\\\\01_黄仁勋辞职与英伟达供应链_分析报告.docx'",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "⚠ 这条没成功，队列已清空，等待新任务"
   }
 ]
