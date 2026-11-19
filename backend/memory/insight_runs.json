@@ -1,5 +1,14 @@
 [
   {
+    "time": "2026-11-19 18:05",
+    "ok": false,
+    "source": "auto",
+    "files": 921,
+    "learned": 7,
+    "model": "web",
+    "summary": "本轮没读到有效内容"
+  },
+  {
     "time": "2026-11-19 16:57",
     "ok": true,
     "source": "auto",
@@ -439,14 +448,5 @@
     "learned": 29,
     "model": "web",
     "summary": "本轮没读到有效内容"
-  },
-  {
-    "time": "2026-07-08 05:53",
-    "ok": true,
-    "source": "auto",
-    "files": 596,
-    "learned": 16,
-    "model": "web",
-    "summary": "主人是一个正在用 AI、自学、公开表达和低成本验证，把知识、技能与用户需求连接成可测试、可交付、可复购商业闭环的人。"
   }
 ]
