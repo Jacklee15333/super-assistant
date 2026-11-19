@@ -2827,7 +2827,8 @@ def _tmark(text):
 # 翻译是「一行对一行」地让 AI 翻（带编号），所以中文和时间一一对上，能直接做成双语字幕。
 _tr_state = {}            # 笔记名 -> {running, msg, ok, done, total}
 _tr_lock = _threading.Lock()
-TR_CHUNK = 40
+TR_CHUNK = 30
+TR_PARALLEL = 2           # v96：同时翻几段（本地模型显存够，两段一起快将近一倍）
 
 
 def _subs_path(name):
@@ -2879,7 +2880,15 @@ def _make_srt(segs, mode):
     return "\n".join(lines)
 
 
-def _tr_worker(name):
+def _tr_llm(prompt, engine):
+    """翻译用哪个模型。engine：'local'（默认，本机默认模型）/ 'local:模型名' / 'pool'（AI 池网页版，慢）。"""
+    if engine == "pool":
+        return _tidy_llm(prompt, wait_pool=True)
+    model = engine.split(":", 1)[1] if engine.startswith("local:") else ""
+    return _local_chat(prompt, model=model)
+
+
+def _tr_worker(name, engine="local"):
     st = _tr_state[name]
     try:
         d = _subs_load(name)
@@ -2888,17 +2897,21 @@ def _tr_worker(name):
             raise RuntimeError("这条笔记没有时间轴（太早以前提取的，或者是文章 / 文档），没法逐句翻译")
         import video_transcribe as _vt
         lab = _vt.lang_label(d.get("lang") or "auto")
+        who = "AI 池" if engine == "pool" else "本地模型 %s" % (engine.split(":", 1)[1] if engine.startswith("local:")
+                                                             else (_local_default_model() or "?"))
         todo = [i for i, sg in enumerate(segs) if (sg.get("text") or "").strip() and not (sg.get("zh") or "").strip()]
         chunks = [todo[i:i + TR_CHUNK] for i in range(0, len(todo), TR_CHUNK)]
-        st.update(total=len(chunks), done=0)
-        _clog("翻译", "▶ 开始：%s（%d 句，分 %d 段问 AI）" % (name[:40], len(todo), len(chunks)))
-        miss = 0
-        for ci, idx in enumerate(chunks):
-            st["msg"] = "翻译第 %d / %d 段…" % (ci + 1, len(chunks))
+        st.update(total=len(chunks), done=0, engine=who)
+        _clog("翻译", "▶ 开始：%s（%d 句，分 %d 段，用%s）" % (name[:40], len(todo), len(chunks), who))
+        t0 = _time_now()
+        wlock = _threading.Lock()
+        err = {"e": None}
+
+        def one(idx):
             for attempt in range(2):
                 want = [i for i in idx if not (segs[i].get("zh") or "").strip()]
                 if not want:
-                    break
+                    return
                 body = "\n".join("%d|%s" % (k + 1, segs[i]["text"].replace("\n", " ")) for k, i in enumerate(want))
                 prompt = ("下面是一段%s视频的字幕，每行一句，行首是编号。请把每一行翻译成自然、通顺的简体中文。\n"
                           "要求：\n1. 一行对一行，编号不变，不要合并、拆分或漏掉任何一行；\n"
@@ -2906,25 +2919,54 @@ def _tr_worker(name):
                           "3. 人名、地名、专有名词用常见的中文译法，没有通行译法的保留原文；\n"
                           "4. 口语就译成口语，语气词可以意译。\n\n=== 字幕 ===\n%s" % (
                               lab if lab not in ("自动识别",) else "外语", body))
-                reply = _tidy_llm(prompt, wait_pool=True)
+                reply = _tr_llm(prompt, engine)
                 got = {}
                 for ln in (reply or "").splitlines():
                     m = re.match(r"^\s*(\d+)\s*[|｜]\s*(.+?)\s*$", ln)
                     if m:
                         got[int(m.group(1))] = m.group(2)
-                for k, i in enumerate(want):
-                    if got.get(k + 1):
-                        segs[i]["zh"] = got[k + 1]
-            miss += sum(1 for i in idx if not (segs[i].get("zh") or "").strip())
-            d["segments"] = segs
-            d["zh_done"] = True
-            _subs_path(name).write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")   # 每段都存，断了下次接着翻
-            st["done"] = ci + 1
-        msg = "翻译好了（%d 句）" % len(todo) + ("，有 %d 句 AI 没给译文，可以再点一次补上" % miss if miss else "")
+                with wlock:
+                    for k, i in enumerate(want):
+                        if got.get(k + 1):
+                            segs[i]["zh"] = got[k + 1]
+
+        def runner(q):
+            while True:
+                with wlock:
+                    if not q or err["e"]:
+                        return
+                    idx = q.pop(0)
+                try:
+                    one(idx)
+                except Exception as e:
+                    err["e"] = e
+                    return
+                with wlock:
+                    st["done"] += 1
+                    d["segments"] = segs
+                    _subs_path(name).write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")   # 每段都存，断了下次接着翻
+                    sec = _time_now() - t0
+                    left = (st["total"] - st["done"]) * sec / max(1, st["done"])
+                    st["msg"] = "%s 翻译中：%d / %d 段%s" % (who, st["done"], st["total"],
+                                                         "，还要约 %d 秒" % left if st["done"] < st["total"] else "")
+
+        q = list(chunks)
+        st["msg"] = "%s 翻译中：0 / %d 段…" % (who, len(chunks))
+        ths = [_threading.Thread(target=runner, args=(q,), daemon=True) for _ in range(min(TR_PARALLEL, len(chunks)) or 1)]
+        for t in ths:
+            t.start()
+        for t in ths:
+            t.join()
+        if err["e"]:
+            raise err["e"]
+        miss = sum(1 for i in todo if not (segs[i].get("zh") or "").strip())
+        msg = "翻译好了（%d 句，用%s，%d 秒）" % (len(todo), who, int(_time_now() - t0)) + (
+            "，有 %d 句没给译文，可以再点一次补上" % miss if miss else "")
         st.update(running=False, ok=True, msg=msg)
         _clog("翻译", "✓ %s：%s" % (name[:40], msg))
     except Exception as e:
-        st.update(running=False, ok=False, msg="没翻译成：%s" % str(e)[:200])
+        hint = "；可以在「翻译用」里换个模型，或者选 AI 池" if engine != "pool" else ""
+        st.update(running=False, ok=False, msg="没翻译成：%s%s" % (str(e)[:200], hint))
         _clog("翻译", "没翻译成：%s" % e)
 
 
@@ -3045,6 +3087,57 @@ _tidy_state = {}          # 笔记名 -> {"running", "msg", "ok", "transcript"}
 _tidy_lock = _threading.Lock()
 
 
+def _local_default_model():
+    """本机默认用哪个本地模型（设置里「本地动作 / 快速对话」配的，比如 qwen3:14b）。没有返回空串。"""
+    try:
+        names = core.installed_local_models()
+    except Exception:
+        names = []
+    if not names:
+        return ""
+    try:
+        ul, m = core.prefer_local_model(True, "qwen2.5")
+        if ul and m and m in names:
+            return m
+    except Exception:
+        pass
+    return names[0]
+
+
+def _local_chat(prompt, model="", num_ctx=8192, timeout=600):
+    """v96：直接调本机 Ollama（原生 /api/chat）——关掉「思考」（qwen3 默认会先想很久）、
+    模型在显存里留 30 分钟（一段一段翻译时不用每次重新加载）。返回回复文字；不行就抛异常。"""
+    import urllib.request
+    import ollama_helper as _oh
+    if not _oh.is_running():
+        _oh.try_start()
+    if not _oh.is_running():
+        raise RuntimeError("本地模型没开（Ollama 没在运行，也没自动拉起来）")
+    model = model or _local_default_model()
+    if not model:
+        raise RuntimeError("本机还没装本地模型（Ollama 里一个模型都没有）")
+    content = prompt + ("\n/no_think" if model.lower().startswith("qwen3") else "")
+    last = None
+    for extra in ({"think": False}, {}):                  # 老版本 Ollama 不认 think 参数，就去掉再试
+        body = dict({"model": model, "messages": [{"role": "user", "content": content}], "stream": False,
+                     "keep_alive": "30m", "options": {"temperature": 0.3, "num_ctx": num_ctx}}, **extra)
+        req = urllib.request.Request(_oh.OLLAMA_API + "/api/chat", data=json.dumps(body).encode("utf-8"),
+                                     headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                d = json.loads(r.read().decode("utf-8", "replace"))
+            out = ((d.get("message") or {}).get("content") or "")
+            out = re.sub(r"<think>.*?</think>", "", out, flags=re.S).strip()
+            if out:
+                return out
+            last = RuntimeError("本地模型没回话")
+        except Exception as e:
+            last = e
+            if not extra:
+                break
+    raise RuntimeError("本地模型 %s 没回话：%s" % (model, str(last)[:150]))
+
+
 def _tidy_llm(prompt, wait_pool=True):
     """整理原文用哪个 AI：本机装了 Ollama 模型就用本地的（快、不占 AI 池）；没有或失败再用 AI 池。
     wait_pool=False：AI 池正忙（比如在批量分析）就不排队了，直接报错（提取流水线用，别把队列卡住）。"""
@@ -3053,6 +3146,12 @@ def _tidy_llm(prompt, wait_pool=True):
     except Exception:
         names = []
     if names:
+        try:
+            out = _local_chat(prompt)                     # v96：本地模型走快的那条路（不思考、常驻显存）
+            if out:
+                return out
+        except Exception as e:
+            _clog("整理原文", "本地模型快速通道没成功（%s），换普通方式" % str(e)[:80])
         try:
             ul, m = core.prefer_local_model(True, "qwen2.5")
             if ul and m:
@@ -3825,6 +3924,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._send({"ok": bool(segs), "lang": lang, "lang_label": _vt.lang_label(lang),
                                "segments": segs, "has_zh": any(x.get("zh") for x in segs),
                                "local_path": lp, "local_ok": bool(lp and os.path.isfile(lp)), "translate": tr})
+        if path == "/translate_engines":              # v96：翻译能用哪些模型
+            try:
+                names = core.installed_local_models()
+            except Exception:
+                names = []
+            return self._send({"ok": True, "local": names, "default": _local_default_model()})
         if path == "/video_note_srt":                 # v95：导出字幕文件
             nm = os.path.basename((qs.get("name") or [""])[0])
             mode = (qs.get("mode") or ["orig"])[0]
@@ -4398,7 +4503,8 @@ class Handler(BaseHTTPRequestHandler):
                         sg.pop("zh", None)
                     _subs_path(nm).write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
                 _tr_state[nm] = {"running": True, "msg": "准备翻译…", "ok": False, "done": 0, "total": 0}
-            _threading.Thread(target=_tr_worker, args=(nm,), daemon=True).start()
+            eng = (body.get("engine") or "local").strip()
+            _threading.Thread(target=_tr_worker, args=(nm, eng), daemon=True).start()
             return self._send({"ok": True, "running": True})
         if path == "/video_note_srt_save":            # v95：字幕存到本地视频旁边（播放器自动加载）
             nm = os.path.basename((body.get("name") or "").strip())
