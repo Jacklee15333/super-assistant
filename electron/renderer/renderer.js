@@ -2366,7 +2366,8 @@ function pollVideoProgress() {
         } else if (res.error) {
           // 失败的也要让用户知道，而不是悄无声息
           _lastDoneTitle = "";
-          setVideoStatus("⚠ 有一个没成功：" + res.error, "warn");
+          setVideoStatus("⚠ 有一个没成功：" + res.error + "（已记到下面「提取失败」里，以后可以点「重新提取」）", "warn");
+          setTimeout(vnFailRefresh, 1500);   // v90：后端记好了再刷新清单
         }
       }
 
@@ -2412,7 +2413,8 @@ function pollVideoProgress() {
             setVideoStatus(`🎉 全部完成，已自动存档${t}`, "ok");
           }
         } else if (res.error) {
-          setVideoStatus("⚠ 最后一个没成功：" + res.error, "warn");
+          setVideoStatus("⚠ 最后一个没成功：" + res.error + "（已记到下面「提取失败」里，以后可以点「重新提取」）", "warn");
+          setTimeout(vnFailRefresh, 1500);
         } else {
           setVideoStatus("");
         }
@@ -3731,6 +3733,7 @@ async function loadVideoNotes() {
     if (vnViewMode() === "icon") {
       await vnLoadProfiles();
       if (!_vnIconPath) { try { vnRenderRecent(list, notes, folders); } catch (e) { console.error(e); } }
+      vnRenderFailBar(list);           // v90：提取失败清单（没有就不显示）
       vnRenderBatchBar(list, notes);   // v59：和列表视图一样放在「最新提取」下面
       vnRenderIconView(list, notes, folders, byFolder, ungrouped);
       return;
@@ -3740,6 +3743,7 @@ async function loadVideoNotes() {
     try { vnRenderRecent(list, notes, folders); } catch (e) { console.error(e); }
 
     // 先渲染各文件夹（可折叠，默认收起，记住展开状态），再渲染未分组的散笔记
+    vnRenderFailBar(list);           // v90：提取失败清单（没有就不显示）
     vnRenderBatchBar(list, notes);
 
     folders.forEach((f) => {
@@ -4029,6 +4033,7 @@ function vnUnRow(n, idx) {
   const an = vnAnButton(n.name, "🤖 AI 分析", "vn-analyze vn-un-an", false);
   an.title = "只分析这一条（批量在跑的时候不能单独点）";
   r.appendChild(an);
+  r.appendChild(vnDelNoteBtn(n, () => { r.remove(); vnUnDrop([n.name]); }));   // v90：测试用的、重复的可以删掉
   r.addEventListener("click", () => openVideoNote(n.name));
   return r;
 }
@@ -4442,9 +4447,9 @@ function showVnFolderMenu(anchor, note, folders) {
 }
 
 async function openVideoNote(name) {
-  const resultEl = document.getElementById("videoResult");
+  // v91：笔记在单独的「阅读页」里打开（左上角「← 返回」回到列表原来的位置），不再塞进「处理进度」
+  const resultEl = vnReaderShow(name);
   resultEl.innerHTML = "<div class='dash-loading'>读取中…</div>";
-  setVideoStatus("");
   try {
     const resp = await fetch(BACKEND + "/video_note?name=" + encodeURIComponent(name));
     const data = await resp.json();
@@ -4453,7 +4458,10 @@ async function openVideoNote(name) {
     const parsed = parseVideoNote(data.content || "");
     parsed._noteName = name;     // 视频板块的笔记，归类为 video，可在页面内加标签
     parsed._noteCat = "video";
-    mountVideoResult(parsed);
+    if (_vnReaderName !== name) return;          // 读取时已经换了别的笔记 / 已经返回了
+    mountVideoResult(parsed, resultEl);
+    _currentVideo = parsed;                      // 朗读、复制、导出用的「当前这篇」
+    vnReaderSetTitle(parsed.title || name.replace(/\.md$/, ""));
     // 「仅提取」模式存的未分析笔记：在「AI 分析」页里给一个就地补做的按钮
     if (/-\s*状态[：:]\s*未分析/.test(data.content || "")) {
       const pane = resultEl.querySelector("#vAnalysis");
@@ -4463,7 +4471,8 @@ async function openVideoNote(name) {
         pane.appendChild(b);
       }
     }
-    resultEl.scrollIntoView({ behavior: "smooth", block: "start" });
+    const rd = document.getElementById("vnReader");
+    if (rd) rd.scrollTop = 0;
   } catch (e) {
     resultEl.innerHTML = "<div class='dash-empty'>出错：" + escapeHtml(e.message) + "</div>";
   }
@@ -4578,7 +4587,7 @@ function pollNoteAnalyze(name, reopen) {
         setVideoStatus("✅ 这条笔记的 AI 分析已补好并保存。", "ok",
                        { priority: true, holdMs: 8000 });
         loadVideoNotes();
-        if (reopen && name) openVideoNote(name);
+        if (reopen && name && vnReaderIsOpen() && _vnReaderName === name) openVideoNote(name);
       } else {
         setVideoStatus("⚠ 补分析没成功：" + (p.error || "未知原因"), "warn",
                        { priority: true, holdMs: 8000 });
@@ -12130,3 +12139,238 @@ async function vnDropOn(src, dst) {
     setVideoStatus("合并出错：" + e.message, "warn");
   }
 }
+
+
+// ════════════════════ v90：删除笔记的小按钮（「还没分析的笔记」清单里用）════════════════════
+function vnDelNoteBtn(n, onGone) {
+  const del = document.createElement("button");
+  del.type = "button"; del.className = "vn-un-del"; del.textContent = "🗑";
+  del.title = "删除这条笔记（测试用的、重复的可以删掉）";
+  del.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const t = n.title || (n.name || "").replace(/\.md$/, "");
+    if (!confirm("删除这条笔记？\n\n《" + t + "》\n\n删掉就找不回来了。")) return;
+    del.disabled = true;
+    try {
+      const d = await (await fetch(BACKEND + "/video_note_delete", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: n.name }) })).json();
+      if (d && d.ok === false) { del.disabled = false; setVideoStatus("没删成：" + (d.error || "未知原因"), "warn"); return; }
+      if (onGone) onGone();
+      setVideoStatus("🗑 已删除《" + t.slice(0, 30) + "》", "ok");
+      setTimeout(loadVideoNotes, 300);
+    } catch (err) { del.disabled = false; setVideoStatus("删除出错：" + err.message, "warn"); }
+  });
+  return del;
+}
+
+// ════════════════════ v90：提取失败清单 ════════════════════
+// 自动重试也没用的、卡住被自动取消的、软件重启时发现总是崩的，都记在这里（存在后端，关软件也不丢）。
+// 每条显示原因，可以「重新提取」（用视频页当前选的识别质量）或删掉；提取成功了会自动从清单里消失。
+function vnFailIsOpen() {
+  try { return localStorage.getItem("vnFailOpen") !== "0"; } catch (_) { return true; }
+}
+function vnCurLevel() {
+  const el = document.getElementById("videoLevel");
+  let v = el && el.value ? el.value : "";
+  if (!v) { try { v = localStorage.getItem("videoLevelPick") || ""; } catch (_) {} }
+  return v;
+}
+
+function vnRenderFailBar(list) {
+  const bar = document.createElement("div");
+  bar.className = "vn-batch-bar vn-batch-group vn-fail-group"; bar.id = "vnFailBar";
+  bar.hidden = true;
+  list.appendChild(bar);
+  vnFailRefresh();
+}
+
+async function vnFailRefresh() {
+  const bar = document.getElementById("vnFailBar");
+  if (!bar) return;
+  let items;
+  try { items = (await (await fetch(BACKEND + "/video_failed")).json()).items || []; } catch (_) { return; }
+  vnFailFill(bar, items);
+}
+
+function vnFailFill(bar, items) {
+  bar.innerHTML = "";
+  bar.hidden = !items.length;
+  if (!items.length) return;
+  const head = document.createElement("div");
+  head.className = "video-note-item vn-group-head vn-batch-head";
+  head.title = "点击展开 / 收起";
+  const caret = document.createElement("span"); caret.className = "vn-caret";
+  const nm = document.createElement("span"); nm.className = "vn-name"; nm.textContent = "提取失败（" + items.length + "）";
+  const sum = document.createElement("span"); sum.className = "vn-batch-sum";
+  sum.textContent = "没提取成功的都在这里，原因写在每一条后面";
+  const acts = document.createElement("span"); acts.className = "vn-batch-hacts";
+  const all = document.createElement("button");
+  all.type = "button"; all.className = "send-btn vn-batch-btn"; all.textContent = "全部重新提取";
+  all.title = "把清单里的都重新放进提取队列（用视频页现在选的识别质量）";
+  all.addEventListener("click", (e) => { e.stopPropagation(); vnFailAct("retry", null, true, all); });
+  const clr = document.createElement("button");
+  clr.type = "button"; clr.className = "vn-fail-clear"; clr.textContent = "清空";
+  clr.title = "清空这个清单（只是不再显示，不影响已存的笔记）";
+  clr.addEventListener("click", (e) => { e.stopPropagation(); vnFailAct("delete", null, true, clr); });
+  acts.appendChild(all); acts.appendChild(clr);
+  head.appendChild(caret); head.appendChild(nm); head.appendChild(sum); head.appendChild(acts);
+  const body = document.createElement("div"); body.className = "vn-un-rows vn-fail-rows";
+  items.forEach((x, i) => body.appendChild(vnFailRow(x, i + 1)));
+  bar.appendChild(head); bar.appendChild(body);
+  const apply = (open) => { body.hidden = !open; caret.textContent = open ? "▾" : "▸"; bar.classList.toggle("open", open); };
+  apply(vnFailIsOpen());
+  head.addEventListener("click", () => {
+    const open = body.hidden;
+    apply(open);
+    try { localStorage.setItem("vnFailOpen", open ? "1" : "0"); } catch (_) {}
+  });
+}
+
+function vnFailRow(x, idx) {
+  const r = document.createElement("div");
+  r.className = "vn-un-row vn-fail-row";
+  const no = document.createElement("span"); no.className = "vn-un-no"; no.textContent = idx + ".";
+  const tm = document.createElement("span"); tm.className = "vn-un-time"; tm.textContent = (x.at || "").slice(5);
+  const nm = document.createElement("span"); nm.className = "vn-un-name";
+  nm.textContent = x.title || x.url || x.local_path || "（没有标题）";
+  nm.title = (x.title ? x.title + "\n" : "") + (x.url || x.local_path || "");
+  r.appendChild(no); r.appendChild(tm); r.appendChild(nm);
+  if (x.url && /^https?:/.test(x.url)) {
+    const a = document.createElement("a");
+    a.className = "vn-fail-link"; a.href = x.url; a.target = "_blank"; a.textContent = "原链接↗";
+    a.addEventListener("click", (e) => e.stopPropagation());
+    r.appendChild(a);
+  }
+  const why = document.createElement("span"); why.className = "vn-fail-why";
+  why.textContent = "✗ " + (x.error || "原因不明");
+  why.title = "没成功的原因：\n" + (x.error || "原因不明") + (x.tries > 1 ? "\n\n已经没成功 " + x.tries + " 次" : "");
+  r.appendChild(why);
+  if (x.tries > 1) {
+    const tr = document.createElement("span"); tr.className = "vn-fail-tries"; tr.textContent = x.tries + " 次";
+    tr.title = "已经没成功 " + x.tries + " 次";
+    r.appendChild(tr);
+  }
+  const re = document.createElement("button");
+  re.type = "button"; re.className = "vn-analyze vn-fail-retry"; re.textContent = "↻ 重新提取";
+  re.title = "重新放进提取队列（用视频页现在选的识别质量）";
+  re.addEventListener("click", (e) => { e.stopPropagation(); vnFailAct("retry", [x.id], false, re); });
+  const del = document.createElement("button");
+  del.type = "button"; del.className = "vn-un-del"; del.textContent = "🗑"; del.title = "从清单里删掉这一条";
+  del.addEventListener("click", (e) => { e.stopPropagation(); vnFailAct("delete", [x.id], false, del); });
+  r.appendChild(re); r.appendChild(del);
+  r.title = "没成功的原因：" + (x.error || "原因不明");
+  return r;
+}
+
+async function vnFailAct(action, ids, all, btn) {
+  if (action === "delete" && all && !confirm("清空「提取失败」清单？\n\n只是不再显示这些失败记录，不影响已存的笔记。")) return;
+  if (btn) btn.disabled = true;
+  try {
+    const d = await (await fetch(BACKEND + "/video_failed", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, ids: ids || [], all: !!all, level: vnCurLevel() }) })).json();
+    if (!d.ok) setVideoStatus("没成功：" + (d.error || "未知原因"), "warn");
+    else if (action === "retry") {
+      setVideoStatus("✓ " + (d.message || "已重新放进提取队列") + "，上面能看到进度", "ok");
+      try { pollVideoProgress(); } catch (_) {}
+    }
+  } catch (e) { setVideoStatus("出错：" + e.message, "warn"); }
+  if (btn) btn.disabled = false;
+  vnFailRefresh();
+}
+
+
+// ════════════════════ v91：笔记阅读页 ════════════════════
+// 点笔记标题 → 整个视频页换成这篇笔记的阅读页；左上角「← 返回」（或按 Esc、鼠标侧键「后退」）
+// 回到列表，而且回到刚才的位置——列表滚到哪儿还是哪儿，刚看的那条闪一下，不用再往下翻找。
+let _vnReaderName = "";
+let _vnReaderBack = null;      // {el: 滚动的那一层, top: 滚到哪儿}
+
+function vnReaderIsOpen() {
+  const rd = document.getElementById("vnReader");
+  return !!(rd && !rd.hidden);
+}
+
+function vnReaderEnsure() {
+  let rd = document.getElementById("vnReader");
+  if (rd) return rd;
+  const view = document.getElementById("view-video");
+  rd = document.createElement("div");
+  rd.id = "vnReader"; rd.className = "vn-reader"; rd.hidden = true;
+  rd.innerHTML = '<div class="vn-reader-bar">' +
+    '<button type="button" class="vn-reader-back" title="回到列表刚才的位置（也可以按 Esc）">← 返回</button>' +
+    '<span class="vn-reader-title"></span></div>' +
+    '<div class="vn-reader-body"><div class="dash-content video-result vn-reader-content"></div></div>';
+  rd.querySelector(".vn-reader-back").addEventListener("click", vnReaderClose);
+  (view || document.body).appendChild(rd);
+  return rd;
+}
+
+function vnReaderSetTitle(t) {
+  const el = document.querySelector("#vnReader .vn-reader-title");
+  if (el) { el.textContent = t || ""; el.title = t || ""; }
+}
+
+// 打开阅读页，返回放笔记内容的那一格。已经开着（比如在阅读页里又点开了别的）就不重记返回位置
+function vnReaderShow(name) {
+  const rd = vnReaderEnsure();
+  const pane = document.querySelector("#view-video .video-pane");
+  if (!vnReaderIsOpen()) {
+    const list = document.getElementById("videoNotesList") || pane;
+    const sc = (typeof vnScrollParent === "function" && list) ? vnScrollParent(list) : pane;
+    _vnReaderBack = { el: sc, top: sc ? sc.scrollTop : 0 };
+    // 进度卡里如果正摆着一篇笔记（老版本打开的），先收起来，免得两篇的按钮 id 撞在一起
+    const vr = document.getElementById("videoResult");
+    if (vr && vr.querySelector("[id]")) { vr._vnStash = document.createDocumentFragment(); while (vr.firstChild) vr._vnStash.appendChild(vr.firstChild); }
+    if (pane) pane.style.display = "none";
+    rd.hidden = false;
+  }
+  _vnReaderName = name;
+  vnReaderSetTitle((name || "").replace(/\.md$/, "").replace(/^\d{8}-\d{6}-/, ""));
+  return rd.querySelector(".vn-reader-content");
+}
+
+function vnReaderClose() {
+  const rd = document.getElementById("vnReader");
+  if (!rd || rd.hidden) return;
+  const name = _vnReaderName;
+  rd.hidden = true;
+  rd.querySelector(".vn-reader-content").innerHTML = "";    // 清掉，免得按钮 id 和别处重复
+  _vnReaderName = "";
+  const vr = document.getElementById("videoResult");
+  if (vr && vr._vnStash) { if (!vr.firstChild) vr.appendChild(vr._vnStash); vr._vnStash = null; }
+  const pane = document.querySelector("#view-video .video-pane");
+  if (pane) pane.style.display = "";
+  const back = _vnReaderBack;
+  _vnReaderBack = null;
+  const restore = () => {
+    if (back && back.el) back.el.scrollTop = back.top;
+    // 列表在这期间刷新过、那条挪了位置：按名字找到它，不在眼前就滚过去；闪一下
+    const list = document.getElementById("videoNotesList");
+    const row = list && name ? Array.from(list.querySelectorAll("[data-name]")).find((x) => x.dataset.name === name && x.offsetParent) : null;
+    if (row) {
+      const r = row.getBoundingClientRect();
+      if (r.bottom < 60 || r.top > window.innerHeight - 40) row.scrollIntoView({ block: "center" });
+      row.classList.remove("vn-flash", "vn-back-flash"); void row.offsetWidth;
+      row.classList.add("vn-back-flash");
+      setTimeout(() => row.classList.remove("vn-back-flash"), 2600);
+    }
+  };
+  restore();
+  requestAnimationFrame(restore);          // 等页面排好版再对一次位置
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || !vnReaderIsOpen()) return;
+  const t = e.target;
+  if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+  if (document.querySelector(".vn-merge-mask, .modal.open, .ask-mask")) return;     // 有弹框时 Esc 先关弹框
+  const v = document.getElementById("view-video");
+  if (v && !v.classList.contains("active")) return;
+  e.preventDefault();
+  vnReaderClose();
+});
+window.addEventListener("mouseup", (e) => {          // 鼠标侧键「后退」
+  if (e.button === 3 && vnReaderIsOpen()) { e.preventDefault(); vnReaderClose(); }
+});

@@ -2803,3 +2803,37 @@ body.dark .cw-inline-msg.warn { color: #f0956a; }
   font-size: 13px; pointer-events: none; box-shadow: 0 6px 20px rgba(0, 0, 0, .25); }
 body.vn-dragging, body.vn-dragging * { user-select: none !important; cursor: grabbing !important; }
 .vn-merge-alt { background: transparent !important; color: var(--text) !important; border: 1px solid var(--line-strong) !important; }
+
+/* ── v90：删除按钮、提取失败清单 ── */
+.vn-un-del { border: none; background: transparent; cursor: pointer; font-size: 13px; padding: 2px 6px;
+  border-radius: 6px; opacity: .5; flex: 0 0 auto; }
+.vn-un-del:hover { opacity: 1; background: rgba(220, 38, 38, .12); }
+.vn-un-del:disabled { opacity: .2; cursor: default; }
+.vn-fail-group .vn-name { color: #c2410c; }
+body.dark .vn-fail-group .vn-name { color: #f0956a; }
+.vn-fail-row .vn-un-name { flex: 1 1 auto; min-width: 0; }
+.vn-fail-why { flex: 0 1 34%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 12px; color: #c2410c; }
+body.dark .vn-fail-why { color: #f0956a; }
+.vn-fail-tries { flex: 0 0 auto; font-size: 11.5px; color: var(--text-dim); white-space: nowrap; }
+.vn-fail-link { flex: 0 0 auto; font-size: 12px; color: var(--text-dim); text-decoration: none; white-space: nowrap; }
+.vn-fail-link:hover { color: var(--accent); }
+.vn-fail-retry { flex: 0 0 auto; white-space: nowrap; }
+.vn-fail-clear { border: 0.5px solid var(--line-strong); background: transparent; color: var(--text-dim);
+  border-radius: 8px; padding: 4px 10px; font-size: 12.5px; cursor: pointer; margin-left: 6px; }
+.vn-fail-clear:hover { color: var(--text); }
+
+/* ── v91：笔记阅读页 ── */
+.vn-reader { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
+.vn-reader[hidden] { display: none !important; }
+.vn-reader-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 14px;
+  padding: 10px 24px; background: var(--bg); border-bottom: 0.5px solid var(--line); }
+.vn-reader-back { flex: 0 0 auto; border: 0.5px solid var(--line-strong); background: var(--bg-elev, #fff);
+  color: var(--text); border-radius: 9px; padding: 6px 14px; font-size: 13.5px; cursor: pointer; }
+.vn-reader-back:hover { border-color: var(--accent); color: var(--accent); }
+.vn-reader-title { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 14px; color: var(--text-dim); }
+.vn-reader-body { padding: 18px 24px 40px; }
+.vn-reader-content { max-width: 1000px; margin: 0 auto; }
+@keyframes vnBackFlash { 0%, 40% { background: var(--accent-soft); box-shadow: 0 0 0 2px var(--accent); } 100% { background: transparent; box-shadow: none; } }
+.vn-back-flash { animation: vnBackFlash 2.6s ease; border-radius: 8px; }
