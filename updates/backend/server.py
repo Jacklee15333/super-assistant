@@ -80,7 +80,7 @@ def _clog(tag, msg):
 # 这些接口是前端**定时高频轮询**或页面加载时被动拉取的（查状态/进度/列表/配置），
 # 一旦打印就会把控制台刷爆、淹没真正有用的操作日志，所以一律静音、不记。
 _LOG_QUIET_PATHS = {
-    "/ping", "/video_note_tidy_status", "/phone_inbox/status", "/feishu_inbox/status", "/feishu_inbox/alive", "/feishu_inbox/incoming", "/video_progress", "/video_health", "/video_deps", "/video_notes", "/creator_profiles_batch", "/creator/avatars_status", "/creator/discover",
+    "/ping", "/video_failed", "/video_note_tidy_status", "/phone_inbox/status", "/feishu_inbox/status", "/feishu_inbox/alive", "/feishu_inbox/incoming", "/video_progress", "/video_health", "/video_deps", "/video_notes", "/creator_profiles_batch", "/creator/avatars_status", "/creator/discover",
     "/video_note_analyze_progress", "/sniff/feed", "/sniff/discover", "/video_note_analyze_batch",
     "/chat_progress", "/heartbeat/status", "/lumi/status", "/lumi/evolve_status",
     "/web_model/state", "/web_model/config", "/loop/status", "/insight/status",
@@ -1840,7 +1840,77 @@ def _cx_suggest_tag(title, analysis, use_local=True, model="qwen2.5"):
 
 # 提取队列里「AI 分析没成功」的笔记：队列跑完后自动交给批量补分析
 _video_failed_notes = []          # [(笔记文件名, use_local, model)]
-_VIDEO_AUTO_RETRY = 2             # 提取失败的任务自动重新排队，最多再试几次
+_VIDEO_AUTO_RETRY = 1             # v90：只有像「网络抽风」的错才自动再试 1 次；别的错直接进「提取失败」清单，不再原样重跑两遍
+# v90：像是网络一时不通的错误，值得自动再试一次
+_VIDEO_TRANSIENT = ("timed out", "timeout", "Timeout", "超时", "Connection", "connection", "连接", "网络",
+                    "reset", "HTTP Error 5", "502", "503", "504", "Temporary", "temporarily", "SSL", "EOF")
+_VIDEO_STUCK_SEC = 600            # v90：一条任务这么久（秒）没有任何进展 → 自动取消，放进「提取失败」
+
+
+# ════════════════ v90：提取失败清单（memory/video_failed.json）════════════════
+# 最终没成功的任务（自动重试也没用 / 卡住被自动取消 / 重启时发现总是崩的）记在这里，
+# 「已存的视频笔记」上面会显示「提取失败（N）」，每条可以「重新提取」或删掉。
+# 同一个链接只记一条（再失败就更新原因和次数）；以后提取成功了自动从清单里拿掉。
+_vf_lock = _threading.Lock()
+_VF_KEEP = ("url", "local_path", "title", "level", "mode", "use_local", "model", "screenshot", "link",
+            "analyze", "author", "note_folder", "creator_url")
+
+
+def _vf_path():
+    import agent_core
+    return agent_core.MEMORY_DIR / "video_failed.json"
+
+
+def _vf_load():
+    try:
+        d = json.loads(_vf_path().read_text(encoding="utf-8"))
+        return [x for x in (d.get("items") if isinstance(d, dict) else d) or [] if isinstance(x, dict) and x.get("id")]
+    except Exception:
+        return []
+
+
+def _vf_save(items):
+    try:
+        p = _vf_path()
+        tmp = p.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps({"items": items[-300:]}, ensure_ascii=False, indent=1), encoding="utf-8")
+        os.replace(str(tmp), str(p))
+    except Exception as e:
+        _clog("视频", "记录提取失败清单出错：%s" % e)
+
+
+def _vf_key(job):
+    return ((job or {}).get("local_path") or (job or {}).get("url") or "").strip()
+
+
+def _vf_add(job, error):
+    import time as _t
+    k = _vf_key(job)
+    if not k:
+        return
+    with _vf_lock:
+        items = _vf_load()
+        old = next((x for x in items if _vf_key(x) == k), None)
+        rec = old or {"id": "%x" % int(_t.time() * 1000), "tries": int(job.get("_vf_tries") or 0)}
+        rec.update({f: job.get(f) for f in _VF_KEEP if job.get(f) not in (None, "")})
+        rec["title"] = (job.get("title") or rec.get("title") or "").strip()
+        rec["error"] = (str(error or "") or "原因不明").strip()[:400]
+        rec["at"] = _t.strftime("%Y-%m-%d %H:%M")
+        rec["tries"] = int(rec.get("tries") or 0) + 1
+        if old:
+            items.remove(old)
+        items.append(rec)
+        _vf_save(items)
+    _clog("视频", "📌 已放进「提取失败」清单（第 %d 次没成功），以后可以点「重新提取」" % rec["tries"])
+
+
+def _vf_remove(key=None, ids=None):
+    with _vf_lock:
+        items = _vf_load()
+        keep = [x for x in items if not ((key and _vf_key(x) == key) or (ids is not None and x.get("id") in ids))]
+        if len(keep) != len(items):
+            _vf_save(keep)
+        return [x for x in items if x not in keep]
 # 明显重试也没用的错误（链接本身不对 / 视频没了 / 用户取消），不自动重排
 _VIDEO_NO_RETRY = ("Unsupported URL", "已取消", "不存在", "已删除", "已被删除", "私密", "Private video",
                    "This video is unavailable", "Video unavailable", "非法", "找不到文件", "文件不存在")
@@ -1903,6 +1973,7 @@ def _video_worker():
                 _video_current["job"] = None
                 _save_video_queue()
                 return
+            job.pop("_stuck", None)          # v90：上次的「卡住」标记不带到这一次
             _video_current["job"] = job      # 标记正在处理（崩溃/关闭后重启能续上这条）
             # 失败计数 +1 并存盘：若这条任务反复失败/崩溃，计数会累加，
             # 下次启动 _restore_video_queue 看到 fail_count>=2 就丢弃它，不再卡住后面。
@@ -1986,8 +2057,21 @@ def _video_worker():
             _run_id = ""
 
         def _ticker():
+            last_sig, last_at = None, _time.time()
             while tick["on"]:
                 _video_state["elapsed"] = int(_time.time() - start)
+                # v90：看门狗——阶段和进度文字 10 分钟都没变过，多半卡死了：取消这一条，记进「提取失败」
+                sig = (_video_state.get("stage"), _video_state.get("detail"))
+                if sig != last_sig:
+                    last_sig, last_at = sig, _time.time()
+                elif (not job.get("_stuck") and _time.time() - last_at > _VIDEO_STUCK_SEC
+                      and sig[0] != "排队等待"):
+                    job["_stuck"] = "「%s」这一步 %d 分钟没有任何进展" % (sig[0] or "处理", _VIDEO_STUCK_SEC // 60)
+                    _clog("视频", "⏱ %s，自动取消这一条（后面排队的照常处理）" % job["_stuck"])
+                    try:
+                        video_transcribe.CANCEL["on"] = True
+                    except Exception:
+                        pass
                 _time.sleep(1)
         _threading.Thread(target=_ticker, daemon=True).start()
 
@@ -2308,6 +2392,12 @@ def _video_worker():
             _video_state["result"] = {"ok": False, "error": str(e)}
         finally:
             tick["on"] = False
+            if job.get("_stuck") and not (_video_state.get("result") or {}).get("ok"):   # v90：看门狗取消的——算失败
+                _video_state["result"] = {"ok": False, "error": "卡住了：%s，已自动取消" % job["_stuck"]}
+                try:
+                    video_transcribe.CANCEL["on"] = False
+                except Exception:
+                    pass
             _ai_gate.release_thread()        # v67：保险，万一出错没还 AI 池
             _video_state["result_id"] += 1
             try:
@@ -2375,7 +2465,9 @@ def _video_worker():
                     _r = _video_state.get("result") or {}
                     _err = str(_r.get("error") or "")
                     if (not _r.get("ok") and not _r.get("cancelled") and not _video_cancel.get("all")
+                            and not job.get("_stuck")
                             and not any(k in _err for k in _VIDEO_NO_RETRY)
+                            and any(k in _err for k in _VIDEO_TRANSIENT)
                             and int(job.get("auto_retry") or 0) < _VIDEO_AUTO_RETRY):
                         job["auto_retry"] = int(job.get("auto_retry") or 0) + 1
                         job["fail_count"] = 0
@@ -2389,6 +2481,16 @@ def _video_worker():
                     pass
                 _save_video_queue()
                 _requeued = any(j is job for j in _video_q)
+            # v90：最终没成功（不是你点的取消、也不会再自动重试）→ 放进「提取失败」清单；成功了 → 从清单拿掉
+            try:
+                _r = _video_state.get("result") or {}
+                if _r.get("ok"):
+                    _vf_remove(key=_vf_key(job))
+                elif not _requeued and not (_r.get("cancelled") and not job.get("_stuck")):
+                    _vf_add(job, _r.get("error") or "提取没成功")
+                    _r["failed_saved"] = True
+            except Exception as _e:
+                _clog("视频", "记录提取失败出错：%s" % _e)
             # v84：从飞书发来的任务，做完在飞书里回一句
             if job.get("notify"):
                 try:
@@ -3146,6 +3248,10 @@ def _restore_video_queue():
             # 连续失败太多次 → 放弃这条，不再无限重试卡住后面的任务
             if int(j.get("fail_count") or 0) >= 2:
                 dropped += 1
+                try:                     # v90：别悄悄丢掉，放进「提取失败」清单，以后能重新提取
+                    _vf_add(j, "软件处理这条时关掉 / 崩溃了好几次，自动跳过了")
+                except Exception:
+                    pass
                 continue
             seen.add(u)
             if not j.get("id"):
@@ -3478,6 +3584,10 @@ class Handler(BaseHTTPRequestHandler):
             if not data:
                 return self._send({"error": "还没有画面"}, 404)
             return self._send_bytes(data, "image/jpeg")
+        if path == "/video_failed":                   # v90：提取失败清单
+            items = _vf_load()
+            items.reverse()                            # 最近失败的在上面
+            return self._send({"ok": True, "items": items})
         if path == "/video_progress":
             return self._send(self._video_progress_merged())
         if path == "/video_shot":
@@ -4018,6 +4128,36 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_video_detect_subtitle(body)
         if path == "/video_install":
             return self._handle_video_install(body)
+        if path == "/video_failed":                   # v90：重新提取 / 删掉失败的任务
+            action = (body.get("action") or "").strip()
+            items = _vf_load()
+            ids = None if body.get("all") else set(body.get("ids") or [])
+            picked = [x for x in items if ids is None or x.get("id") in ids]
+            if action == "delete":
+                _vf_remove(ids={x["id"] for x in picked})
+                return self._send({"ok": True, "deleted": len(picked)})
+            if action == "retry":
+                lv = body.get("level") or ""
+                n = 0
+                for rec in picked:
+                    job = {f: rec.get(f) for f in _VF_KEEP if rec.get(f) not in (None, "")}
+                    job.setdefault("url", rec.get("local_path") or "")
+                    if lv in ("speed", "balanced", "accurate", "ultra"):
+                        job["level"] = lv
+                    job.setdefault("level", "balanced")
+                    job.setdefault("use_local", True)
+                    job.setdefault("model", "qwen2.5")
+                    job.setdefault("mode", "auto")
+                    job["_vf_tries"] = int(rec.get("tries") or 0)     # 再失败时次数接着算
+                    if not job.get("url"):
+                        continue
+                    _enqueue_video(job)
+                    n += 1
+                # 送回队列的先从清单拿掉；这次还没成功会再放回来（次数累加）
+                _vf_remove(ids={x["id"] for x in picked})
+                return self._send({"ok": True, "queued": n,
+                                   "message": "已把 %d 个重新放进提取队列" % n if n else "没有可重新提取的"})
+            return self._send({"ok": False, "error": "不认识的操作"})
         if path == "/video_note_delete":
             return self._handle_video_note_delete(body)
         if path == "/video_note_analyze_batch":
