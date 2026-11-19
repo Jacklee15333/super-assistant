@@ -339,6 +339,7 @@ LANGS = {
     "auto": ("自动识别", None),
 }
 _LANG = {"v": "zh"}
+_OPTS = {"vocal": False}       # v102：识别前先分离人声（去掉背景音乐、杂音）
 
 
 def _ja_mode():
@@ -1769,7 +1770,8 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
     if job_dir is not None:
         prog = _load_progress(job_dir)
         # 只有同一个模型档位的半成品才接着用；档位变了就从头转（音频仍复用、不重下）
-        if prog and prog.get("level") == level and (prog.get("lang") or "zh") == _LANG["v"]:   # v95：换了语言就重新听
+        if (prog and prog.get("level") == level and (prog.get("lang") or "zh") == _LANG["v"]
+                and bool(prog.get("vocal")) == bool(_OPTS.get("vocal"))):          # v102：开 / 关人声分离也要重新听   # v95：换了语言就重新听
             parts = list(prog.get("parts") or [])
             seg_list = list(prog.get("segments") or [])
             try:
@@ -1783,9 +1785,22 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
     full = None
     can_resume = False
     _resume_offset_kept = offset   # 记下从 progress.json 读回的进度，decode 失败时别丢
+    src_path = path
+    if _OPTS.get("vocal"):
+        # v102：先把背景音乐、杂音去掉，只留人声，再识别（结果有缓存，同一个文件只分离一次）
+        try:
+            import vocal_sep
+            src_path = vocal_sep.separate(path, _models_dir(), progress_cb, _check_cancel)
+        except ExtractCancelled:
+            raise
+        except Exception as e:
+            src_path = path
+            print("[人声分离] 没分离成，按原声识别：%s" % e, flush=True)
+            if progress_cb:
+                progress_cb("人声分离", "没分离成（%s），这次按原声识别" % str(e)[:80])
     try:
         from faster_whisper.audio import decode_audio
-        full = decode_audio(path, sampling_rate=_SR)
+        full = decode_audio(src_path, sampling_rate=_SR)
         total = round(len(full) / _SR, 2)
         if _ja_mode():
             full = _boost_quiet(full)                   # v97：小声的先放大，再识别
@@ -1809,7 +1824,7 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
         #   · 关键：**不要**抹掉 progress.json 里已读回的进度。decode 可能只是这次偶发
         #     失败，下次启动若能 decode 成功，就还能从 _resume_offset_kept 处接着切片续转。
         #     若这次就从头转完了，收尾存盘会用新的完整结果覆盖，也不冲突。
-        audio_input = path
+        audio_input = src_path                 # v102：分离了人声就用人声
         offset = 0.0
         parts = []
         seg_list = []
@@ -1876,7 +1891,7 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
         # 续传切片场景 new_last_end 本就 ≥ old_end；从头重转时只有追上才覆盖
         if new_last_end + 0.01 >= old_end:
             _save_progress(job_dir, {
-                "url": None, "level": level, "lang": _LANG["v"], "total": total,
+                "url": None, "level": level, "lang": _LANG["v"], "vocal": bool(_OPTS.get("vocal")), "total": total,
                 "last_end": new_last_end, "parts": new_parts,
                 "segments": new_seg_list})
 
@@ -1960,7 +1975,7 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
     # 是最靠后的进度，直接写完整结果（不走保护，确保最终文字稿完整落盘）。
     if job_dir is not None and can_resume:
         _save_progress(job_dir, {
-            "url": None, "level": level, "lang": _LANG["v"], "total": total,
+            "url": None, "level": level, "lang": _LANG["v"], "vocal": bool(_OPTS.get("vocal")), "total": total,
             "last_end": total or last_end, "parts": parts,
             "segments": seg_list})
     raw = "".join(parts).strip()
@@ -1987,7 +2002,7 @@ def _video_file_dir(url):
     return d
 
 
-def extract(url, level="balanced", progress_cb=None, need_video=False, mode="auto", lang="zh"):
+def extract(url, level="balanced", progress_cb=None, need_video=False, mode="auto", lang="zh", vocal=False):
     """
     主流程：解析链接 -> 下载音频 -> 语音识别 -> 返回文字稿。
     progress_cb(stage, detail) 用来实时报告"现在在干什么"。
@@ -2002,6 +2017,7 @@ def extract(url, level="balanced", progress_cb=None, need_video=False, mode="aut
       · "transcribe"    —— 跳过字幕，直接下视频听写（字幕可能不全/有错时更准更全）。
     """
     _set_lang("ja" if level in ("ja", "anime") else lang)   # v95：视频说的是什么话；v97/v98：日语专用模型一定按日语
+    _OPTS["vocal"] = bool(vocal)                                  # v102：要不要先分离人声
     def step(s, d=""):
         if progress_cb:
             progress_cb(s, d)
@@ -2230,7 +2246,7 @@ def check_deps_local():
     return missing
 
 
-def extract_local(file_path, level="balanced", progress_cb=None, lang="zh"):
+def extract_local(file_path, level="balanced", progress_cb=None, lang="zh", vocal=False):
     """把本地音/视频文件直接听写成文字稿。
     跳过链接解析与下载，直接走 faster-whisper。
 
@@ -2238,6 +2254,7 @@ def extract_local(file_path, level="balanced", progress_cb=None, lang="zh"):
     这样上层 worker 的后续处理（AI 分析、存笔记、插图）可以原样复用。
     标题默认用文件名（不含扩展名），交给 AI 分析时若识别出更好的标题会覆盖。"""
     _set_lang("ja" if level in ("ja", "anime") else lang)   # v95：视频说的是什么话；v97/v98：日语专用模型一定按日语
+    _OPTS["vocal"] = bool(vocal)                                  # v102：要不要先分离人声
     def step(s, d=""):
         if progress_cb:
             progress_cb(s, d)
