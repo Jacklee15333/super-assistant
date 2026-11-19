@@ -83,7 +83,7 @@ def main() -> None:
 
     ap = argparse.ArgumentParser()
     ap.add_argument("input", help="链接、整段分享文案，或本地音视频文件路径")
-    ap.add_argument("--level", default="accurate", choices=["speed", "balanced", "accurate", "ultra", "ja"],
+    ap.add_argument("--level", default="accurate", choices=["speed", "balanced", "accurate", "ultra", "ja", "anime"],
                     help="speed=base / balanced=small / accurate=medium(默认)")
     ap.add_argument("--open", action="store_true", help="完成后打开输出文件夹")
     ap.add_argument("--cpu", action="store_true", help="强制用 CPU（默认尝试 GPU）")

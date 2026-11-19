@@ -290,10 +290,12 @@ def models_info():
         if d.exists():
             for p in sorted(d.iterdir()):
                 n = p.name
-                if p.is_dir() and "faster-whisper" in n and not n.endswith(".downloading") and ".bak-" not in n:
+                if p.is_dir() and "faster-whisper" in n and not n.endswith((".downloading", ".converting")) and ".bak-" not in n:
                     # 友好显示：精准/均衡/快速
                     label = n
-                    if "kotoba" in n:
+                    if n.endswith("-anime"):
+                        label = "日语·情绪 / 小声模型 (Anime-Whisper)"
+                    elif "kotoba" in n:
                         label = "日语专用模型 (kotoba-whisper)"
                     elif "large" in n:
                         label = "超精准模型 (large-v3)"
@@ -321,6 +323,7 @@ MODEL_MAP = {
     "accurate": "medium",
     "ultra": "large-v3",      # v87：超精准（大模型，约 3GB，显卡上跑；方言、快语速认得更准）
     "ja": "kotoba-v2",        # v97：日语专用（kotoba-whisper v2，用几万小时日语训练，日语比 large-v3 准、还快）
+    "anime": "anime",         # v98：日语·情绪 / 小声（Anime-Whisper：动漫、游戏配音训练，带情绪、小声、喘息的说话认得准）
 }
 
 # v87：给 whisper 的开头提示——让它输出标点、用简体字（不影响内容，只影响格式）
@@ -384,6 +387,8 @@ def _whisper_lang():
 
 
 def _lang_prompt():
+    if _LANG.get("noprompt"):          # v98：Anime-Whisper 作者建议不要给开头提示（给了容易编造）
+        return None
     return LANGS.get(_LANG["v"], LANGS["zh"])[1]
 
 # v87：whisper 在没人说话 / 只有音乐的地方常会「编」出来的话，补漏时一律丢掉
@@ -1710,9 +1715,15 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
         _vad = {"threshold": 0.25, "min_silence_duration_ms": 1500, "speech_pad_ms": 600}
     else:
         _vad = {"min_silence_duration_ms": 800, "speech_pad_ms": 200}
+    _LANG["noprompt"] = MODEL_MAP.get(level) == "anime"
     if MODEL_MAP.get(level, "").startswith("kotoba"):
         # kotoba-whisper 官方建议：按 15 秒一段听，不拿上一段的结果当提示（减少「复读」和编造）
         _kw.update(chunk_length=15, condition_on_previous_text=False)
+    elif MODEL_MAP.get(level) == "anime":
+        # v98：Anime-Whisper 是拿一句一句的短配音训练的：按 10 秒一段听、不带时间戳（每段一句）、
+        # 不给提示、不拿上一段当提示，并且压住「同一句反复刷」的毛病
+        _kw.update(chunk_length=10, condition_on_previous_text=False, without_timestamps=True,
+                   repetition_penalty=1.1, no_repeat_ngram_size=10)
     segments, info = model.transcribe(
         audio_input, language=_whisper_lang(), vad_filter=True,
         initial_prompt=_lang_prompt(),                  # v87：带标点、简体；v95：按选的语言
@@ -1849,7 +1860,7 @@ def extract(url, level="balanced", progress_cb=None, need_video=False, mode="aut
       · "subtitle_only" —— 优先字幕；万一拿不到，仍回退听写保证有结果；
       · "transcribe"    —— 跳过字幕，直接下视频听写（字幕可能不全/有错时更准更全）。
     """
-    _set_lang("ja" if level == "ja" else lang)   # v95：这次视频说的是什么话；v97：日语专用模型一定按日语
+    _set_lang("ja" if level in ("ja", "anime") else lang)   # v95：视频说的是什么话；v97/v98：日语专用模型一定按日语
     def step(s, d=""):
         if progress_cb:
             progress_cb(s, d)
@@ -2085,7 +2096,7 @@ def extract_local(file_path, level="balanced", progress_cb=None, lang="zh"):
     返回结构与 extract() 完全一致（ok/title/uploader/url/transcript/segments/source…），
     这样上层 worker 的后续处理（AI 分析、存笔记、插图）可以原样复用。
     标题默认用文件名（不含扩展名），交给 AI 分析时若识别出更好的标题会覆盖。"""
-    _set_lang("ja" if level == "ja" else lang)   # v95：这次视频说的是什么话；v97：日语专用模型一定按日语
+    _set_lang("ja" if level in ("ja", "anime") else lang)   # v95：视频说的是什么话；v97/v98：日语专用模型一定按日语
     def step(s, d=""):
         if progress_cb:
             progress_cb(s, d)

@@ -4554,7 +4554,7 @@ class Handler(BaseHTTPRequestHandler):
                 for rec in picked:
                     job = {f: rec.get(f) for f in _VF_KEEP if rec.get(f) not in (None, "")}
                     job.setdefault("url", rec.get("local_path") or "")
-                    if lv in ("speed", "balanced", "accurate", "ultra", "ja"):
+                    if lv in ("speed", "balanced", "accurate", "ultra", "ja", "anime"):
                         job["level"] = lv
                     job.setdefault("level", "balanced")
                     job.setdefault("use_local", True)
@@ -5154,14 +5154,14 @@ class Handler(BaseHTTPRequestHandler):
                 items = body.get("items") or []
                 # v89：识别质量用前端传来的（视频页当前选的）；老界面没传 → 用电脑上最近一次提取时的选择
                 level = body.get("level") or ""
-                if level not in ("speed", "balanced", "accurate", "ultra", "ja"):
+                if level not in ("speed", "balanced", "accurate", "ultra", "ja", "anime"):
                     level = ""
                     try:
                         import phone_inbox as _pi
                         level = ((_pi._load() or {}).get("defaults") or {}).get("level") or ""
                     except Exception:
                         level = ""
-                    if level not in ("speed", "balanced", "accurate", "ultra", "ja"):
+                    if level not in ("speed", "balanced", "accurate", "ultra", "ja", "anime"):
                         level = "balanced"
                 _cw_store = None
                 try:
