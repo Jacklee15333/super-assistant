@@ -42,12 +42,12 @@ _bad = {}                   # ip -> [失败时间...]
 _DEFAULT_KEYS = ("level", "use_local", "model", "mode", "screenshot", "link", "analyze")
 
 
-def _log(msg):
+def _log(msg, tag="手机"):
     try:
         if _log_fn:
-            _log_fn("手机", msg)
+            _log_fn(tag, msg)
         else:
-            print("[手机] " + msg, flush=True)
+            print("[%s] %s" % (tag, msg), flush=True)
     except Exception:
         pass
 
@@ -273,6 +273,55 @@ def _check_code(ip, code):
         return False, "连接码不对（看电脑上「手机发链接」面板里的 6 位数字）"
 
 
+def queue_text(text, analyze, source="手机", notify=None, title=""):
+    """把一段文字里的第一个链接加进「视频内容提取」队列（和电脑上点「提取并分析」同一套流程）。
+    source：从哪来的（「手机」「飞书」），写进最近列表和日志；notify：做完要不要回消息（飞书用）。
+    返回 {"ok", "msg"|"error", "url", "title"}。"""
+    text = (text or "").strip()[:4000]
+    url = _first_url(text)
+    if not url:
+        return {"ok": False, "error": "没找到链接：把文章或视频的链接（或整段分享文案）发过来", "url": ""}
+    Base = _base_handler
+    if Base is None:
+        return {"ok": False, "error": "软件后端还没准备好，过一会儿再发", "url": url}
+    with _lock:
+        d = dict(_load().get("defaults") or {})
+    body = {"level": "balanced", "use_local": True, "model": "qwen2.5", "mode": "auto",
+            "screenshot": False, "link": False}
+    body.update({k: v for k, v in d.items() if v is not None})
+    if analyze is None:
+        analyze = bool(d.get("analyze", False))
+    body.update({"url": url, "analyze": bool(analyze), "creator_url": "", "_from_phone": True})
+    if notify:
+        body["notify"] = notify
+    got = {}
+    dummy = Base.__new__(Base)                     # 不连网络的「假请求」，只为复用入队逻辑
+    dummy._send = lambda obj, status=200: got.update(obj=obj)
+    try:
+        Base._handle_video_transcribe(dummy, body)
+    except Exception as e:
+        got["obj"] = {"ok": False, "error": "电脑这边出错了：%s" % e}
+    r = got.get("obj") or {}
+    title = title or _guess_title(text, url)
+    if r.get("queued"):
+        pos = int(r.get("position") or 1)
+        msg = "已加进电脑的提取队列，%s" % ("马上开始处理" if pos <= 1 else "排在第 %d 个" % pos)
+        _record({"t": time.strftime("%H:%M"), "url": url, "title": title, "src": source,
+                 "ok": True, "msg": msg, "analyze": bool(analyze)})
+        _log("收到%s发来的%s：%s%s" % (source, "文章" if r.get("article") else "链接",
+                                     (title + " ") if title else "", url), tag=source)
+        return {"ok": True, "msg": msg, "url": url, "title": title, "article": bool(r.get("article"))}
+    if r.get("need"):
+        err = "电脑上还没装视频提取的小工具（%s）。先在电脑上提取一次视频，按提示装好；文章链接不受影响" \
+              % "、".join(r.get("need") or [])
+    else:
+        err = r.get("error") or "没加进队列（原因不明）"
+    _record({"t": time.strftime("%H:%M"), "url": url, "title": title, "src": source,
+             "ok": False, "msg": err, "analyze": bool(analyze)})
+    _log("%s发来的链接没加进去：%s（%s）" % (source, err, url), tag=source)
+    return {"ok": False, "error": err, "url": url, "title": title}
+
+
 def _make_handler(Base):
     class PhoneHandler(Base):
         """只开放手机要用的几个地址，别的一律 404。复用 Base 的 _handle_video_transcribe 入队。"""
@@ -300,46 +349,7 @@ def _make_handler(Base):
             return True
 
         def _queue(self, text, analyze):
-            text = (text or "").strip()[:4000]
-            url = _first_url(text)
-            if not url:
-                return {"ok": False, "error": "没找到链接：把文章或视频的链接（或整段分享文案）粘进来"}
-            with _lock:
-                d = dict(_load().get("defaults") or {})
-            body = {"level": "balanced", "use_local": True, "model": "qwen2.5", "mode": "auto",
-                    "screenshot": False, "link": False}
-            body.update({k: v for k, v in d.items() if v is not None})
-            body.update({"url": url, "analyze": bool(analyze), "creator_url": "", "_from_phone": True})
-            got = {}
-            self._send = lambda obj, status=200: got.update(obj=obj)     # 截下入队结果，不直接写回
-            try:
-                self._handle_video_transcribe(body)
-            except Exception as e:
-                got["obj"] = {"ok": False, "error": "电脑这边出错了：%s" % e}
-            finally:
-                try:
-                    del self._send
-                except Exception:
-                    pass
-            r = got.get("obj") or {}
-            title = _guess_title(text, url)
-            if r.get("queued"):
-                pos = int(r.get("position") or 1)
-                msg = "已发给电脑，%s" % ("马上开始处理" if pos <= 1 else "排在第 %d 个" % pos)
-                _record({"t": time.strftime("%H:%M"), "url": url, "title": title,
-                         "ok": True, "msg": msg, "analyze": bool(analyze)})
-                _log("收到手机发来的%s：%s%s" % ("文章" if r.get("article") else "链接",
-                                             (title + " ") if title else "", url))
-                return {"ok": True, "msg": msg, "url": url}
-            if r.get("need"):
-                err = "电脑上还没装视频提取的小工具（%s）。先在电脑上提取一次视频，按提示装好；文章链接不受影响" \
-                      % "、".join(r.get("need") or [])
-            else:
-                err = r.get("error") or "没加进队列（原因不明）"
-            _record({"t": time.strftime("%H:%M"), "url": url, "title": title,
-                     "ok": False, "msg": err, "analyze": bool(analyze)})
-            _log("手机发来的链接没加进去：%s（%s）" % (err, url))
-            return {"ok": False, "error": err}
+            return queue_text(text, analyze, source="手机")
 
         def do_GET(self):
             if not self._guard():
