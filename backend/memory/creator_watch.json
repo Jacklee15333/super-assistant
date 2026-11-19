@@ -4,7 +4,7 @@
     "hour": 10,
     "per_scan": 15
   },
-  "last_scan_date": "2026-11-18",
+  "last_scan_date": "2026-11-19",
   "creators": [
     {
       "id": "cw1782300547610680",
@@ -13,41 +13,41 @@
       "url": "https://www.youtube.com/@DwarkeshPatel",
       "enabled": true,
       "added": "2026-06-24 19:29",
-      "last_checked": "2026-11-18 11:25",
+      "last_checked": "2026-11-19 10:05",
       "last_count": 15,
       "known_ids": [
-        "6AgOfiZOWiY",
-        "KBPOTklFTiU",
-        "1NQwfImTseU",
-        "mDG_Hx3BSUE",
-        "oIk3R-sMX5o",
-        "myP8UjAM1pk",
-        "f6cjAEr08qk",
-        "PAIhVfGbREA",
-        "aV26V1UvkJw",
-        "Jj-kBHzUohs",
-        "Hrbq66XqtCo",
-        "n1E9IZfvGMA",
-        "frYSOKvNiiE",
-        "SyHM5hNPAEo",
-        "-RXD4bTuFTo",
-        "X_ZVSPcZhtw",
         "TfyPshgMbug",
+        "frYSOKvNiiE",
+        "6AgOfiZOWiY",
+        "u15N3l4RT80",
         "U1FrhkLQnCI",
-        "1NHPDzpfR6Y",
-        "Q8Fkpi18QXU",
-        "LwQQ7nBCGSs",
-        "20p5-kQXF_Q",
-        "4pG3SJQPAwk",
-        "sRKBGVFVYAw",
-        "PrSf7IOYu-I",
+        "X_ZVSPcZhtw",
+        "OS1NZLgKM2c",
+        "X50zezLFWWI",
         "xmkSf5IS-zw",
         "f0J_EeW42Lo",
-        "OS1NZLgKM2c",
-        "kX_WmQK_tt0",
-        "X50zezLFWWI",
+        "-RXD4bTuFTo",
+        "aV26V1UvkJw",
+        "1NQwfImTseU",
+        "myP8UjAM1pk",
+        "oIk3R-sMX5o",
         "iewm45atodE",
-        "u15N3l4RT80"
+        "4pG3SJQPAwk",
+        "SyHM5hNPAEo",
+        "Jj-kBHzUohs",
+        "1NHPDzpfR6Y",
+        "sRKBGVFVYAw",
+        "f6cjAEr08qk",
+        "PAIhVfGbREA",
+        "kX_WmQK_tt0",
+        "LwQQ7nBCGSs",
+        "Hrbq66XqtCo",
+        "Q8Fkpi18QXU",
+        "n1E9IZfvGMA",
+        "20p5-kQXF_Q",
+        "PrSf7IOYu-I",
+        "mDG_Hx3BSUE",
+        "KBPOTklFTiU"
       ],
       "last_error": ""
     },
@@ -4821,11 +4821,11 @@
         {
           "vid": "SyHM5hNPAEo",
           "url": "https://www.youtube.com/watch?v=SyHM5hNPAEo",
-          "title": "\"It would be hard for humanity to recover\" – Paul Christiano",
+          "title": "AIs might overthrow the government within a year – Paul Christiano",
           "when": "20261116",
           "uploader": "Dwarkesh Patel",
           "when_human": "2026-11-16",
-          "days_ago": 2,
+          "days_ago": 3,
           "title_zh": "AI可能在一年内推翻政府 – Paul Christiano"
         },
         {
@@ -4835,7 +4835,7 @@
           "when": "20261113",
           "uploader": "Dwarkesh Patel",
           "when_human": "2026-11-13",
-          "days_ago": 5,
+          "days_ago": 6,
           "title_zh": "递归自我改进已开始"
         },
         {
@@ -4845,7 +4845,7 @@
           "when": "20261105",
           "uploader": "Dwarkesh Patel",
           "when_human": "2026-11-05",
-          "days_ago": 13,
+          "days_ago": 14,
           "title_zh": "哪个AI是最会撒谎的？"
         },
         {
@@ -4855,7 +4855,7 @@
           "when": "20261030",
           "uploader": "Dwarkesh Patel",
           "when_human": "2026-10-30",
-          "days_ago": 19,
+          "days_ago": 20,
           "title_zh": "Robert Caro研究权力50年后学到的"
         },
         {
@@ -4865,7 +4865,7 @@
           "when": "20261029",
           "uploader": "Dwarkesh Patel",
           "when_human": "2026-10-29",
-          "days_ago": 20,
+          "days_ago": 21,
           "title_zh": "Robert Caro的书教会我关于权力的事"
         },
         {
@@ -4875,7 +4875,7 @@
           "when": "20261022",
           "uploader": "Dwarkesh Patel",
           "when_human": "2026-10-22",
-          "days_ago": 27,
+          "days_ago": 28,
           "title_zh": "2045年的计算机芯片会是什么样子？"
         },
         {
@@ -4885,7 +4885,7 @@
           "when": "20261001",
           "uploader": "Dwarkesh Patel",
           "when_human": "2026-10-01",
-          "days_ago": 48,
+          "days_ago": 49,
           "title_zh": "几百名西班牙士兵如何推翻两个帝国？ – Si Sheppard"
         },
         {
@@ -4895,7 +4895,7 @@
           "when": "20260925",
           "uploader": "Dwarkesh Patel",
           "when_human": "2026-09-25",
-          "days_ago": 54,
+          "days_ago": 55,
           "title_zh": "Sarah Paine — 为什么战争难以结束"
         },
         {
@@ -4905,7 +4905,7 @@
           "when": "20260917",
           "uploader": "Dwarkesh Patel",
           "when_human": "2026-09-17",
-          "days_ago": 62,
+          "days_ago": 63,
           "title_zh": "OpenAI研究员谈智能体群与递归自我优化"
         },
         {
@@ -4915,7 +4915,7 @@
           "when": "20260911",
           "uploader": "Dwarkesh Patel",
           "when_human": "2026-09-11",
-          "days_ago": 68,
+          "days_ago": 69,
           "title_zh": "AI研究者辩论我们离递归自我优化有多近"
         },
         {
@@ -4925,7 +4925,7 @@
           "when": "20260901",
           "uploader": "Dwarkesh Patel",
           "when_human": "2026-09-01",
-          "days_ago": 78,
+          "days_ago": 79,
           "title_zh": "Ajeya Cotra – “这可能是我们收到的最清晰警告”"
         },
         {
@@ -4935,7 +4935,7 @@
           "when": "20260831",
           "uploader": "Dwarkesh Patel",
           "when_human": "2026-08-31",
-          "days_ago": 79,
+          "days_ago": 80,
           "title_zh": "OpenAI/Hugging Face攻击事件，清晰解析"
         },
         {
@@ -4945,7 +4945,7 @@
           "when": "20260825",
           "uploader": "Dwarkesh Patel",
           "when_human": "2026-08-25",
-          "days_ago": 85,
+          "days_ago": 86,
           "title_zh": "Dylan Patel – 两家实验室将很快控制全球大部分劳动力"
         },
         {
@@ -4955,7 +4955,7 @@
           "when": "20260811",
           "uploader": "Dwarkesh Patel",
           "when_human": "2026-08-11",
-          "days_ago": 99,
+          "days_ago": 100,
           "title_zh": "Ryan Greenblatt – 一旦AI能自动化AI研究，会发生什么？"
         },
         {
@@ -4965,14 +4965,14 @@
           "when": "20260807",
           "uploader": "Dwarkesh Patel",
           "when_human": "2026-08-07",
-          "days_ago": 103,
+          "days_ago": 104,
           "title_zh": "持续学习时代的8个预测"
         }
       ],
       "total": 15,
       "platform_label": "YouTube",
       "title": "Dwarkesh Patel",
-      "ts": "2026-11-18 11:25"
+      "ts": "2026-11-19 10:05"
     },
     "cw1782303239603268": {
       "videos": [
