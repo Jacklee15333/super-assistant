@@ -959,6 +959,55 @@ def _vn_src_noun_of_file(name):
     return None
 
 
+# ════════════════ v74：嗅探的博主头像 ════════════════
+# 和视频页的「博主资料」共用（按名字）：已经有头像的直接用；没有的在后台去主页取（YouTube / 抖音 / B站），
+# 一次一个、慢慢来；6 小时内不重复试。已经绑过主页、手动解除过的不碰。
+_cw_av = {"running": False, "tried": {}}
+
+
+def _cw_attach_avatars(creators):
+    try:
+        import creator_profiles as _cpf
+        raw = _cpf.list_raw()
+    except Exception:
+        return
+    todo, now = [], _time_now()
+    for c in creators or []:
+        key = (c.get("title") or "").strip()
+        p = raw.get(key) or {}
+        fp = _cpf._avatar_file(p) if p else None
+        if fp:
+            try:
+                c["avatar"] = {"key": key, "v": int(fp.stat().st_mtime)}
+            except Exception:
+                pass
+        elif (key and (c.get("url") or "").startswith("http") and c.get("platform") in ("youtube", "douyin", "bilibili")
+              and not p.get("url") and not p.get("no_auto") and now - _cw_av["tried"].get(c.get("id"), 0) > 6 * 3600):
+            todo.append((c.get("id"), key, c.get("url")))
+    if todo and not _cw_av["running"]:
+        _cw_av["running"] = True
+        _threading.Thread(target=_cw_fill_avatars, args=(todo,), daemon=True).start()
+
+
+def _cw_fill_avatars(todo):
+    try:
+        import creator_profiles as _cpf
+        got = 0
+        for cid, key, url in todo:
+            _cw_av["tried"][cid] = _time_now()
+            try:
+                ok, info = _cpf.bind(key, url)[:2]
+                if ok and isinstance(info, dict) and info.get("has_avatar", True):
+                    got += 1
+            except Exception:
+                pass
+            _time_log.sleep(1.5)
+        if got:
+            _clog("嗅探", "给 %d 个博主取到了头像" % got)
+    finally:
+        _cw_av["running"] = False
+
+
 def _vn_creator_after_save(job, res, cb=None):
     """v59：提取完成、笔记存好后，给这条笔记的博主建「博主板块」资料（头像、昵称、粉丝数、简介）。
       · 提取卡片里填了「博主主页」→ 按它绑定（笔记没有作者时，顺便把作者填成博主昵称）；
@@ -3460,8 +3509,10 @@ class Handler(BaseHTTPRequestHandler):
             # 博主监控：清单 + 配置（每天几点自动扫等）
             try:
                 import creator_watch
+                cl = creator_watch.list_creators()
+                _cw_attach_avatars(cl)                    # v74：博主头像（和视频页共用博主资料）
                 return self._send({"ok": True,
-                                   "creators": creator_watch.list_creators(),
+                                   "creators": cl,
                                    "config": creator_watch.get_config()})
             except Exception as e:
                 return self._send({"ok": False, "creators": [], "error": str(e)}, 200)

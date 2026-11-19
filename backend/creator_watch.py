@@ -300,6 +300,23 @@ def rename_creator(cid, title):
 
 
 # ──────────────────────────── 列「最近视频」 ────────────────────────────
+def _pop_of(e):
+    """v74：视频的「热度」——平台给什么用什么：播放量 → 点赞量。拿不到返回 None。"""
+    if not isinstance(e, dict):
+        return None
+    for k in ("view_count", "play_count", "like_count", "digg_count", "favorite_count"):
+        v = e.get(k)
+        if isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0:
+            return int(v)
+    st = e.get("statistics") or e.get("stats") or {}
+    if isinstance(st, dict):
+        for k in ("play_count", "digg_count", "like_count", "view_count"):
+            v = st.get(k)
+            if isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0:
+                return int(v)
+    return None
+
+
 def _entry_when(e):
     """从 yt-dlp 扁平条目里尽量抠出发布日期，统一成 YYYYMMDD 字符串；抠不到返回空串。
     扁平列频道时 upload_date 经常缺失，这里再尝试 timestamp / release_timestamp。"""
@@ -491,7 +508,7 @@ def _list_youtube(url, limit):
         when = _entry_when(e) or rss.get(str(vid), "")
         # 作者：条目自带 uploader/channel，没有就用频道名兜底
         up = (e.get("uploader") or e.get("channel") or "").strip() or author
-        out.append({"vid": str(vid), "url": link,
+        out.append({"vid": str(vid), "url": link, "views": _pop_of(e),
                     "title": (e.get("title") or "").strip(),
                     "when": when, "uploader": up})
 
@@ -537,7 +554,7 @@ def _list_bilibili(url, limit):
             vid = mm.group(1) if mm else link
         if not vid:
             continue
-        out.append({"vid": str(vid), "url": link,
+        out.append({"vid": str(vid), "url": link, "views": _pop_of(e),
                     "title": (e.get("title") or "").strip(),
                     "when": _entry_when(e)})
     return {"name": data.get("name", ""), "videos": out,
@@ -634,7 +651,7 @@ def _list_douyin(url, limit):
             link = "https://www.douyin.com/video/%s" % vid
         if not vid:
             continue
-        out.append({"vid": str(vid), "url": link,
+        out.append({"vid": str(vid), "url": link, "views": _pop_of(e),
                     "title": (e.get("title") or "").strip(),
                     "when": _entry_when(e)})
     if not out:
@@ -1007,6 +1024,7 @@ def scan_all(only_enabled=True):
         nm = c.get("title") or "博主"
         _scan_state["progress"] = "%d/%d" % (i + 1, total)
         _scan_state["current"] = nm
+        _scan_state["current_id"] = c.get("id") or ""     # v74：界面上给正在扫的博主头像加动画
         _scan_state["last"] = "正在批量扫描 %d/%d：%s…" % (i + 1, total, nm)
         r = scan_one(c.get("id"))
         scanned.append(r)
@@ -1015,6 +1033,7 @@ def scan_all(only_enabled=True):
             total_err += 1
         # 记一条逐博主明细，供前端「批量扫描」明细列表实时展示
         _scan_state["log"].append({
+            "id": c.get("id") or "",
             "name": nm,
             "ok": not r.get("error"),
             "new_count": int(r.get("new_count") or 0),
@@ -1024,6 +1043,7 @@ def scan_all(only_enabled=True):
         })
     _scan_state["progress"] = "%d/%d" % (total, total)
     _scan_state["current"] = ""
+    _scan_state["current_id"] = ""
     return {"ok": True, "scanned": scanned,
             "total_new": total_new, "total_err": total_err}
 
@@ -1037,6 +1057,7 @@ def scan_all_async():
         _scan_state["started"] = time.time()
         _scan_state["progress"] = ""
         _scan_state["current"] = ""
+        _scan_state["current_id"] = ""
         _scan_state["log"] = []
         _scan_state["last"] = "正在批量扫描所有博主…"
 
@@ -1056,6 +1077,7 @@ def scan_all_async():
         finally:
             _scan_state["running"] = False
             _scan_state["current"] = ""
+            _scan_state["current_id"] = ""
 
     threading.Thread(target=_run, daemon=True).start()
     return {"ok": True}

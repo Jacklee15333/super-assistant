@@ -379,8 +379,17 @@
   },
   "胡律师看法": {
     "key": "胡律师看法",
-    "auto_fail_at": 1794987195,
-    "error": "自动找主页没成功：试了 2 条视频都没找到。第一条：抖音没找到作者：这条视频已经删了或设成私密了（页面上写着「视频不存在」）"
+    "url": "https://v.douyin.com/jMZc91ITT4w/",
+    "platform": "douyin",
+    "updated": 1795063529,
+    "home": "https://www.douyin.com/user/MS4wLjABAAAAxmIMhmorFb5wR9c9AXRN4PTGu4-COZRIW2cfHsK3jCe0iSHDwZ6e34oQNVPjSlkV",
+    "uid": "MS4wLjABAAAAxmIMhmorFb5wR9c9AXRN4PTGu4-COZRIW2cfHsK3jCe0iSHDwZ6e34oQNVPjSlkV",
+    "name": "胡律师看法",
+    "signature": "法律咨询进会员群\n执业领域：婚姻家事，民间借贷，合同纠纷，侵权责任，企业法律顾问，一般刑事案件",
+    "works": 1105,
+    "handle": "61656012585",
+    "avatar_src": "https://p26.douyinpic.com/aweme/100x100/aweme-avatar/tos-cn-i-0813_o0he9tIXCBQ4Atz2CgNWfMACAGEl0A5nA8qygA.jpeg?from=2956013662",
+    "avatar_file": "5f0d189dcb49a4e5.jpg"
   },
   "Lenny's Podcast": {
     "key": "Lenny's Podcast",
@@ -1814,5 +1823,93 @@
     "handle": "laoxiesdy",
     "avatar_src": "https://p3-pc.douyinpic.com/aweme/100x100/aweme-avatar/tos-cn-i-0813c000-ce_o4z9D6MHIAwWEY8AEqAubEAmAeilVeftgwgB8i.jpeg?from=327834062",
     "avatar_file": "61a8e54dd2186204.jpg"
+  },
+  "Karpathy": {
+    "key": "Karpathy",
+    "url": "https://www.youtube.com/results?search_query=Karpathy",
+    "platform": "youtube",
+    "updated": 1795063513,
+    "error": "YouTube 没连上（\u001b[0;31mERROR:\u001b[0m Unsupported URL: https://www.youtube.com/results）。看看「设置 → 联网与代理」里的代理是否可用"
+  },
+  "李沐": {
+    "key": "李沐",
+    "url": "https://www.youtube.com/results?search_query=%E6%9D%8E%E6%B2%90",
+    "platform": "youtube",
+    "updated": 1795063517,
+    "error": "YouTube 没连上（\u001b[0;31mERROR:\u001b[0m Unsupported URL: https://www.youtube.com/results）。看看「设置 → 联网与代理」里的代理是否可用"
+  },
+  "Hung-yi Lee": {
+    "key": "Hung-yi Lee",
+    "url": "https://www.youtube.com/@HungyiLeeNTU",
+    "platform": "youtube",
+    "updated": 1795063520,
+    "home": "https://www.youtube.com/channel/UC2ggjtuuWvxrHHHiaDH1dlQ",
+    "name": "Hung-yi Lee",
+    "followers": 443000,
+    "signature": "李宏毅\n\nwebpage for ML 2021: https://speech.ee.ntu.edu.tw/~hylee/ml/2021-spring.html",
+    "uid": "UC2ggjtuuWvxrHHHiaDH1dlQ",
+    "avatar_src": "https://yt3.googleusercontent.com/ytc/AIdro_mlTtuvk8IoEtfAKvw7WDc0XuxqGBCjMn-klO63nQbfVjE=s0",
+    "avatar_file": "bc53a7b047224f80.jpg"
+  },
+  "The AI Daily Brief: Artificial Intelligence News": {
+    "key": "The AI Daily Brief: Artificial Intelligence News",
+    "url": "https://www.youtube.com/@AIDailyBrief",
+    "platform": "youtube",
+    "updated": 1795063524,
+    "home": "https://www.youtube.com/channel/UCKelCK4ZaO6HeEI1KQjqzWA",
+    "name": "The AI Daily Brief: Artificial Intelligence News",
+    "followers": 588000,
+    "signature": "Daily videos that help you understand the most important news and discussions in AI. \n\nListen to the AI Daily Brief as a podcast here: https://pod.link/1680633614\nSubscribe to the newsletter: https://aidailybrief.beehiiv.com/\n\nLearn AI with fun, fast, useful tutorials at https://besuper.ai/",
+    "uid": "UCKelCK4ZaO6HeEI1KQjqzWA",
+    "avatar_src": "https://yt3.googleusercontent.com/Lmzbtex5T5--hgnqhJcfylQrGrN0QcszvgP4hhF1HwSQf1vlngIv_QTfVsmx6rP5Zqecf2R5q7A=s0",
+    "avatar_file": "56e2b46a5c47f0a8.png"
+  },
+  "水球泡泡": {
+    "key": "水球泡泡",
+    "url": "https://v.douyin.com/aWvKICW0mvA/",
+    "platform": "douyin",
+    "updated": 1795063532,
+    "home": "https://www.douyin.com/user/MS4wLjABAAAARPd8TduyCs-ZpW-k2ACv0vFCbmZ_i4zqHjWsTMpesbY",
+    "uid": "MS4wLjABAAAARPd8TduyCs-ZpW-k2ACv0vFCbmZ_i4zqHjWsTMpesbY",
+    "name": "水球泡泡",
+    "signature": "水球泡官方唯一小号🎺本人已授权直播 \n QM061801或 qm797977（备注水球泡领取资料）\n了解且曼学院学习内容，领Ai 训练师，Ai 产品经理，ip 助理，AIGC 视频制作漫剧，我是海洋，负责全校区招生，北京，深圳，杭州",
+    "works": 493,
+    "handle": "QM061801",
+    "avatar_src": "https://p11.douyinpic.com/aweme/100x100/aweme-avatar/tos-cn-avt-0015_643306a0f7c130a7765b69be5459d5bc.jpeg?from=2956013662",
+    "avatar_file": "0cce90b686eae604.jpg"
+  },
+  "镜哥杂物社": {
+    "key": "镜哥杂物社",
+    "url": "https://www.douyin.com/user/MS4wLjABAAAAb0m_LN5BsgjRGiSQO9C59O5TVCtBVL6fzaGc7F0X4vg",
+    "platform": "douyin",
+    "updated": 1795063713,
+    "auto": true,
+    "source_video": "https://www.douyin.com/video/7709407210232728866",
+    "found_via": "缓存",
+    "home": "https://www.douyin.com/user/MS4wLjABAAAAb0m_LN5BsgjRGiSQO9C59O5TVCtBVL6fzaGc7F0X4vg",
+    "name": "镜哥杂物社",
+    "uid": "MS4wLjABAAAAb0m_LN5BsgjRGiSQO9C59O5TVCtBVL6fzaGc7F0X4vg",
+    "followers": 912774,
+    "signature": "感谢大家！感谢平台。下午更新\n分享一点世界上的历史、军事奇闻和小知识\n希望大家喜欢",
+    "handle": "53167445943",
+    "avatar_src": "https://p3-pc.douyinpic.com/aweme/100x100/aweme-avatar/tos-cn-avt-0015_7131fc57faee42ca2f297dd6bb632da4.jpeg?from=327834062",
+    "avatar_file": "9bf48181203885b4.jpg"
+  },
+  "橙子登登": {
+    "key": "橙子登登",
+    "url": "https://www.douyin.com/user/MS4wLjABAAAANwmm28qtSzX8IrZcngFoSc7r0DwNS0Qzsokuwh-yYIA4jxIIbg0ks_8NpQzq33Yd",
+    "platform": "douyin",
+    "updated": 1795063747,
+    "auto": true,
+    "source_video": "https://www.douyin.com/video/7700103910022827279",
+    "found_via": "缓存",
+    "home": "https://www.douyin.com/user/MS4wLjABAAAANwmm28qtSzX8IrZcngFoSc7r0DwNS0Qzsokuwh-yYIA4jxIIbg0ks_8NpQzq33Yd",
+    "name": "橙子登登",
+    "uid": "MS4wLjABAAAANwmm28qtSzX8IrZcngFoSc7r0DwNS0Qzsokuwh-yYIA4jxIIbg0ks_8NpQzq33Yd",
+    "followers": 952283,
+    "signature": "有一点知识和很多力量💪\n合作私✉️",
+    "handle": "chengzidengdeng",
+    "avatar_src": "https://p3-pc.douyinpic.com/aweme/100x100/aweme-avatar/tos-cn-avt-0015_ea76a45317aa0e937c637243cada17ba.jpeg?from=327834062",
+    "avatar_file": "2d00330e7fb7952e.jpg"
   }
 }

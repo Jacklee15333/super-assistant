@@ -7613,7 +7613,7 @@ function renderCreators(list) {
     box.innerHTML = '<div class="cw-empty">还没有博主。上面填主页链接，点「添加博主」。</div>';
     return;
   }
-  box.innerHTML = list.map((c) => {
+  box.innerHTML = (_cwViewMode === "avatar" ? list.map(_cwTileHtml) : list.map((c) => {   // v74：头像 / 列表
     const ic = _CW_PLAT_ICON[c.platform] || "🔗";
     let sub = (c.platform_label || "") + " · ";
     sub += c.last_checked ? ("上次 " + escapeHtml(c.last_checked) + "，最近 " + c.last_count + " 条") : "还没扫过";
@@ -7632,7 +7632,8 @@ function renderCreators(list) {
         '<label class="sniff-switch sniff-switch-sm" title="开启/暂停（暂停后不参与每天自动扫）"><input type="checkbox" class="cw-tog"' + (c.enabled ? " checked" : "") + ' /><span class="sniff-switch-track"></span></label>' +
         '<button class="cw-iconbtn cw-del" title="删除">✕</button>' +
       "</div>";
-  }).join("");
+  })).join("");
+  box.classList.toggle("cw-wall", _cwViewMode === "avatar");
 
   box.querySelectorAll(".cw-creator").forEach((el) => {
     const id = el.dataset.id;
@@ -7650,6 +7651,7 @@ function renderCreators(list) {
         });
         const d = await r.json();
         const res = d.result || {};
+        _cwOneResult[id] = { res, ts: Date.now() };     // v74：头像左上角显示这次扫描的结果
         if (res.error) { _cwSetStatus("「" + nm + "」扫描失败：" + res.error); }
         else if (res.first_time) { _cwSetStatus("「" + nm + "」已记录当前作品（首次只记录，下次起才报新视频）"); }
         else { _cwSetStatus(res.new_count ? ("「" + nm + "」发现 " + res.new_count + " 条新视频，已加到右侧「本次新增」") : ("「" + nm + "」没有新视频")); }
@@ -7765,6 +7767,8 @@ function _cwSetScanAllBusy(busy) {
 
 // 改动2：渲染逐博主扫描明细（进度 + 当前是谁 + 各自结果/出错）
 function _cwRenderScanLog(scan) {
+  _cwScanInfo = scan || {};                      // v74：正在扫谁 → 头像动画；每个博主的结果 → 左上角
+  try { _cwTilesMark(); } catch (_) {}
   const box = document.getElementById("cwScanLog");
   if (!box) return;
   const log = Array.isArray(scan.log) ? scan.log : [];
@@ -8152,6 +8156,7 @@ function _cwPageItems() {
 function renderVideos() {
   const box = document.getElementById("cwVideos");
   if (!box) return;
+  try { _cwApplySort(); _cwSortBar(); } catch (_) {}   // v74：按时间 / 热度 / 标题排
   if (!_cwVideos.length) {
     const reason = _cwEmptyReason
       ? ('这个博主没抓到内容。<br><span style="color:var(--text-dim,#888);font-size:12px">原因：' +
@@ -10879,4 +10884,178 @@ function snProgressCard(title, els) {
     console.warn("嗅探页换新结构没成功，保留原来的样子：", e);
   }
 })();
+
+
+// ════════════════════ v74：嗅探 · 博主列表做成头像墙 ════════════════════
+// 头像墙：点头像看他的视频 / 文章（可以按 最新 / 最早 / 最热 / 标题 排）；批量扫描时，正在扫的那个博主
+// 头像上有一道从左到右扫过的光，扫完换下一个；每个博主这次扫到多少条新的，显示在头像左上角。
+// 头像上的按钮（扫一遍 / 改名 / 开关 / 删除）和原来列表里的是同一套，功能不变。
+var _cwViewMode = (function () { try { return localStorage.getItem("cwViewMode") || "avatar"; } catch (_) { return "avatar"; } })();
+var _cwLastList = [];
+var _cwScanInfo = null;
+var _cwOneResult = {};
+var _cwVideoSort = (function () { try { return localStorage.getItem("cwVideoSort") || "new"; } catch (_) { return "new"; } })();
+var _cwAvRetry = 0;
+
+function _cwTileHtml(c) {
+  const ic = _CW_PLAT_ICON[c.platform] || "🔗";
+  const nm = c.title || "(未命名)";
+  const ch = [...nm.replace(/^[@＠]/, "").trim()][0] || "?";
+  const hue = typeof vnHue === "function" ? vnHue(nm) : 200;
+  const av = c.avatar ? '<img src="' + BACKEND + "/creator_avatar?key=" + encodeURIComponent(c.avatar.key) +
+    "&v=" + (c.avatar.v || 0) + '" alt="">' : "";
+  const when = c.last_checked ? String(c.last_checked).replace(/^\d{4}-/, "").slice(0, 11) : "还没扫过";
+  const sel = (_cwCurrentCreator.id === c.id) ? " sel" : "";
+  return '<div class="cw-creator cw-tile' + (c.enabled ? "" : " off") + sel + '" data-id="' + escapeHtml(c.id) + '">' +
+    '<div class="cw-c-main" title="点头像看「' + escapeHtml(nm) + '」的视频 / 文章">' +
+      '<div class="cw-tava" style="--h:' + hue + '"><span class="cw-tletter">' + escapeHtml(ch) + "</span>" + av +
+        '<span class="cw-tplat">' + ic + '</span><span class="cw-badge" hidden></span><span class="cw-sweep"></span></div>' +
+      '<div class="cw-tname">' + escapeHtml(nm) + "</div>" +
+      '<div class="cw-tsub">' + escapeHtml((c.platform_label || "") + " · " + when) + "</div>" +
+      (c.last_error ? '<div class="cw-terr" title="' + escapeHtml(c.last_error) + '">⚠ 上次没扫成</div>' : "") +
+    "</div>" +
+    '<div class="cw-tacts">' +
+      '<button class="cw-iconbtn cw-scan-one" title="扫一遍找新视频">↻</button>' +
+      '<button class="cw-iconbtn cw-edit" title="改名 / 备注">✎</button>' +
+      '<label class="sniff-switch sniff-switch-sm" title="开启 / 暂停（暂停后不参与每天自动扫）"><input type="checkbox" class="cw-tog"' +
+        (c.enabled ? " checked" : "") + ' /><span class="sniff-switch-track"></span></label>' +
+      '<button class="cw-iconbtn cw-del" title="删除">✕</button>' +
+    "</div></div>";
+}
+
+function _cwTilesMark() {
+  const box = document.getElementById("cwList");
+  if (!box) return;
+  const scan = _cwScanInfo || {};
+  const log = Array.isArray(scan.log) ? scan.log : [];
+  const byId = {}, byName = {};
+  log.forEach((x) => { if (x.id) byId[x.id] = x; if (x.name) byName[x.name] = x; });
+  const fcount = {};
+  (typeof _cwFindings !== "undefined" ? _cwFindings : []).forEach((f) => {
+    const k = String(f.creator_id == null ? "" : f.creator_id);
+    if (k) fcount[k] = (fcount[k] || 0) + 1;
+  });
+  box.querySelectorAll(".cw-tile").forEach((t) => {
+    const id = t.dataset.id;
+    const c = _cwLastList.find((x) => x.id === id) || {};
+    const now = !!scan.running && (scan.current_id ? scan.current_id === id : (!!scan.current && scan.current === c.title));
+    t.classList.toggle("scanning", now || t.classList.contains("scanning-one"));
+    let r = byId[id] || (c.title ? byName[c.title] : null) || null;
+    const one = _cwOneResult[id];
+    if (one && (!r || one.ts > (r.ts || 0) * 1000)) {
+      r = { new_count: one.res.new_count, first_time: one.res.first_time, error: one.res.error };
+    }
+    const b = t.querySelector(".cw-badge");
+    if (!b) return;
+    let txt = "", cls = "", tip = "";
+    if (r) {
+      if (r.error) { txt = "⚠"; cls = "err"; tip = "这次没扫成：" + r.error; }
+      else if (r.first_time) { txt = "首次"; cls = "first"; tip = "第一次扫：只记录现状，下次起才报新视频"; }
+      else if (r.new_count) { txt = "+" + r.new_count; cls = "new"; tip = "这次扫到 " + r.new_count + " 条新的"; }
+      else { txt = "0"; cls = "zero"; tip = "这次没有新的"; }
+    } else if (fcount[id]) {
+      txt = "+" + fcount[id]; cls = "new"; tip = "「扫出来的新视频」里有 " + fcount[id] + " 条是他的";
+    }
+    b.hidden = !txt; b.textContent = txt; b.className = "cw-badge " + cls; b.title = tip;
+  });
+}
+
+function _cwModeChips() {
+  const head = document.getElementById("cwListToggle");
+  if (!head || head.querySelector(".cw-mode")) return;
+  const w = document.createElement("span");
+  w.className = "cw-mode";
+  [["avatar", "头像"], ["list", "列表"]].forEach(([m, label]) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = label; b.dataset.m = m;
+    b.className = "vn-recent-chip" + (m === _cwViewMode ? " active" : "");
+    b.title = m === "avatar" ? "头像墙：点头像看他的视频 / 文章" : "列表：一行一个博主";
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      _cwViewMode = m;
+      try { localStorage.setItem("cwViewMode", m); } catch (_) {}
+      w.querySelectorAll("button").forEach((x) => x.classList.toggle("active", x.dataset.m === m));
+      renderCreators(_cwLastList);
+    });
+    w.appendChild(b);
+  });
+  head.appendChild(w);
+}
+
+var _cwRenderCreatorsOrig = renderCreators;
+renderCreators = function (list) {
+  _cwLastList = list || [];
+  _cwRenderCreatorsOrig(list);
+  try {
+    _cwModeChips();
+    const box = document.getElementById("cwList");
+    if (box) {
+      box.querySelectorAll(".cw-tava img").forEach((img) => img.addEventListener("error", () => img.remove()));
+      box.querySelectorAll(".cw-tile .cw-c-main").forEach((m) => m.addEventListener("click", () => {
+        setTimeout(() => document.getElementById("cwVideoView")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+      }));
+    }
+    _cwTilesMark();
+    // 有博主还没头像：后台在取，过一会儿再刷新一次列表把头像换上（最多 3 次）
+    if (_cwViewMode === "avatar" && _cwAvRetry < 3 &&
+        _cwLastList.some((c) => !c.avatar && ["youtube", "douyin", "bilibili"].includes(c.platform))) {
+      _cwAvRetry++;
+      setTimeout(() => { try { loadCreators(); } catch (_) {} }, 45000);
+    }
+  } catch (_) {}
+};
+
+// 单个「扫一遍」：点下去那一刻这个头像就开始扫光，扫完列表会重画
+document.getElementById("cwList")?.addEventListener("click", (e) => {
+  const b = e.target.closest(".cw-tile .cw-scan-one");
+  if (b) b.closest(".cw-tile").classList.add("scanning-one", "scanning");
+}, true);
+
+// ── 他的视频 / 文章：按 最新 / 最早 / 最热 / 标题 排 ──
+function _cwApplySort() {
+  if (!Array.isArray(_cwVideos) || !_cwVideos.length) return;
+  _cwVideos.forEach((v, i) => { if (v._o == null) v._o = i; });
+  const d = (v) => (/^\d{8}$/.test(v.when || "") ? +v.when : null);
+  const cmp = {
+    new: (a, b) => ((d(b) ?? -1) - (d(a) ?? -1)) || (a._o - b._o),
+    old: (a, b) => ((d(a) ?? 0) - (d(b) ?? 0)) || (b._o - a._o),
+    hot: (a, b) => ((b.views ?? -1) - (a.views ?? -1)) || (a._o - b._o),
+    title: (a, b) => String(a.title_zh || a.title || "").localeCompare(String(b.title_zh || b.title || ""), "zh") || (a._o - b._o),
+  }[_cwVideoSort] || ((a, b) => a._o - b._o);
+  _cwVideos.sort(cmp);
+}
+
+function _cwSortBar() {
+  const list = document.getElementById("cwVideos");
+  if (!list) return;
+  let bar = document.getElementById("cwSortBar");
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "cwSortBar"; bar.className = "cw-sortbar";
+    const lab = document.createElement("span"); lab.textContent = "排序：";
+    bar.appendChild(lab);
+    [["new", "最新"], ["old", "最早"], ["hot", "最热"], ["title", "标题"]].forEach(([k, label]) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "vn-recent-chip"; b.dataset.k = k; b.textContent = label;
+      b.addEventListener("click", () => {
+        if (b.disabled) return;
+        _cwVideoSort = k;
+        try { localStorage.setItem("cwVideoSort", k); } catch (_) {}
+        _cwPage = 1;
+        renderVideos();
+      });
+      bar.appendChild(b);
+    });
+    list.parentNode.insertBefore(bar, list);
+  }
+  const hasHot = (_cwVideos || []).some((v) => v.views != null);
+  bar.querySelectorAll("button").forEach((b) => {
+    b.classList.toggle("active", b.dataset.k === _cwVideoSort);
+    if (b.dataset.k === "hot") {
+      b.disabled = !hasHot;
+      b.title = hasHot ? "按播放量 / 点赞量从高到低" : "这个平台没给播放量 / 点赞量（点「刷新」重新列一次试试）";
+    }
+  });
+  bar.hidden = !(_cwVideos || []).length;
+}
 
