@@ -2055,7 +2055,7 @@ function askImportOptions(cfg) {
     levelSel.className = "text-input";
     levelSel.style.cssText = "flex:1 1 auto";
     [["speed", "快速（糙）"], ["balanced", "均衡（推荐）"],
-     ["accurate", "精准（慢）"], ["ultra", "超精准（大模型）"]].forEach(([v, t]) => {
+     ["accurate", "精准（慢）"], ["ultra", "超精准（大模型）"], ["ja", "日语专用（kotoba）"]].forEach(([v, t]) => {
       const o = document.createElement("option");
       o.value = v; o.textContent = t; levelSel.appendChild(o);
     });
@@ -12775,3 +12775,29 @@ async function _vtSubBar(resultEl, data) {
   render();
   if ((d.translate || {}).running) { trBtn.disabled = true; poll(); }
 }
+
+
+// ════════════════════ v97：日语专用模型 ════════════════════
+// 质量下拉框加「日语专用（kotoba-whisper）」：日本团队用几万小时日语训练的，日语比 large-v3 准、还快；
+// 第一次用要下载约 1.5GB。选它时，语言自动切到「日语」（日语模式：小声的放大、静音检测放宽、漏的段补得更细）。
+(function _vtJaLevel() {
+  const sel = document.getElementById("videoLevel");
+  if (!sel || sel.querySelector('option[value="ja"]')) return;
+  const o = document.createElement("option");
+  o.value = "ja"; o.textContent = "日语专用（kotoba-whisper）";
+  o.title = "专门识别日语的模型，日语比「超精准」更准、更快；第一次用要下载约 1.5GB";
+  sel.appendChild(o);
+  try {
+    const saved = localStorage.getItem("videoLevelPick");
+    if (saved === "ja") sel.value = "ja";
+  } catch (e) {}
+  const sync = () => {
+    const lang = document.getElementById("videoLang");
+    if (sel.value === "ja" && lang && lang.value !== "ja") {
+      lang.value = "ja";
+      try { localStorage.setItem("videoLangPick", "ja"); } catch (_) {}
+    }
+  };
+  sel.addEventListener("change", sync);
+  sync();
+})();
