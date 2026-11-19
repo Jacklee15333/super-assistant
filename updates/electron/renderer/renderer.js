@@ -10919,6 +10919,7 @@ function _cwTileHtml(c) {
     "</div>" +
     '<div class="cw-tacts">' +
       '<button class="cw-iconbtn cw-scan-one" title="扫一遍找新视频">↻</button>' +
+      '<button class="cw-iconbtn cw-parse-one" title="解析他的主页：头像、昵称、粉丝数、简介">🔍</button>' +
       '<button class="cw-iconbtn cw-edit" title="改名 / 备注">✎</button>' +
       '<label class="sniff-switch sniff-switch-sm" title="开启 / 暂停（暂停后不参与每天自动扫）"><input type="checkbox" class="cw-tog"' +
         (c.enabled ? " checked" : "") + ' /><span class="sniff-switch-track"></span></label>' +
@@ -10999,6 +11000,15 @@ renderCreators = function (list) {
       }));
     }
     _cwTilesMark();
+    if (box) box.querySelectorAll(".cw-tile .cw-parse-one").forEach((b) => b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const t = b.closest(".cw-tile");
+      t.classList.add("parsing");
+      _cwParseStart([t.dataset.id], true);
+    }));
+    _cwParseBarUpdate(); _cwParseMark();
+    if (!_cwParsePolled) { _cwParsePolled = true; _cwParsePoll(); }
+    if (_cwCurrentCreator.id && !document.getElementById("cwVideoView")?.hidden) _cwProfileLine(_cwCurrentCreator.id);
     // 有博主还没头像：后台在取，过一会儿再刷新一次列表把头像换上（最多 3 次）
     if (_cwViewMode === "avatar" && _cwAvRetry < 3 &&
         _cwLastList.some((c) => !c.avatar && ["youtube", "douyin", "bilibili", "x"].includes(c.platform))) {
@@ -11069,5 +11079,148 @@ openCreatorVideos = function (cid, title) {
     const card = document.getElementById("cwVideoView")?.closest(".v-collapsible");
     if (card && card.classList.contains("v-collapsed") && card._vSetCollapsed) card._vSetCollapsed(false);
   } catch (_) {}
-  return _cwOpenCreatorVideosOrig(cid, title);
+  const r = _cwOpenCreatorVideosOrig(cid, title);
+  try { _cwProfileLine(cid); } catch (_) {}         // v76：他的主页资料
+  return r;
 };
+
+
+// ════════════════════ v76：嗅探 · 一键解析博主主页（头像 + 昵称 + 粉丝数 + 简介） ════════════════════
+// 和视频页的「一键识别博主主页」一样：博主列表上面一个按钮 + 进度；每个头像上还有 🔍 单独解析（有头像的也能重新解析）。
+// 正在解析的那个头像有扫光（蓝圈），解析到一个就马上换上；点头像时，视频列表上面显示他的主页资料。
+var _cwParseState = null, _cwParseTimer = null, _cwParseDone = -1, _cwParseErrOpen = false, _cwParsePolled = false;
+
+function _cwParseNeed() {
+  return _cwLastList.filter((c) => !c.avatar && ["youtube", "douyin", "bilibili", "x"].includes(c.platform)).length;
+}
+
+function _cwParseBar() {
+  const body = document.getElementById("cwListBody"), list = document.getElementById("cwList");
+  if (!body || !list) return null;
+  let bar = document.getElementById("cwParseBar");
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "cwParseBar"; bar.className = "cw-parsebar";
+    bar.innerHTML = '<button type="button" class="sn-btn sm cw-parse-all"></button><span class="cw-parse-msg"></span>' +
+      '<button type="button" class="sn-btn sm cw-parse-stop" hidden>停止</button>' +
+      '<button type="button" class="cw-parse-errbtn" hidden></button><div class="cw-parse-errs" hidden></div>';
+    body.insertBefore(bar, list);
+    bar.querySelector(".cw-parse-all").addEventListener("click", () => _cwParseStart([], false));
+    bar.querySelector(".cw-parse-stop").addEventListener("click", async (e) => {
+      e.currentTarget.disabled = true; e.currentTarget.textContent = "正在停止…";
+      try { await fetch(BACKEND + "/creator/avatars", { method: "POST", headers: { "Content-Type": "application/json" },
+                                                         body: JSON.stringify({ action: "stop" }) }); } catch (_) {}
+      _cwParsePoll();
+    });
+    bar.querySelector(".cw-parse-errbtn").addEventListener("click", () => { _cwParseErrOpen = !_cwParseErrOpen; _cwParseBarUpdate(); });
+  }
+  return bar;
+}
+
+function _cwParseBarUpdate() {
+  const bar = _cwParseBar();
+  if (!bar) return;
+  const st = _cwParseState || {};
+  const need = _cwParseNeed();
+  const all = bar.querySelector(".cw-parse-all"), msg = bar.querySelector(".cw-parse-msg");
+  const stop = bar.querySelector(".cw-parse-stop"), eb = bar.querySelector(".cw-parse-errbtn"), errs = bar.querySelector(".cw-parse-errs");
+  all.hidden = !!st.running;
+  all.textContent = "🔍 一键解析博主主页" + (need ? "（" + need + " 个还没头像）" : "");
+  all.title = "去每个还没头像的博主主页取头像、昵称、粉丝数和简介（X 用你存的 X Cookie；YouTube 搜索链接会从他的频道 / 视频找主页）。" +
+    "已经有头像的想重新取，鼠标移到头像上点 🔍";
+  if (stop.hidden === !!st.running) { stop.disabled = false; stop.textContent = "停止"; }
+  stop.hidden = !st.running;
+  if (st.running) {
+    msg.textContent = (st.manual ? "正在解析 " : "正在自动解析 ") + Math.min(st.total, st.done + 1) + " / " + st.total +
+      (st.current ? " · 正在找「" + st.current + "」" : "") + " · 成功 " + (st.ok || 0) + (st.fail ? " · 没成功 " + st.fail : "");
+  } else if (st.finished && st.total) {
+    msg.textContent = "上次解析：成功 " + (st.ok || 0) + (st.fail ? "，没成功 " + st.fail : "") + (st.manual ? "" : "（自动）");
+  } else {
+    msg.textContent = need ? "" : "所有博主都有头像了";
+  }
+  const e = st.errors || [];
+  eb.hidden = !e.length || !!st.running;
+  eb.textContent = _cwParseErrOpen ? "收起" : "看看没成功的（" + e.length + "）";
+  errs.hidden = !_cwParseErrOpen || !e.length || !!st.running;
+  errs.innerHTML = e.map((x) => "<div><b>" + escapeHtml(x.name) + "</b>：" + escapeHtml(x.why) + "</div>").join("");
+}
+
+function _cwParseMark() {
+  const st = _cwParseState || {};
+  document.querySelectorAll("#cwList .cw-tile").forEach((t) => {
+    t.classList.toggle("parsing", !!st.running && st.current_id === t.dataset.id);
+  });
+}
+
+async function _cwParseStart(ids, force) {
+  try {
+    const d = await (await fetch(BACKEND + "/creator/avatars", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "start", ids: ids || [], force: !!force }) })).json();
+    if (typeof _cwSetStatus === "function") _cwSetStatus(d.message || (d.ok ? "开始解析" : "没开始"));
+    if (!d.ok) document.querySelectorAll("#cwList .cw-tile.parsing").forEach((t) => t.classList.remove("parsing"));
+  } catch (e) {
+    if (typeof _cwSetStatus === "function") _cwSetStatus("出错：" + e.message);
+  }
+  _cwParsePoll();
+}
+
+async function _cwParsePoll() {
+  clearTimeout(_cwParseTimer);
+  let st;
+  try { st = await (await fetch(BACKEND + "/creator/avatars_status", { cache: "no-store" })).json(); }
+  catch (_) { _cwParseTimer = setTimeout(_cwParsePoll, 4000); return; }
+  const was = !!(_cwParseState && _cwParseState.running);
+  _cwParseState = st;
+  const changed = _cwParseDone !== -1 && st.done !== _cwParseDone;
+  _cwParseDone = st.done;
+  if (changed || (was && !st.running)) loadCreators();     // 解析到一个就刷新，头像马上换上
+  _cwParseBarUpdate(); _cwParseMark();
+  if (st.running) _cwParseTimer = setTimeout(_cwParsePoll, 1500);
+}
+
+// 点头像后，视频列表上面：他的主页资料（头像、昵称、平台、粉丝数、作品数、简介、打开主页、重新解析）
+function _cwProfileLine(cid) {
+  const list = document.getElementById("cwVideos");
+  if (!list) return;
+  let box = document.getElementById("cwProfLine");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "cwProfLine"; box.className = "cw-profline";
+    list.parentNode.insertBefore(box, document.getElementById("cwSortBar") || list);
+  }
+  const c = _cwLastList.find((x) => x.id === cid);
+  if (!c) { box.hidden = true; return; }
+  box.hidden = false;
+  const p = c.profile || {};
+  const nm = c.title || "(未命名)";
+  const ch = [...nm.replace(/^[@＠]/, "").trim()][0] || "?";
+  const hue = typeof vnHue === "function" ? vnHue(nm) : 200;
+  const fmt = (n) => (typeof vnFmtNum === "function" ? vnFmtNum(n) : String(n));
+  const meta = [];
+  if (p.platform_label || c.platform_label) meta.push(p.platform_label || c.platform_label);
+  if (p.followers != null) meta.push("粉丝 " + fmt(p.followers));
+  if (p.works != null) meta.push("作品 " + fmt(p.works));
+  const home = p.home || p.url || (/^https?:/.test(c.url || "") && !/results\?search_query/.test(c.url) ? c.url : "");
+  box.innerHTML =
+    '<div class="cw-tava cw-pava" style="--h:' + hue + '"><span class="cw-tletter">' + escapeHtml(ch) + "</span>" +
+      (c.avatar ? '<img src="' + BACKEND + "/creator_avatar?key=" + encodeURIComponent(c.avatar.key) + "&v=" + (c.avatar.v || 0) + '" alt="">' : "") +
+    "</div>" +
+    '<div class="cw-pmain">' +
+      '<div class="cw-pname">' + escapeHtml(nm) +
+        (p.name && p.name !== nm ? "<small>主页上叫「" + escapeHtml(p.name) + "」</small>" : "") + "</div>" +
+      '<div class="cw-pmeta">' + escapeHtml(meta.join(" · ") || "还没解析过他的主页") + "</div>" +
+      (p.signature ? '<div class="cw-psign"></div>' : "") +
+      (p.error && !c.avatar ? '<div class="cw-perr"></div>' : "") +
+      '<div class="cw-pacts">' + (home ? '<a class="sn-btn sm" target="_blank" href="' + escapeHtml(home) + '">打开主页</a>' : "") +
+        '<button type="button" class="sn-btn sm cw-preparse">🔍 ' + (c.avatar || p.followers != null ? "重新解析" : "解析主页") + "</button></div>" +
+    "</div>";
+  if (p.signature) box.querySelector(".cw-psign").textContent = p.signature;
+  if (p.error && !c.avatar) box.querySelector(".cw-perr").textContent = "上次没解析成：" + p.error;
+  box.querySelector(".cw-pava img")?.addEventListener("error", (e) => e.target.remove());
+  box.querySelector(".cw-preparse").addEventListener("click", () => {
+    document.querySelector('#cwList .cw-tile[data-id="' + cid + '"]')?.classList.add("parsing");
+    _cwParseStart([cid], true);
+  });
+}
+
