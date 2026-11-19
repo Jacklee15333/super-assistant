@@ -12374,3 +12374,52 @@ document.addEventListener("keydown", (e) => {
 window.addEventListener("mouseup", (e) => {          // 鼠标侧键「后退」
   if (e.button === 3 && vnReaderIsOpen()) { e.preventDefault(); vnReaderClose(); }
 });
+
+
+// ════════════════════ v92：列表刷新后停在原来的位置 ════════════════════
+// 删除、改作者、移到文件夹、新笔记到了……都会整个重画笔记列表。以前重画时列表先被清空、页面变短，
+// 一下子弹回顶部，要再往下翻。现在：刷新前记下眼前看得到的那几条，刷新后把第一条还在的放回原来的高度
+// （删掉的那条没了，就由它下面那条接上）；重画期间先撑住列表高度，页面不会塌下去。
+// 进出某个博主 / 文件夹、切换「列表 / 图标」时不管（那是换了一页）。
+var _vnLoadNotesKeepPos = loadVideoNotes;
+loadVideoNotes = async function () {
+  const list = document.getElementById("videoNotesList");
+  const pane = document.querySelector("#view-video .video-pane");
+  if (!list || !pane || pane.style.display === "none" || !list.offsetParent || typeof vnScrollParent !== "function") {
+    return _vnLoadNotesKeepPos.apply(this, arguments);
+  }
+  const sc = vnScrollParent(list);
+  const top0 = sc.scrollTop;
+  const pathOf = () => { try { return JSON.stringify(_vnIconPath || null) + "|" + vnViewMode(); } catch (_) { return ""; } };
+  const path0 = pathOf();
+  const box = sc === document.scrollingElement || sc === document.documentElement
+    ? { top: 0, bottom: window.innerHeight } : sc.getBoundingClientRect();
+  const keyOf = (el) => {
+    const sec = el.closest("#vnRecent, #vnUnList, #vnFailBar, #vnIcons, #vnBatchBar");
+    return el.dataset.name + "|" + (sec ? sec.id : "") + "|" + (el.className || "").split(" ")[0];
+  };
+  const anchors = [];
+  for (const el of list.querySelectorAll("[data-name]")) {
+    const r = el.getBoundingClientRect();
+    if (!r.height || r.bottom <= box.top || r.top >= box.bottom) continue;
+    anchors.push({ key: keyOf(el), y: r.top });
+    if (anchors.length >= 30) break;
+  }
+  list.style.minHeight = list.offsetHeight + "px";          // 重画期间撑住高度，页面不塌
+  try {
+    return await _vnLoadNotesKeepPos.apply(this, arguments);
+  } finally {
+    list.style.minHeight = "";
+    if (pathOf() === path0 && pane.style.display !== "none") {
+      sc.scrollTop = top0;
+      if (anchors.length) {
+        const now = {};
+        list.querySelectorAll("[data-name]").forEach((el) => { const k = keyOf(el); if (!(k in now) && el.offsetParent) now[k] = el; });
+        for (const a of anchors) {
+          const el = now[a.key];
+          if (el) { sc.scrollTop += el.getBoundingClientRect().top - a.y; break; }
+        }
+      }
+    }
+  }
+};
