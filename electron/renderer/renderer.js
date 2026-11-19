@@ -9609,7 +9609,7 @@ function vnBuildLive() {
       '<div class="vn-live-article" id="vnLiveArticle"></div>' +
       '<div class="vn-live-stage" id="vnLiveStage"></div>' +
       '<div class="vn-live-grid">' +
-        '<div class="vn-live-shotbox" title="点击放大">' +
+        '<div class="vn-live-shotbox">' +
           '<img id="vnLiveShot" alt="" hidden />' +
           '<div class="vn-live-shotnote" id="vnLiveShotNote">等待画面…</div>' +
         "</div>" +
@@ -9637,11 +9637,6 @@ function vnBuildLive() {
   };
   box.querySelectorAll(".vn-live-tab").forEach((b) => b.addEventListener("click", () => setTab(b.dataset.tab)));
   setTab(_vnLiveTab);
-
-  box.querySelector(".vn-live-shotbox").addEventListener("click", () => {
-    const img = box.querySelector("#vnLiveShot");
-    if (img && !img.hidden && img.src) vnLiveZoom(img.src);
-  });
 
   box.querySelector("#vnLiveBrowserBtn").addEventListener("click", async (e) => {
     const btn = e.currentTarget;
@@ -9773,7 +9768,7 @@ async function vnLivePoll() {
       note.textContent = "截图暂时失败，文字进度照常更新";
     } else if (p.shot_ts) {
       const ago = Math.max(0, Math.round(d.now - p.shot_ts));
-      note.textContent = ago <= 3 ? "实时画面 · 点击放大" : "画面更新于 " + ago + " 秒前 · 点击放大";
+      note.textContent = ago <= 3 ? "实时画面" : "画面更新于 " + ago + " 秒前";
     } else {
       note.textContent = "等待画面…";
     }
@@ -11335,15 +11330,11 @@ function aiLiveBuild() {
     '<div class="vn-live-body">' +
       '<div class="vn-live-stage ai-live-stage"></div>' +
       '<div class="vn-live-grid">' +
-        '<div class="vn-live-shotbox" title="点击放大"><img class="ai-live-shot" alt="" hidden />' +
+        '<div class="vn-live-shotbox"><img class="ai-live-shot" alt="" hidden />' +
           '<div class="vn-live-shotnote ai-live-note">等待画面…</div></div>' +
         '<div class="vn-live-side"><pre class="vn-live-reply ai-live-reply"></pre></div>' +
       "</div>" +
     "</div>";
-  box.querySelector(".vn-live-shotbox").addEventListener("click", () => {
-    const img = box.querySelector(".ai-live-shot");
-    if (img && !img.hidden && img.src && typeof vnLiveZoom === "function") vnLiveZoom(img.src);
-  });
   return box;
 }
 
@@ -11360,7 +11351,7 @@ function aiLiveUpdate(box, d) {
   else if (p.shot_err) note.textContent = "截图暂时失败，文字进度照常更新";
   else if (p.shot_ts) {
     const ago = Math.max(0, Math.round((d.now || 0) - p.shot_ts));
-    note.textContent = ago <= 3 ? "实时画面 · 点击放大" : "画面更新于 " + ago + " 秒前 · 点击放大";
+    note.textContent = ago <= 3 ? "实时画面" : "画面更新于 " + ago + " 秒前";
   } else note.textContent = "等待画面…";
   const rep = box.querySelector(".ai-live-reply");
   const nearBottom = rep.scrollHeight - rep.scrollTop - rep.clientHeight < 40;
