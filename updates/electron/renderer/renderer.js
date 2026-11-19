@@ -11798,7 +11798,26 @@ function _phInjectButton() {
   head.appendChild(b);
   return true;
 }
+// v86：把电脑上当前选的质量（精准 / 均衡 / 快速）和 AI 模型告诉后端，手机 / 飞书发来的链接照同样的设置提取
+function _phSyncDefaults() {
+  try {
+    const lv = document.getElementById("videoLevel");
+    const body = {};
+    if (lv && lv.value) body.level = lv.value;
+    try {
+      const s = typeof settings === "function" ? settings() : null;
+      if (s) { body.use_local = s.use_local; body.model = s.model; }
+    } catch (e) {}
+    if (!Object.keys(body).length) return;
+    fetch(BACKEND + "/phone_inbox/defaults", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    }).catch(() => {});
+  } catch (e) {}
+}
 (function _phBoot() {
+  setTimeout(_phSyncDefaults, 5000);
+  const lv = document.getElementById("videoLevel");
+  if (lv) lv.addEventListener("change", () => setTimeout(_phSyncDefaults, 300));
   let tries = 0;
   const t = setInterval(() => { if (_phInjectButton() || ++tries > 40) clearInterval(t); }, 500);
   setTimeout(async () => {

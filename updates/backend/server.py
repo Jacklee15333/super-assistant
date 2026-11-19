@@ -3826,9 +3826,12 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send({"ok": False, "error": str(e)})
 
-        if path in ("/phone_inbox/enable", "/phone_inbox/new_code"):   # v83：手机发链接
+        if path in ("/phone_inbox/enable", "/phone_inbox/new_code", "/phone_inbox/defaults"):   # v83：手机发链接
             try:
                 import phone_inbox
+                if path == "/phone_inbox/defaults":       # v86：电脑上当前的质量 / 模型选项，手机和飞书发来的照这个办
+                    phone_inbox.remember_defaults(body)
+                    return self._send({"ok": True})
                 if path == "/phone_inbox/new_code":
                     return self._send(phone_inbox.new_code())
                 return self._send(phone_inbox.set_enabled(bool(body.get("on"))))
