@@ -80,7 +80,7 @@ def _clog(tag, msg):
 # 这些接口是前端**定时高频轮询**或页面加载时被动拉取的（查状态/进度/列表/配置），
 # 一旦打印就会把控制台刷爆、淹没真正有用的操作日志，所以一律静音、不记。
 _LOG_QUIET_PATHS = {
-    "/ping", "/video_progress", "/video_health", "/video_deps", "/video_notes", "/creator_profiles_batch", "/creator/avatars_status", "/creator/discover",
+    "/ping", "/phone_inbox/status", "/feishu_inbox/status", "/feishu_inbox/alive", "/feishu_inbox/incoming", "/video_progress", "/video_health", "/video_deps", "/video_notes", "/creator_profiles_batch", "/creator/avatars_status", "/creator/discover",
     "/video_note_analyze_progress", "/sniff/feed", "/sniff/discover", "/video_note_analyze_batch",
     "/chat_progress", "/heartbeat/status", "/lumi/status", "/lumi/evolve_status",
     "/web_model/state", "/web_model/config", "/loop/status", "/insight/status",
@@ -2374,6 +2374,14 @@ def _video_worker():
                 except Exception:
                     pass
                 _save_video_queue()
+                _requeued = any(j is job for j in _video_q)
+            # v84：从飞书发来的任务，做完在飞书里回一句
+            if job.get("notify"):
+                try:
+                    import feishu_inbox
+                    feishu_inbox.job_done(job, _video_state.get("result") or {}, requeued=_requeued)
+                except Exception as _e:
+                    _clog("飞书", "回提取结果失败：%s" % _e)
         # 继续处理下一个
 
 
@@ -3776,6 +3784,20 @@ class Handler(BaseHTTPRequestHandler):
                 pass
             return self._send_text("", 200)
 
+        if path == "/feishu_inbox/status":         # v84：飞书机器人收链接
+            try:
+                import feishu_inbox
+                return self._send(feishu_inbox.status())
+            except Exception as e:
+                return self._send({"ok": False, "error": str(e)})
+
+        if path == "/phone_inbox/status":          # v83：手机发链接面板
+            try:
+                import phone_inbox
+                return self._send(phone_inbox.status())
+            except Exception as e:
+                return self._send({"ok": False, "error": str(e)})
+
         self._send({"error": "not found"}, 404)
 
     def do_POST(self):
@@ -3790,6 +3812,28 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_feishu_post()
 
         body = _json_body(self)
+
+        if path in ("/feishu_inbox/incoming", "/feishu_inbox/alive", "/feishu_inbox/config"):   # v84：飞书
+            try:
+                import feishu_inbox
+                if path == "/feishu_inbox/incoming":
+                    return self._send(feishu_inbox.incoming(body))
+                if path == "/feishu_inbox/alive":
+                    return self._send(feishu_inbox.alive(body))
+                return self._send(feishu_inbox.configure(
+                    body.get("app_id"), body.get("app_secret"),
+                    None if body.get("enabled") is None else bool(body.get("enabled"))))
+            except Exception as e:
+                return self._send({"ok": False, "error": str(e)})
+
+        if path in ("/phone_inbox/enable", "/phone_inbox/new_code"):   # v83：手机发链接
+            try:
+                import phone_inbox
+                if path == "/phone_inbox/new_code":
+                    return self._send(phone_inbox.new_code())
+                return self._send(phone_inbox.set_enabled(bool(body.get("on"))))
+            except Exception as e:
+                return self._send({"ok": False, "error": str(e)})
 
         if path == "/chat":
             return self._handle_chat(body)
@@ -5605,6 +5649,13 @@ class Handler(BaseHTTPRequestHandler):
         note_folder = (body.get("note_folder") or "").strip()[:30]
         # v59：提取卡片里的「博主主页」（选填）。填了就按它建博主板块；不填就根据视频自动找
         creator_url = (body.get("creator_url") or "").strip()[:500]
+        # v83：电脑上提交链接时记下这次的选项，手机发来的链接照同样的选项处理
+        if url and not body.get("_from_phone"):
+            try:
+                import phone_inbox
+                phone_inbox.remember_defaults(body)
+            except Exception:
+                pass
 
         try:
             import video_transcribe
@@ -5659,7 +5710,7 @@ class Handler(BaseHTTPRequestHandler):
                                   "screenshot": False, "link": False,
                                   "mode": mode, "analyze": do_analyze,
                                   "author": author, "note_folder": note_folder,
-                                  "creator_url": ""})
+                                  "creator_url": "", "notify": body.get("notify")})
             return self._send({"queued": True, "position": pos, "article": True})
 
         # ★境外视频（YouTube 等）预检：先看代理通不通、上不上得了外网。
@@ -5694,7 +5745,7 @@ class Handler(BaseHTTPRequestHandler):
                               "screenshot": do_screenshot, "link": do_link,
                               "mode": mode, "analyze": do_analyze,
                               "author": author, "note_folder": note_folder,
-                              "creator_url": creator_url})
+                              "creator_url": creator_url, "notify": body.get("notify")})
         return self._send({"queued": True, "position": pos})
 
     def _handle_video_move_models(self, _body):
@@ -6365,6 +6416,18 @@ def main():
         print("[agents] 分身自动化调度已启动")
     except Exception as e:
         print("[agents] 自动化调度启动失败：%s" % e)
+    # v83：手机发链接（局域网小网页，默认关；上次开着就接着开）
+    try:
+        import phone_inbox
+        phone_inbox.boot(Handler, _clog)
+    except Exception as e:
+        print("[手机] 启动失败：%s" % e)
+    # v84：飞书机器人收链接（在外面也能发；没设置就什么都不做）
+    try:
+        import feishu_inbox
+        feishu_inbox.boot(_clog, "http://127.0.0.1:%d" % PORT)
+    except Exception as e:
+        print("[飞书] 启动失败：%s" % e)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -11521,3 +11521,283 @@ document.addEventListener("error", (e) => {           // 头像图片打不开 �
   if (t && t.tagName === "IMG" && t.parentElement && t.parentElement.classList.contains("cw-mini-av")) t.remove();
 }, true);
 
+
+// ════════════════════ v83：手机发链接 ════════════════════
+// 手机和电脑连同一个 Wi-Fi，手机浏览器扫码打开一个小网页，把文章 / 视频链接粘进去，
+// 电脑就自动加进「开始提取」的队列（和在电脑上粘贴一样）。后端见 backend/phone_inbox.py。
+var _phSeq = -1, _phTimer = null, _phModalTimer = null;
+
+function _phLoadQr() {
+  return new Promise((resolve) => {
+    if (typeof qrcode === "function") return resolve(true);
+    const sc = document.createElement("script");
+    sc.src = "qrcode-gen.js";
+    sc.onload = () => resolve(typeof qrcode === "function");
+    sc.onerror = () => resolve(false);
+    document.head.appendChild(sc);
+  });
+}
+
+function _phQrSvg(text) {
+  try {
+    const qr = qrcode(0, "M");
+    qr.addData(text);
+    qr.make();
+    return qr.createSvgTag({ cellSize: 5, margin: 2, scalable: true });
+  } catch (e) { return ""; }
+}
+
+async function _phFetch(path, body) {
+  const opt = body === undefined ? {} : {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}),
+  };
+  const r = await fetch(BACKEND + path, opt);
+  return r.json();
+}
+
+function _phToast(text) {
+  let el = document.getElementById("phToast");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "phToast";
+    el.className = "ph-toast";
+    el.addEventListener("click", () => { el.classList.remove("show"); openPhoneInbox(); });
+    document.body.appendChild(el);
+  }
+  el.textContent = text;
+  el.classList.add("show");
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove("show"), 6000);
+}
+
+// 开着「手机发链接」时，每 6 秒看一眼有没有手机发来的新链接，有就在右下角提示一下
+async function _phPoll() {
+  clearTimeout(_phTimer);
+  let next = 6000;
+  try {
+    const st = await _phFetch("/phone_inbox/status");
+    if (!st.running && !_phFeishuOn) next = 30000;
+    if (_phSeq >= 0 && st.seq > _phSeq && st.recent && st.recent.length) {
+      const x = st.recent[0];
+      _phToast((x.src === "飞书" ? "💬 飞书发来：" : "📱 手机发来：") + (x.title || x.url).slice(0, 40) + (x.ok ? "（已加进队列）" : "（没加进去，点开看原因）"));
+      if (x.ok && typeof loadVideoNotes === "function") setTimeout(() => { try { loadVideoNotes(); } catch (e) {} }, 1500);
+    }
+    _phSeq = st.seq;
+    const m = document.getElementById("phModal");
+    if (m) _phRender(st);
+  } catch (e) { next = 15000; }
+  _phTimer = setTimeout(_phPoll, next);
+}
+
+function _phRender(st) {
+  const box = document.getElementById("phModalBody");
+  if (!box) return;
+  const sig = JSON.stringify([st.running, st.error, st.code, st.urls, st.seq]);
+  if (box._sig === sig) return;
+  box._sig = sig;
+  const tog = document.getElementById("phToggle");
+  if (tog) tog.checked = !!st.enabled;
+  let html = "";
+  if (!st.enabled) {
+    html += '<p>打开后，手机和电脑连<b>同一个 Wi-Fi</b>，用手机扫码打开一个小网页，把看到的好文章（公众号、知乎、头条、小红书…）' +
+      '或视频的链接粘进去点「发给电脑」，电脑就自动提取保存，和在这里粘贴一样。</p>' +
+      '<p class="ph-dim">只有同一个局域网里、知道 6 位连接码的手机才能发；软件别的功能不会对手机开放。</p>';
+  } else if (!st.running) {
+    html += '<p class="ph-bad">没打开成功：' + escapeHtml(st.error || "原因不明") + '</p>';
+  } else if (!st.urls || !st.urls.length) {
+    html += '<p class="ph-bad">已打开，但没找到这台电脑的局域网地址——电脑连上 Wi-Fi 或网线后再打开这个面板。</p>';
+  } else {
+    html += '<div class="ph-qr-wrap"><div class="ph-qr" id="phQr"></div><div class="ph-qr-side">' +
+      '<div class="ph-step">① 手机连上和电脑<b>同一个 Wi-Fi</b></div>' +
+      '<div class="ph-step">② 用手机相机或微信「扫一扫」扫左边的码</div>' +
+      '<div class="ph-step">③ 把链接粘进去，点「发给电脑」</div>' +
+      '<div class="ph-addr">或者在手机浏览器里输入：<br><b>' + escapeHtml(st.urls[0].replace(/\?k=.*$/, "")) + '</b><br>' +
+      '连接码：<b class="ph-code">' + escapeHtml(st.code) + '</b> <button class="ph-link" id="phNewCode">换一个</button></div>' +
+      '</div></div>';
+    if (st.urls.length > 1) {
+      html += '<p class="ph-dim">扫不开的话试试这台电脑的其它地址：' +
+        st.urls.slice(1).map((u) => escapeHtml(u.replace(/\?k=.*$/, ""))).join("、") + '</p>';
+    }
+    html += '<p class="ph-tip">💡 手机上打不开？多半是 Windows 防火墙拦住了：第一次打开时如果弹出「Windows 安全中心警报」，' +
+      '要勾上「专用网络」点「允许访问」。用微信扫码后，建议点右上角「…」→「在浏览器打开」，再「添加到主屏幕」，以后点图标就能发。</p>';
+  }
+  const rec = st.recent || [];
+  html += '<div class="ph-rec-title">最近手机发来的（在家 + 飞书）</div>';
+  html += rec.length ? rec.slice(0, 8).map((x) =>
+    '<div class="ph-rec"><span class="ph-dim">' + escapeHtml(x.t) + (x.src === "飞书" ? " · 飞书" : "") + '</span> ' +
+    '<span class="' + (x.ok ? "ph-ok" : "ph-bad") + '">' + (x.ok ? "✓" : "✗") + '</span> ' +
+    escapeHtml(x.title || x.url) + (x.ok ? "" : '<div class="ph-bad ph-small">' + escapeHtml(x.msg) + '</div>') + '</div>'
+  ).join("") : '<div class="ph-dim ph-small">还没有</div>';
+  box.innerHTML = html;
+  const nc = document.getElementById("phNewCode");
+  if (nc) nc.onclick = async () => {
+    if (!confirm("换一个新的连接码？换了以后，手机上要重新扫码。")) return;
+    _phRender(await _phFetch("/phone_inbox/new_code", {}));
+  };
+  const qrBox = document.getElementById("phQr");
+  if (qrBox && st.urls && st.urls[0]) {
+    _phLoadQr().then((ok) => {
+      const svg = ok ? _phQrSvg(st.urls[0]) : "";
+      qrBox.innerHTML = svg || '<div class="ph-dim ph-small">二维码没生成出来，请在手机浏览器里输入右边的地址</div>';
+    });
+  }
+}
+
+// ── v84：面板分两页：「在家（同一个 Wi-Fi）」和「在外面（飞书机器人）」──
+var _phTab = "home", _phFeishuOn = false;
+try { _phTab = localStorage.getItem("phTab") || ""; } catch (e) {}
+
+function _phSetTab(t) {
+  _phTab = t;
+  try { localStorage.setItem("phTab", t); } catch (e) {}
+  document.querySelectorAll(".ph-tab").forEach((b) => b.classList.toggle("on", b.dataset.tab === t));
+  const h = document.getElementById("phModalBody"), f = document.getElementById("phFeishuBody");
+  if (h) h.hidden = t !== "home";
+  if (f) f.hidden = t !== "away";
+  const sw = document.getElementById("phHomeSwitch");
+  if (sw) sw.hidden = t !== "home";
+}
+
+const _FS_GUIDE = [
+  ["注册 / 登录飞书", "手机或电脑装好飞书（免费），用手机号注册。电脑浏览器打开 <b>open.feishu.cn</b>，右上角登录。"],
+  ["建一个机器人应用", "点「开发者后台」→「创建企业自建应用」，名字填「超能小助」（随便起），图标随便选 →「创建」。"],
+  ["加上机器人能力", "进到应用里，左边「添加应用能力」→ 找到「机器人」点「添加」。"],
+  ["开 3 个权限", "左边「权限管理」，在搜索框里依次搜下面 3 个，都点「开通权限」：<br>" +
+    "<code>im:message.p2p_msg:readonly</code>（读取用户发给机器人的单聊消息）<br>" +
+    "<code>im:message:send_as_bot</code>（以应用的身份发消息）<br>" +
+    "<code>im:message:readonly</code>（获取单聊、群组消息——电脑没开时发的，开机后靠它补收）"],
+  ["把钥匙填到这里", "左边「凭证与基础信息」，复制 <b>App ID</b> 和 <b>App Secret</b>，粘到下面两个框里，点「保存并连接」，等上面显示「✓ 已连上飞书」。<br><b>一定要先做这一步再做下一步</b>（飞书要看到连接才让保存）。"],
+  ["订阅「接收消息」", "左边「事件与回调」→「事件配置」→ 订阅方式点编辑，选「<b>使用长连接接收事件</b>」→ 保存。然后点「添加事件」，搜「接收消息」（im.message.receive_v1），勾上 → 确认添加。"],
+  ["发布", "左边「版本管理与发布」→「创建版本」，版本号填 1.0.0，可用范围选你自己（或所有员工）→ 保存 →「申请线上发布」。你自己是管理员的话会直接通过（如果要审核，到飞书「管理后台」里点通过）。"],
+  ["手机上试一下", "手机飞书顶部搜索「超能小助」（你起的名字），点进机器人的聊天，发一个文章链接。机器人回「收到！」就成了，提取完它还会再告诉你。"],
+];
+
+function _fsStateText(st) {
+  if (!st.enabled) return ['<span class="ph-dot"></span>没打开', ""];
+  switch (st.state) {
+    case "connected": return ['<span class="ph-dot ok"></span>已连上飞书', "ok"];
+    case "installing": return ['<span class="ph-dot run"></span>第一次用，正在安装飞书组件（约 1 分钟）…', ""];
+    case "connecting": return ['<span class="ph-dot run"></span>正在连接飞书…', ""];
+    case "error": return ['<span class="ph-dot bad"></span>' + escapeHtml(st.error || "出错了"), "bad"];
+    default: return ['<span class="ph-dot run"></span>准备中…', ""];
+  }
+}
+
+function _fsRender(st) {
+  const box = document.getElementById("phFeishuBody");
+  if (!box) return;
+  _phFeishuOn = !!st.enabled;
+  const sig = JSON.stringify([st.enabled, st.state, st.error, st.configured, st.bound, st.catchup, st.app_id, st.secret_set]);
+  if (box._sig === sig) return;
+  const typing = box.contains(document.activeElement) && /INPUT/.test(document.activeElement.tagName);
+  if (box._sig && typing) return;                    // 正在填框，别把输入冲掉
+  box._sig = sig;
+  const [stTxt, stCls] = _fsStateText(st);
+  let html = '<p>在外面不和电脑同一个 Wi-Fi 时，在<b>手机飞书</b>里把链接发给你自己的机器人，电脑上的超能小助就会收到、自动提取，' +
+    '机器人回你「收到了」，提取完再告诉你。电脑关着时发的，下次开机自动补上（7 天内）。</p>';
+  html += '<div class="fs-status ' + stCls + '">' + stTxt + '</div>';
+  if (st.enabled && st.state === "connected") {
+    html += st.bound
+      ? '<p class="ph-dim ph-small">✓ 已经和机器人聊过了，手机上直接发链接就行。</p>'
+      : '<p class="fs-next">连上了！如果第 6、7 步还没做，现在做；做完在手机飞书里给机器人发一个链接试试。</p>';
+  }
+  if (st.catchup) html += '<p class="ph-dim ph-small">' + escapeHtml(st.catchup) + '</p>';
+  html += '<div class="fs-form">' +
+    '<label>App ID<input id="fsAppId" class="text-input" placeholder="cli_ 开头的一串" value="' + escapeHtml(st.app_id || "") + '"></label>' +
+    '<label>App Secret<input id="fsSecret" class="text-input" type="password" placeholder="' +
+      (st.secret_set ? "已保存（不改就留空）" : "一长串字母数字") + '"></label>' +
+    '<div class="fs-btns"><button class="send-btn" id="fsSave">保存并连接</button>' +
+    (st.enabled ? '<button class="send-btn fs-off" id="fsOff">断开</button>' : '') +
+    '<span id="fsMsg" class="ph-small"></span></div></div>';
+  html += '<details class="fs-guide"' + (st.configured && st.bound ? "" : " open") + '><summary>第一次用：怎么建飞书机器人（一步步来，约 10 分钟）</summary><ol>' +
+    _FS_GUIDE.map((g) => '<li><b>' + g[0] + '</b><div>' + g[1] + '</div></li>').join("") + '</ol>' +
+    '<p class="ph-dim ph-small">发链接的小技巧：链接后面加「分析」两个字 = 顺便让 AI 分析；加「不分析」= 只提取原文；不加就按电脑上上次的设置。一次可以发好几个链接。</p></details>';
+  box.innerHTML = html;
+  document.getElementById("fsSave").onclick = async () => {
+    const id = document.getElementById("fsAppId").value.trim();
+    const sec = document.getElementById("fsSecret").value.trim();
+    const msg = document.getElementById("fsMsg");
+    if (!id || (!sec && !st.secret_set)) { msg.textContent = "App ID 和 App Secret 都要填"; msg.className = "ph-small ph-bad"; return; }
+    msg.textContent = "正在验证…"; msg.className = "ph-small ph-dim";
+    try {
+      const r = await _phFetch("/feishu_inbox/config", { app_id: id, app_secret: sec, enabled: true });
+      if (r.ok === false) { msg.textContent = r.error || "没成功"; msg.className = "ph-small ph-bad"; return; }
+      box._sig = ""; _fsRender(r); _phPoll();
+    } catch (e) { msg.textContent = "后端没连上"; msg.className = "ph-small ph-bad"; }
+  };
+  const off = document.getElementById("fsOff");
+  if (off) off.onclick = async () => { box._sig = ""; _fsRender(await _phFetch("/feishu_inbox/config", { enabled: false })); };
+}
+
+async function openPhoneInbox() {
+  if (document.getElementById("phModal")) return;
+  const mask = document.createElement("div");
+  mask.className = "cx-modal-mask";
+  mask.id = "phModal";
+  mask.innerHTML =
+    '<div class="cx-modal ph-modal">' +
+    '  <div class="cx-modal-head ph-head">📱 手机发链接给电脑' +
+    '    <label class="ph-switch" id="phHomeSwitch"><input type="checkbox" id="phToggle"> 打开</label></div>' +
+    '  <div class="ph-tabs"><button class="ph-tab" data-tab="home">🏠 在家（同一个 Wi-Fi）</button>' +
+    '<button class="ph-tab" data-tab="away">🚶 在外面（飞书机器人）</button></div>' +
+    '  <div class="cx-modal-body" id="phModalBody"><p class="ph-dim">正在读取…</p></div>' +
+    '  <div class="cx-modal-body" id="phFeishuBody" hidden><p class="ph-dim">正在读取…</p></div>' +
+    '  <div class="cx-modal-foot"><button class="send-btn" id="phClose">关闭</button></div>' +
+    '</div>';
+  document.body.appendChild(mask);
+  const close = () => { mask.remove(); clearInterval(_phModalTimer); };
+  mask.addEventListener("click", (e) => { if (e.target === mask) close(); });
+  document.getElementById("phClose").onclick = close;
+  mask.querySelectorAll(".ph-tab").forEach((b) => { b.onclick = () => _phSetTab(b.dataset.tab); });
+  document.getElementById("phToggle").onchange = async (e) => {
+    const on = e.target.checked;
+    e.target.disabled = true;
+    try {
+      const st = await _phFetch("/phone_inbox/enable", { on });
+      _phSeq = st.seq;
+      _phRender(st);
+      _phPoll();
+    } catch (err) {
+      document.getElementById("phModalBody").innerHTML = '<p class="ph-bad">后端没连上：' + escapeHtml(String(err)) + '</p>';
+    }
+    e.target.disabled = false;
+  };
+  let fs = null;
+  try { fs = await _phFetch("/feishu_inbox/status"); _fsRender(fs); } catch (e) {
+    document.getElementById("phFeishuBody").innerHTML = '<p class="ph-bad">后端没连上，等软件显示「已就绪」后再打开。</p>';
+  }
+  if (_phTab !== "home" && _phTab !== "away") _phTab = fs && fs.configured ? "away" : "home";
+  _phSetTab(_phTab);
+  try { _phRender(await _phFetch("/phone_inbox/status")); }
+  catch (e) { document.getElementById("phModalBody").innerHTML = '<p class="ph-bad">后端没连上，等软件显示「已就绪」后再打开。</p>'; }
+  clearInterval(_phModalTimer);
+  _phModalTimer = setInterval(async () => {
+    if (!document.getElementById("phModal")) return clearInterval(_phModalTimer);
+    try { _phRender(await _phFetch("/phone_inbox/status")); } catch (e) {}
+    try { _fsRender(await _phFetch("/feishu_inbox/status")); } catch (e) {}
+  }, 3000);
+}
+
+// 「开始提取」卡片标题栏右边加一个「📱 手机发链接」按钮（不改 index.html）
+function _phInjectButton() {
+  if (document.getElementById("phOpenBtn")) return true;
+  const head = document.querySelector("#view-video .v-card-extract > .v-card-head");
+  if (!head) return false;
+  const b = document.createElement("button");
+  b.type = "button";
+  b.id = "phOpenBtn";
+  b.className = "ph-open-btn";
+  b.title = "手机上看到好文章 / 视频，把链接发给电脑自动提取（手机和电脑连同一个 Wi-Fi）";
+  b.textContent = "📱 手机发链接";
+  b.addEventListener("click", (e) => { e.stopPropagation(); openPhoneInbox(); });
+  head.appendChild(b);
+  return true;
+}
+(function _phBoot() {
+  let tries = 0;
+  const t = setInterval(() => { if (_phInjectButton() || ++tries > 40) clearInterval(t); }, 500);
+  setTimeout(async () => {
+    try { _phFeishuOn = !!(await _phFetch("/feishu_inbox/status")).enabled; } catch (e) {}
+    _phPoll();
+  }, 4000);
+})();

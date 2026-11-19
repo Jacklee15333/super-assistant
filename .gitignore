@@ -48,3 +48,5 @@ Thumbs.db
 # 说明：
 # - package-lock.json 建议保留（不在忽略列表里），它记录依赖版本，换电脑也能装出一样的环境。
 # - 教材（backend/教材/）默认会被备份；如果里面是不想公开的资料，自己在下面加一行 backend/教材/
+backend/memory/feishu_inbox.json
+backend/memory/phone_inbox.json
