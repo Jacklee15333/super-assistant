@@ -2504,3 +2504,8 @@ body.dark .vn-kind.k-word, body.dark .vn-kind.k-web { color: #8fb0ff; }
 body.dark .vn-kind.k-pdf, body.dark .vn-kind.k-ppt { color: #ff8a73; }
 body.dark .vn-kind.k-excel, body.dark .vn-kind.k-wx { color: #5fd08f; }
 .vdone-videos:disabled { opacity: .7; cursor: default; }
+
+/* v66：完成那一行的「AI 分析」按钮 */
+.vdone-go.vdone-an { color: var(--accent); border-color: var(--accent); font-weight: 600; }
+.vdone-go.vdone-an[data-an-state="running"] { color: #c0392b; border-color: rgba(192, 57, 43, .55); }
+.vn-analyze[data-an-state="running"] { color: #c0392b !important; border-color: rgba(192, 57, 43, .55) !important; }

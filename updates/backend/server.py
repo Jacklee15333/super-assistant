@@ -102,6 +102,7 @@ _LOG_PATH_LABEL = {
     "/video_move_models": "迁移语音模型",
     "/video_note_delete": "删除视频笔记",
     "/video_note_analyze": "补做笔记 AI 分析",
+    "/video_note_analyze_stop": "停止补做 AI 分析",
     "/video_note_set_author": "修改笔记作者",
     "/video_folder": "视频笔记文件夹操作",
     "/creator_merge": "合并 / 拆开博主",
@@ -1877,13 +1878,13 @@ def _video_worker():
             #   AI 分析和保存，直接把结果标记为"已取消"。
             if _video_cancel.get("all") or (isinstance(res, dict) and res.get("cancelled")):
                 res = {"ok": False, "cancelled": True, "error": "已取消"}
-            if res.get("ok") and not job.get("analyze", True):
+            if res.get("ok") and not job.get("analyze", False):     # v66：没说要分析的任务，一律只提取原文
                 # ★「仅提取文字稿」模式（新增）：完全不调用 AI——分析、补标签、
                 #   翻标题三处 AI 全部跳过（避免和别的软件抢占同一个 AI），只保存
                 #   文字稿；带时间戳的分段另存 video_notes/segments/<笔记名>.json
                 #   侧车文件，等以后在笔记列表点「AI 分析」补做时，仍能照常生成
                 #   「跳转原片」时间标记（插图补不了：视频画面下面就清掉了）。
-                cb("保存", "按设置跳过 AI 分析，直接保存文字稿…")
+                cb("保存", "只提取原文，不做 AI 分析（需要时点「🤖 AI 分析」）…")
                 transcript = res["transcript"]
                 segments = res.get("segments") or []
                 title = res.get("title") or "（无标题）"
@@ -1929,9 +1930,8 @@ def _video_worker():
                         _shutil.rmtree(str(_vp), ignore_errors=True)
                 except Exception:
                     pass
-                placeholder = ("（这条按你的设置**只提取了文字稿，尚未进行 AI 分析**。\n"
-                               "想补做分析：到「已存的视频笔记」列表里，点这条右侧的"
-                               "「🤖 AI 分析」按钮即可。）")
+                placeholder = ("（这条只提取了原文，还没做 AI 分析。需要的时候点「🤖 AI 分析」就行："
+                               "提取完成那一行、笔记列表里这一条的右边、或者打开笔记后的按钮都可以。）")
                 tag_line = ("- 标签：" + "、".join(tags) + "\n") if tags else ""
                 doc = (f"# {title}\n\n"
                        f"- 来源链接：{clean_url}\n"
@@ -3618,6 +3618,23 @@ class Handler(BaseHTTPRequestHandler):
             return self._send({"ok": False, "message": res})
         if path == "/video_note_analyze":
             return self._handle_video_note_analyze(body)
+        if path == "/video_note_analyze_stop":
+            # v66：停止正在做的这一条 AI 分析（AI 池卡住时用）；原文不受影响
+            if _note_batch.get("running"):
+                return self._send({"ok": False, "message": "现在是批量分析在跑，请点「批量 AI 分析」那一行的「停止」"})
+            with _note_an_lock:
+                running = bool(_note_an_state.get("running"))
+                if running:
+                    _note_an_state["stage"] = "正在停止…"
+            if not running:
+                return self._send({"ok": True, "message": "现在没有在分析"})
+            try:
+                import web_model
+                web_model.cancel_current("你点了停止")
+            except Exception:
+                pass
+            _clog("视频", "⏹ 你点了停止：放下正在做的 AI 分析（原文不受影响）")
+            return self._send({"ok": True, "message": "正在停止…"})
         if path == "/video_note_set_author":
             return self._handle_video_note_set_author(body)
         if path == "/video_folder":
@@ -5231,7 +5248,7 @@ class Handler(BaseHTTPRequestHandler):
             mode = "auto"
         # 新增：提取后是否自动 AI 分析（默认 True = 和以前一样）。
         # False = 仅提取并保存文字稿，完全不调 AI；之后可在笔记列表补做分析。
-        do_analyze = bool(body.get("analyze", True))
+        do_analyze = bool(body.get("analyze", False))     # v66：默认只提取原文，需要时再点「AI 分析」
         if not do_analyze:
             do_screenshot = False   # 不分析就没有截图标记，插图无从谈起（防御性关掉）
         # 新增：自定义作者名（本地文件没有作者信息，导入时可由用户统一填一个）
@@ -5576,6 +5593,12 @@ class Handler(BaseHTTPRequestHandler):
                                    "error": "已有一条笔记正在补分析，请等它完成后再点。"})
             _note_an_state.update({"running": True, "name": name,
                                    "stage": "准备", "error": "", "ok": False})
+        if not _note_batch.get("running"):
+            try:
+                import web_model
+                web_model._CANCEL_EVT.clear()        # v66：以前点过的「停止」不算到这一条头上
+            except Exception:
+                pass
         _threading.Thread(target=_note_analyze_worker,
                           args=(name, use_local, model), daemon=True).start()
         return self._send({"ok": True, "started": True})
