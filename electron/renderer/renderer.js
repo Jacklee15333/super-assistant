@@ -3869,6 +3869,7 @@ function vnRenderBatchBar(list, notes) {
   const prog = document.createElement("div"); prog.className = "vn-batch-prog"; prog.id = "vnBatchProg"; prog.hidden = true;
   body.appendChild(idle); body.appendChild(prog);
   body.appendChild(vnBuildLive());   // v55：可展开的「AI 实时画面」
+  body.appendChild(vnBuildUnList(todo));   // v68：还没分析的笔记清单
   bar.appendChild(head); bar.appendChild(body);
   const apply = (open) => { body.hidden = !open; caret.textContent = open ? "▾" : "▸"; bar.classList.toggle("open", open); };
   apply(vnBatchIsOpen());
@@ -3881,6 +3882,101 @@ function vnRenderBatchBar(list, notes) {
   list.appendChild(bar);
   vnPollBatch();          // 页面刷新时如果有批量在跑，接着显示进度
   vnLivePoll();
+}
+
+// ════════════════ v68：「批量 AI 分析」里的「还没分析的笔记」清单 ════════════════
+// 显示还有多少条没分析、是哪几条（按批量分析的顺序），点一条就打开它；
+// 批量在跑时，正在分析的那条、上次没成功的会标出来。分析完的会自己从清单里消失。
+const VN_UN_PAGE = 20;
+let _vnUnShown = VN_UN_PAGE;
+
+function vnUnIsOpen() {
+  try { return localStorage.getItem("vnUnOpen") !== "0"; } catch (_) { return true; }
+}
+
+function vnBuildUnList(todo) {
+  const box = document.createElement("div");
+  box.className = "vn-un"; box.id = "vnUnList";
+  const head = document.createElement("div");
+  head.className = "vn-un-head";
+  head.title = "点击展开 / 收起";
+  const caret = document.createElement("span"); caret.className = "vn-caret";
+  const ttl = document.createElement("span"); ttl.className = "vn-un-title";
+  ttl.textContent = todo.length ? "还没分析的笔记（" + todo.length + " 条）" : "所有笔记都分析过了";
+  const tip = document.createElement("span"); tip.className = "vn-un-tip";
+  tip.textContent = todo.length ? "按批量分析的顺序排列，点一条就能打开看原文" : "";
+  head.appendChild(caret); head.appendChild(ttl); head.appendChild(tip);
+  box.appendChild(head);
+  const rows = document.createElement("div"); rows.className = "vn-un-rows";
+  box.appendChild(rows);
+  if (!todo.length) { caret.textContent = ""; return box; }
+  const render = () => {
+    rows.innerHTML = "";
+    todo.slice(0, _vnUnShown).forEach((n, i) => rows.appendChild(vnUnRow(n, i + 1)));
+    const left = todo.length - Math.min(_vnUnShown, todo.length);
+    if (left > 0) {
+      const more = document.createElement("button");
+      more.type = "button"; more.className = "vn-more";
+      more.textContent = "再显示 " + Math.min(VN_UN_PAGE, left) + " 条（还剩 " + left + " 条）";
+      more.addEventListener("click", (e) => { e.stopPropagation(); _vnUnShown += VN_UN_PAGE; render(); vnUnMark(_vnUnLast || {}); });
+      rows.appendChild(more);
+    }
+  };
+  const apply = (open) => { rows.hidden = !open; caret.textContent = open ? "▾" : "▸"; };
+  render();
+  apply(vnUnIsOpen());
+  head.addEventListener("click", () => {
+    const open = rows.hidden;
+    apply(open);
+    try { localStorage.setItem("vnUnOpen", open ? "1" : "0"); } catch (_) {}
+  });
+  return box;
+}
+
+function vnUnRow(n, idx) {
+  const r = document.createElement("div");
+  r.className = "vn-un-row"; r.dataset.name = n.name || "";
+  r.title = "点击打开这条笔记，看原文";
+  const no = document.createElement("span"); no.className = "vn-un-no"; no.textContent = idx + ".";
+  r.appendChild(no);
+  const when = vnNoteTime(n);
+  const tm = document.createElement("span"); tm.className = "vn-un-time";
+  tm.textContent = when ? vnFmtWhen(when) : "";
+  r.appendChild(tm);
+  if (n.kind) r.appendChild(vnKindBadge(n.kind));
+  const nm = document.createElement("span"); nm.className = "vn-un-name";
+  nm.textContent = n.title || (n.name || "").replace(/\.md$/, "");
+  r.appendChild(nm);
+  if (n.author) {
+    const au = document.createElement("span"); au.className = "vn-un-author"; au.textContent = "👤 " + n.author;
+    r.appendChild(au);
+  }
+  const st = document.createElement("span"); st.className = "vn-un-state";
+  r.appendChild(st);
+  const an = vnAnButton(n.name, "🤖 AI 分析", "vn-analyze vn-un-an", false);
+  an.title = "只分析这一条（批量在跑的时候不能单独点）";
+  r.appendChild(an);
+  r.addEventListener("click", () => openVideoNote(n.name));
+  return r;
+}
+
+let _vnUnLast = null;
+function vnUnMark(d) {
+  _vnUnLast = d;
+  const box = document.getElementById("vnUnList");
+  if (!box) return;
+  const errs = {};
+  (d.errors || []).forEach((x) => { if (x && x.name) errs[x.name] = x.error || x.msg || x.reason || "没成功"; });
+  box.querySelectorAll(".vn-un-row").forEach((r) => {
+    const st = r.querySelector(".vn-un-state");
+    const name = r.dataset.name;
+    let cls = "", txt = "", tip = "";
+    if (d.running && name === d.current) { cls = "cur"; txt = "⏳ 正在分析"; }
+    else if (errs[name]) { cls = "err"; txt = "⚠ 上次没成功"; tip = errs[name]; }
+    r.classList.toggle("cur", cls === "cur");
+    r.classList.toggle("err", cls === "err");
+    if (st) { st.textContent = txt; st.title = tip; }
+  });
 }
 
 // 标题行：折叠时也看得到——进度条、第几篇、哪一篇、在做哪一步、这篇用了多久；还有「停止」「现在就继续」
@@ -3983,8 +4079,9 @@ async function vnPollBatch() {
   const prog = document.getElementById("vnBatchProg");
   if (!prog) return;
   // 正在批量分析时，隐藏「批量 AI 分析」和各组的「分析本组」按钮，避免重复提交
-  document.querySelectorAll(".vn-batch-btn, .vn-group-batch").forEach((b) => { b.hidden = !!d.running; });
+  document.querySelectorAll(".vn-batch-btn, .vn-group-batch, .vn-un-an").forEach((b) => { b.hidden = !!d.running; });
   vnBatchHead(d);                 // v59：标题行（折叠时也能看到进度和当前在做什么）
+  vnUnMark(d);                    // v68：清单里标出「正在分析」「上次没成功」
   const idle = document.getElementById("vnBatchIdle");
   if (idle) idle.hidden = !!(d.running || d.finished);
   if (!d.running && !d.finished) { prog.hidden = true; return; }

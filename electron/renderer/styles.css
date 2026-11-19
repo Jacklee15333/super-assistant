@@ -2509,3 +2509,25 @@ body.dark .vn-kind.k-excel, body.dark .vn-kind.k-wx { color: #5fd08f; }
 .vdone-go.vdone-an { color: var(--accent); border-color: var(--accent); font-weight: 600; }
 .vdone-go.vdone-an[data-an-state="running"] { color: #c0392b; border-color: rgba(192, 57, 43, .55); }
 .vn-analyze[data-an-state="running"] { color: #c0392b !important; border-color: rgba(192, 57, 43, .55) !important; }
+
+/* ════════════════ v68：批量分析里的「还没分析的笔记」清单 ════════════════ */
+.vn-un { flex: 1 1 100%; border-top: 1px dashed var(--line); margin-top: 6px; padding-top: 6px; min-width: 0; }
+.vn-un-head { display: flex; align-items: baseline; gap: 6px; cursor: pointer; user-select: none; font-size: 13px; }
+.vn-un-title { font-weight: 600; white-space: nowrap; }
+.vn-un-tip { color: var(--text-dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vn-un-rows { margin-top: 6px; display: flex; flex-direction: column; gap: 4px; }
+.vn-un-rows[hidden] { display: none; }
+.vn-un-row { display: flex; align-items: center; gap: 8px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 8px;
+  font-size: 13px; cursor: pointer; min-width: 0; background: var(--bg-elev, transparent); }
+.vn-un-row:hover { background: var(--bg-hover); }
+.vn-un-row.cur { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.vn-un-row.err { border-color: rgba(192, 57, 43, .45); }
+.vn-un-no { flex: 0 0 auto; color: var(--text-dim); font-size: 12px; min-width: 22px; text-align: right; }
+.vn-un-time { flex: 0 0 auto; color: var(--text-dim); font-size: 12px; min-width: 64px; }
+.vn-un-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vn-un-author { flex: 0 0 auto; color: var(--text-dim); font-size: 12px; max-width: 160px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.vn-un-state { flex: 0 0 auto; font-size: 12px; white-space: nowrap; }
+.vn-un-row.cur .vn-un-state { color: var(--accent); font-weight: 600; }
+.vn-un-row.err .vn-un-state { color: #c0392b; }
+.vn-un-an { flex: 0 0 auto; }

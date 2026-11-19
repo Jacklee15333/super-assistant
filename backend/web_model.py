@@ -2502,8 +2502,23 @@ class _WebWorker:
             return False
 
     # ════════════════════ ★命门：答完判定 ════════════════════
+    def _looks_echo(self, current, prompt_text):
+        head = (prompt_text or "").replace(" ", "").replace("\n", "")[:80]
+        return bool(head) and head in (current or "").replace(" ", "").replace("\n", "")[:200]
+
+    def _structural_reply(self, prompt_text):
+        """v68：按页面结构读本轮回复（1.2 秒内重复调用直接用上次的结果，省得太频繁）。"""
+        now = time.time()
+        if now - self._struct_at < 1.2:
+            return self._struct_last
+        self._struct_at = now
+        r = self._safe(lambda: self._page.evaluate(_STRUCT_REPLY_JS, prompt_text or ""), None) or {}
+        self._struct_last = (r.get("text") or "").strip() if r.get("found") else ""
+        return self._struct_last
+
     def _wait_for_reply(self, timeout_ms, baseline, prompt_text, opts, prog):
         start = time.time()
+        self._struct_at, self._struct_last, self._struct_noted = 0, "", False
         expects_json = bool(opts.get("expectsJson"))
         min_expected = opts.get("minExpectedLength") or (300 if expects_json else 0)
         required_markers = [m for m in (opts.get("requiredMarkers") or [])
@@ -2647,9 +2662,18 @@ class _WebWorker:
                 td_since = 0
                 td_last_text = ""
 
-            if not probe or not probe.get("chosen"):
+            current = ((probe or {}).get("chosen") or {}).get("text") or ""
+            # v68：网站改版后，回复区不再带 markdown / assistant 这些标记，探针只能看到自己的提问气泡，
+            #      以前就一直当成「AI 还没回」干等。这时改用「提问气泡后面、输入框前面的内容」当回复。
+            if prompt_text and len(prompt_text) > 100 and (not current or self._looks_echo(current, prompt_text)):
+                alt = self._structural_reply(prompt_text)
+                if alt:
+                    if not self._struct_noted:
+                        self._struct_noted = True
+                        self._log("页面结构和以前不一样：改用「提问后面的内容」读 AI 回复")
+                    current = alt
+            if not current:
                 continue
-            current = probe["chosen"].get("text") or ""
 
             # 防 prompt 回显
             if prompt_text and current and len(prompt_text) > 100:
@@ -3055,6 +3079,72 @@ class _WebWorker:
 
 # 本次提问之后的回复区域（找不到提问气泡就用最后一条助手消息）
 _REPLY_SCOPE_JS = r"""
+    // v68：按页面结构找「本轮回复」——不靠 class 名字（网站改版后回复区不再带 markdown / assistant 这些标记）。
+    // ① 用提问里的 6 段「指纹」找到提问气泡（长提问在页面上会被折叠，所以不只看开头）；
+    // ② 回复 = 提问气泡后面、输入框前面的内容。
+    const __cxStruct = (prompt) => {
+        const N = s => (s || '').replace(/[\s\u00a0]+/g, '');
+        const P = N(prompt);
+        if (P.length < 30 || !document.body) return null;
+        const keys = [];
+        for (const f of [0, 0.2, 0.4, 0.6, 0.8]) {
+            const i = Math.min(Math.floor(P.length * f), Math.max(0, P.length - 24));
+            keys.push(P.slice(i, i + 24));
+        }
+        keys.push(P.slice(-24));
+        const hits = t => keys.reduce((n, k) => n + (k.length >= 12 && t.includes(k) ? 1 : 0), 0);
+        const comp = document.querySelector('textarea, [contenteditable="true"], [role="textbox"]');
+        const SKIP = {SCRIPT: 1, STYLE: 1, NOSCRIPT: 1, TEXTAREA: 1, SVG: 1, TEMPLATE: 1};
+        const UI = /^(显示更多|显示全部|收起|展开|Show more|Show less|编辑|复制|Edit|Copy|你说[：:]?|You said:?)$/i;
+        const small = el => { const t = N(el.textContent); return !t || t.length <= 8 || UI.test((el.innerText || '').trim()); };
+        const matched = new Set(), order = [];
+        for (const el of document.body.getElementsByTagName('*')) {
+            if (SKIP[(el.tagName || '').toUpperCase()]) continue;
+            if (comp && (el === comp || comp.contains(el) || el.contains(comp))) continue;
+            const raw = el.textContent || '';
+            if (raw.length < 24 || raw.length > P.length * 3 + 20000) continue;
+            if (!hits(N(raw))) continue;
+            matched.add(el); order.push(el);
+        }
+        // 从最里层含提问的元素往上爬：多出来的只是「显示更多」「编辑」这种小标签，就还算提问气泡
+        let user = null, best = 0;
+        for (const leaf of order) {
+            let isLeaf = true;
+            for (const c of leaf.children) if (matched.has(c)) { isLeaf = false; break; }
+            if (!isLeaf) continue;
+            let bb = leaf;
+            while (bb.parentElement && bb.parentElement !== document.body) {
+                const par = bb.parentElement;
+                if (comp && par.contains(comp)) break;
+                let fine = true;
+                for (const c of par.children) if (c !== bb && !small(c)) { fine = false; break; }
+                if (!fine) break;
+                bb = par;
+            }
+            const h = hits(N(bb.textContent));
+            if (h > best) { user = bb; best = h; }                               // 一样多时取前面的
+        }
+        if (!user) return null;
+        const parts = [], nodes = [];
+        let node = user;
+        while (node && node !== document.body && !parts.length) {
+            for (let sib = node.nextElementSibling; sib; sib = sib.nextElementSibling) {
+                if (comp && (sib === comp || sib.contains(comp))) { node = null; break; }
+                if (SKIP[(sib.tagName || '').toUpperCase()]) continue;
+                const t = (sib.innerText || '').trim();
+                if (!t || UI.test(t)) continue;
+                if (sib.getBoundingClientRect().width < 120) continue;
+                if (hits(N(t)) >= 2) continue;                                  // 还是提问本身（藏着的第二份）
+                parts.push(t); nodes.push(sib);
+            }
+            if (node) node = node.parentElement;
+        }
+        const text = parts.join('\n\n').split('\n')
+            .filter(l => !/^\s*(思考了|已思考|思考用时|Thought for|ChatGPT\s*(说|said)|你说|You said)/i.test(l))
+            .join('\n').trim();
+        return text ? {text, nodes} : null;
+    };
+
     const __norm = s => (s || '').replace(/[\s\u00a0]+/g, '');
     const __scope = (head) => {
         const key = __norm(head).slice(0, 30);
@@ -3065,10 +3155,17 @@ _REPLY_SCOPE_JS = r"""
         let outs = [...document.querySelectorAll('[data-message-author-role="assistant"]')];
         if (anchor) outs = outs.filter(a => anchor.compareDocumentPosition(a) & Node.DOCUMENT_POSITION_FOLLOWING);
         else outs = outs.slice(-1);
+        if (!outs.length) { const sr = __cxStruct(head); if (sr) return sr.nodes; }   // v68：页面改版，按结构找
         // 助手消息外面常包一层「整轮」容器，图片可能挂在那里
         return outs.map(a => a.closest('article, [data-testid^="conversation-turn"]') || a);
     };
 """
+
+# v68：按页面结构读本轮回复的文字（给「等回复」用）
+_STRUCT_REPLY_JS = r"""(prompt) => {""" + _REPLY_SCOPE_JS + r"""
+    const r = __cxStruct(prompt);
+    return r ? {found: true, text: r.text} : {found: false};
+}"""
 
 # AI 是否正在生成图片（生成中的提示文字 / 还没加载完或还在模糊渐显的大图）
 _IMG_GEN_JS = r"""(head) => {""" + _REPLY_SCOPE_JS + r"""
@@ -3216,6 +3313,69 @@ _BLOCKER_JS = r"""() => {
 }"""
 
 _GRAB_MARKDOWN_JS = r"""(anchorText) => {
+    const __cxStruct = (prompt) => {
+        const N = s => (s || '').replace(/[\s\u00a0]+/g, '');
+        const P = N(prompt);
+        if (P.length < 30 || !document.body) return null;
+        const keys = [];
+        for (const f of [0, 0.2, 0.4, 0.6, 0.8]) {
+            const i = Math.min(Math.floor(P.length * f), Math.max(0, P.length - 24));
+            keys.push(P.slice(i, i + 24));
+        }
+        keys.push(P.slice(-24));
+        const hits = t => keys.reduce((n, k) => n + (k.length >= 12 && t.includes(k) ? 1 : 0), 0);
+        const comp = document.querySelector('textarea, [contenteditable="true"], [role="textbox"]');
+        const SKIP = {SCRIPT: 1, STYLE: 1, NOSCRIPT: 1, TEXTAREA: 1, SVG: 1, TEMPLATE: 1};
+        const UI = /^(显示更多|显示全部|收起|展开|Show more|Show less|编辑|复制|Edit|Copy|你说[：:]?|You said:?)$/i;
+        const small = el => { const t = N(el.textContent); return !t || t.length <= 8 || UI.test((el.innerText || '').trim()); };
+        const matched = new Set(), order = [];
+        for (const el of document.body.getElementsByTagName('*')) {
+            if (SKIP[(el.tagName || '').toUpperCase()]) continue;
+            if (comp && (el === comp || comp.contains(el) || el.contains(comp))) continue;
+            const raw = el.textContent || '';
+            if (raw.length < 24 || raw.length > P.length * 3 + 20000) continue;
+            if (!hits(N(raw))) continue;
+            matched.add(el); order.push(el);
+        }
+        // 从最里层含提问的元素往上爬：多出来的只是「显示更多」「编辑」这种小标签，就还算提问气泡
+        let user = null, best = 0;
+        for (const leaf of order) {
+            let isLeaf = true;
+            for (const c of leaf.children) if (matched.has(c)) { isLeaf = false; break; }
+            if (!isLeaf) continue;
+            let bb = leaf;
+            while (bb.parentElement && bb.parentElement !== document.body) {
+                const par = bb.parentElement;
+                if (comp && par.contains(comp)) break;
+                let fine = true;
+                for (const c of par.children) if (c !== bb && !small(c)) { fine = false; break; }
+                if (!fine) break;
+                bb = par;
+            }
+            const h = hits(N(bb.textContent));
+            if (h > best) { user = bb; best = h; }                               // 一样多时取前面的
+        }
+        if (!user) return null;
+        const parts = [], nodes = [];
+        let node = user;
+        while (node && node !== document.body && !parts.length) {
+            for (let sib = node.nextElementSibling; sib; sib = sib.nextElementSibling) {
+                if (comp && (sib === comp || sib.contains(comp))) { node = null; break; }
+                if (SKIP[(sib.tagName || '').toUpperCase()]) continue;
+                const t = (sib.innerText || '').trim();
+                if (!t || UI.test(t)) continue;
+                if (sib.getBoundingClientRect().width < 120) continue;
+                if (hits(N(t)) >= 2) continue;                                  // 还是提问本身（藏着的第二份）
+                parts.push(t); nodes.push(sib);
+            }
+            if (node) node = node.parentElement;
+        }
+        const text = parts.join('\n\n').split('\n')
+            .filter(l => !/^\s*(思考了|已思考|思考用时|Thought for|ChatGPT\s*(说|said)|你说|You said)/i.test(l))
+            .join('\n').trim();
+        return text ? {text, nodes} : null;
+    };
+
     // 只看「本次提问气泡」之后的内容：找到最后一个包含提问开头的用户气泡，作为锚点
     let __cxAnchor = null;
     try {
@@ -3230,6 +3390,9 @@ _GRAB_MARKDOWN_JS = r"""(anchorText) => {
     } catch (e) { __cxAnchor = null; }
     // 同一条回复常被网站拆成多个兄弟块（如正文段落 +（另起的）序号列表）。
     // 从最底部命中块向上爬到「整条回复」的容器，把被拆开的块合起来，但不跨越到上一条消息。
+    // v68：页面改版（没有 data-message-author-role）→ 按结构找本轮回复
+    let __cxNodes = null;
+    if (!__cxAnchor) { try { const sr = __cxStruct(anchorText); if (sr && sr.nodes.length) __cxNodes = sr.nodes; } catch (e) {} }
     const __cxClimb = (el) => {
         if(!el) return el;
         let container = el, cur = el;
@@ -3349,9 +3512,16 @@ _GRAB_MARKDOWN_JS = r"""(anchorText) => {
             if(r.width>200 && t.length>20 && r.bottom>bestBottom){ best=el; bestBottom=r.bottom; }
         }
     }
-    if(!best) return '';
-    const root = __cxClimb(best);
-    let md = walk(root);
+    if(!best && !__cxNodes) return '';
+    let root, md;
+    if (__cxNodes) {
+        root = __cxNodes[0].parentElement || document.body;
+        md = __cxNodes.map(n => walk(n)).join('\n\n').split('\n')
+            .filter(l => !/^\s*(思考了|已思考|思考用时|Thought for|ChatGPT\s*(说|said)|你说|You said)/i.test(l)).join('\n');
+    } else {
+        root = __cxClimb(best);
+        md = walk(root);
+    }
 
     // ★画布 / 侧栏：把「不在回复气泡里」的表格也补抓进来。
     //   ChatGPT 把表格放进「写入 / Canvas」面板时，它是独立的一块 DOM，不在助手气泡里，
