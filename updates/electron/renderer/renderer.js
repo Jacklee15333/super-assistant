@@ -12423,3 +12423,92 @@ loadVideoNotes = async function () {
     }
   }
 };
+
+
+// ════════════════════ v93：删除时的「撤除」动画（全软件通用）════════════════════
+// 点了删除（🗑 / ✕ / 删除 / 忽略…），等删除请求真正发出去时，那一行先往右滑、闪一下淡红、
+// 慢慢变透明，高度收起来、下面的顶上来（头像这种格子是缩小淡出），然后列表才刷新——
+// 一眼就知道「这条删掉了」。删除没成功（后端说不行 / 出错）就弹回原样。
+// 做法：记住刚点的是哪个删除按钮 → 包一层 fetch，看到删除类的请求就先播动画，播完再把结果交回去。
+// 这样不用一个个改各处的删除代码，以后新加的删除按钮也自动有这个效果。
+var _cxDelPending = null;
+const _CX_DEL_WORD = /删除|移除|删掉|忽略|🗑|✕|×/;
+const _CX_DEL_SKIP = /清空|全部|取消|撤销/;
+const _CX_ROW_SEL = ".video-note-item, .vn-un-row, .vn-fail-row, .cw-video, .cw-tile, .cw-creator, .vn-ctile, .vn-tile, " +
+  ".dg-item, .sniff-item, .sniff-src, .sn-src, [data-name], [data-id], li, tr";
+
+function _cxDelRows(btn) {
+  const label = (btn.getAttribute("title") || "") + " " + (btn.textContent || "");
+  if (/选中/.test(label)) {               // 「删除选中 / 忽略选中」：勾了哪些就动哪些
+    const card = btn.closest(".v-card, .sn-card, .cw-rightcard, section") || document;
+    return Array.from(card.querySelectorAll("input[type=checkbox]:checked"))
+      .filter((cb) => !cb.closest(".sniff-switch, label.sniff-switch, .sn-toolbar"))
+      .map((cb) => cb.closest(_CX_ROW_SEL)).filter((r, i, a) => r && a.indexOf(r) === i && !r.contains(btn));
+  }
+  const row = btn.closest(_CX_ROW_SEL);
+  return row && row !== document.body ? [row] : [];
+}
+
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest && e.target.closest("button, [role=button], .vn-del, .cw-del");
+  if (!btn) return;
+  const label = (btn.getAttribute("title") || "") + " " + (btn.textContent || "").trim();
+  if (!_CX_DEL_WORD.test(label) || _CX_DEL_SKIP.test(label)) return;
+  const rows = _cxDelRows(btn);
+  _cxDelPending = rows.length ? { rows, t: Date.now() } : null;
+}, true);
+
+function cxAnimateOut(el) {
+  if (!el || !el.isConnected || !el.animate) return { done: Promise.resolve(), undo() {} };
+  const cs = getComputedStyle(el);
+  const pd = el.parentElement ? getComputedStyle(el.parentElement) : null;
+  const tile = pd && (/grid/.test(pd.display) || pd.flexWrap === "wrap");
+  const h = el.offsetHeight;
+  el.style.pointerEvents = "none";
+  const prevOverflow = el.style.overflow;
+  if (!tile) el.style.overflow = "hidden";
+  const frames = tile
+    ? [{ opacity: 1, transform: "scale(1)" },
+       { opacity: .55, transform: "scale(1.06)", filter: "saturate(.4)", offset: .3 },
+       { opacity: 0, transform: "scale(.3)" }]
+    : [{ opacity: 1, transform: "translateX(0)", height: h + "px", marginTop: cs.marginTop, marginBottom: cs.marginBottom,
+         paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, backgroundColor: cs.backgroundColor },
+       { opacity: .6, transform: "translateX(26px)", height: h + "px", backgroundColor: "rgba(220,38,38,.14)", offset: .4 },
+       { opacity: 0, transform: "translateX(90px)", height: "0px", marginTop: "0px", marginBottom: "0px",
+         paddingTop: "0px", paddingBottom: "0px", borderTopWidth: "0px", borderBottomWidth: "0px", backgroundColor: "rgba(220,38,38,.08)" }];
+  const a = el.animate(frames, { duration: tile ? 420 : 650, easing: "cubic-bezier(.45,0,.55,1)", fill: "forwards" });
+  return {
+    done: a.finished.catch(() => {}),
+    undo() { try { a.cancel(); } catch (_) {} el.style.pointerEvents = ""; el.style.overflow = prevOverflow; },
+  };
+}
+
+(function _cxWrapFetch() {
+  if (window._cxFetchWrapped) return;
+  window._cxFetchWrapped = true;
+  const orig = window.fetch.bind(window);
+  window.fetch = async function (url, opts) {
+    const p = _cxDelPending;
+    const method = ((opts && opts.method) || "GET").toUpperCase();
+    const body = (opts && typeof opts.body === "string") ? opts.body : "";
+    const isDel = p && Date.now() - p.t < 20000 && (method === "POST" || method === "DELETE") &&
+      (/delete|dismiss|remove|_del\b|\/del\b/i.test(String(url)) || /"(action|op)"\s*:\s*"(delete|remove|dismiss)"/.test(body));
+    if (!isDel) return orig(url, opts);
+    _cxDelPending = null;
+    const anims = p.rows.filter((r) => r.isConnected).map(cxAnimateOut);
+    let resp;
+    try {
+      resp = await orig(url, opts);
+    } catch (e) {
+      anims.forEach((a) => a.undo());
+      throw e;
+    }
+    try {
+      const j = await resp.clone().json();
+      if (j && j.ok === false) { anims.forEach((a) => a.undo()); return resp; }
+    } catch (_) {}
+    if (!resp.ok) { anims.forEach((a) => a.undo()); return resp; }
+    await Promise.all(anims.map((a) => a.done));     // 动画播完，再让列表刷新
+    return resp;
+  };
+})();
