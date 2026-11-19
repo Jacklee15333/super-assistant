@@ -1,0 +1,2585 @@
+"""
+video_transcribe.py — 把视频里"人说的话"提取成文字（语音识别）
+
+用途：你看到一个不错的视频（抖音/B站/YouTube 等），没时间细看，
+想把里面讲的内容提取成文字、让 AI 帮你总结、存起来以后再看。
+
+原理（都在你本机完成，不上传到任何第三方）：
+  1. 用 yt-dlp 把这个视频的音频下载到临时文件；
+  2. 用 faster-whisper 在本机做语音识别（speech-to-text），转成文字；
+  3. 文字交给 AI 总结、归纳，再存档。
+
+依赖（都是纯 pip 安装，不用单独装 ffmpeg）：
+  - yt-dlp        负责下载
+  - faster-whisper 负责语音转文字（它依赖的 av 库自带解码器）
+
+说明：这是给"你自己看过、想做笔记"的单个视频用的个人工具，
+一次一个、你手动发起。请只用于个人学习记录，不要批量抓取或二次传播他人内容。
+"""
+
+import os
+import re
+import glob
+import shutil
+import tempfile
+import threading
+from pathlib import Path
+
+# 关键：Hugging Face 在国内常连不上，语音模型下载会失败。
+# 1) 用国内镜像 hf-mirror.com；
+# 2) 关掉 Xet 大文件后端（它走 cas-bridge.xethub.hf.co，国内连不上、会超时），
+#    关掉后大文件也走镜像，能正常下。
+os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
+os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
+
+# 模型缓存，避免每次都重新加载
+_model_cache = {}
+
+# ★全局闸门：视频提取（下载+语音识别+总结）很吃 CPU/显存，
+#   保证同一时间只有一个提取任务在跑——对话里发链接、和「视频」板块队列，
+#   都共用这同一个闸门，避免互相抢资源、卡死。
+# Semaphore(1) 等价于一把可重复 acquire/release 的锁，但 release 多了不会抛硬错。
+extract_gate = threading.BoundedSemaphore(1)
+
+# ════════════════════ 取消支持（「全部取消」按钮）════════════════════
+# server.py 在用户点「全部取消」时把 CANCEL["on"] 置 True：
+#   · 听写逐句循环里每句都会检查它 → 几秒内中断（已转进度早已随手落盘，可续传）；
+#   · yt-dlp 下载的进度钩子里也会检查它 → 下载中途也能停；
+#   · extract()/extract_local() 开跑时会先把它复位，所以取消只影响"当下这一个"任务，
+#     之后新提交的任务不受旧取消标记影响。
+CANCEL = {"on": False}
+
+
+class ExtractCancelled(RuntimeError):
+    """用户主动取消当前提取任务。"""
+    pass
+
+
+def _check_cancel():
+    if CANCEL.get("on"):
+        raise ExtractCancelled("已取消")
+
+
+# ════════════════════ 转写进度续传（断点续传）支持 ════════════════════
+# 目标：转写到一半时换代码/关软件，下次打开**从上次的秒数接着转**，不再从 0% 开始。
+# 做法：按 URL 建一个持久目录，里面放下载好的音频 + progress.json（已转文字 + 已到秒数）。
+#   · 音频持久化 → 重启不必重新下载。
+#   · progress.json 边转边存 → 重启时把已转的文字读回来，从 last_end 秒处切片继续转。
+#   · 成功完成或彻底失败后，这个目录会被清掉，不留垃圾。
+_SR = 16000  # faster-whisper 固定 16k 采样
+
+
+def _fallback_title(title, transcript):
+    """标题兜底：当平台没给标题（抖音解析被拦时常见）时，从文稿首句截一个短标题，
+    避免前端显示「(无标题)」。已有非空标题则原样返回。
+    取法：拿文稿开头的一段，到第一个句末标点为止，最多 24 个字，干净利落。"""
+    t = (title or "").strip()
+    if t:
+        return t
+    body = (transcript or "").strip()
+    if not body:
+        return ""
+    # 把换行和多余空白压平，方便截首句
+    flat = re.sub(r"\s+", "", body)
+    if not flat:
+        return ""
+    # 在前 40 个字里找第一个句末标点，作为首句切点
+    head = flat[:40]
+    m = re.search(r"[。！？!?；;，,、]", head)
+    if m and m.start() >= 4:           # 太短（如开头一个语气词）就不在这切
+        cut = head[:m.start()]
+    else:
+        cut = flat[:24]
+    cut = cut.strip("，,、。！？!?；; ")
+    if not cut:
+        return ""
+    return cut[:24] + ("…" if len(flat) > len(cut) else "")
+
+
+def _resume_root():
+    root = _models_dir() / "_video_resume"
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+    return root
+
+
+def _job_dir(url):
+    import hashlib
+    h = hashlib.sha1((url or "").encode("utf-8")).hexdigest()[:16]
+    d = _resume_root() / h
+    try:
+        d.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+    return d
+
+
+def _find_media(job_dir):
+    """返回已下载完整的音频文件路径；只有 .part/.ytdl 半成品则返回 None。"""
+    try:
+        files = [f for f in glob.glob(os.path.join(str(job_dir), "media.*"))
+                 if not f.endswith((".part", ".ytdl", ".tmp"))]
+        return files[0] if files else None
+    except Exception:
+        return None
+
+
+def _load_progress(job_dir):
+    import json as _json
+    p = Path(job_dir) / "progress.json"
+    if not p.exists():
+        return {}
+    try:
+        return _json.loads(p.read_text(encoding="utf-8", errors="replace")) or {}
+    except Exception:
+        return {}
+
+
+def _save_progress(job_dir, data):
+    import json as _json
+    try:
+        p = Path(job_dir) / "progress.json"
+        tmp = p.with_suffix(".json.tmp")
+        tmp.write_text(_json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        os.replace(str(tmp), str(p))
+    except Exception:
+        pass
+
+
+def extract_busy():
+    """当前是否有视频提取任务正在进行（闸门被占用）。
+    用非阻塞方式探一下：能拿到就立刻还回去，说明空闲；拿不到说明在忙。"""
+    got = extract_gate.acquire(blocking=False)
+    if got:
+        try:
+            extract_gate.release()
+        except (ValueError, RuntimeError):
+            pass
+        return False
+    return True
+
+
+def _models_dir():
+    """放手动下载好的模型的文件夹。默认是项目同级的 “models and tools”。
+    也可用环境变量 CX_MODELS_DIR 指定别的位置。"""
+    env = os.environ.get("CX_MODELS_DIR")
+    if env:
+        return Path(env)
+    # backend 在  .../超能小助/backend，往上两级再进 “models and tools”
+    return Path(__file__).resolve().parent.parent.parent / "models and tools"
+
+
+def _resolve_model(size):
+    """本地若已下载好对应模型文件夹，就用本地的（不再联网）；否则返回模型名让它自动下载。"""
+    base = _models_dir()
+    for c in (base / f"faster-whisper-{size}", base / size,
+              base / f"Systran--faster-whisper-{size}"):
+        try:
+            if (c / "model.bin").exists():
+                return str(c)
+        except Exception:
+            pass
+    return size
+
+
+def _compose_from_segments(seg_list, lang=None):
+    """v88/v89：用带时间的分句拼原文——不用 AI，一定成功。
+    · 句子之间按停顿补标点：停顿比这个人平时的停顿明显长 → 句号；短 → 逗号；
+      一句已经很长了也会断成句号（语速快、几乎不停顿的人也不会一逗到底）；结尾是「吗」→ 问号；
+    · 分段：一段到 120 字左右、又遇到较长的停顿就另起一段；最长不超过约 220 字。
+    · 只加标点和换行，字一个不动。之后 AI「整理原文」会再按意思细调。
+    · 以前存的时间轴只有开始时间：按每秒约 4.5 个字估出结束时间。"""
+    segs = [dict(x) for x in (seg_list or []) if (x.get("text") or "").strip()]
+    if not segs:
+        return ""
+    for i, sg in enumerate(segs):
+        sg["text"] = sg["text"].strip()
+        try:
+            st0 = float(sg.get("start") or 0)
+        except Exception:
+            st0 = 0.0
+        sg["start"] = st0
+        if sg.get("end") is None:
+            est = st0 + len(sg["text"]) / 4.5
+            if i + 1 < len(segs):
+                try:
+                    est = min(est, float(segs[i + 1].get("start") or est))
+                except Exception:
+                    pass
+            sg["end"] = est
+        try:
+            sg["end"] = float(sg["end"])
+        except Exception:
+            sg["end"] = st0
+    L = lang or _LANG["v"]                      # v95：日语用「、。」，英语等用「, .」和空格
+    cjk = L in ("zh", "ja", "yue", "auto")
+    comma = "、" if L == "ja" else ("，" if cjk else ",")
+    stop = "。" if cjk else "."
+    sep = "" if cjk else " "
+    k = 1 if cjk else 2.6                       # 拼音文字一句话字母多，长度门槛放宽
+    gaps = [max(0.0, segs[i + 1]["start"] - segs[i]["end"]) for i in range(len(segs) - 1)]
+    srt = sorted(gaps) or [0.0]
+    pick = lambda q: srt[min(len(srt) - 1, int(len(srt) * q))]
+    g_sent = max(0.3, pick(0.6))        # 比这个人六成的停顿都长 → 句号
+    g_para = max(0.8, pick(0.85))       # 比八成五的停顿都长 → 可以分段
+    ends = "。！？!?…；;，,、：:."
+    paras, cur, sent = [], "", 0
+    for i, sg in enumerate(segs):
+        t = sg["text"]
+        last = i == len(segs) - 1
+        gap = 9.9 if last else gaps[i]
+        sent += len(t)
+        if t[-1] not in ends and L == "zh" and t.endswith(("吗", "吗啊")):
+            t += "？"
+        elif t[-1] not in ends:
+            if last or gap >= g_sent or sent >= 60 * k or (sent >= 36 * k and gap >= pick(0.4)):
+                t += "？" if (L == "zh" and t.endswith(("吗", "吗啊", "么"))) else stop
+            else:
+                t += comma
+        if t[-1] in "。！？!?….":
+            sent = 0
+        cur += (sep if cur else "") + t
+        if last or (t[-1] in "。！？!?…." and ((len(cur) >= 120 * k and gap >= g_para) or len(cur) >= 220 * k)):
+            paras.append(cur)
+            cur = ""
+    if cur:
+        paras.append(cur)
+    return "\n\n".join(paras)
+
+
+def _paragraphize(text):
+    """把一长串识别文字切成自然段落。优先按句末标点；没有就按逗号；
+    再没有就按长度硬切——保证再难看的无标点文本也能分段。"""
+    if not text:
+        return ""
+    t = re.sub(r"[ \t]+", " ", text).strip()
+    if "\n\n" in t:
+        return t  # 已经分好段了
+    if re.search(r"[。！？!?…；;]", t):
+        units = re.findall(r"[^。！？!?…；;]*[。！？!?…；;]+", t)
+        tail = re.sub(r"[^。！？!?…；;]*[。！？!?…；;]+", "", t).strip()
+        if tail:
+            units.append(tail)
+    elif re.search(r"[，,、]", t):
+        units = re.findall(r"[^，,、]*[，,、]+", t)
+        tail = re.sub(r"[^，,、]*[，,、]+", "", t).strip()
+        if tail:
+            units.append(tail)
+    else:
+        units = [t[i:i + 40] for i in range(0, len(t), 40)]
+    if not units:
+        units = [t]
+    paras, cur = [], ""
+    for u in units:
+        cur += u
+        if len(cur) >= 110:
+            paras.append(cur.strip())
+            cur = ""
+    if cur.strip():
+        paras.append(cur.strip())
+    return "\n\n".join(paras)
+
+
+def models_info():
+    """返回模型下载位置 + 已下载的模型清单，给设置页显示。"""
+    d = _models_dir()
+    found = []
+    try:
+        if d.exists():
+            for p in sorted(d.iterdir()):
+                n = p.name
+                if p.is_dir() and "faster-whisper" in n and not n.endswith((".downloading", ".converting")) and ".bak-" not in n:
+                    # 友好显示：精准/均衡/快速
+                    label = n
+                    if n.endswith("-anime"):
+                        label = "日语·情绪 / 小声模型 (Anime-Whisper)"
+                    elif "kotoba" in n:
+                        label = "日语专用模型 (kotoba-whisper)"
+                    elif "large" in n:
+                        label = "超精准模型 (large-v3)"
+                    elif "medium" in n:
+                        label = "精准模型 (medium)"
+                    elif "small" in n:
+                        label = "均衡模型 (small)"
+                    elif "base" in n:
+                        label = "快速模型 (base)"
+                    found.append(label)
+    except Exception:
+        pass
+    gpu = {}
+    try:
+        import gpu_accel
+        gpu = gpu_accel.status()
+    except Exception as e:
+        gpu = {"summary": "GPU 状态读取失败：%s" % e}
+    return {"dir": str(d), "models": found, "gpu": gpu}
+
+# 友好的模型档位：speed=快但糙，balanced=均衡(默认)，accurate=慢但准
+MODEL_MAP = {
+    "speed": "base",
+    "balanced": "small",
+    "accurate": "medium",
+    "ultra": "large-v3",      # v87：超精准（大模型，约 3GB，显卡上跑；方言、快语速认得更准）
+    "ja": "kotoba-v2",        # v97：日语专用（kotoba-whisper v2，用几万小时日语训练，日语比 large-v3 准、还快）
+    "anime": "anime",         # v98：日语·情绪 / 小声（Anime-Whisper：动漫、游戏配音训练，带情绪、小声、喘息的说话认得准）
+}
+
+# v87：给 whisper 的开头提示——让它输出标点、用简体字（不影响内容，只影响格式）
+_ZH_PROMPT = "以下是普通话的句子，有标点符号。"
+
+# v95：视频里说的是什么话。同一时间只有一个提取在跑（extract_gate），所以用一个「当前任务的语言」就够了
+LANGS = {
+    "zh": ("中文", _ZH_PROMPT),
+    "ja": ("日语", "以下は日本語の会話です。句読点を付けて書きます。"),
+    "en": ("英语", "Hello, welcome. This is an English transcript, with punctuation."),
+    "ko": ("韩语", "다음은 한국어 대화입니다. 문장 부호를 붙여 씁니다."),
+    "yue": ("粤语", "以下係廣東話嘅句子，有標點符號。"),
+    "auto": ("自动识别", None),
+}
+_LANG = {"v": "zh"}
+_OPTS = {"vocal": False, "wts": False}   # v102：先分离人声；v104：这次能不能用逐字时间
+_MODEL_INFO = {}                # v104：型号 -> {path, dev, ct}（单独测逐字时间要用）
+
+
+def _ja_mode():
+    """v97：日语模式（选了日语，或用日语专用模型）——小声的先放大，静音检测放宽，漏掉的段补得更细。"""
+    return _LANG["v"] == "ja"
+
+
+def _boost_quiet(x):
+    """v97：把小声的地方放大（每 0.4 秒算一次音量，太小就往上提，最多放大 8 倍；大声的不动，不会爆音）。
+    对说悄悄话、离麦克风远、背景声大的视频很有用——以前这些地方常被当成「没人说话」整段跳过。"""
+    try:
+        import numpy as np
+        a = np.asarray(x, dtype="float32")
+        if a.size < _SR:
+            return a
+        win = int(_SR * 0.4)
+        n = a.size // win
+        if n < 2:
+            return a
+        frames = a[: n * win].reshape(n, win)
+        rms = np.sqrt((frames ** 2).mean(axis=1) + 1e-12)
+        target = max(0.05, float(np.percentile(rms, 90)) * 0.7)        # 以这段视频里「正常说话」的音量为准
+        gain = np.clip(target / np.maximum(rms, 0.004), 1.0, 8.0)      # 几乎没声音的（<0.004）不硬放大底噪
+        k = np.ones(5) / 5.0
+        gain = np.convolve(np.pad(gain, 2, mode="edge"), k, mode="valid")   # 平滑，别忽大忽小
+        g = np.repeat(gain, win)
+        out = a.copy()
+        out[: n * win] *= g
+        if a.size > n * win:
+            out[n * win:] *= gain[-1]
+        return np.clip(out, -1.0, 1.0).astype("float32")
+    except Exception:
+        return x
+
+
+def lang_label(code):
+    return LANGS.get(code or "zh", ("中文", None))[0]
+
+
+def _set_lang(lang):
+    _LANG["v"] = lang if lang in LANGS else "zh"
+
+
+def _whisper_lang():
+    return None if _LANG["v"] == "auto" else _LANG["v"]
+
+
+def _lang_prompt():
+    if _LANG.get("noprompt"):          # v98：Anime-Whisper 作者建议不要给开头提示（给了容易编造）
+        return None
+    return LANGS.get(_LANG["v"], LANGS["zh"])[1]
+
+# v87：whisper 在没人说话 / 只有音乐的地方常会「编」出来的话，补漏时一律丢掉
+_HALLU = ("请不吝点赞", "订阅转发", "打赏支持", "明镜与点点", "Amara.org", "字幕由", "字幕提供",
+          "谢谢观看", "感谢观看", "優優獨播", "优优独播", "YoYo", "中文字幕", "请订阅", "欢迎订阅",
+          "点赞订阅", "下集再见", "我们下期再见",
+          "ご視聴ありがとうございました", "チャンネル登録", "最後までご視聴", "字幕作成")
+
+
+def _looks_hallucinated(t):
+    t = (t or "").strip()
+    if not t:
+        return True
+    if any(h.lower() in t.lower() for h in _HALLU):
+        return True
+    if len(t) >= 12 and len(set(t)) <= len(t) / 4:      # 同几个字反复刷屏
+        return True
+    return False
+
+
+def _word_ts_on():
+    """v103：外语（日语、英语…）用逐字时间做字幕；中文暂时保持原样。
+    v104：而且要这个模型「单独试过、确认不会崩」（_wts_check）才用。"""
+    return _LANG["v"] != "zh" and bool(_OPTS.get("wts"))
+
+
+# ════════════════ v104：逐字时间先在单独的进程里试一次 ════════════════
+# kotoba-whisper 这类「瘦身」模型（解码器只有 2 层）的配置里，对齐设置是从大模型抄来的（指向第 7~25 层），
+# 开逐字时间时会越界——不是普通报错，是整个程序直接闪退（后端一下子就没了，日志也不留）。
+# 所以：第一次用某个模型的逐字时间，先拿这段视频里 30 秒真声音在单独的进程里试；
+# 那个进程崩了也只是它自己没了。崩了就把对齐设置改成这个模型真实的层数再试；还不行就不用逐字时间，
+# 改用「按说话的声音收紧字幕时间」（_snap_to_speech）。结果记在 models and tools/word_ts_check.json，只试一次。
+_WTS_PROBE = r"""
+import sys
+sys.path.insert(0, sys.argv[1])
+try:
+    import gpu_accel
+    gpu_accel.add_dll_dirs()
+except Exception:
+    pass
+import wave, numpy as np
+from faster_whisper import WhisperModel
+path, dev, ct, wav, lang = sys.argv[2:7]
+with wave.open(wav) as w:
+    a = np.frombuffer(w.readframes(w.getnframes()), dtype="<i2").astype("float32") / 32768
+m = WhisperModel(path, device=dev, compute_type=ct)
+segs, _ = m.transcribe(a, language=None if lang == "auto" else lang, word_timestamps=True,
+                       vad_filter=False, condition_on_previous_text=False)
+n = 0
+for s in segs:
+    n += len(s.words or [])
+print("WTS_OK %d" % n, flush=True)
+"""
+
+
+def _wts_cache():
+    import json
+    try:
+        return json.loads((_models_dir() / "word_ts_check.json").read_text(encoding="utf-8")) or {}
+    except Exception:
+        return {}
+
+
+def _wts_cache_save(d):
+    import json
+    try:
+        (_models_dir() / "word_ts_check.json").write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _wts_probe(info, full):
+    """在单独的进程里试一次逐字时间。返回 (成功?, 说明)。"""
+    import subprocess
+    import sys
+    import tempfile
+    a0 = 0
+    try:
+        from faster_whisper.vad import get_speech_timestamps
+        ts = get_speech_timestamps(full[: _SR * 600], sampling_rate=_SR)
+        if ts:
+            a0 = int(ts[0]["start"])
+    except Exception:
+        pass
+    clip = full[a0: a0 + _SR * 30]
+    fd, wav = tempfile.mkstemp(suffix=".wav")
+    os.close(fd)
+    try:
+        import numpy as np
+        with wave_open(wav, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(_SR)
+            w.writeframes((np.clip(clip, -1, 1) * 32767).astype("<i2").tobytes())
+        flags = 0x08000000 if sys.platform == "win32" else 0
+        r = subprocess.run([sys.executable, "-c", _WTS_PROBE, os.path.dirname(os.path.abspath(__file__)),
+                            info["path"], info["dev"], info["ct"], wav, _LANG["v"]],
+                           capture_output=True, text=True, timeout=300, creationflags=flags,
+                           encoding="utf-8", errors="replace")
+        out = ((r.stdout or "") + (r.stderr or "")).strip()
+        if r.returncode == 0 and "WTS_OK" in out:
+            return True, out.splitlines()[-1]
+        return False, "测试进程退出码 %s：%s" % (r.returncode, (out.splitlines() or ["（没有输出，多半是闪退）"])[-1][:200])
+    except Exception as e:
+        return False, str(e)[:200]
+    finally:
+        try:
+            os.remove(wav)
+        except Exception:
+            pass
+
+
+def wave_open(p, mode):
+    import wave
+    return wave.open(p, mode)
+
+
+def _fix_align_heads(path):
+    """瘦身模型（kotoba / Anime-Whisper，解码器 2 层）的对齐设置要是指到了不存在的层，改成它真实的最后一层。
+    原来的配置备份成 config.json.bak-align。改了返回 True。"""
+    import json
+    p = os.path.join(path, "config.json")
+    try:
+        cfg = json.loads(open(p, encoding="utf-8").read())
+    except Exception:
+        return False
+    heads = cfg.get("alignment_heads") or []
+    low = path.lower()
+    if not any(k in low for k in ("kotoba", "anime", "distil")):
+        return False
+    if heads and max(int(h[0]) for h in heads) <= 1:
+        return False                                  # 已经是对的
+    try:
+        if not os.path.exists(p + ".bak-align"):
+            open(p + ".bak-align", "w", encoding="utf-8").write(json.dumps(cfg, ensure_ascii=False))
+        cfg["alignment_heads"] = [[1, h] for h in range(20)]
+        open(p, "w", encoding="utf-8").write(json.dumps(cfg, ensure_ascii=False))
+        print("[video] 修正了 %s 的对齐设置（指到了不存在的层）" % os.path.basename(path), flush=True)
+        return True
+    except Exception as e:
+        print("[video] 改对齐设置失败：%s" % e, flush=True)
+        return False
+
+
+def _wts_check(size, full, progress_cb=None):
+    """这个模型能不能安全地用逐字时间。返回 (能用?, 要不要重新加载模型)。"""
+    info = _MODEL_INFO.get(size)
+    if not info or full is None:
+        return False, False
+    key = "%s|%s|%s" % (info["path"], info["dev"], info["ct"])
+    d = _wts_cache()
+    if key in d:
+        return bool(d[key].get("ok")), False
+    if progress_cb:
+        progress_cb("语音转文字", "第一次给这个模型用逐字时间：先在单独的进程里试一下（十几秒，只试一次）…")
+    ok, why = _wts_probe(info, full)
+    reload = False
+    if not ok and _fix_align_heads(info["path"]):
+        if progress_cb:
+            progress_cb("语音转文字", "修正了模型的对齐设置，再试一次…")
+        ok, why = _wts_probe(info, full)
+        reload = ok
+    d[key] = {"ok": ok, "why": why}
+    _wts_cache_save(d)
+    print("[video] 逐字时间测试（%s）：%s —— %s" % (os.path.basename(info["path"]), "能用" if ok else "不能用", why), flush=True)
+    return ok, reload
+
+
+def _snap_to_speech(seg_list, full):
+    """v104：不用逐字时间时，按「真正有人说话的声音」收紧字幕时间：
+    每条字幕的开始 / 结束挪到这段里第一处 / 最后一处说话的地方（去掉前后的静音）；
+    一条里有好几句（。！？）的，按字数比例把句子摊到真正说话的那几段时间上，拆成几条。"""
+    from faster_whisper.vad import get_speech_timestamps, VadOptions
+    regs = [(t["start"] / _SR, t["end"] / _SR) for t in get_speech_timestamps(
+        full, vad_options=VadOptions(threshold=0.35, min_speech_duration_ms=150, min_silence_duration_ms=300,
+                                     speech_pad_ms=100), sampling_rate=_SR)]
+    out = []
+    for sg in seg_list:
+        s0, e0 = float(sg["start"]), float(sg["end"])
+        ov = [(max(a, s0), min(b, e0)) for a, b in regs if b > s0 and a < e0 and min(b, e0) - max(a, s0) > 0.05]
+        if not ov:
+            out.append(sg)
+            continue
+        sents = [x for x in re.findall(r"[^。！？!?]+[。！？!?]*", sg["text"]) if x.strip()] or [sg["text"]]
+        if len(sents) == 1 or len(ov) == 1:
+            out.append(dict(sg, start=round(ov[0][0], 2), end=round(max(ov[-1][1], ov[0][0] + 0.4), 2)))
+            continue
+        tot = sum(b - a for a, b in ov)
+        chars = sum(len(x) for x in sents)
+
+        def at(t, start):
+            for a, b in ov:
+                L = b - a
+                if t < L or (not start and t <= L):
+                    return a + t
+                t -= L
+            return ov[-1][1]
+        # 句子之间的分界：按字数比例算出位置，附近有说话的停顿就对齐到停顿上（句子一般在停顿处结束）
+        gaps, c = [], 0.0
+        for k in range(len(ov) - 1):
+            c += ov[k][1] - ov[k][0]
+            gaps.append((c, k))
+        used, bounds, acc = set(), [], 0
+        tol = max(0.8, 0.35 * tot / len(sents))
+        for x in sents[:-1]:
+            acc += len(x)
+            t = acc / chars * tot
+            best = min((g for g in gaps if g[1] not in used), key=lambda g: abs(g[0] - t), default=None)
+            if best is not None and abs(best[0] - t) <= tol:
+                used.add(best[1])
+                bounds.append((ov[best[1]][1], ov[best[1] + 1][0]))       # 这句结束在停顿前，下一句从停顿后开始
+            else:
+                bounds.append((at(t, False), at(t, True)))
+        starts = [ov[0][0]] + [b[1] for b in bounds]
+        ends = [b[0] for b in bounds] + [ov[-1][1]]
+        for x, st, en in zip(sents, starts, ends):
+            out.append({"start": round(st, 2), "end": round(max(en, st + 0.4), 2), "text": x.strip()})
+    return out
+
+
+def _cues_from_words(words, offset=0.0):
+    """v103：用每个字 / 词的开始、结束时间切字幕条：
+    停顿超过 0.6 秒、一句话说完（。！？）、一条太长（7 秒 / 32 个字）就另起一条。
+    每条的时间 = 第一个字开始 ~ 最后一个字结束，字幕跟着嘴型走。返回 [{start, end, text}]，没有字返回 None。"""
+    ws = [w for w in (words or []) if (getattr(w, "word", "") or "").strip()]
+    if not ws:
+        return None
+    cues, cur = [], []
+
+    def flush():
+        txt = "".join(w.word for w in cur).strip()
+        if txt:
+            cues.append({"start": round(float(cur[0].start) + offset, 2),
+                         "end": round(float(cur[-1].end) + offset, 2), "text": txt})
+
+    for w in ws:
+        if cur:
+            gap = float(w.start) - float(cur[-1].end)
+            dur = float(w.end) - float(cur[0].start)
+            ln = len("".join(x.word for x in cur).strip())
+            last = cur[-1].word.strip()[-1:]
+            if (gap > 0.6 or dur > 7 or ln >= 32 or (ln >= 18 and last in "、，,…")
+                    or (ln >= 4 and last in "。！？!?")):
+                flush()
+                cur = []
+        cur.append(w)
+    if cur:
+        flush()
+    for i, c in enumerate(cues):                     # 太短的显示不过来：至少 0.5 秒（别盖住下一条）
+        if c["end"] - c["start"] < 0.5:
+            nxt = cues[i + 1]["start"] if i + 1 < len(cues) else c["start"] + 0.5
+            c["end"] = round(max(c["end"], min(c["start"] + 0.5, nxt)), 2)
+    return cues
+
+
+def _utterances(audio, loose=False):
+    """v99：按停顿把声音切成一句一句（[开始样本, 结束样本]），每句约 1~8 秒。
+    太碎的（不到 0.8 秒、离下一句又很近）并到一起；超过 8 秒的硬切开。"""
+    from faster_whisper.vad import get_speech_timestamps, VadOptions
+    opts = VadOptions(threshold=0.15 if loose else 0.25, min_speech_duration_ms=200, max_speech_duration_s=8,
+                      min_silence_duration_ms=300, speech_pad_ms=150)
+    out = []
+    for t in get_speech_timestamps(audio, vad_options=opts, sampling_rate=_SR):
+        a, b = int(t["start"]), int(t["end"])
+        if out:
+            pa, pb = out[-1]
+            short = (pb - pa) < 0.8 * _SR or (b - a) < 0.8 * _SR
+            if short and (a - pb) < 0.4 * _SR and (b - pa) <= 8 * _SR:
+                out[-1][1] = b
+                continue
+        out.append([a, b])
+    return out
+
+
+def _anime_segments(model, audio, loose=False):
+    """v99：Anime-Whisper 是拿一句一句的配音训练的，不给细的时间点。
+    所以先按停顿切成一句一句，每句单独交给它听：字幕时间就是这句话真正的开始 / 结束（对得上画面），
+    而且这正是它最擅长的用法，认得也更准。逐句产出（start/end 相对于 audio）。"""
+    from types import SimpleNamespace as _NS
+    for a, b in _utterances(audio, loose):
+        _check_cancel()
+        clip = audio[a:b]
+        if len(clip) < int(0.25 * _SR):
+            continue
+        res, _inf = model.transcribe(clip, language="ja", vad_filter=False, without_timestamps=True,
+                                     condition_on_previous_text=False, initial_prompt=None, beam_size=5,
+                                     repetition_penalty=1.1, no_repeat_ngram_size=10)
+        res = list(res)
+        text = "".join((r.text or "").strip() for r in res).strip()
+        if not text or _looks_hallucinated(text):
+            continue
+        yield _NS(start=a / _SR, end=b / _SR, text=text,
+                  no_speech_prob=max([getattr(r, "no_speech_prob", 0) or 0 for r in res] or [0]),
+                  avg_logprob=min([getattr(r, "avg_logprob", 0) or 0 for r in res] or [0]))
+
+
+def _fill_uncovered(model, full, seg_list, progress_cb=None):
+    """v101：逐句查漏（日语模式）。原来的补漏只管「整整 4 秒以上一个字都没认出」的空档，
+    两句之间夹着的一句短话（比如对方插了一句）就漏掉了。这里：
+      ① 用静音检测把整段音频里「像是有人在说话」的地方全找出来；
+      ② 和已经认出来的字对一下：一处话只有不到 4 成被认出来 → 当成漏了；
+      ③ 漏了的一处一处单独再听，时间就用这句话真正的开始 / 结束；
+      ④ 编出来的、拿不准的、字多得离谱（复读）的、和旁边已认出的话重复的，都不要。"""
+    from faster_whisper.vad import get_speech_timestamps, VadOptions
+    opts = VadOptions(threshold=0.3, min_speech_duration_ms=300, max_speech_duration_s=12,
+                      min_silence_duration_ms=400, speech_pad_ms=200)
+    total = len(full) / _SR
+    regions = [(t["start"] / _SR, t["end"] / _SR)
+               for t in get_speech_timestamps(full, vad_options=opts, sampling_rate=_SR)]
+    have = sorted((float(x.get("start") or 0), float(x.get("end") or 0)) for x in seg_list)
+
+    def covered(a, b):
+        tot = 0.0
+        for st, en in have:
+            if en <= a:
+                continue
+            if st >= b:
+                break
+            tot += min(b, en) - max(a, st)
+        return tot / max(0.01, b - a)
+
+    merged = []
+    for a, b in regions:
+        if b - a < 0.4 or covered(a, b) >= 0.4:
+            continue
+        if merged and a - merged[-1][1] < 0.8 and b - merged[-1][0] <= 15:
+            merged[-1][1] = b
+        else:
+            merged.append([a, b])
+    if not merged:
+        return []
+    if progress_cb:
+        progress_cb("检查漏听", "逐句核对：有 %d 处像是有人在说话、但没认出字，一处一处再听…" % len(merged))
+    got = []
+    for i, (a, b) in enumerate(merged[:300]):
+        _check_cancel()
+        a0, b0 = max(0.0, a - 0.3), min(total, b + 0.3)
+        clip = full[int(a0 * _SR): int(b0 * _SR)]
+        if len(clip) < int(0.3 * _SR):
+            continue
+        try:
+            res, _inf = model.transcribe(clip, language=_whisper_lang(), vad_filter=False,
+                                         without_timestamps=not _word_ts_on(), word_timestamps=_word_ts_on(),
+                                         condition_on_previous_text=False, initial_prompt=_lang_prompt(), beam_size=5)
+            res = list(res)
+        except ExtractCancelled:
+            raise
+        except Exception as e:
+            print("[video] 逐句补听出错（跳过这一处）：%s" % e, flush=True)
+            continue
+        t = "".join((r.text or "").strip() for r in res).strip()
+        if not t or _looks_hallucinated(t):
+            continue
+        nsp = max([getattr(r, "no_speech_prob", 0) or 0 for r in res] or [0])
+        lp = min([getattr(r, "avg_logprob", 0) or 0 for r in res] or [0])
+        if nsp > 0.8 or lp < -1.2:
+            continue
+        if len(t) > (b0 - a0) * 14 + 6:                 # 一秒十几个字以上：多半是复读 / 编的
+            continue
+        near = "".join(x.get("text") or "" for x in seg_list + got
+                       if float(x.get("end") or 0) >= a - 3 and float(x.get("start") or 0) <= b + 3)
+        if len(t) >= 4 and t.strip("。、！？…") in near:   # 旁边已经认出来了，不重复
+            continue
+        ws = [w for r in res for w in (getattr(r, "words", None) or [])]
+        cues = _cues_from_words(ws, a0) if ws else None
+        if cues:                                       # v103：按逐字时间收紧（可能拆成几条）
+            got.extend(cues)
+        else:
+            got.append({"start": round(a, 2), "end": round(b, 2), "text": t})
+        if progress_cb and (i + 1) % 5 == 0:
+            progress_cb("检查漏听", "已核对 %d / %d 处，补回 %d 句…" % (i + 1, len(merged), len(got)))
+    return got
+
+
+def _fill_gaps(model, full, total, seg_list, progress_cb=None):
+    """v87：主识别跑完后，找「明显漏掉的大段」再补识别一次（不跳静音）。
+    漏掉的情况：结尾还剩 6 秒以上没字、或者两句之间空了 12 秒以上。
+    主识别会自动跳过「没人说话」的地方（vad_filter），语速快、背景音大、方言重时，
+    它偶尔把整段话也当成没人说话跳过——结尾那几十秒最容易被吞。返回补到的分段列表。"""
+    if full is None or not total:
+        return []
+    segs = sorted(seg_list, key=lambda x: x.get("start", 0))
+    gaps, prev = [], 0.0
+    for sg in segs:
+        st = float(sg.get("start") or 0)
+        if st - prev > (4 if _ja_mode() else 12):       # v97：日语模式空 4 秒就再听一遍
+            gaps.append((prev, st))
+        prev = max(prev, float(sg.get("end") or 0))
+    if total - prev > (3 if _ja_mode() else 6):
+        gaps.append((prev, total))
+    if not gaps:
+        return []
+    got = []
+    sec = sum(b - a for a, b in gaps)
+    if progress_cb:
+        progress_cb("检查漏识别", "有 %d 段共 %d 秒没认出字，再仔细听一遍…" % (len(gaps), int(sec)))
+    for a, b in gaps[:(80 if _ja_mode() else 20)]:
+        _check_cancel()
+        a0 = max(0.0, a - 0.5)
+        clip = full[int(a0 * _SR): int(min(total, b + 0.5) * _SR)]
+        if len(clip) < _SR:          # 不到 1 秒
+            continue
+        try:
+            if _LANG.get("noprompt"):                  # v99：Anime-Whisper 补听也一句一句来（时间对得上）
+                res = _anime_segments(model, clip, loose=True)
+            else:
+              res, _inf = model.transcribe(clip, language=_whisper_lang(), vad_filter=False,
+                                         condition_on_previous_text=False, word_timestamps=_word_ts_on(),
+                                         initial_prompt=_lang_prompt())
+            for sg in res:
+                t = (sg.text or "").strip()
+                if _looks_hallucinated(t):
+                    continue
+                _ns, _lp = (0.8, -1.3) if _ja_mode() else (0.6, -1.0)       # v97：日语模式小声的也收
+                if (getattr(sg, "no_speech_prob", 0) or 0) > _ns or (getattr(sg, "avg_logprob", 0) or 0) < _lp:
+                    continue
+                cues = _cues_from_words(getattr(sg, "words", None), a0) if _word_ts_on() else None
+                if cues:                               # v103：逐字时间
+                    got.extend(cues)
+                else:
+                    got.append({"start": round(a0 + float(sg.start or 0), 2),
+                                "end": round(a0 + float(sg.end or 0), 2), "text": t})
+        except ExtractCancelled:
+            raise
+        except Exception as e:
+            print("[video] 补识别出错（不影响已有结果）：%s" % e, flush=True)
+    return got
+
+
+def _find_url(text):
+    """从用户粘贴的一大段分享文案里，揪出真正的视频链接。
+    抖音分享出来是『标题+表情+一句话+链接+复制此链接…』，要把链接抠出来。"""
+    if not text:
+        return ""
+    text = text.strip()
+    # 抓第一个 http(s) 链接，到空白或常见中文标点为止
+    m = re.search(r"https?://[^\s，。！？、）)\]】]+", text)
+    if m:
+        return m.group(0).rstrip(".,，。")
+    return text  # 没找到链接就原样返回（可能用户就是贴了纯链接）
+
+
+def _clean_err(s):
+    """去掉 yt-dlp 报错里的 ANSI 颜色码等噪音，让提示更干净。"""
+    s = re.sub(r"\x1b\[[0-9;]*m", "", str(s))
+    s = re.sub(r"\[[0-9;]*m", "", s)
+    return s.strip()
+
+
+# ════════════════════ 抖音/TikTok「访客 cookie」自动获取 ════════════════════
+# 背景：抖音网页接口现在要求请求里带一个叫 s_v_web_id（配合 ttwid）的「访客标识」
+#   cookie，否则接口返回空、yt-dlp 解析 JSON 失败，就报
+#   “Fresh cookies (not necessarily logged in) are needed”。
+#   这个 cookie **不需要登录**——它是抖音给任何第一次访问网页的访客自动种下的。
+# 做法：在调用 yt-dlp 之前，先用 requests 访问一次抖音首页，把服务器 Set-Cookie 下来的
+#   访客 cookie（含 ttwid / s_v_web_id 等）抓到，写成一个临时 Netscape cookie 文件，
+#   再把这个文件 + 匹配的浏览器 UA 一起交给 yt-dlp。只对抖音/TikTok 链接启用，
+#   其它平台（B站/YouTube/快手…）完全不碰，保持原行为。任何一步失败都安静回退。
+
+# 给抖音用的浏览器 UA（要和「拿 cookie 时」用的一致，否则抖音可能不认）
+_DOUYIN_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
+
+# 进程内缓存：(cookie文件路径, 生成时间戳)。抖音访客 cookie 几十分钟内有效，
+# 避免每条视频都重新去抓一遍。超过 _DOUYIN_COOKIE_TTL 秒就重新拿。
+_douyin_cookie_cache = {"path": None, "ts": 0.0}
+_DOUYIN_COOKIE_TTL = 20 * 60  # 20 分钟
+
+
+def _is_douyin(url):
+    """这个链接是不是抖音/TikTok（共用同一套提取器、同样要访客 cookie）。"""
+    u = (url or "").lower()
+    return any(k in u for k in (
+        "douyin.com", "iesdouyin.com", "v.douyin", "tiktok.com"))
+
+
+# ════════════════════ 代理 / 境外可达性（YouTube 等需要） ════════════════════
+# 背景：用户在国内，YouTube 直连会「Connection timed out」。软件设置里已有代理
+#   （设置→联网与代理），但视频这条 yt-dlp 链路之前没把代理传进去，所以一直超时。
+#   这里统一：① 给 yt-dlp 配代理（仅境外平台，抖音/B站等国内站保持直连）；
+#   ② 提取 YouTube 前先探一下代理通不通，不通就早早给用户一句清楚的提示，
+#      而不是干等三五十秒超时。
+
+class _SilentLogger:
+    """喂给 yt-dlp 的哑日志器：吞掉它往控制台刷的 ERROR/WARNING（比如抖音的
+    『Unsupported URL』），避免刷屏。真正成败我们靠异常/文件判断，不靠它打印。"""
+    def debug(self, msg): pass
+    def info(self, msg): pass
+    def warning(self, msg): pass
+    def error(self, msg): pass
+
+
+def _read_proxy():
+    """读用户在「设置→联网与代理」里填的代理地址。没配返回空串。"""
+    try:
+        import web_tools
+        return web_tools._read_proxy() or ""
+    except Exception:
+        return ""
+
+
+def _is_youtube(url):
+    u = (url or "").lower()
+    return ("youtube.com" in u) or ("youtu.be" in u)
+
+
+def _needs_proxy(url):
+    """这个平台是不是境外站、需要走代理才能访问。抖音/B站/快手等国内站返回 False。"""
+    u = (url or "").lower()
+    return any(k in u for k in ("youtube.com", "youtu.be", "tiktok.com",
+                                "vimeo.com"))
+
+
+def _proxy_opts(url):
+    """给 yt-dlp 的代理参数：境外站且配了代理才加 {'proxy': ...}；否则空字典（直连）。
+    抖音/B站等国内站永远直连，不受代理影响。"""
+    if not _needs_proxy(url):
+        return {}
+    p = _read_proxy()
+    return {"proxy": p} if p else {}
+
+
+def check_foreign_reachable(url, timeout=12):
+    """提取境外视频（YouTube 等）前的预检。返回 (ok, message)。
+    · 没配代理 → ok=False，提示去设置填代理；
+    · 配了代理但连不上境外站 → ok=False，提示连上加速器/检查端口；
+    · 能连上 → ok=True。
+    只对境外平台做预检；国内平台一律 ok=True，不拦。"""
+    if not _needs_proxy(url):
+        return True, ""
+    p = _read_proxy()
+    if not p:
+        return (False,
+                "提取 YouTube 需要走代理。请先到「设置 → 联网与代理」填上你的加速器"
+                "本地地址（如 http://127.0.0.1:7897），连上后再试。")
+    # 用配置的代理探一下 YouTube 首页能不能打开
+    try:
+        import web_tools
+        page = web_tools._fetch("https://www.youtube.com/", timeout=timeout, use_proxy=True)
+        if (page or "").strip():
+            return True, ""
+        return (False,
+                "代理连上了但没读到 YouTube 内容，换个端口或在加速器里切个节点再试。")
+    except Exception as e:
+        reason = str(e)
+        try:
+            import sniffer
+            reason = sniffer._humanize_err(e)
+        except Exception:
+            pass
+        return (False,
+                "检测不到可用代理 / 上不了外网（%s）。请确认你的加速器（如小麦加速）已连接，"
+                "且本地端口和「设置→联网与代理」里填的一致（你的是 7897）。" % reason)
+
+
+def _write_netscape_cookies(cookies, path):
+    """把 {名:值} 写成 yt-dlp 能读的 Netscape cookie 文件。成功返回 True。"""
+    try:
+        lines = ["# Netscape HTTP Cookie File", ""]
+        for name, value in cookies.items():
+            if not name or value is None:
+                continue
+            # domain  include_subdomains  path  secure  expiry  name  value
+            lines.append("\t".join([
+                ".douyin.com", "TRUE", "/", "FALSE", "0", str(name), str(value)]))
+        Path(path).write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return True
+    except Exception:
+        return False
+
+
+def _fetch_douyin_cookiefile():
+    """访问一次抖音，拿到访客 cookie，写成临时 cookie 文件并返回其路径。
+    拿不到/出任何问题都返回 None（上层据此回退到不带 cookie 的老方式）。"""
+    import time as _time
+    # 命中缓存且没过期 → 直接复用
+    cached = _douyin_cookie_cache.get("path")
+    if cached and Path(cached).exists() \
+            and (_time.time() - _douyin_cookie_cache.get("ts", 0)) < _DOUYIN_COOKIE_TTL:
+        return cached
+
+    try:
+        import requests
+    except Exception:
+        return None  # 没有 requests 就放弃自动拿 cookie，回退老方式
+
+    headers = {
+        "User-Agent": _DOUYIN_UA,
+        "Accept": ("text/html,application/xhtml+xml,application/xml;q=0.9,"
+                   "image/avif,image/webp,*/*;q=0.8"),
+        "Accept-Language": "zh-CN,zh;q=0.9",
+    }
+    jar = {}
+    try:
+        sess = requests.Session()
+        # 访问抖音首页，让服务器把访客 cookie（ttwid 等）种下来
+        sess.get("https://www.douyin.com/", headers=headers, timeout=15)
+        # 再访问一次发现页，s_v_web_id 这类前端 cookie 这一步更容易补齐
+        try:
+            sess.get("https://www.douyin.com/discover", headers=headers, timeout=15)
+        except Exception:
+            pass
+        for c in sess.cookies:
+            if c.name and c.value:
+                jar[c.name] = c.value
+    except Exception:
+        return None
+
+    if not jar:
+        return None
+
+    # 若服务器没给 s_v_web_id（有时它由前端 JS 生成），就用 ttwid 的常见格式
+    # 自己补一个——抖音只校验「这个 cookie 存在且格式像」，不校验是否登录。
+    if "s_v_web_id" not in jar:
+        try:
+            import random
+            import string
+            rnd = "".join(random.choices(
+                string.ascii_letters + string.digits, k=44))
+            jar["s_v_web_id"] = "verify_" + rnd.lower()
+        except Exception:
+            pass
+
+    try:
+        fd, tmp_path = tempfile.mkstemp(prefix="dy_cookies_", suffix=".txt")
+        os.close(fd)
+    except Exception:
+        return None
+
+    if not _write_netscape_cookies(jar, tmp_path):
+        return None
+
+    # 清掉上一份旧 cookie 文件，缓存新的
+    old = _douyin_cookie_cache.get("path")
+    if old and old != tmp_path:
+        try:
+            os.remove(old)
+        except Exception:
+            pass
+    _douyin_cookie_cache["path"] = tmp_path
+    _douyin_cookie_cache["ts"] = _time.time()
+    return tmp_path
+
+
+def _apply_douyin_opts(url, opts):
+    """若是抖音/TikTok 链接，给 yt-dlp 的 opts 补上访客 cookie 文件 + 匹配 UA。
+    返回处理后的 opts（同一个 dict）。非抖音链接原样返回，不做任何改动。"""
+    try:
+        if not _is_douyin(url):
+            return opts
+        cookiefile = _fetch_douyin_cookiefile()
+        if cookiefile:
+            opts["cookiefile"] = cookiefile
+        # UA 要和拿 cookie 时一致；http_headers 不覆盖已有的其它头
+        hdrs = dict(opts.get("http_headers") or {})
+        hdrs.setdefault("User-Agent", _DOUYIN_UA)
+        hdrs.setdefault("Referer", "https://www.douyin.com/")
+        opts["http_headers"] = hdrs
+    except Exception:
+        # 出任何问题都不动 opts，保持老行为
+        pass
+    return opts
+
+
+# ════════════════════ 抖音/TikTok 提取（yt-dlp 兜底层）═══════════════════════════
+# 背景：抖音网页接口现在要一个用 JS 算出来的签名（a_bogus），yt-dlp 给不出来，
+#   取回来是空 JSON，就报 “Fresh cookies needed”。带 cookie、装 curl_cffi 模拟指纹
+#   都救不了——因为缺的是 JS 签名，不是 cookie。
+# 所以**主力**改走另一条路：douyin_resolver 直接解析抖音「分享页」拿无水印直链
+#   （在 _download_audio / _download_video 里优先调用，不需要 JS 签名）。
+# 这里的 yt-dlp 只作为分享页失败后的**兜底**，且只保留两套安静的方案：
+#   1) impersonate（模拟 Chrome 指纹，需要 curl_cffi）+ 自抓访客 cookie
+#   2) 只带访客 cookie 文件（= 最早的老行为，不退化）
+# 不再尝试「从浏览器读 cookie」：Windows 上基本读不出来还刷一屏报错（见 yt-dlp #10927）。
+# 只对抖音/TikTok 启用；其它平台（B站/YouTube/网页…）一律单次执行、完全不碰，保持原样。
+
+
+def _curl_cffi_available():
+    """有没有装 curl_cffi —— 它是 impersonate（模拟浏览器指纹）能用的前提。"""
+    try:
+        import curl_cffi  # noqa
+        return True
+    except Exception:
+        return False
+
+
+def _impersonate_value(target="chrome"):
+    """生成可传给 yt-dlp opts['impersonate'] 的值。
+    新版 yt-dlp 要 ImpersonateTarget 对象；构造不出来就退回字符串，再不行返回 None。"""
+    try:
+        from yt_dlp.networking.impersonate import ImpersonateTarget
+        return ImpersonateTarget.from_str(target)
+    except Exception:
+        try:
+            # 老一点的版本直接吃字符串
+            return target
+        except Exception:
+            return None
+
+
+def _douyin_attempts(url, base_opts):
+    """yt-dlp 兜底层（分享页直链失败后才用）：给抖音/TikTok 生成几套 opts 尝试方案。
+    注意：实测在 Windows 上「从浏览器读 cookie」基本读不出来（Chrome 新版 cookie 用
+    DPAPI/应用绑定加密，yt-dlp 解不开；见 yt-dlp #10927），而且每次都刷一屏报错，
+    所以这里**不再尝试浏览器 cookie**，只保留 impersonate + 自抓访客 cookie 两种，
+    安静、干净，也不比以前差。"""
+    have_cc = _curl_cffi_available()
+
+    # 自抓的访客 cookie 文件（拿不到就 None，不影响别的方案）
+    try:
+        cookiefile = _fetch_douyin_cookiefile()
+    except Exception:
+        cookiefile = None
+
+    base_hdrs = dict(base_opts.get("http_headers") or {})
+    base_hdrs.setdefault("User-Agent", _DOUYIN_UA)
+    base_hdrs.setdefault("Referer", "https://www.douyin.com/")
+
+    def mk(**extra):
+        o = dict(base_opts)
+        o["http_headers"] = dict(base_hdrs)
+        # 哑日志：抖音 yt-dlp 兜底失败时本会刷一屏「Unsupported URL」，这里吞掉，
+        # 真正成败靠返回值/异常判断。
+        o.setdefault("logger", _SilentLogger())
+        o.update(extra)
+        return o
+
+    imper = _impersonate_value("chrome") if have_cc else None
+    attempts = []
+
+    # 1) impersonate + 自抓访客 cookie 文件
+    if have_cc and imper is not None:
+        o = mk(impersonate=imper)
+        if cookiefile:
+            o["cookiefile"] = cookiefile
+        attempts.append(o)
+
+    # 2) 老办法：只带访客 cookie 文件（最终兜底，等于最早的行为，不退化）
+    o = mk()
+    if cookiefile:
+        o["cookiefile"] = cookiefile
+    attempts.append(o)
+
+    return attempts
+
+
+def _run_extract(url, base_opts, download):
+    """统一的 yt-dlp 提取入口。返回 info dict。
+    · 抖音/TikTok：走上面的「重试阶梯」，逐个方案试，全失败才抛最后一个错误。
+    · 其它平台：单次执行，行为和以前完全一样。
+    注：抖音这类「Fresh cookies / 空 JSON」错误都发生在「取信息」阶段、在真正下载之前，
+        所以失败的尝试不会留下半成品文件，逐个重试是安全的。"""
+    import yt_dlp
+
+    # ★取消支持：真正要下载时，挂一个进度钩子——用户点了「全部取消」，
+    #   钩子在下一次进度回调时抛 ExtractCancelled，yt-dlp 会立即中止下载。
+    #   （只取信息 download=False 的探测秒级完成，不需要挂）
+    if download:
+        def _cancel_hook(_d):
+            if CANCEL.get("on"):
+                raise ExtractCancelled("已取消")
+        base_opts = dict(base_opts)
+        _hooks = list(base_opts.get("progress_hooks") or [])
+        _hooks.append(_cancel_hook)
+        base_opts["progress_hooks"] = _hooks
+
+    # ★从最底层堵住「Unsupported URL」：iesdouyin.com/share/video/{id}/?一堆参数
+    #   是抖音分享页地址，yt-dlp 不认。统一转成它认识的 douyin.com/video/{id}。
+    #   不管上层哪条路径传进来的脏长链，到了这里都会被规范化。
+    url = _normalize_ytdlp_url(url)
+
+    if not _is_douyin(url):
+        # 非抖音：保持原行为（_apply_douyin_opts 对非抖音是原样返回，等于没动）
+        opts = _apply_douyin_opts(url, dict(base_opts))
+        # 境外站（YouTube 等）走代理；国内站直连。哑日志避免刷屏。
+        opts.update(_proxy_opts(url))
+        opts.setdefault("logger", _SilentLogger())
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            return ydl.extract_info(url, download=download)
+
+    attempts = _douyin_attempts(url, base_opts)
+    last_err = None
+    for opts in attempts:
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                return ydl.extract_info(url, download=download)
+        except ExtractCancelled:
+            raise          # 用户取消：直接往外抛，不再试下一个方案
+        except Exception as e:
+            # 抖音这边：任何方案失败都安静退到下一个方案，绝不中途抛错，
+            # 这样一定能走到最后那层「老办法」兜底，不会比改之前更差。
+            last_err = e
+            continue
+    if last_err is not None:
+        raise last_err
+    raise RuntimeError("抖音提取失败（没有可用的提取方案）。")
+
+
+def _normalize_ytdlp_url(url):
+    """把 yt-dlp 不认的抖音分享页长链/短链转成标准 douyin.com/video/{id}。其它链接原样返回。
+    关键修复：v.douyin.com/xxx 短链在字符串里看不出 iesdouyin，但 yt-dlp 跟随跳转后会落到
+    iesdouyin.com/share/video/{id} → 报 Unsupported URL。所以这里对短链也先用 resolver 解析出
+    aweme_id，提前改写成 yt-dlp 认识的标准链接，从源头避免那串刷屏的错误。"""
+    try:
+        u = (url or "").strip()
+        if not u:
+            return url
+        # ① 长链里直接含 id 的，先抠出来
+        if "iesdouyin.com" in u.lower():
+            m = re.search(r"/share/video/(\d{6,})", u) or re.search(r"/video/(\d{6,})", u)
+            if m:
+                return "https://www.douyin.com/video/%s" % m.group(1)
+        # ② 抖音短链 / 其它抖音链接：交给 resolver 跟随跳转拿 aweme_id（best-effort）
+        low = u.lower()
+        if ("v.douyin" in low or "iesdouyin" in low) or \
+           ("douyin.com" in low and "/video/" not in low):
+            try:
+                import douyin_resolver
+                aid = douyin_resolver._resolve_id(u)
+                if aid:
+                    return "https://www.douyin.com/video/%s" % aid
+            except Exception:
+                pass
+        return u
+    except Exception:
+        return url
+
+
+def check_deps():
+    """检查依赖是否就绪。返回缺失的包名列表（空表示都装好了）。"""
+    missing = []
+    try:
+        import yt_dlp  # noqa
+    except Exception:
+        missing.append("yt-dlp")
+    try:
+        import faster_whisper  # noqa
+    except Exception:
+        missing.append("faster-whisper")
+    return missing
+
+
+def _set_user_env(name, value):
+    """Windows 上持久设置用户环境变量（setx），让新启动的 Ollama 能读到。返回是否成功。"""
+    import sys
+    import subprocess
+    try:
+        os.environ[name] = value
+        if sys.platform != "win32":
+            return False
+        r = subprocess.run(["setx", name, value],
+                           capture_output=True, text=True, timeout=20)
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
+def _dir_size_gb(p):
+    try:
+        return sum(f.stat().st_size for f in p.rglob("*") if f.is_file()) / 1024 / 1024 / 1024
+    except Exception:
+        return 0.0
+
+
+def _file_count(p):
+    try:
+        return sum(1 for f in p.rglob("*") if f.is_file())
+    except Exception:
+        return 0
+
+
+def _move_ollama_models(dest):
+    """把 C 盘的 Ollama 大模型安全搬到 D 盘：先复制 → 校验完整 → 删源释放，
+    并设置 OLLAMA_MODELS 指向新位置。过程中任何一步出错都不会破坏 C 盘原文件。"""
+    moved, notes = [], []
+    src_env = (os.environ.get("OLLAMA_MODELS") or "").strip()
+    src = Path(src_env) if src_env else (Path.home() / ".ollama" / "models")
+
+    if not src.exists():
+        notes.append("没找到 Ollama 模型文件夹（可能没装 Ollama，或模型已不在默认位置）。")
+        return {"moved": moved, "notes": notes}
+
+    try:
+        on_c = str(src.resolve()).lower().startswith("c:")
+    except Exception:
+        on_c = True
+    if not on_c:
+        notes.append(f"Ollama 模型已经不在 C 盘了（{src}），无需搬运。")
+        return {"moved": moved, "notes": notes}
+
+    target = dest / "ollama-models"
+    src_gb = _dir_size_gb(src)
+
+    # ① 复制（源只读，最安全）
+    if target.exists() and _file_count(target) > 0:
+        notes.append(f"D 盘已有 Ollama 模型夹（{target}），跳过复制；将直接校验后清理 C 盘。")
+    else:
+        try:
+            shutil.copytree(str(src), str(target), dirs_exist_ok=True)
+        except Exception as e:
+            notes.append("复制 Ollama 模型失败——如果 Ollama 正在运行，请先在右下角托盘"
+                         f"退出 Ollama 再点一次按钮。详情：{e}")
+            return {"moved": moved, "notes": notes}
+
+    # ② 校验：D 盘文件数不少于 C 盘，才认为复制完整
+    if _file_count(target) < _file_count(src):
+        notes.append("复制后文件数不一致，为安全起见【没有删除 C 盘原文件】。"
+                     "请退出 Ollama 后再点一次按钮重试。")
+        return {"moved": moved, "notes": notes}
+
+    # ③ 设置 OLLAMA_MODELS（用户级，持久）
+    set_ok = _set_user_env("OLLAMA_MODELS", str(target))
+
+    # ④ 删源，释放 C 盘
+    leftover = False
+    try:
+        shutil.rmtree(str(src), ignore_errors=True)
+        if src.exists() and _file_count(src) > 0:
+            leftover = True
+    except Exception:
+        leftover = True
+
+    moved.append(f"Ollama 模型 → {target}（约 {src_gb:.1f} GB）")
+    if set_ok:
+        notes.append("✅ 已把 OLLAMA_MODELS 指向 D 盘。请【退出并重新打开 Ollama】，"
+                     "再重启本软件即可生效。")
+    else:
+        notes.append(f"模型已搬到 {target}，但没能自动写环境变量。请手动新建系统环境变量 "
+                     f"OLLAMA_MODELS = {target}，再重启 Ollama。")
+    if leftover:
+        notes.append(f"⚠ C 盘还有少量残留（Ollama 可能仍占用）：退出 Ollama 后手动删除 {src} 即可。")
+    return {"moved": moved, "notes": notes}
+
+
+def move_cached_models():
+    """把 C 盘上已下载的模型搬到 D 盘的 models 文件夹（省 C 盘空间）：
+       ① faster-whisper 的 HuggingFace 缓存；② Ollama 的大模型（通常才是 C 盘爆满主因）。
+       返回搬了哪些。"""
+    dest = _models_dir()
+    try:
+        dest.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        return {"ok": False, "moved": [], "error": f"建目标文件夹失败：{e}"}
+    moved = []
+    notes = []
+    # ① faster-whisper / HuggingFace 缓存
+    hubs = []
+    if os.environ.get("HF_HOME"):
+        hubs.append(Path(os.environ["HF_HOME"]) / "hub")
+    hubs.append(Path.home() / ".cache" / "huggingface" / "hub")
+    for hub in hubs:
+        try:
+            if not hub.exists():
+                continue
+            for d in list(hub.glob("models--Systran--faster-whisper-*")):
+                target = dest / d.name
+                if target.exists():
+                    moved.append(f"{d.name}（D盘已存在，跳过）")
+                    continue
+                try:
+                    shutil.move(str(d), str(target))  # 跨盘会自动复制+删除
+                    moved.append(d.name)
+                except Exception as e:
+                    moved.append(f"{d.name} 搬运失败：{e}")
+        except Exception:
+            continue
+    # ② Ollama 大模型
+    try:
+        ores = _move_ollama_models(dest)
+        moved.extend(ores.get("moved", []))
+        notes.extend(ores.get("notes", []))
+    except Exception as e:
+        notes.append(f"Ollama 模型处理出错：{e}")
+    return {"ok": bool([m for m in moved if "失败" not in m]) or bool(moved),
+            "moved": moved, "notes": notes, "dest": str(dest)}
+
+
+# ════════════════════ 依赖：已装版本 / 有没有新版 / 一键更新（v59 重写）════════════════════
+# 以前「安装/更新依赖」点完看起来像没更新成功，原因有两个：
+#   ① 版本号读的是已经加载进内存的旧模块（yt_dlp.version.__version__），pip 升级后不重启软件，
+#      显示的就一直是旧版本；
+#   ② 「最新版」是去 pypi.org 查的，而安装可能走镜像，镜像晚同步几个小时就会一直显示「有新版」。
+# 现在：
+#   · 已装版本直接读硬盘上的安装信息（importlib.metadata），装完马上就是新版本号；
+#   · 有没有新版，让 pip 自己「试装一下」（--dry-run，不真装），和真正安装走同一个源、
+#     同一套规则（也会考虑你的 Python 版本）——pip 说没什么可装的，就是最新；
+#   · yt-dlp 升级后，如果没有提取任务在跑，马上改用新版（不用重启）；其它带 C 扩展的包
+#     （curl_cffi 等）已经加载过的，提示「重启软件后生效」。
+import sys as _sys
+import json as _json
+import time as _time
+
+DEP_PKGS = [("yt-dlp", "yt_dlp"), ("faster-whisper", "faster_whisper"),
+            ("curl_cffi", "curl_cffi"), ("gmssl", "gmssl")]
+_PIP_SOURCES = [
+    ("清华镜像", ["-i", "https://pypi.tuna.tsinghua.edu.cn/simple",
+                 "--trusted-host", "pypi.tuna.tsinghua.edu.cn"]),
+    ("阿里镜像", ["-i", "https://mirrors.aliyun.com/pypi/simple/",
+                 "--trusted-host", "mirrors.aliyun.com"]),
+    ("默认源", []),
+]
+_DEP_CHECK_TTL = 6 * 3600          # 查过的结果 6 小时内有效
+_DEP_RETRY_AFTER_FAIL = 600        # 查失败（多半没网）10 分钟内不自动再查
+_deps_lock = threading.Lock()
+_deps_state = {"checking": False, "installing": False, "checked_at": 0, "failed_at": 0,
+               "updates_map": {}, "source": "", "error": "", "last_install": None}
+
+
+def _canon(name):
+    return re.sub(r"[-_.]+", "-", (name or "").lower())
+
+
+def installed_versions():
+    """硬盘上实际装着的版本（不是内存里的旧模块），没装为 None。装完不用重启就能读到新版本号。"""
+    import importlib
+    import importlib.metadata as _md
+    try:
+        importlib.invalidate_caches()
+    except Exception:
+        pass
+    out = {}
+    for pkg, _mod in DEP_PKGS:
+        ver = None
+        for nm in (pkg, pkg.replace("-", "_"), pkg.replace("_", "-")):
+            try:
+                ver = _md.version(nm)
+                break
+            except Exception:
+                continue
+        out[pkg] = ver
+    return out
+
+
+def _vnorm(v):
+    """版本号统一写法再比较：yt-dlp 内存里是 2025.01.15，pip 记的是 2025.1.15，其实是同一版。"""
+    if not v:
+        return v
+    try:
+        from pip._vendor.packaging.version import Version
+        return str(Version(str(v)))
+    except Exception:
+        return ".".join((p.lstrip("0") or "0") if p.isdigit() else p for p in str(v).split("."))
+
+
+def _loaded_version(mod):
+    """内存里已经加载的版本（没加载为 None）。和硬盘版本不一样 = 要重启才生效。"""
+    m = _sys.modules.get(mod)
+    if m is None:
+        return None
+    try:
+        if mod == "yt_dlp":
+            return m.version.__version__
+    except Exception:
+        pass
+    return getattr(m, "__version__", None)
+
+
+def _run_pip(args, timeout):
+    """跑 pip，返回 (退回码, 输出文字)。Windows 上不弹窗口；输出统一按 UTF-8 读，避免中文乱码报错。"""
+    import subprocess
+    kw = {"capture_output": True, "text": True, "encoding": "utf-8", "errors": "replace",
+          "timeout": timeout, "env": dict(os.environ, PYTHONIOENCODING="utf-8")}
+    if _sys.platform == "win32":
+        kw["creationflags"] = 0x08000000      # CREATE_NO_WINDOW
+    r = subprocess.run(args, **kw)
+    out = (r.stdout or "") + (r.stderr or "")
+    if r.returncode != 0 and "externally-managed" in out:
+        r = subprocess.run(args + ["--break-system-packages"], **kw)
+        out = (r.stdout or "") + (r.stderr or "")
+    return r.returncode, out
+
+
+def _pip_base():
+    return [_sys.executable, "-m", "pip", "install", "--upgrade",
+            "--disable-pip-version-check", "--no-input", "--prefer-binary"]
+
+
+def _pip_last_line(out):
+    lines = [x.strip() for x in (out or "").splitlines() if x.strip()]
+    for x in reversed(lines):
+        if x.lower().startswith(("error", "warning: retrying")) or "Error" in x:
+            return x[:200]
+    return (lines[-1] if lines else "没有输出")[:200]
+
+
+# 连不上源时，pip 不会报错（退出码还是 0），只会打印 "Retrying … connection broken"，
+# 已经装着的包就当成「已是最新」——这会造成「明明没查到却显示已是最新」。所以：
+#   ① 先用一个小请求确认这个源连得上，连不上直接换下一个；
+#   ② pip 输出里有网络出错的痕迹，这个源的结果就不算数。
+_NET_FAIL_MARKS = ("connection broken", "Failed to establish", "ProxyError", "Max retries exceeded",
+                   "Read timed out", "ConnectTimeoutError", "SSLError", "Could not fetch URL")
+_default_index = []
+
+
+def _net_trouble(out):
+    return any(m in (out or "") for m in _NET_FAIL_MARKS)
+
+
+def _source_index(src_args):
+    """这个源的索引地址。「默认源」= pip 自己配置的（用户可能在 pip.ini 里设了镜像），没设就是 pypi.org。"""
+    if src_args:
+        return src_args[1].rstrip("/")
+    if not _default_index:
+        url = "https://pypi.org/simple"
+        try:
+            _rc, out = _run_pip([_sys.executable, "-m", "pip", "config", "list"], 30)
+            m = re.search(r"index-url\s*=\s*['\"]?([^'\"\s]+)", out or "")
+            if m:
+                url = m.group(1)
+        except Exception:
+            pass
+        _default_index.append(url.rstrip("/"))
+    return _default_index[0]
+
+
+def _index_reachable(index):
+    """连得上这个源吗（取 yt-dlp 的索引页开头一点点，10 秒超时）。"""
+    import urllib.request
+    try:
+        req = urllib.request.Request("%s/yt-dlp/" % index, headers={"User-Agent": "pip chaoneng-xiaozhu"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            r.read(512)
+            return getattr(r, "status", 200) < 400
+    except Exception:
+        return False
+
+
+def _latest_via_json(src_args):
+    """老版本 pip 不支持试装时的兜底：直接问源里每个包的最新版本。返回 {包: 新版本}。"""
+    base = "https://pypi.org/pypi/%s/json"
+    if src_args and "tuna" in src_args[1]:
+        base = "https://pypi.tuna.tsinghua.edu.cn/pypi/%s/json"
+    elif src_args:
+        raise RuntimeError("这个源不支持查版本")
+    import urllib.request
+    try:
+        from pip._vendor.packaging.version import Version as _V
+    except Exception:
+        _V = None
+    have = installed_versions()
+    upd = {}
+    for pkg, _mod in DEP_PKGS:
+        req = urllib.request.Request(base % pkg, headers={"User-Agent": "chaoneng-xiaozhu"})
+        with urllib.request.urlopen(req, timeout=15) as r:
+            latest = ((_json.loads(r.read().decode("utf-8", "replace")).get("info") or {})
+                      .get("version"))
+        cur = have.get(pkg)
+        if not latest:
+            continue
+        newer = (cur is None) or (cur != latest)
+        if newer and cur and _V:
+            try:
+                newer = _V(latest) > _V(cur)
+            except Exception:
+                pass
+        if newer:
+            upd[pkg] = latest
+    return upd
+
+
+def _dry_run(src_args):
+    """让 pip 试装一下（不真装）：返回 {包: 将要装上的新版本}，空字典 = 都是最新。"""
+    pkgs = [p for p, _m in DEP_PKGS]
+    fd, rep = tempfile.mkstemp(suffix=".json")
+    os.close(fd)
+    try:
+        rc, out = _run_pip(_pip_base() + ["--dry-run", "--quiet", "--retries", "2", "--timeout", "15",
+                                          "--report", rep] + src_args + pkgs, 240)
+        if rc != 0:
+            if "no such option" in out.lower():
+                return _latest_via_json(src_args)       # pip 太旧，不认 --dry-run / --report
+            raise RuntimeError(_pip_last_line(out))
+        if _net_trouble(out):
+            raise RuntimeError("网络不稳，没查完整")
+        with open(rep, encoding="utf-8") as f:
+            data = _json.load(f)
+    finally:
+        try:
+            os.remove(rep)
+        except Exception:
+            pass
+    want = {_canon(p): p for p in pkgs}
+    upd = {}
+    for it in data.get("install") or []:
+        md = it.get("metadata") or {}
+        key = want.get(_canon(md.get("name")))
+        if key:
+            upd[key] = md.get("version") or "?"
+    return upd
+
+
+def _check_updates_worker():
+    result, used, errs = None, "", []
+    for label, args in _PIP_SOURCES:
+        if not _index_reachable(_source_index(args)):
+            errs.append("%s：连不上" % label)
+            continue
+        try:
+            result = _dry_run(args)
+            used = label
+            break
+        except Exception as e:
+            errs.append("%s：%s" % (label, str(e)[:120]))
+    with _deps_lock:
+        _deps_state["checking"] = False
+        if result is not None:
+            _deps_state.update(updates_map=result, checked_at=_time.time(), source=used, error="")
+        else:
+            _deps_state.update(failed_at=_time.time(),
+                               error="没查到新版本信息（多半是网络不通）。" + "；".join(errs[-1:]))
+    try:
+        n = len(result or {})
+        print("[deps] 依赖新版本检查：%s" % (("%d 个有新版（%s）" % (n, used)) if n
+              else ("都是最新（%s）" % used if result is not None else "没查成（网络问题）")), flush=True)
+    except Exception:
+        pass
+
+
+def deps_status(refresh=False):
+    """维护工具用：每个依赖的已装版本、有没有新版。结果缓存 6 小时；过期或 refresh=True 时在后台重查
+    （返回 checking=True，前端过一会儿再来取）。"""
+    now = _time.time()
+    start = False
+    with _deps_lock:
+        st = _deps_state
+        stale = now - (st["checked_at"] or 0) > _DEP_CHECK_TTL
+        recently_failed = now - (st["failed_at"] or 0) < _DEP_RETRY_AFTER_FAIL
+        if not st["checking"] and not st["installing"] and (refresh or (stale and not recently_failed)):
+            st["checking"] = True
+            start = True
+        snap = {k: (dict(v) if isinstance(v, dict) else v) for k, v in st.items()}
+    if start:
+        threading.Thread(target=_check_updates_worker, daemon=True).start()
+    known = bool(snap["checked_at"])
+    upd = snap["updates_map"] if known else {}
+    have = installed_versions()
+    items, restart = [], []
+    for pkg, mod in DEP_PKGS:
+        cur = have.get(pkg)
+        new = upd.get(pkg)
+        if new and new == cur:
+            new = None
+        loaded = _loaded_version(mod)
+        need_restart = bool(loaded and cur and _vnorm(loaded) != _vnorm(cur))
+        if need_restart:
+            restart.append(pkg)
+        items.append({"name": pkg, "installed": cur, "missing": cur is None,
+                      "update": bool(new), "latest": new or (cur if known else None),
+                      "restart": need_restart})
+    n = sum(1 for it in items if it["update"] or it["missing"])
+    return {"items": items, "updates": n, "known": known, "up_to_date": known and n == 0,
+            "checking": snap["checking"] or start, "installing": snap["installing"],
+            "checked_at": int(snap["checked_at"] or 0), "source": snap["source"],
+            "error": snap["error"] if (snap["failed_at"] or 0) > (snap["checked_at"] or 0) else "",
+            "restart": restart,
+            "last_install": snap["last_install"]}
+
+
+def _reload_ytdlp_if_idle():
+    """yt-dlp 升级后：没有提取任务在跑时，把内存里的旧 yt-dlp 卸掉，下次用到时自动加载新版（不用重启）。
+    软件里所有 import yt_dlp 都写在函数里，所以卸掉后下一次调用拿到的就是新版。"""
+    if "yt_dlp" not in _sys.modules:
+        return True
+    if extract_busy():
+        return False
+    for k in [k for k in list(_sys.modules) if k == "yt_dlp" or k.startswith("yt_dlp.")]:
+        _sys.modules.pop(k, None)
+    return True
+
+
+def install_deps():
+    """装 / 升级视频依赖（先清华镜像，不行换阿里镜像，最后默认源）。返回 (是否成功, 输出文本)。
+    详细结果（哪些包从几版升到几版、要不要重启）放在 deps_status()["last_install"]。"""
+    pkgs = [p for p, _m in DEP_PKGS]
+    with _deps_lock:
+        if _deps_state["installing"]:
+            return False, "已经在更新了，请稍等…"
+        _deps_state["installing"] = True
+    before = installed_versions()
+    used, out, tried, shaky = "", "", [], False
+    try:
+        for label, args in _PIP_SOURCES:
+            if not _index_reachable(_source_index(args)):
+                tried.append("%s：连不上" % label)
+                continue
+            try:
+                rc, out = _run_pip(_pip_base() + args + pkgs, 900)
+            except Exception as e:
+                rc, out = 1, "安装出错：%s" % e
+            if rc == 0:
+                used, shaky = label, _net_trouble(out)
+                break
+            tried.append("%s：%s" % (label, _pip_last_line(out)))
+        after = installed_versions()
+        ok = bool(used) and all(after.get(p) for p, _m in DEP_PKGS)
+        changes = [{"name": p, "from": before.get(p), "to": after.get(p)}
+                   for p, _m in DEP_PKGS if before.get(p) != after.get(p)]
+        hot = True
+        if any(c["name"] == "yt-dlp" for c in changes):
+            hot = _reload_ytdlp_if_idle()
+        restart = [p for p, m in DEP_PKGS
+                   if (p != "yt-dlp" or not hot) and _loaded_version(m)
+                   and after.get(p) and _vnorm(_loaded_version(m)) != _vnorm(after.get(p))]
+        info = {"ok": ok, "at": int(_time.time()), "source": used, "changes": changes,
+                "restart": restart, "versions": after, "tried": tried, "shaky": shaky}
+        recheck = False
+        with _deps_lock:
+            _deps_state["last_install"] = info
+            if ok and not shaky:
+                # 刚从这个源装了能装的最新版，所以现在就是「最新」，不用再查一遍
+                _deps_state.update(updates_map={}, checked_at=_time.time(), source=used,
+                                   error="", failed_at=0)
+            elif ok:
+                recheck = True          # 中途网络抖过：不敢说一定最新，马上在后台重查一遍
+        if recheck:
+            with _deps_lock:
+                _deps_state["installing"] = False
+            deps_status(refresh=True)
+        if not ok and tried:
+            out = (out or "") + "\n\n" + "\n".join(tried)
+        return ok, (out or "")[-3000:]
+    finally:
+        with _deps_lock:
+            _deps_state["installing"] = False
+
+
+# ════════════════════ 诊断 / 自检 / 版本检查 ════════════════════
+# 目标：抖音哪天又坏了，能（1）一键自检知道坏没坏、坏在哪；（2）出错自动把现场
+#   存成一个小文件，方便直接发给开发者定位；（3）查 yt-dlp 有没有新版可升。
+
+def _diag_path():
+    """诊断文件就放在 backend 目录下，名字固定，方便用户找到后发出来。"""
+    return Path(__file__).resolve().parent / "_video_diag.txt"
+
+
+def write_diag(url, stage, detail):
+    """把一次失败的现场写成易读的小文件（覆盖上一份）。任何异常都不抛。"""
+    try:
+        import platform
+        import time as _t
+        try:
+            import yt_dlp
+            vt = yt_dlp.version.__version__
+        except Exception:
+            vt = "(未装/读不到)"
+        try:
+            import curl_cffi
+            cc = getattr(curl_cffi, "__version__", "?")
+        except Exception:
+            cc = "(未装)"
+        lines = [
+            "超能小助 · 视频提取诊断",
+            "==============================",
+            "时间：%s" % _t.strftime("%Y-%m-%d %H:%M:%S"),
+            "链接：%s" % (url or ""),
+            "失败阶段：%s" % (stage or ""),
+            "yt-dlp 版本：%s" % vt,
+            "curl_cffi 版本：%s" % cc,
+            "系统：%s" % platform.platform(),
+            "",
+            "详细错误：",
+            str(detail or ""),
+        ]
+        _diag_path().write_text("\n".join(lines), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def read_diag():
+    """读回最近一次诊断。返回 {exists, path, text?}。"""
+    try:
+        p = _diag_path()
+        if p.exists():
+            return {"exists": True, "path": str(p),
+                    "text": p.read_text(encoding="utf-8", errors="replace")}
+    except Exception:
+        pass
+    return {"exists": False, "path": str(_diag_path())}
+
+
+def clear_diag():
+    """删除诊断文件（提取成功后调用，免得旧的失败提示一直挂着）。"""
+    try:
+        p = _diag_path()
+        if p.exists():
+            p.unlink()
+    except Exception:
+        pass
+
+
+def check_ytdlp_update():
+    """yt-dlp 有没有新版（v59：和「维护工具」里的依赖检查用同一份结果，已装版本读硬盘，
+    不会再出现「明明更新了还提示有新版」）。返回 {current, latest, update_available}。"""
+    try:
+        for it in deps_status()["items"]:
+            if it["name"] == "yt-dlp":
+                return {"current": it["installed"], "latest": it["latest"],
+                        "update_available": bool(it["update"])}
+    except Exception:
+        pass
+    return {"current": None, "latest": None, "update_available": False}
+
+
+def health():
+    """综合自检：抖音链路 + 版本 + yt-dlp 新版 + 诊断文件状态。供前端一次拿全。"""
+    out = {}
+    try:
+        import douyin_resolver
+        out["douyin"] = douyin_resolver.health_check()
+        out["versions"] = douyin_resolver.versions()
+    except Exception as e:
+        out["douyin"] = {"status": "error", "detail": "自检模块出错：%s" % e}
+        out["versions"] = {}
+    try:
+        out["ytdlp"] = check_ytdlp_update()
+    except Exception:
+        out["ytdlp"] = {"current": None, "latest": None, "update_available": False}
+    try:
+        d = read_diag()
+        out["diag"] = {"exists": bool(d.get("exists")), "path": d.get("path")}
+    except Exception:
+        out["diag"] = {"exists": False, "path": ""}
+    return out
+
+
+def _download_audio(url, outdir):
+    """用 yt-dlp / 抖音直链下载音频到 outdir，返回 (文件路径, 标题, 作者, 话题标签列表)。
+    话题标签只有抖音分享页直链这条路能顺带拿到；yt-dlp 兜底拿不到就是空列表。"""
+    # 进门先规范化：iesdouyin 分享页长链 → 标准抖音链接，避免任何子路径把它喂给
+    # yt-dlp 触发 Unsupported URL。
+    url = _normalize_ytdlp_url(url)
+    # 抖音：先走「分享页直链」这条不需要 JS 签名的路（最稳）。成了就直接用，
+    # 拿到的是 mp4，faster-whisper 能直接解出音频。解析/下载失败再回退到 yt-dlp。
+    if _is_douyin(url):
+        try:
+            import douyin_resolver
+            dest = os.path.join(outdir, "media.mp4")
+            r = douyin_resolver.fetch_to(url, dest)
+            if r.get("ok") and os.path.exists(dest) and os.path.getsize(dest) > 2048:
+                # ★顺手把抖音话题标签也带回去（之前这里漏带，导致数据库标签不同步）
+                return (dest, (r.get("title") or "").strip(),
+                        (r.get("uploader") or "").strip(), r.get("tags") or [])
+        except Exception:
+            pass  # 任何问题都安静回退到下面的 yt-dlp 流程
+
+    opts = {
+        "format": "bestaudio/best",
+        "outtmpl": os.path.join(outdir, "media.%(ext)s"),
+        "quiet": True,
+        "no_warnings": True,
+        "noplaylist": True,
+        "nocheckcertificate": True,
+        "retries": 3,
+        "socket_timeout": 30,
+    }
+    # 抖音/TikTok：走 impersonate + 访客 cookie 重试阶梯（兜底）。其它平台单次执行、保持原样。
+    info = _run_extract(url, opts, download=True)
+    files = glob.glob(os.path.join(outdir, "media.*"))
+    if not files:
+        raise RuntimeError("没下载到媒体文件（可能链接失效或平台限制）。")
+    title = (info.get("title") or info.get("description") or "").strip()
+    uploader = (info.get("uploader") or info.get("creator") or "").strip()
+    return files[0], title, uploader, []
+
+
+def _find_video(outdir):
+    """返回已下载完整的视频文件路径（vid.* 命名），半成品忽略。没有返回 None。"""
+    try:
+        files = [f for f in glob.glob(os.path.join(str(outdir), "vid.*"))
+                 if not f.endswith((".part", ".ytdl", ".tmp"))]
+        return files[0] if files else None
+    except Exception:
+        return None
+
+
+def _download_video(url, outdir, progress_cb=None):
+    """
+    截图用：下载**视频画面文件**（只为抓帧，不求高清）。返回 (视频路径, 标题, 作者) 或 None。
+
+    关键取舍——避开 ffmpeg：
+      · 优先选「单文件就带画面的渐进式 mp4」（worst[ext=mp4] 等），体积小、下得快，
+        而且不需要 ffmpeg 把视频流+音频流合并（合并才依赖 ffmpeg 程序）。
+      · 截图只要看得清画面即可，所以挑较小清晰度，省流量省时间。
+      · 任何失败都返回 None（让上层照常出文字笔记，只是没图）。
+    """
+    import yt_dlp
+    # 抖音：截图也优先走「分享页直链」。拿到 mp4 直接当画面文件用，抓帧没问题。
+    if _is_douyin(url):
+        try:
+            import douyin_resolver
+            dest = os.path.join(outdir, "vid.mp4")
+            if progress_cb:
+                progress_cb("下载视频画面", "为插图下载视频画面…")
+            r = douyin_resolver.fetch_to(url, dest)
+            if r.get("ok") and os.path.exists(dest) and os.path.getsize(dest) > 2048:
+                return dest, (r.get("title") or "").strip(), (r.get("uploader") or "").strip()
+        except Exception:
+            pass  # 失败就回退到下面的 yt-dlp 流程
+    # 这些 format 都尽量落到「单一渐进式文件」，避免 yt-dlp 触发 ffmpeg 合并：
+    #   worst[ext=mp4][vcodec!=none] —— 最小的、带画面的 mp4 单文件
+    #   退而求其次给几个兜底，最后 best 也只是尽力，多数平台短视频本就是单文件
+    fmt = ("worst[ext=mp4][vcodec!=none]/"
+           "worstvideo[ext=mp4]/"
+           "best[ext=mp4][vcodec!=none]/best")
+    opts = {
+        "format": fmt,
+        "outtmpl": os.path.join(outdir, "vid.%(ext)s"),
+        "quiet": True,
+        "no_warnings": True,
+        "noplaylist": True,
+        "nocheckcertificate": True,
+        "retries": 3,
+        "socket_timeout": 30,
+        # 不让 yt-dlp 因找不到 ffmpeg 而报错中断：不加任何 postprocessor
+    }
+    # 抖音/TikTok：同样走 impersonate + cookie 重试阶梯（截图也要下视频画面）。
+    # 其它平台单次执行、保持原样。
+    try:
+        if progress_cb:
+            progress_cb("下载视频画面", "为插图下载视频画面（挑小清晰度，省时间）…")
+        info = _run_extract(url, opts, download=True)
+        path = _find_video(outdir)
+        if not path:
+            return None
+        title = (info.get("title") or info.get("description") or "").strip()
+        uploader = (info.get("uploader") or info.get("creator") or "").strip()
+        return path, title, uploader
+    except Exception:
+        # 下视频失败不致命：返回 None，上层照常出无图笔记
+        return None
+
+
+
+def _get_model(level, progress_cb=None):
+    """取（必要时加载）语音模型。v54：优先用 NVIDIA 显卡（gpu_accel），不行自动退回 CPU。
+    缓存里存的是 (模型, 设备)；之前因为 GPU 运行库还没装好而用了 CPU 的，
+    等运行库就绪后下次会自动换成 GPU 版本。"""
+    import gpu_accel
+    size = MODEL_MAP.get(level, "small")
+    cached = _model_cache.get(size)
+    if cached is not None and not isinstance(cached, tuple):
+        cached = (cached, "?")          # 兼容旧写法（命令行工具直接塞模型进来）
+        _model_cache[size] = cached
+    if cached is not None:
+        model, dev = cached
+        upgrade = dev == "cpu" and gpu_accel.gpu_retry_due()      # v89：CPU 版过一会儿就再试显卡
+        if not upgrade:
+            return model, dev
+        _model_cache.pop(size, None)    # 显卡运行库刚装好 → 丢掉 CPU 版，重新用 GPU 加载
+        del model
+    # v89：先确保模型文件在本机（自己下载：国内镜像 → 代理，带进度、断点续传），再加载。
+    #      这样加载时完全不联网，下载出问题也不会被当成「显卡坏了」而退回 CPU。
+    import model_download as _md
+    mdir = _models_dir()
+    path = _md.find_local(size, mdir)
+    if path:
+        if progress_cb:
+            progress_cb("加载语音模型", f"用本地已下载的 {size} 模型，无需联网")
+    else:
+        if progress_cb:
+            progress_cb("下载语音模型", f"第一次用 {size} 模型，要先下载（约 {_md.approx_gb(size):.1f} GB）到 "
+                                     f"{mdir}，只下这一次…")
+        path = _md.download(size, mdir, progress=(lambda m: progress_cb("下载语音模型", m)) if progress_cb else None,
+                            check=_check_cancel)
+        if progress_cb:
+            progress_cb("加载语音模型", f"{size} 模型下载好了，正在加载…")
+    model, dev, ct = gpu_accel.load_model(path, progress_cb=progress_cb)
+    _MODEL_INFO[size] = {"path": str(path), "dev": dev, "ct": ct}      # v104：单独测逐字时间要用
+    _model_cache[size] = (model, dev)
+    return model, dev
+
+
+def _drop_gpu_models():
+    """GPU 中途出错后，把缓存里的 GPU 模型全部丢掉（下次按 CPU 重新加载）。"""
+    for k in list(_model_cache.keys()):
+        v = _model_cache.get(k)
+        if not isinstance(v, tuple) or v[1] != "cpu":
+            _model_cache.pop(k, None)
+    try:
+        import gc
+        gc.collect()
+    except Exception:
+        pass
+
+
+def _transcribe(path, level="balanced", progress_cb=None, job_dir=None):
+    """语音转文字（入口）。v54：先用显卡；如果显卡中途出错（找不到 CUDA 库 / 显存不够等），
+    自动标记显卡不可用、换 CPU 重来。在线任务有断点进度，重来时会从出错前的位置接着转。"""
+    import gpu_accel
+    try:
+        return _transcribe_once(path, level, progress_cb, job_dir)
+    except ExtractCancelled:
+        raise
+    except Exception as e:
+        cached = _model_cache.get(MODEL_MAP.get(level, "small"))
+        used_gpu = isinstance(cached, tuple) and cached[1] == "cuda"
+        if not (used_gpu and gpu_accel.is_gpu_error(e)):
+            raise
+        gpu_accel.mark_gpu_broken("转写时显卡出错：%s" % str(e)[:200])
+        _drop_gpu_models()
+        if progress_cb:
+            progress_cb("语音转文字", "显卡出错，自动改用 CPU 接着转…")
+        return _transcribe_once(path, level, progress_cb, job_dir)
+
+
+def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
+    """用 faster-whisper 把音频转成中文文字。progress_cb(stage, detail) 报告进度。
+    若给了 job_dir，则支持断点续传：读回已转文字、从上次的秒数处切片接着转，
+    并边转边把进度写进 job_dir/progress.json（换代码/关软件后重启能接着跑）。
+
+    返回 (文字稿, 分段列表)：
+      · 文字稿：分好段的整段中文（和以前一样，给 AI 总结用）；
+      · 分段列表：[{"start":秒, "end":秒, "text":"这一句"}, ...]，带时间戳，
+        给后面的「截图插入 / 跳转原片」用。续传时这份分段也会一起恢复，时间戳连续不串。"""
+    size = MODEL_MAP.get(level, "small")
+    model, _device = _get_model(level, progress_cb)
+
+    # ── 读回断点续传进度 ──
+    # parts：已转的纯文字片段（老逻辑）；seg_list：已转的带时间戳分段（新增，给截图/跳转用）
+    parts, offset = [], 0.0
+    seg_list = []
+    if job_dir is not None:
+        prog = _load_progress(job_dir)
+        # 只有同一个模型档位的半成品才接着用；档位变了就从头转（音频仍复用、不重下）
+        if (prog and prog.get("level") == level and (prog.get("lang") or "zh") == _LANG["v"]
+                and bool(prog.get("vocal")) == bool(_OPTS.get("vocal"))):          # v102：开 / 关人声分离也要重新听   # v95：换了语言就重新听
+            parts = list(prog.get("parts") or [])
+            seg_list = list(prog.get("segments") or [])
+            try:
+                offset = float(prog.get("last_end") or 0)
+            except Exception:
+                offset = 0.0
+
+    # ── 尝试用「切片续转」：解码整段音频，从 offset 秒处切片，时间戳整体加 offset ──
+    audio_input = path
+    total = 0.0
+    full = None
+    can_resume = False
+    _resume_offset_kept = offset   # 记下从 progress.json 读回的进度，decode 失败时别丢
+    src_path = path
+    if _OPTS.get("vocal"):
+        # v102：先把背景音乐、杂音去掉，只留人声，再识别（结果有缓存，同一个文件只分离一次）
+        try:
+            import vocal_sep
+            src_path = vocal_sep.separate(path, _models_dir(), progress_cb, _check_cancel)
+        except ExtractCancelled:
+            raise
+        except Exception as e:
+            src_path = path
+            print("[人声分离] 没分离成，按原声识别：%s" % e, flush=True)
+            if progress_cb:
+                progress_cb("人声分离", "没分离成（%s），这次按原声识别" % str(e)[:80])
+    try:
+        from faster_whisper.audio import decode_audio
+        full = decode_audio(src_path, sampling_rate=_SR)
+        total = round(len(full) / _SR, 2)
+        if _ja_mode():
+            full = _boost_quiet(full)                   # v97：小声的先放大，再识别
+            if progress_cb:
+                progress_cb("语音转文字", "日语模式：小声的部分先放大，静音检测放宽，尽量一句不漏…")
+        can_resume = True
+        if offset > 0 and offset < total:
+            audio_input = full[int(offset * _SR):]
+            if progress_cb:
+                pct = min(99, int(offset / total * 100)) if total else 0
+                progress_cb("语音转文字",
+                            f"接着上次进度继续（已完成 {pct}%，{int(offset)} 秒 / 共 {int(total)} 秒）…")
+        else:
+            audio_input = full
+            offset = 0.0
+            parts = []  # offset=0 → 从头转，旧 parts 作废
+            seg_list = []  # 同上，旧的带时间戳分段也作废
+    except Exception:
+        # 没有 decode_audio（或这次解码失败）→ 无法做「切片续转」，但仍要尽量支持续传：
+        #   · 让 whisper 直接吃文件，用它自报的段时间戳来存盘（offset=0 从头转）；
+        #   · 关键：**不要**抹掉 progress.json 里已读回的进度。decode 可能只是这次偶发
+        #     失败，下次启动若能 decode 成功，就还能从 _resume_offset_kept 处接着切片续转。
+        #     若这次就从头转完了，收尾存盘会用新的完整结果覆盖，也不冲突。
+        audio_input = src_path                 # v102：分离了人声就用人声
+        offset = 0.0
+        parts = []
+        seg_list = []
+        can_resume = True   # 允许按段时间戳存盘（从头转，但中途关软件也能落盘进度）
+        if _resume_offset_kept and progress_cb:
+            progress_cb("语音转文字",
+                        "这次无法从中间切片续转，将从头识别（已转进度仍保留在磁盘上）…")
+
+    if progress_cb and offset == 0:
+        progress_cb("语音转文字", "模型就绪（%s），开始逐句识别…"
+                    % ("显卡加速" if _device == "cuda" else "CPU"))
+
+    # vad_filter 会跳过静音，能省不少时间；但它让 whisper 上报的时间戳基于「去静音后」
+    # 的位置，导致进度百分比相对真实音频忽快忽慢。这里把静音判定阈值调大一点
+    # （只把较长的停顿当静音切掉），减少碎片化、让进度更线性，也略微提速。
+    _kw = {}
+    if _ja_mode():
+        # v97：日语模式——静音检测放宽（小声的也算人在说话），前后多留一点，避免句子头尾被切掉
+        _vad = {"threshold": 0.25, "min_silence_duration_ms": 1500, "speech_pad_ms": 600}
+    else:
+        _vad = {"min_silence_duration_ms": 800, "speech_pad_ms": 200}
+    _LANG["noprompt"] = MODEL_MAP.get(level) == "anime"
+    if MODEL_MAP.get(level, "").startswith("kotoba"):
+        # kotoba-whisper 官方建议：按 15 秒一段听，不拿上一段的结果当提示（减少「复读」和编造）
+        _kw.update(chunk_length=15, condition_on_previous_text=False)
+    _OPTS["wts"] = False
+    if _LANG["v"] != "zh" and MODEL_MAP.get(level) != "anime" and full is not None:
+        _ok, _reload = _wts_check(MODEL_MAP.get(level, "small"), full, progress_cb)   # v104：先单独试过，确认不会闪退
+        if _reload:
+            _model_cache.pop(MODEL_MAP.get(level, "small"), None)
+            model, _device = _get_model(level, progress_cb)          # 按修正后的对齐设置重新加载
+        if _ok:
+            _OPTS["wts"] = True
+            _kw["word_timestamps"] = True                # v103：逐字时间——字幕和画面对得上
+    elif MODEL_MAP.get(level) == "anime":
+        # v98：Anime-Whisper 是拿一句一句的短配音训练的：按 10 秒一段听、不带时间戳（每段一句）、
+        # 不给提示、不拿上一段当提示，并且压住「同一句反复刷」的毛病
+        _kw.update(chunk_length=10, condition_on_previous_text=False, without_timestamps=True,
+                   repetition_penalty=1.1, no_repeat_ngram_size=10)
+    if MODEL_MAP.get(level) == "anime" and not isinstance(audio_input, str):
+        # v99：先按停顿切成一句一句，再一句一句听——字幕时间对得上
+        from types import SimpleNamespace as _NS
+        if progress_cb:
+            progress_cb("语音转文字", "Anime-Whisper：先按停顿把声音切成一句一句，再一句一句听（字幕时间对得上）…")
+        segments, info = _anime_segments(model, audio_input), _NS(duration=len(audio_input) / _SR)
+    else:
+        segments, info = model.transcribe(
+            audio_input, language=_whisper_lang(), vad_filter=True,
+            initial_prompt=_lang_prompt(),                  # v87：带标点、简体；v95：按选的语言
+            vad_parameters=_vad, **_kw)
+    # ── 进度分母 total：优先用我们自己解码出来的真实音频秒数（最准），
+    #    没有再退回 whisper 报告的 duration。这一份是「整段」时长，和下面
+    #    加了 offset 的 seg_end 同基准，百分比才不会偏。
+    if not total:
+        total = getattr(info, "duration", 0) or 0
+
+    n = 0
+    last_end = offset
+    import time as _t_save
+    _last_save_at = _t_save.time()   # 上次存盘时刻，用于按时间间隔落盘
+
+    def _save_guarded(new_last_end, new_parts, new_seg_list):
+        """带保护的存盘：只有当『这次要写的进度 new_last_end』不落后于磁盘上
+        已有进度时才覆盖。防止 decode 失败、从头重转的场景把磁盘上已有的好进度
+        （比如上次已转到 90%）覆盖成更差的（从 0 重转的部分）。"""
+        if job_dir is None or not can_resume:
+            return
+        try:
+            existed = _load_progress(job_dir)
+            old_end = float(existed.get("last_end") or 0) if existed.get("level") == level else 0.0
+        except Exception:
+            old_end = 0.0
+        # 续传切片场景 new_last_end 本就 ≥ old_end；从头重转时只有追上才覆盖
+        if new_last_end + 0.01 >= old_end:
+            _save_progress(job_dir, {
+                "url": None, "level": level, "lang": _LANG["v"], "vocal": bool(_OPTS.get("vocal")), "total": total,
+                "last_end": new_last_end, "parts": new_parts,
+                "segments": new_seg_list})
+
+    for seg in segments:
+        # ★取消检查：用户点了「全部取消」→ 立刻中断听写。
+        #   已识别的进度上面每隔几秒就落盘了一次，下次同一个链接/文件再提取会自动续传。
+        _check_cancel()
+        t = (seg.text or "").strip()
+        seg_start = (getattr(seg, "start", 0) or 0) + offset
+        seg_end = (getattr(seg, "end", 0) or 0) + offset
+        if t:
+            parts.append(t)
+            # 记录带时间戳的分段（截图/跳转原片要用）；时间戳已整体加 offset，连续不串
+            cues = _cues_from_words(getattr(seg, "words", None), offset) if _word_ts_on() else None
+            if cues:                                   # v103：按逐字时间拆成一条一条字幕
+                seg_list.extend(cues)
+                seg_end = max(seg_end, cues[-1]["end"])
+            else:
+                seg_list.append({
+                    "start": round(float(seg_start), 2),
+                    "end": round(float(seg_end), 2),
+                    "text": t,
+                })
+        if seg_end > last_end:
+            last_end = seg_end
+        n += 1
+        # 存盘条件放宽：每 6 段 **或** 距上次存盘已过 4 秒就存一次。
+        # 原来「固定每 6 段」在「精准档 + 长停顿视频」里，可能很久才攒够 6 段，
+        # 期间关软件 → 这一大截没落盘 → 重启又从上次落盘点（甚至 0）开始。
+        # 改成按时间兜底后，最多丢约 4 秒的进度。
+        _due_by_time = (_t_save.time() - _last_save_at) >= 4
+        if n % 6 == 0 or _due_by_time:
+            if job_dir is not None and can_resume:
+                _save_guarded(last_end, parts, seg_list)
+                _last_save_at = _t_save.time()
+            if progress_cb:
+                # 防御：万一某些段的时间戳超过了估算的 total（vad/续传边界误差），
+                # 用 last_end 把分母顶上去，避免出现 “160 秒 / 共 150 秒” 这种倒挂，
+                # 也避免百分比卡在某个值不动。
+                denom = max(total, last_end) if total else last_end
+                if denom:
+                    pct = min(99, int(last_end / denom * 100))
+                    progress_cb("语音转文字",
+                                f"已识别 {pct}%（{int(last_end)} 秒 / 共 {int(denom)} 秒）")
+                else:
+                    progress_cb("语音转文字", f"已识别到第 {int(last_end)} 秒…")
+
+    # v101：日语模式先逐句查漏（两句之间夹着的短话也补上）
+    more = []
+    if _ja_mode() and full is not None and MODEL_MAP.get(level) != "anime":
+        try:
+            more = _fill_uncovered(model, full, seg_list, progress_cb)
+        except ExtractCancelled:
+            raise
+        except Exception as e:
+            more = []
+            print("[video] 逐句查漏出错（不影响已有结果）：%s" % e, flush=True)
+        if more:
+            seg_list = sorted(seg_list + more, key=lambda x: x.get("start", 0))
+            parts = [x["text"] for x in seg_list]
+            last_end = max(last_end, max(x["end"] for x in more))
+    # v87：补漏——结尾 / 中间被当成「没人说话」跳过的大段，再不跳静音地听一遍
+    try:
+        extra = _fill_gaps(model, full, total, seg_list, progress_cb)
+    except ExtractCancelled:
+        raise
+    except Exception as e:
+        extra = []
+        print("[video] 补漏出错（不影响已有结果）：%s" % e, flush=True)
+    if more:
+        extra = list(more) + list(extra or [])
+        seg_list = sorted(seg_list + [x for x in extra if x not in more], key=lambda x: x.get("start", 0))
+        parts = [x["text"] for x in seg_list]
+    elif extra:
+        seg_list = sorted(seg_list + extra, key=lambda x: x.get("start", 0))
+        parts = [x["text"] for x in seg_list]
+        last_end = max(last_end, max(x["end"] for x in extra))
+    # v104：外语没用上逐字时间（模型试过不行）：按真正有人说话的声音收紧字幕时间
+    if _LANG["v"] != "zh" and not _OPTS.get("wts") and MODEL_MAP.get(level) != "anime" and full is not None and seg_list:
+        try:
+            seg_list = _snap_to_speech(seg_list, full)
+        except Exception as e:
+            print("[video] 收紧字幕时间出错（不影响文字）：%s" % e, flush=True)
+    if progress_cb:
+        _chars = sum(len(x) for x in parts)
+        _spoken_end = max([float(x.get("end") or 0) for x in seg_list] or [0])
+        progress_cb("识别完成", "共 %d 字；讲话识别到第 %d 秒 / 音频共 %d 秒%s" % (
+            _chars, int(_spoken_end), int(total or last_end),
+            ("（补回来 %d 句）" % len(extra)) if extra else ""))
+
+    # 收尾再存一次（让进度落到接近 100%）。此刻是整段转写完成，last_end 已到末尾，
+    # 是最靠后的进度，直接写完整结果（不走保护，确保最终文字稿完整落盘）。
+    if job_dir is not None and can_resume:
+        _save_progress(job_dir, {
+            "url": None, "level": level, "lang": _LANG["v"], "vocal": bool(_OPTS.get("vocal")), "total": total,
+            "last_end": total or last_end, "parts": parts,
+            "segments": seg_list})
+    raw = "".join(parts).strip()
+    # 返回 (分好段的文字稿, 带时间戳的分段列表)
+    composed = ""
+    try:
+        if seg_list and all("end" in x for x in seg_list):
+            composed = _compose_from_segments(seg_list)
+    except Exception:
+        composed = ""
+    return (composed or _paragraphize(raw)), seg_list
+
+
+def _video_file_dir(url):
+    """截图用视频文件的存放目录（按 URL 哈希，独立于会被清掉的 job 目录）。
+    放在断点根目录下的 _video_frames/<hash>/，worker 抓完帧后由 server.py 清理。"""
+    import hashlib
+    h = hashlib.sha1((url or "").encode("utf-8")).hexdigest()[:16]
+    d = _resume_root() / "_video_frames" / h
+    try:
+        d.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+    return d
+
+
+def extract(url, level="balanced", progress_cb=None, need_video=False, mode="auto", lang="zh", vocal=False):
+    """
+    主流程：解析链接 -> 下载音频 -> 语音识别 -> 返回文字稿。
+    progress_cb(stage, detail) 用来实时报告"现在在干什么"。
+
+    need_video=True 时（用户勾了「插图」）：额外下载一份**视频画面文件**用于截图，
+    路径放在结果的 "video_path" 里，交给上层抓完帧后自行清理。下视频失败不致命，
+    只是这次没图，文字笔记照常产出。
+
+    mode 控制字幕/听写策略：
+      · "auto"          —— 有字幕用字幕、没有就听写（默认，省时间）；
+      · "subtitle_only" —— 优先字幕；万一拿不到，仍回退听写保证有结果；
+      · "transcribe"    —— 跳过字幕，直接下视频听写（字幕可能不全/有错时更准更全）。
+    """
+    _set_lang("ja" if level in ("ja", "anime") else lang)   # v95：视频说的是什么话；v97/v98：日语专用模型一定按日语
+    _OPTS["vocal"] = bool(vocal)                                  # v102：要不要先分离人声
+    def step(s, d=""):
+        if progress_cb:
+            progress_cb(s, d)
+
+    # 新任务开跑：复位取消标记（取消只作用于"点取消那一刻正在跑的任务"）
+    CANCEL["on"] = False
+
+    raw = (url or "").strip()
+    if not raw:
+        return {"ok": False, "error": "链接为空。"}
+    step("解析链接", "从你粘贴的内容里找出视频地址…")
+    url = _find_url(raw)
+    # ★总入口规范化：把 iesdouyin 分享页长链转成标准抖音链接，确保下面所有路径
+    #   （字幕探测 / 下载音频 / 下载画面 / 爬标题）都用 yt-dlp 认识的地址，
+    #   彻底消除 Unsupported URL。
+    url = _normalize_ytdlp_url(url)
+    if not url.startswith("http"):
+        return {"ok": False,
+                "error": "没在你粘贴的内容里找到视频链接。请确认里面有 http(s):// 开头的网址。"}
+
+    def _grab_video_for_shots():
+        """需要插图时下载视频画面，返回路径或 None（失败/不需要都返回 None）。"""
+        if not need_video:
+            return None
+        try:
+            vdir = _video_file_dir(url)
+            existing = _find_video(vdir)         # 上次下过就复用，不重下
+            if existing:
+                return existing
+            r = _download_video(url, str(vdir), progress_cb=progress_cb)
+            return r[0] if r else None
+        except Exception:
+            return None
+
+    # ★字幕优先：B 站 / YouTube 很多视频自带字幕，平台 API 几秒就能拿到，
+    #   且自带每句时间戳——能拿到就直接用，跳过「下载音频 + 本地听写」，又快又省。
+    #   任何异常都安静跳过，回退到原本的听写流程，绝不影响主流程。
+    #   mode="transcribe" 时用户明确要听写覆盖，这里整段跳过、直接走下面的听写。
+    if mode != "transcribe":
+        try:
+            import video_subtitle
+            step("获取字幕", "先看看这个平台有没有现成字幕（有就免下载、免听写）…")
+            sub = video_subtitle.try_fetch_subtitle(url)
+            if sub and sub.get("ok") and sub.get("transcript"):
+                src_label = ("B站字幕" if sub.get("source") == "bilibili_subtitle"
+                             else "YouTube 字幕")
+                step("获取字幕", f"已直接拿到{src_label}，跳过下载和听写。")
+                # 命中字幕：清掉可能存在的断点目录（这次用不到音频），不留垃圾
+                try:
+                    shutil.rmtree(str(_job_dir(url)), ignore_errors=True)
+                except Exception:
+                    pass
+                # 即便走了字幕，要插图仍需视频画面 → 单独下一份（失败就没图，不影响笔记）
+                video_path = _grab_video_for_shots()
+                return {
+                    "ok": True,
+                    "title": _fallback_title(sub.get("title") or "",
+                                             sub["transcript"]),
+                    "uploader": sub.get("uploader") or "",
+                    "url": url,
+                    "transcript": sub["transcript"],
+                    "segments": sub.get("segments") or [],
+                    "source": sub.get("source"),
+                    "video_path": video_path,
+                }
+        except Exception:
+            # 字幕这条路出任何问题，都安静回退到下载+听写
+            pass
+    else:
+        step("视频听写", "按你的选择跳过字幕，直接下载视频听写（更准更全）…")
+
+    missing = check_deps()
+    if missing:
+        return {"ok": False, "need": missing}
+    job = _job_dir(url)
+    try:
+        media = _find_media(job)
+        dy_tags = []   # 抖音话题标签，下面补抓标题时可能填上
+        if media:
+            # 上次已下载过音频 → 直接复用，不重下（断点续传的关键之一）
+            step("下载音频", "发现上次下载的音频，跳过下载，继续转写…")
+            title = ""
+            uploader = ""
+            meta = _load_progress(job)
+            title = meta.get("title") or ""
+            uploader = meta.get("uploader") or ""
+            # 续传时把上次存过的话题标签也恢复回来（下面若仍为空会再补抓一次）
+            dy_tags = meta.get("platform_tags") or []
+            if not title:
+                # 没存过标题就再探一下（不下载，只取信息）；失败也无所谓
+                try:
+                    _probe_opts = {"quiet": True, "no_warnings": True,
+                                   "noplaylist": True, "skip_download": True,
+                                   "nocheckcertificate": True}
+                    info = _run_extract(url, _probe_opts, download=False)
+                    title = (info.get("title") or info.get("description") or "").strip()
+                    uploader = (info.get("uploader") or info.get("creator") or "").strip()
+                except Exception:
+                    pass
+        else:
+            step("下载音频", "正在从平台下载视频的音频…")
+            _check_cancel()   # 下载开始前看一眼是否已被取消
+            media, title, uploader, _dl_tags = _download_audio(url, str(job))
+            step("下载音频", f"下载完成：{(title or '')[:30]}")
+            # 下载这步若已顺带拿到抖音话题标签，先收下（这是最常见、最可靠的来源）
+            if _dl_tags:
+                dy_tags = list(_dl_tags)
+
+        # ★抖音元信息补抓：把视频的「真正标题 + 作者 + 话题标签」补齐。
+        #   注意：话题标签的补抓**不再绑定在「标题缺失」这个条件上**——
+        #   以前只有 title/uploader 缺了才会去 fetch_meta，可视频自带标题（desc）时
+        #   就跳过了，于是 dy_tags 一直是空、数据库里的标签同步不到抖音话题。
+        #   现在：只要标签还没拿到，就单独补抓一次标签；标题/作者缺了也顺带补。
+        if _is_douyin(url):
+            # ① 先走抖音分享页/接口解析（最稳，desc 就是抖音原标题，text_extra 即话题）
+            try:
+                import douyin_resolver
+                if (not title) or (not uploader) or (not dy_tags):
+                    step("获取标题", "正在抓取抖音视频的标题和话题…")
+                    meta = douyin_resolver.fetch_meta(url)
+                    if meta.get("ok"):
+                        if not title:
+                            title = (meta.get("title") or "").strip()
+                        if not uploader:
+                            uploader = (meta.get("uploader") or "").strip()
+                        if not dy_tags:
+                            dy_tags = meta.get("tags") or []
+            except Exception:
+                pass
+            # ② 分享页没拿到标题 → 用 yt-dlp 兜底取（URL 已在 _run_extract 里规范化，
+            #    不会再 Unsupported）。yt-dlp 的 title 也是抖音原标题。
+            if not title:
+                try:
+                    step("获取标题", "用备用方式抓取抖音原标题…")
+                    _pi = _run_extract(url, {
+                        "quiet": True, "no_warnings": True, "noplaylist": True,
+                        "skip_download": True, "nocheckcertificate": True},
+                        download=False)
+                    title = (_pi.get("title") or _pi.get("description") or "").strip()
+                    if not uploader:
+                        uploader = (_pi.get("uploader") or _pi.get("creator") or "").strip()
+                except Exception:
+                    pass
+
+        # 把标题/作者/话题标签也记进进度文件，方便续传时直接用（保留已转的 parts/last_end）
+        prog = _load_progress(job)
+        prog.update({"url": url, "title": title, "uploader": uploader,
+                     "platform_tags": dy_tags})
+        _save_progress(job, prog)
+
+        # 要插图：在听写之前/之后下一份视频画面（独立目录，不会被 job 清理误删）
+        video_path = _grab_video_for_shots()
+
+        # _transcribe 现在返回 (文字稿, 带时间戳的分段列表)
+        _check_cancel()   # 听写开始前再看一眼是否已被取消
+        transcript, segments = _transcribe(
+            media, level, progress_cb=progress_cb, job_dir=job)
+
+        if not transcript:
+            shutil.rmtree(str(job), ignore_errors=True)  # 没识别出东西，清掉别占地方
+            return {"ok": False,
+                    "error": "下载成功但没识别出文字（可能是纯音乐/无人声，或音频太短）。"}
+        # ★成功：清掉断点目录（音频 + 进度），不留垃圾
+        shutil.rmtree(str(job), ignore_errors=True)
+        # 成功了就清掉上一次的诊断文件，免得"上次失败"的提示一直挂着
+        try:
+            clear_diag()
+        except Exception:
+            pass
+        return {"ok": True, "title": _fallback_title(title, transcript),
+                "uploader": uploader,
+                "url": url, "transcript": transcript,
+                "segments": segments, "source": "local_whisper",
+                "video_path": video_path, "platform_tags": dy_tags}
+    except ExtractCancelled:
+        # 用户主动取消：不算失败、不写诊断。job 目录（音频 + 已转进度）保留，
+        # 下次同一个链接再提取会自动续传，前面识别的功夫不白费。
+        return {"ok": False, "cancelled": True, "error": "已取消"}
+    except Exception as e:
+        # 注意：这里**不删** job 目录——很可能是被中途打断/出错，
+        # 保留音频和已转进度，下次打开能接着转。只有彻底识别不出/成功才清理。
+        msg = _clean_err(e)
+        # 抖音「Fresh cookies」这类错误：多半是 yt-dlp 版本旧、跟不上抖音接口变化。
+        # 给一句能直接照做的提示（已自动带访客 cookie，仍失败基本就是版本问题）。
+        low = msg.lower()
+        if _is_douyin(url) and ("fresh cookies" in low
+                                or "render data" in low
+                                or "parse json" in low
+                                or "无法" in msg):
+            tip = ("\n\n提示：本软件已先尝试「抖音分享页直链解析」、再用 yt-dlp 兜底，仍未成功。"
+                   "通常是这条视频被限制、链接已过期，或抖音又改了分享页结构。可以：\n"
+                   "  1) 回抖音客户端重新「分享 → 复制链接」，拿一条最新短链再试；\n"
+                   "  2) 在「视频」板块点一次「安装/更新依赖」把 yt-dlp 升到最新；\n"
+                   "  3) 换一条抖音视频试试，确认是不是这条本身的问题。")
+            msg += tip
+        # 不管哪个平台，失败都留一份诊断现场，方便用户发给开发者定位
+        try:
+            write_diag(url, "extract", msg)
+        except Exception:
+            pass
+        return {"ok": False, "error": f"提取失败：{msg}"}
+
+# ════════════════════ 本地文件提取（导入本地音/视频文件）════════════════════════
+# 背景：原本只支持「粘贴链接 → yt-dlp 下载 → 听写」。这里新增本地文件直转：
+#   用户从电脑里选好一个音频/视频文件，跳过「找链接 + 下载」两步，
+#   直接把这个文件喂给 faster-whisper 听写。
+# 关键点：faster_whisper 的 decode_audio() 内部用 PyAV(ffmpeg) 解码，
+#   能直接读 mp4/mov/mkv/avi/flv/m4a/mp3/wav/aac… 几乎所有常见音视频格式，
+#   所以本地文件**不需要 yt-dlp，也不需要单独下载**，只要装了 faster-whisper 即可。
+
+# 常见可处理的本地音/视频后缀（仅用于前端友好提示与基本校验，不是硬限制）
+LOCAL_MEDIA_EXTS = (
+    ".mp4", ".mov", ".mkv", ".avi", ".flv", ".webm", ".wmv", ".m4v", ".ts",
+    ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".wma", ".amr",
+)
+
+
+def check_deps_local():
+    """本地文件提取只需要 faster-whisper（解码靠它内置的 ffmpeg/PyAV）。
+    返回缺失列表（空=就绪）。不要求 yt-dlp。"""
+    missing = []
+    try:
+        import faster_whisper  # noqa
+    except Exception:
+        missing.append("faster-whisper")
+    return missing
+
+
+def extract_local(file_path, level="balanced", progress_cb=None, lang="zh", vocal=False):
+    """把本地音/视频文件直接听写成文字稿。
+    跳过链接解析与下载，直接走 faster-whisper。
+
+    返回结构与 extract() 完全一致（ok/title/uploader/url/transcript/segments/source…），
+    这样上层 worker 的后续处理（AI 分析、存笔记、插图）可以原样复用。
+    标题默认用文件名（不含扩展名），交给 AI 分析时若识别出更好的标题会覆盖。"""
+    _set_lang("ja" if level in ("ja", "anime") else lang)   # v95：视频说的是什么话；v97/v98：日语专用模型一定按日语
+    _OPTS["vocal"] = bool(vocal)                                  # v102：要不要先分离人声
+    def step(s, d=""):
+        if progress_cb:
+            progress_cb(s, d)
+
+    p = (file_path or "").strip().strip('"').strip("'")
+    if not p:
+        return {"ok": False, "error": "没有提供文件路径。"}
+    if not os.path.exists(p):
+        return {"ok": False, "error": f"找不到这个文件（可能被移动或删除了）：{p}"}
+    if not os.path.isfile(p):
+        return {"ok": False, "error": f"这不是一个文件：{p}"}
+
+    ext = os.path.splitext(p)[1].lower()
+    if ext and ext not in LOCAL_MEDIA_EXTS:
+        # 不是已知音视频后缀也允许试（ffmpeg 可能照样能解），但先给个提示日志
+        step("解析文件", f"后缀 {ext} 不在常见音视频列表里，仍尝试解码…")
+
+    missing = check_deps_local()
+    if missing:
+        return {"ok": False, "need": missing}
+
+    base = os.path.basename(p)
+    title = os.path.splitext(base)[0] or "本地文件"
+
+    step("读取文件", f"准备听写本地文件：{base[:40]}")
+    # 新任务开跑：复位取消标记（取消只作用于"点取消那一刻正在跑的任务"）
+    CANCEL["on"] = False
+    try:
+        # 本地文件没有断点续传目录（不像在线任务按 url 建 job 目录），
+        # 直接整段听写即可；文件通常已在本地，重跑成本低。
+        transcript, segments = _transcribe(
+            p, level, progress_cb=progress_cb, job_dir=None)
+        if not transcript:
+            return {"ok": False,
+                    "error": "文件读到了，但没识别出文字（可能是纯音乐/无人声，或时长太短）。"}
+        try:
+            clear_diag()
+        except Exception:
+            pass
+        return {
+            "ok": True,
+            "title": _fallback_title(title, transcript),
+            "uploader": "",
+            "url": "（本地文件）" + base,   # 笔记里「来源链接」一栏显示文件名，便于追溯
+            "transcript": transcript,
+            "segments": segments,
+            "source": "local_file",
+            "video_path": p,               # 本地文件本身即可用于截图（插图功能复用）
+            "platform_tags": [],
+            "local_path": p,
+        }
+    except ExtractCancelled:
+        # 用户主动取消：不算失败、不写诊断（本地文件重跑成本低，无需续传）
+        return {"ok": False, "cancelled": True, "error": "已取消"}
+    except Exception as e:
+        msg = _clean_err(e)
+        try:
+            write_diag(p, "extract_local", msg)
+        except Exception:
+            pass
+        return {"ok": False, "error": f"本地文件提取失败：{msg}"}
