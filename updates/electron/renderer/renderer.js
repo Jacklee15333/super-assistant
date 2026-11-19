@@ -3395,6 +3395,7 @@ function mountVideoResult(data, target) {
   if (data._noteName) {
     const isTweet = /https?:\/\/(www\.)?(x|twitter)\.com\//i.test(data.url || "");
     try { if (isTweet) _vtXBar(resultEl, data); else _vtTidyBar(resultEl, data); } catch (e) {}   // v88 整理原文 / v94 推文重新整理
+    if (!isTweet) { try { _vtSubBar(resultEl, data); } catch (e) {} }                               // v95 字幕 / 翻译
   }
 
   // ---- 页面内二级标签：展示 + 编辑 ----
@@ -12574,4 +12575,186 @@ function _vtXBar(resultEl, data) {
     if (!confirm("把所有推文笔记都整理成「博主原话 + 链接原文」？\n\n要联网抓原帖和链接文章，条数多会花几分钟（后台慢慢做，可以先干别的）。AI 分析那部分不动。")) return;
     batch = true; go({ all: true });
   });
+}
+
+
+// ════════════════════ v95：视频语言 + 字幕模式 + 翻译成中文 + 导出字幕 ════════════════════
+const VT_LANGS = [["zh", "中文（普通话）"], ["ja", "日语"], ["en", "英语"], ["ko", "韩语"], ["yue", "粤语"], ["auto", "自动识别语言"]];
+function vnCurLang() {
+  const el = document.getElementById("videoLang");
+  let v = el && el.value ? el.value : "";
+  if (!v) { try { v = localStorage.getItem("videoLangPick") || ""; } catch (_) {} }
+  return v || "zh";
+}
+
+// ① 「开始提取」里，质量下拉框旁边加一个「语言」下拉框（记住上次选的）
+(function _vtLangPicker() {
+  const lv = document.getElementById("videoLevel");
+  if (!lv || document.getElementById("videoLang")) return;
+  const sel = document.createElement("select");
+  sel.id = "videoLang"; sel.className = lv.className || "text-input";
+  sel.title = "视频里说的是什么话。选对了识别才准：日语视频选「日语」，识别出日语原文，" +
+    "之后在笔记的「完整原文」里可以一键翻译成中文、看双语字幕、导出字幕文件。导入本地文件也照这个来。";
+  VT_LANGS.forEach(([v, t]) => { const o = document.createElement("option"); o.value = v; o.textContent = t; sel.appendChild(o); });
+  try { const sv = localStorage.getItem("videoLangPick"); if (sv) sel.value = sv; } catch (_) {}
+  sel.addEventListener("change", () => { try { localStorage.setItem("videoLangPick", sel.value); } catch (_) {} });
+  sel.style.cssText = "width:auto;min-width:118px;flex:0 0 auto";
+  lv.parentNode.insertBefore(sel, lv.nextSibling);
+})();
+
+// ② 所有提交视频任务的请求（粘链接、导入本地文件、导入文件夹…）都带上选的语言
+(function _vtLangInject() {
+  const f0 = window.fetch;
+  window.fetch = function (url, opts) {
+    try {
+      if (/\/video_transcribe(\?|$)/.test(String(url)) && opts && typeof opts.body === "string" && opts.body.charAt(0) === "{") {
+        const b = JSON.parse(opts.body);
+        if (!b.lang) { b.lang = vnCurLang(); opts = Object.assign({}, opts, { body: JSON.stringify(b) }); }
+      }
+    } catch (_) {}
+    return f0.call(this, url, opts);
+  };
+})();
+
+function _vtFmtT(t) {
+  t = Math.max(0, Math.floor(t || 0));
+  const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+  return (h ? h + ":" + String(m).padStart(2, "0") : String(m).padStart(2, "0")) + ":" + String(s).padStart(2, "0");
+}
+
+// ③ 笔记「完整原文」上方：📄 原文 / 🎬 字幕 / 🀄 中文 三种看法 + 翻译 + 导出字幕
+async function _vtSubBar(resultEl, data) {
+  const box = resultEl.querySelector("#vTranscript");
+  if (!box || !data._noteName || box.querySelector(".vt-sub-bar")) return;
+  let d;
+  try { d = await (await fetch(BACKEND + "/video_note_subs?name=" + encodeURIComponent(data._noteName))).json(); } catch (_) { return; }
+  if (!d || !d.ok || !(d.segments || []).length || !box.isConnected || box.querySelector(".vt-sub-bar")) return;
+  if (d.lang && d.lang !== "zh") { const tb = box.querySelector(".vt-tidy-bar"); if (tb) tb.remove(); }   // 整理原文是按中文做的
+  const foreign = d.lang && d.lang !== "zh";
+  const bar = document.createElement("div");
+  bar.className = "vt-sub-bar";
+  bar.innerHTML =
+    '<span class="vt-sub-seg"><button type="button" data-v="text" class="on">📄 原文</button>' +
+    '<button type="button" data-v="subs">🎬 字幕</button><button type="button" data-v="zh">🀄 中文</button></span>' +
+    '<span class="vt-sub-lang"></span>' +
+    '<button type="button" class="vbtn vt-sub-tr"></button>' +
+    '<select class="vt-sub-exp" title="导出 .srt 字幕文件，拖进播放器（PotPlayer、VLC…）就能看">' +
+    '<option value="">⬇ 导出字幕…</option><option value="orig">原文字幕</option>' +
+    '<option value="zh">中文字幕</option><option value="both">双语字幕（原文 + 中文）</option></select>' +
+    '<button type="button" class="vbtn vt-sub-save" hidden>💾 存到视频旁边</button>' +
+    '<span class="vt-tidy-msg vt-sub-msg"></span>';
+  const tidy = box.querySelector(".vt-tidy-bar");
+  box.insertBefore(bar, tidy ? tidy.nextSibling : box.firstChild);
+  const subBox = document.createElement("div"); subBox.className = "vt-subs"; subBox.hidden = true;
+  box.appendChild(subBox);
+  const msg = bar.querySelector(".vt-sub-msg"), trBtn = bar.querySelector(".vt-sub-tr"),
+        exp = bar.querySelector(".vt-sub-exp"), save = bar.querySelector(".vt-sub-save");
+  bar.querySelector(".vt-sub-lang").textContent = "语言：" + (d.lang_label || "中文");
+  let view = "text", timer = null;
+  const textNodes = () => Array.from(box.children).filter((c) => c !== bar && c !== subBox && !c.classList.contains("vt-tidy-bar"));
+  const zhProse = () => {
+    const paras = []; let cur = "", n = 0;
+    d.segments.forEach((sg, i) => {
+      const z = (sg.zh || "").trim(); if (!z) return;
+      cur += z; n++;
+      const nx = d.segments[i + 1];
+      const gap = nx ? nx.start - sg.end : 9;
+      if (!/[。！？!?…]$/.test(z)) cur += (gap > 0.6 || n >= 3) ? "。" : "，";
+      if ((n >= 5 && gap > 1.2) || n >= 8) { paras.push(cur); cur = ""; n = 0; }
+    });
+    if (cur) paras.push(cur);
+    return paras;
+  };
+  const render = () => {
+    bar.querySelectorAll(".vt-sub-seg button").forEach((b) => b.classList.toggle("on", b.dataset.v === view));
+    const zhBtn = bar.querySelector('[data-v="zh"]');
+    zhBtn.hidden = !d.has_zh;
+    zhBtn.title = "只看中文译文";
+    const showText = view === "text";
+    textNodes().forEach((c) => { c.style.display = showText ? "" : "none"; });
+    subBox.hidden = showText;
+    if (view === "subs") {
+      subBox.className = "vt-subs";
+      subBox.innerHTML = "";
+      d.segments.forEach((sg) => {
+        const r = document.createElement("div"); r.className = "vt-sub-row";
+        const t = document.createElement("span"); t.className = "vt-sub-t"; t.textContent = _vtFmtT(sg.start);
+        t.title = _vtFmtT(sg.start) + " → " + _vtFmtT(sg.end);
+        const c = document.createElement("div"); c.className = "vt-sub-c";
+        const o = document.createElement("div"); o.className = "vt-sub-o"; o.textContent = sg.text;
+        c.appendChild(o);
+        if (sg.zh) { const z = document.createElement("div"); z.className = "vt-sub-z"; z.textContent = sg.zh; c.appendChild(z); }
+        r.appendChild(t); r.appendChild(c); subBox.appendChild(r);
+      });
+    } else if (view === "zh") {
+      subBox.className = "vt-subs vt-subs-prose";
+      subBox.innerHTML = "";
+      zhProse().forEach((p) => { const e = document.createElement("p"); e.textContent = p; subBox.appendChild(e); });
+    }
+    trBtn.hidden = !foreign;
+    trBtn.textContent = d.has_zh ? "🔁 重新翻译" : "🌐 翻译成中文";
+    trBtn.title = d.has_zh ? "全部重新翻译一遍（AI 翻得不好时用）" : "让 AI 一句一句翻译成中文，时间对得上，能做双语字幕";
+    exp.querySelector('[value="zh"]').disabled = exp.querySelector('[value="both"]').disabled = !d.has_zh;
+    save.hidden = !d.local_ok;
+    save.title = "把字幕存成和视频同名的 .srt 放在视频旁边，播放器打开视频会自动加载" +
+      (d.has_zh ? "（存中文字幕和双语字幕两份）" : "（还没翻译，先存原文字幕）");
+  };
+  bar.querySelectorAll(".vt-sub-seg button").forEach((b) => b.addEventListener("click", () => { view = b.dataset.v; render(); }));
+  const reload = async () => {
+    try {
+      const nd = await (await fetch(BACKEND + "/video_note_subs?name=" + encodeURIComponent(data._noteName))).json();
+      if (nd && nd.ok) d = nd;
+    } catch (_) {}
+  };
+  const poll = async () => {
+    await reload();
+    const tr = d.translate || {};
+    msg.className = "vt-tidy-msg vt-sub-msg";
+    if (tr.running) {
+      msg.textContent = tr.msg || "翻译中…";
+      if (d.has_zh && view === "subs") render();               // 翻好的段先显示出来
+      timer = setTimeout(poll, 2500); return;
+    }
+    trBtn.disabled = false;
+    msg.textContent = tr.msg || "";
+    if (tr.ok) { msg.className = "vt-tidy-msg vt-sub-msg ok"; view = "subs"; }
+    render();
+  };
+  trBtn.addEventListener("click", async () => {
+    if (d.has_zh && !confirm("把整条重新翻译一遍？（现在的中文译文会被替换）")) return;
+    trBtn.disabled = true; msg.className = "vt-tidy-msg vt-sub-msg"; msg.textContent = "准备翻译…";
+    try {
+      const r = await (await fetch(BACKEND + "/video_note_translate", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: data._noteName, redo: !!d.has_zh }) })).json();
+      if (!r.ok) { trBtn.disabled = false; msg.textContent = r.error || "没成功"; return; }
+      clearTimeout(timer); timer = setTimeout(poll, 1500);
+    } catch (e) { trBtn.disabled = false; msg.textContent = "后端没连上"; }
+  });
+  exp.addEventListener("change", async () => {
+    const mode = exp.value; exp.value = "";
+    if (!mode) return;
+    try {
+      const txt = await (await fetch(BACKEND + "/video_note_srt?mode=" + mode + "&name=" + encodeURIComponent(data._noteName))).text();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([txt], { type: "text/plain;charset=utf-8" }));
+      const base = (data.title || data._noteName.replace(/\.md$/, "")).replace(/[\\/:*?"<>|\r\n]+/g, "_").slice(0, 60);
+      a.download = base + { orig: "." + (d.lang || "orig"), zh: ".zh", both: ".双语" }[mode] + ".srt";
+      document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+      msg.className = "vt-tidy-msg vt-sub-msg ok"; msg.textContent = "✓ 已导出 " + a.download;
+    } catch (e) { msg.textContent = "导出出错：" + e.message; }
+  });
+  save.addEventListener("click", async () => {
+    const modes = d.has_zh ? ["zh", "both"] : ["orig"];
+    const done = [];
+    for (const m of modes) {
+      try {
+        const r = await (await fetch(BACKEND + "/video_note_srt_save", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: data._noteName, mode: m }) })).json();
+        if (r.ok) done.push(r.path.split(/[\\/]/).pop()); else { msg.textContent = r.error || "没存成"; return; }
+      } catch (e) { msg.textContent = "出错：" + e.message; return; }
+    }
+    msg.className = "vt-tidy-msg vt-sub-msg ok"; msg.textContent = "✓ 已存到视频旁边：" + done.join("、") + "（用播放器打开视频会自动加载）";
+  });
+  render();
+  if ((d.translate || {}).running) { trBtn.disabled = true; poll(); }
 }

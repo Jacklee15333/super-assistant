@@ -2841,3 +2841,24 @@ body.dark .vn-fail-why { color: #f0956a; }
 /* ── v94：推文笔记重新整理 ── */
 .vt-x-all { font-size: 12.5px; color: var(--text-dim); margin-left: auto; text-decoration: underline dotted; cursor: pointer; }
 .vt-x-all:hover { color: var(--accent); }
+
+/* ── v95：字幕模式 / 翻译 / 导出 ── */
+.vt-sub-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 12px; padding: 8px 10px;
+  border-radius: 10px; border: 0.5px solid var(--line); background: var(--bg-elev, transparent); }
+.vt-sub-seg { display: inline-flex; border: 0.5px solid var(--line-strong); border-radius: 9px; overflow: hidden; }
+.vt-sub-seg button { border: none; background: transparent; color: var(--text-dim); padding: 5px 12px; font-size: 13px; cursor: pointer; }
+.vt-sub-seg button + button { border-left: 0.5px solid var(--line); }
+.vt-sub-seg button.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.vt-sub-seg button[hidden] { display: none; }
+.vt-sub-lang { font-size: 12.5px; color: var(--text-dim); }
+.vt-sub-exp { border: 0.5px solid var(--line-strong); border-radius: 8px; padding: 4px 8px; font-size: 12.5px;
+  background: transparent; color: var(--text); cursor: pointer; }
+.vt-sub-bar .vbtn[hidden] { display: none; }
+.vt-subs { display: flex; flex-direction: column; gap: 2px; }
+.vt-sub-row { display: flex; gap: 14px; padding: 7px 8px; border-radius: 8px; line-height: 1.55; }
+.vt-sub-row:hover { background: var(--bg-hover); }
+.vt-sub-t { flex: 0 0 auto; width: 58px; font-size: 12px; color: var(--accent); font-variant-numeric: tabular-nums; padding-top: 2px; }
+.vt-sub-c { flex: 1; min-width: 0; }
+.vt-sub-o { color: var(--text); }
+.vt-sub-z { color: var(--text-dim); margin-top: 2px; }
+.vt-subs-prose p { margin: 0 0 12px; line-height: 1.8; }
