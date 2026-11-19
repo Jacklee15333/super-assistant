@@ -3392,7 +3392,10 @@ function mountVideoResult(data, target) {
 
   // 容器内查询（不用 getElementById），这样同一个视图可以在多处复用而不冲突
   const $ = (sel) => resultEl.querySelector(sel);
-  if (data._noteName) { try { _vtTidyBar(resultEl, data); } catch (e) {} }   // v88：「完整原文」上方的「整理原文」按钮
+  if (data._noteName) {
+    const isTweet = /https?:\/\/(www\.)?(x|twitter)\.com\//i.test(data.url || "");
+    try { if (isTweet) _vtXBar(resultEl, data); else _vtTidyBar(resultEl, data); } catch (e) {}   // v88 整理原文 / v94 推文重新整理
+  }
 
   // ---- 页面内二级标签：展示 + 编辑 ----
   let curTags = Array.isArray(data.tags) ? data.tags.slice() : [];
@@ -4614,7 +4617,10 @@ function parseVideoNote(md) {
   }
   // 分析在 "## 🤖 AI 分析" 和 "## 📝 完整文字稿" 之间
   const aMark = md.indexOf("AI 分析");
-  const tMark = md.indexOf("完整文字稿");
+  // v94：认标题行「## 📝 完整文字稿」（最后一个），别认 AI 分析正文里随口提到的「完整文字稿」
+  let tMark = -1;
+  { const re = /^#{1,3}\s*(?:📝\s*)?完整文字稿\s*$/gm; let m; while ((m = re.exec(md))) tMark = m.index; }
+  if (tMark < 0) tMark = md.indexOf("完整文字稿");
   if (aMark >= 0) {
     const aStart = md.indexOf("\n", aMark);
     const aEnd = tMark >= 0 ? md.lastIndexOf("\n", tMark) : md.length;
@@ -12512,3 +12518,60 @@ function cxAnimateOut(el) {
     return resp;
   };
 })();
+
+
+// ════════════════════ v94：推文笔记 =「🗣 博主原话」+「🔗 链接原文」════════════════════
+// 打开一条推文笔记，「完整原文」上方一个按钮：重新抓完整推文、转发的原帖、引用的帖子、链接里的文章，
+// 整理成两部分（AI 分析那部分不动）。旁边还能把所有推文笔记都整理一遍。
+function _vtXBar(resultEl, data) {
+  const box = resultEl.querySelector("#vTranscript");
+  if (!box || box.querySelector(".vt-tidy-bar")) return;
+  const bar = document.createElement("div");
+  bar.className = "vt-tidy-bar";
+  bar.innerHTML = '<button class="vbtn" type="button">🔄 重新抓取并整理</button>' +
+    '<span class="vt-tidy-msg">推文分成「🗣 博主原话」和「🔗 链接原文」：转发的原帖、引用的帖子、链接里的文章都抓全文放进来</span>' +
+    '<a href="#" class="vt-x-all" title="把所有推文笔记都按这个样子整理一遍（AI 分析不动）">全部推文笔记都整理一遍</a>';
+  box.insertBefore(bar, box.firstChild);
+  const btn = bar.querySelector("button"), msg = bar.querySelector(".vt-tidy-msg"), all = bar.querySelector(".vt-x-all");
+  let timer = null, batch = false;
+  const poll = async () => {
+    try {
+      const st = await (await fetch(BACKEND + "/x_note_rebuild_status?name=" + encodeURIComponent(data._noteName))).json();
+      if (batch && st.running) {
+        msg.textContent = "正在整理全部推文笔记：" + (st.done || 0) + " / " + (st.total || 0) + (st.msg ? "（" + st.msg + "）" : "");
+      } else if (st.queued) {
+        msg.textContent = st.msg || "正在抓…";
+      }
+      if (st.queued || (batch && st.running)) { timer = setTimeout(poll, 1500); return; }
+      btn.disabled = false; btn.textContent = "🔄 重新抓取并整理";
+      const mine = st.mine;
+      msg.className = "vt-tidy-msg " + (mine && mine.ok ? "ok" : "");
+      msg.textContent = batch ? ("全部整理完了：成功 " + (st.ok || 0) + " 条" + (st.fail ? "，没成功 " + st.fail + " 条" : ""))
+        : (mine ? mine.msg : "整理完了");
+      if (mine && mine.ok && typeof vnReaderIsOpen === "function" && vnReaderIsOpen() && _vnReaderName === data._noteName) {
+        const keep = msg.textContent;
+        await openVideoNote(data._noteName);           // 原地刷新这篇
+        const b2 = document.querySelector("#vnReader .vt-tidy-bar .vt-tidy-msg");
+        if (b2) { b2.textContent = keep; b2.className = "vt-tidy-msg ok"; }
+        const t = document.querySelector('#vnReader .vtab[data-tab="transcript"]');
+        if (t) t.click();
+      }
+    } catch (e) { btn.disabled = false; btn.textContent = "🔄 重新抓取并整理"; msg.textContent = "后端没连上"; }
+  };
+  const go = async (body) => {
+    btn.disabled = true; btn.textContent = "抓取中…"; msg.className = "vt-tidy-msg"; msg.textContent = "准备抓取…";
+    try {
+      const d = await (await fetch(BACKEND + "/x_note_rebuild", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })).json();
+      if (!d.ok) { btn.disabled = false; btn.textContent = "🔄 重新抓取并整理"; msg.textContent = d.error || "没成功"; return; }
+      if (body.all) msg.textContent = "一共 " + d.total + " 条推文笔记，开始整理…";
+      clearTimeout(timer); timer = setTimeout(poll, 1200);
+    } catch (e) { btn.disabled = false; btn.textContent = "🔄 重新抓取并整理"; msg.textContent = "后端没连上"; }
+  };
+  btn.addEventListener("click", () => { batch = false; go({ name: data._noteName }); });
+  all.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (!confirm("把所有推文笔记都整理成「博主原话 + 链接原文」？\n\n要联网抓原帖和链接文章，条数多会花几分钟（后台慢慢做，可以先干别的）。AI 分析那部分不动。")) return;
+    batch = true; go({ all: true });
+  });
+}
