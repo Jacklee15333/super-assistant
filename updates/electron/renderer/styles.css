@@ -2545,3 +2545,22 @@ body.dark .vn-kind.k-excel, body.dark .vn-kind.k-wx { color: #5fd08f; }
 /* 「处理进度」完成那一行淡出 */
 .vdone { transition: opacity .5s ease; }
 .vdone.vdone-fade { opacity: 0; }
+
+/* ════════════════ v73：嗅探页 —— 和视频页一样，一列「标题骑在边框线上」的卡片 ════════════════ */
+#view-sniff .sn-stack { display: block; margin-top: 22px; }
+#view-sniff .sn-vcard.v-card { position: relative; display: block; border: 1px solid var(--border, #e2e2e6); border-radius: 12px;
+  background: var(--bg-card, var(--card-bg, rgba(127, 127, 127, .04))); padding: 22px 18px 16px; margin: 0 0 18px; box-shadow: none; }
+#view-sniff .sn-vcard + .sn-vcard { margin-top: 0; }
+#view-sniff .sn-vcard[hidden] { display: none !important; }
+#view-sniff .cw-rightcard.sn-vcard { height: auto; min-height: 0; overflow: visible; }
+#view-sniff .cw-rightcard.sn-vcard .cw-scroll, #view-sniff .sn-vcard #sniffFeed { max-height: none; overflow: visible; }
+#view-sniff .sn-vcard-bar { justify-content: flex-end; margin: 0 0 8px; }
+#view-sniff .sn-vcard .v-card-title .sn-pill, #view-sniff .sn-vcard .v-card-title .sniff-cat-active { margin-left: 6px; }
+#view-sniff .sn-vcard > .sniff-overview { margin-top: 0; }
+/* 通用：可以收起的卡片（收起时只留一条细线） */
+.v-collapsible > .v-card-head { cursor: pointer; user-select: none; }
+.v-col-caret { display: inline-block; width: 14px; color: var(--text-dim); font-size: 12px; }
+.v-col-hint { display: none; margin-left: 8px; font-size: 12px; font-weight: 400; color: var(--text-dim); }
+.v-collapsible.v-collapsed > :not(.v-card-head) { display: none !important; }
+.v-collapsible.v-collapsed { padding: 12px 16px 0 !important; cursor: pointer; }
+.v-collapsible.v-collapsed .v-col-hint { display: inline; }
