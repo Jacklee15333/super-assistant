@@ -10760,3 +10760,123 @@ function vnRenderIconView(list, notes, folders, byFolder, ungrouped) {
   }
   list.appendChild(wrap);
 }
+
+
+// ════════════════════ v73：嗅探页改成和视频页一样的结构 ════════════════════
+// 一列从上往下：① 要做什么（标题骑在边框线上，可以收起）→ ② 进度（只在扫描 / 嗅探时出现）→ ③ 结果。
+// 只是把原来的元素挪进新的卡片（按钮、列表、开关的功能都不变）；找不到要挪的元素就什么都不动，保持原样。
+function vMakeCollapsible(card, key) {
+  const head = card.querySelector(":scope > .v-card-head");
+  if (!head || card.classList.contains("v-collapsible")) return;
+  card.classList.add("v-collapsible");
+  const caret = document.createElement("span"); caret.className = "v-col-caret";
+  head.insertBefore(caret, head.firstChild);
+  const hint = document.createElement("span"); hint.className = "v-col-hint"; hint.textContent = "已收起，点这里展开";
+  head.appendChild(hint);
+  head.title = "点击收起 / 展开";
+  const set = (c) => {
+    card.classList.toggle("v-collapsed", !!c);
+    caret.textContent = c ? "▸" : "▾";
+    try { localStorage.setItem(key, c ? "1" : "0"); } catch (_) {}
+  };
+  head.addEventListener("click", (e) => {
+    if (e.target.closest("button, input, select, a")) return;
+    set(!card.classList.contains("v-collapsed"));
+  });
+  card.addEventListener("click", (e) => {           // 收起时点卡片任何地方都能展开
+    if (card.classList.contains("v-collapsed") && !e.target.closest(".v-card-head")) set(false);
+  });
+  let c = false;
+  try { c = localStorage.getItem(key) === "1"; } catch (_) {}
+  set(c);
+}
+
+function snVHead(title) {
+  const h = document.createElement("div"); h.className = "v-card-head";
+  const t = document.createElement("span"); t.className = "v-card-title"; t.textContent = title;
+  h.appendChild(t);
+  return h;
+}
+
+// 原来的 sn-card → 视频页那样「标题骑在边框线上」的卡片；原来标题行里的按钮留在卡片里当工具条
+function snAsVCard(card, title, titleExtras) {
+  card.classList.add("v-card", "sn-vcard");
+  const vh = snVHead(title);
+  (titleExtras || []).forEach((el) => { if (el) vh.querySelector(".v-card-title").appendChild(el); });
+  const old = card.querySelector(":scope > .sn-card-head");
+  if (old) {
+    const t = old.querySelector(":scope > .sn-card-title");
+    if (t) t.remove();
+    old.classList.add("sn-vcard-bar");
+    if (!old.textContent.trim() && !old.querySelector("button, input, select")) old.remove();
+  }
+  card.insertBefore(vh, card.firstChild);
+  return card;
+}
+
+// 进度卡片：里面有内容（正在扫描 / 嗅探）才出现，没有就收起来，不占地方（和视频页的「处理进度」一样）
+function snProgressCard(title, els) {
+  const card = document.createElement("div");
+  card.className = "v-card sn-vcard sn-progress-card";
+  card.appendChild(snVHead(title));
+  els.forEach((el) => card.appendChild(el));
+  const sync = () => {
+    card.hidden = !els.some((el) => !el.hidden && getComputedStyle(el).display !== "none" && (el.textContent || "").trim());
+  };
+  const mo = new MutationObserver(sync);
+  els.forEach((el) => mo.observe(el, { childList: true, subtree: true, characterData: true,
+                                       attributes: true, attributeFilter: ["hidden", "style", "class"] }));
+  setInterval(sync, 1500);
+  sync();
+  return card;
+}
+
+(function snRestructure() {
+  try {
+    // ── 博主新视频 ──
+    const cp = document.querySelector('#view-sniff .sn-tabpane[data-pane="creators"]');
+    const cg = cp && cp.querySelector(":scope > .sn-grid");
+    const right = cg && cg.querySelector(".cw-rightcard");
+    const left = cg && [...cg.querySelectorAll(".sn-card")].find((c) => c !== right && c.contains(document.getElementById("cwListBody")));
+    const st = document.getElementById("cwScanState"), log = document.getElementById("cwScanLog");
+    if (cg && left && right && st && log) {
+      const stack = document.createElement("div"); stack.className = "sn-stack";
+      snAsVCard(left, "👤 关注的博主", [document.getElementById("cwCount")]);
+      const prog = snProgressCard("⏳ 扫描进度", [st, log]);
+      snAsVCard(right, "🆕 新视频", []);
+      stack.append(left, prog, right);
+      cg.replaceWith(stack);
+      vMakeCollapsible(left, "snCreatorsCollapsed");
+    }
+    // ── 网站新动态 ──
+    const wp = document.querySelector('#view-sniff .sn-tabpane[data-pane="web"]');
+    const ov = wp && wp.querySelector(":scope > .sniff-overview");
+    const tb = wp && wp.querySelector(":scope > .sn-toolbar");
+    const guide = wp && wp.querySelector(":scope > .sn-fold-guide");
+    const pr = document.getElementById("sniffProgress");
+    const wg = wp && wp.querySelector(":scope > .sn-grid");
+    const srcCard = wg && [...wg.querySelectorAll(".sn-card")].find((c) => c.contains(document.getElementById("sniffSources")));
+    const feedCard = wg && [...wg.querySelectorAll(".sn-card")].find((c) => c.contains(document.getElementById("sniffFeed")));
+    const tiles = document.getElementById("sniffCatTiles");
+    if (ov && tb && pr && wg && srcCard && feedCard && tiles) {
+      const start = document.createElement("div");
+      start.className = "v-card sn-vcard";
+      start.appendChild(snVHead("🌐 开始嗅探"));
+      start.append(ov, tb);
+      if (guide) start.appendChild(guide);
+      const prog = snProgressCard("⏳ 嗅探进度", [pr]);
+      snAsVCard(srcCard, "📌 盯着的网站", [document.getElementById("sniffSrcCount")]);
+      snAsVCard(feedCard, "🆕 新动向", [document.getElementById("sniffCatActive")]);
+      const fh = feedCard.querySelector(":scope > .v-card-head");
+      fh.after(tiles);
+      const stack = document.createElement("div"); stack.className = "sn-stack";
+      stack.append(start, prog, srcCard, feedCard);
+      wg.replaceWith(stack);
+      vMakeCollapsible(start, "snWebStartCollapsed");
+      vMakeCollapsible(srcCard, "snWebSrcCollapsed");
+    }
+  } catch (e) {
+    console.warn("嗅探页换新结构没成功，保留原来的样子：", e);
+  }
+})();
+
