@@ -339,7 +339,8 @@ LANGS = {
     "auto": ("自动识别", None),
 }
 _LANG = {"v": "zh"}
-_OPTS = {"vocal": False}       # v102：识别前先分离人声（去掉背景音乐、杂音）
+_OPTS = {"vocal": False, "wts": False}   # v102：先分离人声；v104：这次能不能用逐字时间
+_MODEL_INFO = {}                # v104：型号 -> {path, dev, ct}（单独测逐字时间要用）
 
 
 def _ja_mode():
@@ -411,8 +412,203 @@ def _looks_hallucinated(t):
 
 
 def _word_ts_on():
-    """v103：外语（日语、英语…）用逐字时间做字幕；中文暂时保持原样。"""
-    return _LANG["v"] != "zh"
+    """v103：外语（日语、英语…）用逐字时间做字幕；中文暂时保持原样。
+    v104：而且要这个模型「单独试过、确认不会崩」（_wts_check）才用。"""
+    return _LANG["v"] != "zh" and bool(_OPTS.get("wts"))
+
+
+# ════════════════ v104：逐字时间先在单独的进程里试一次 ════════════════
+# kotoba-whisper 这类「瘦身」模型（解码器只有 2 层）的配置里，对齐设置是从大模型抄来的（指向第 7~25 层），
+# 开逐字时间时会越界——不是普通报错，是整个程序直接闪退（后端一下子就没了，日志也不留）。
+# 所以：第一次用某个模型的逐字时间，先拿这段视频里 30 秒真声音在单独的进程里试；
+# 那个进程崩了也只是它自己没了。崩了就把对齐设置改成这个模型真实的层数再试；还不行就不用逐字时间，
+# 改用「按说话的声音收紧字幕时间」（_snap_to_speech）。结果记在 models and tools/word_ts_check.json，只试一次。
+_WTS_PROBE = r"""
+import sys
+sys.path.insert(0, sys.argv[1])
+try:
+    import gpu_accel
+    gpu_accel.add_dll_dirs()
+except Exception:
+    pass
+import wave, numpy as np
+from faster_whisper import WhisperModel
+path, dev, ct, wav, lang = sys.argv[2:7]
+with wave.open(wav) as w:
+    a = np.frombuffer(w.readframes(w.getnframes()), dtype="<i2").astype("float32") / 32768
+m = WhisperModel(path, device=dev, compute_type=ct)
+segs, _ = m.transcribe(a, language=None if lang == "auto" else lang, word_timestamps=True,
+                       vad_filter=False, condition_on_previous_text=False)
+n = 0
+for s in segs:
+    n += len(s.words or [])
+print("WTS_OK %d" % n, flush=True)
+"""
+
+
+def _wts_cache():
+    import json
+    try:
+        return json.loads((_models_dir() / "word_ts_check.json").read_text(encoding="utf-8")) or {}
+    except Exception:
+        return {}
+
+
+def _wts_cache_save(d):
+    import json
+    try:
+        (_models_dir() / "word_ts_check.json").write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _wts_probe(info, full):
+    """在单独的进程里试一次逐字时间。返回 (成功?, 说明)。"""
+    import subprocess
+    import sys
+    import tempfile
+    a0 = 0
+    try:
+        from faster_whisper.vad import get_speech_timestamps
+        ts = get_speech_timestamps(full[: _SR * 600], sampling_rate=_SR)
+        if ts:
+            a0 = int(ts[0]["start"])
+    except Exception:
+        pass
+    clip = full[a0: a0 + _SR * 30]
+    fd, wav = tempfile.mkstemp(suffix=".wav")
+    os.close(fd)
+    try:
+        import numpy as np
+        with wave_open(wav, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(_SR)
+            w.writeframes((np.clip(clip, -1, 1) * 32767).astype("<i2").tobytes())
+        flags = 0x08000000 if sys.platform == "win32" else 0
+        r = subprocess.run([sys.executable, "-c", _WTS_PROBE, os.path.dirname(os.path.abspath(__file__)),
+                            info["path"], info["dev"], info["ct"], wav, _LANG["v"]],
+                           capture_output=True, text=True, timeout=300, creationflags=flags,
+                           encoding="utf-8", errors="replace")
+        out = ((r.stdout or "") + (r.stderr or "")).strip()
+        if r.returncode == 0 and "WTS_OK" in out:
+            return True, out.splitlines()[-1]
+        return False, "测试进程退出码 %s：%s" % (r.returncode, (out.splitlines() or ["（没有输出，多半是闪退）"])[-1][:200])
+    except Exception as e:
+        return False, str(e)[:200]
+    finally:
+        try:
+            os.remove(wav)
+        except Exception:
+            pass
+
+
+def wave_open(p, mode):
+    import wave
+    return wave.open(p, mode)
+
+
+def _fix_align_heads(path):
+    """瘦身模型（kotoba / Anime-Whisper，解码器 2 层）的对齐设置要是指到了不存在的层，改成它真实的最后一层。
+    原来的配置备份成 config.json.bak-align。改了返回 True。"""
+    import json
+    p = os.path.join(path, "config.json")
+    try:
+        cfg = json.loads(open(p, encoding="utf-8").read())
+    except Exception:
+        return False
+    heads = cfg.get("alignment_heads") or []
+    low = path.lower()
+    if not any(k in low for k in ("kotoba", "anime", "distil")):
+        return False
+    if heads and max(int(h[0]) for h in heads) <= 1:
+        return False                                  # 已经是对的
+    try:
+        if not os.path.exists(p + ".bak-align"):
+            open(p + ".bak-align", "w", encoding="utf-8").write(json.dumps(cfg, ensure_ascii=False))
+        cfg["alignment_heads"] = [[1, h] for h in range(20)]
+        open(p, "w", encoding="utf-8").write(json.dumps(cfg, ensure_ascii=False))
+        print("[video] 修正了 %s 的对齐设置（指到了不存在的层）" % os.path.basename(path), flush=True)
+        return True
+    except Exception as e:
+        print("[video] 改对齐设置失败：%s" % e, flush=True)
+        return False
+
+
+def _wts_check(size, full, progress_cb=None):
+    """这个模型能不能安全地用逐字时间。返回 (能用?, 要不要重新加载模型)。"""
+    info = _MODEL_INFO.get(size)
+    if not info or full is None:
+        return False, False
+    key = "%s|%s|%s" % (info["path"], info["dev"], info["ct"])
+    d = _wts_cache()
+    if key in d:
+        return bool(d[key].get("ok")), False
+    if progress_cb:
+        progress_cb("语音转文字", "第一次给这个模型用逐字时间：先在单独的进程里试一下（十几秒，只试一次）…")
+    ok, why = _wts_probe(info, full)
+    reload = False
+    if not ok and _fix_align_heads(info["path"]):
+        if progress_cb:
+            progress_cb("语音转文字", "修正了模型的对齐设置，再试一次…")
+        ok, why = _wts_probe(info, full)
+        reload = ok
+    d[key] = {"ok": ok, "why": why}
+    _wts_cache_save(d)
+    print("[video] 逐字时间测试（%s）：%s —— %s" % (os.path.basename(info["path"]), "能用" if ok else "不能用", why), flush=True)
+    return ok, reload
+
+
+def _snap_to_speech(seg_list, full):
+    """v104：不用逐字时间时，按「真正有人说话的声音」收紧字幕时间：
+    每条字幕的开始 / 结束挪到这段里第一处 / 最后一处说话的地方（去掉前后的静音）；
+    一条里有好几句（。！？）的，按字数比例把句子摊到真正说话的那几段时间上，拆成几条。"""
+    from faster_whisper.vad import get_speech_timestamps, VadOptions
+    regs = [(t["start"] / _SR, t["end"] / _SR) for t in get_speech_timestamps(
+        full, vad_options=VadOptions(threshold=0.35, min_speech_duration_ms=150, min_silence_duration_ms=300,
+                                     speech_pad_ms=100), sampling_rate=_SR)]
+    out = []
+    for sg in seg_list:
+        s0, e0 = float(sg["start"]), float(sg["end"])
+        ov = [(max(a, s0), min(b, e0)) for a, b in regs if b > s0 and a < e0 and min(b, e0) - max(a, s0) > 0.05]
+        if not ov:
+            out.append(sg)
+            continue
+        sents = [x for x in re.findall(r"[^。！？!?]+[。！？!?]*", sg["text"]) if x.strip()] or [sg["text"]]
+        if len(sents) == 1 or len(ov) == 1:
+            out.append(dict(sg, start=round(ov[0][0], 2), end=round(max(ov[-1][1], ov[0][0] + 0.4), 2)))
+            continue
+        tot = sum(b - a for a, b in ov)
+        chars = sum(len(x) for x in sents)
+
+        def at(t, start):
+            for a, b in ov:
+                L = b - a
+                if t < L or (not start and t <= L):
+                    return a + t
+                t -= L
+            return ov[-1][1]
+        # 句子之间的分界：按字数比例算出位置，附近有说话的停顿就对齐到停顿上（句子一般在停顿处结束）
+        gaps, c = [], 0.0
+        for k in range(len(ov) - 1):
+            c += ov[k][1] - ov[k][0]
+            gaps.append((c, k))
+        used, bounds, acc = set(), [], 0
+        tol = max(0.8, 0.35 * tot / len(sents))
+        for x in sents[:-1]:
+            acc += len(x)
+            t = acc / chars * tot
+            best = min((g for g in gaps if g[1] not in used), key=lambda g: abs(g[0] - t), default=None)
+            if best is not None and abs(best[0] - t) <= tol:
+                used.add(best[1])
+                bounds.append((ov[best[1]][1], ov[best[1] + 1][0]))       # 这句结束在停顿前，下一句从停顿后开始
+            else:
+                bounds.append((at(t, False), at(t, True)))
+        starts = [ov[0][0]] + [b[1] for b in bounds]
+        ends = [b[0] for b in bounds] + [ov[-1][1]]
+        for x, st, en in zip(sents, starts, ends):
+            out.append({"start": round(st, 2), "end": round(max(en, st + 0.4), 2), "text": x.strip()})
+    return out
 
 
 def _cues_from_words(words, offset=0.0):
@@ -1764,6 +1960,7 @@ def _get_model(level, progress_cb=None):
         if progress_cb:
             progress_cb("加载语音模型", f"{size} 模型下载好了，正在加载…")
     model, dev, ct = gpu_accel.load_model(path, progress_cb=progress_cb)
+    _MODEL_INFO[size] = {"path": str(path), "dev": dev, "ct": ct}      # v104：单独测逐字时间要用
     _model_cache[size] = (model, dev)
     return model, dev
 
@@ -1900,8 +2097,15 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
     if MODEL_MAP.get(level, "").startswith("kotoba"):
         # kotoba-whisper 官方建议：按 15 秒一段听，不拿上一段的结果当提示（减少「复读」和编造）
         _kw.update(chunk_length=15, condition_on_previous_text=False)
-    if _word_ts_on() and MODEL_MAP.get(level) != "anime":
-        _kw["word_timestamps"] = True                # v103：逐字时间——字幕和画面对得上
+    _OPTS["wts"] = False
+    if _LANG["v"] != "zh" and MODEL_MAP.get(level) != "anime" and full is not None:
+        _ok, _reload = _wts_check(MODEL_MAP.get(level, "small"), full, progress_cb)   # v104：先单独试过，确认不会闪退
+        if _reload:
+            _model_cache.pop(MODEL_MAP.get(level, "small"), None)
+            model, _device = _get_model(level, progress_cb)          # 按修正后的对齐设置重新加载
+        if _ok:
+            _OPTS["wts"] = True
+            _kw["word_timestamps"] = True                # v103：逐字时间——字幕和画面对得上
     elif MODEL_MAP.get(level) == "anime":
         # v98：Anime-Whisper 是拿一句一句的短配音训练的：按 10 秒一段听、不带时间戳（每段一句）、
         # 不给提示、不拿上一段当提示，并且压住「同一句反复刷」的毛病
@@ -2021,6 +2225,12 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
         seg_list = sorted(seg_list + extra, key=lambda x: x.get("start", 0))
         parts = [x["text"] for x in seg_list]
         last_end = max(last_end, max(x["end"] for x in extra))
+    # v104：外语没用上逐字时间（模型试过不行）：按真正有人说话的声音收紧字幕时间
+    if _LANG["v"] != "zh" and not _OPTS.get("wts") and MODEL_MAP.get(level) != "anime" and full is not None and seg_list:
+        try:
+            seg_list = _snap_to_speech(seg_list, full)
+        except Exception as e:
+            print("[video] 收紧字幕时间出错（不影响文字）：%s" % e, flush=True)
     if progress_cb:
         _chars = sum(len(x) for x in parts)
         _spoken_end = max([float(x.get("end") or 0) for x in seg_list] or [0])
