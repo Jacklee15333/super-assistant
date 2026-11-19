@@ -315,7 +315,10 @@ def _enum_windows():
             user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
             r = wintypes.RECT()
             user32.GetWindowRect(hwnd, ctypes.byref(r))
+            tb = ctypes.create_unicode_buffer(120)
+            user32.GetWindowTextW(hwnd, tb, 120)
             out.append({"hwnd": hwnd, "pid": pid.value, "cls": buf.value, "iconic": bool(user32.IsIconic(hwnd)),
+                        "title": tb.value,
                         "left": r.left, "owned": bool(user32.GetWindow(hwnd, 4)),
                         "style": get(hwnd, -16) & 0xFFFFFFFF, "ex": get(hwnd, -20) & 0xFFFFFFFF})
         except Exception:
@@ -436,6 +439,27 @@ def _win_taskbar_set(show, pids=None):
         return len(hits)
     except Exception:
         return 0
+
+
+def find_stray_bars():
+    """v71：找屏幕左下角那种「小条」：最小化着、却没有标题栏或者没有任务栏按钮的窗口。
+    返回 [{hwnd, pid, name, title, cls}]。只用来说明是谁，不去动别的软件的窗口。"""
+    import sys as _sys
+    if _sys.platform != "win32":
+        return []
+    out = []
+    try:
+        for w in _enum_windows():
+            if not w["iconic"] or w["owned"]:
+                continue
+            no_caption = (w["style"] & 0x00C00000) != 0x00C00000
+            if not (no_caption or (w["ex"] & _WS_EX_TOOLWINDOW)):
+                continue
+            out.append({"hwnd": w["hwnd"], "pid": w["pid"], "name": _win_proc_name(w["pid"]),
+                        "title": w.get("title") or "", "cls": w["cls"]})
+    except Exception:
+        pass
+    return out
 
 
 def repair_taskbar(exclude_pids=()):
@@ -2976,6 +3000,9 @@ class _WebWorker:
             if _LIVE.get("visible") is False and time.time() - getattr(self, "_taskbar_check", 0) > 20:
                 self._taskbar_check = time.time()
                 _win_taskbar_set(False, self._browser_pids)
+            if _LIVE.get("visible") is False and not self._headless and time.time() - getattr(self, "_min_check", 0) > 10:
+                self._min_check = time.time()
+                self._unminimize_if_needed()
             now = time.time()
             if self._quiet_shots or _LIVE["watch_until"] < now:
                 return
@@ -3043,6 +3070,22 @@ class _WebWorker:
                     "width": w, "height": h}
         except Exception:
             return {"left": 60, "top": 40, "width": 1320, "height": 980}
+
+    def _unminimize_if_needed(self):
+        """v71：AI 池浏览器藏在屏幕外时被最小化了（比如按了 Win+D）：左下角会多一个小条，页面也会暂停、
+        回复出不来 → 还原成正常大小，再挪回屏幕外。"""
+        try:
+            if self._page is None or self._page.is_closed():
+                return
+            cdp, wid = self._window_id()
+            b = cdp.send("Browser.getWindowBounds", {"windowId": wid})["bounds"]
+            if b.get("windowState") != "minimized":
+                return
+            cdp.send("Browser.setWindowBounds", {"windowId": wid, "bounds": {"windowState": "normal"}})
+            cdp.send("Browser.setWindowBounds", {"windowId": wid, "bounds": {"left": OFFSCREEN_X, "top": 0}})
+            self._log("AI 池浏览器被最小化了（会变成屏幕左下角的小条，页面也会暂停）→ 已还原并挪回屏幕外")
+        except Exception:
+            pass
 
     def _set_window_visible(self, visible):
         """显示＝挪回屏幕并放到最前面；隐藏＝挪到屏幕外（不最小化，页面照常工作）。"""

@@ -6157,7 +6157,27 @@ def _startup_repair_taskbar():
         if n:
             _clog("AI池", "✓ 修好了 %d 个被以前版本误藏的浏览器窗口（放回任务栏了）" % n)
     except Exception:
+        return
+    # v71：每 30 秒看一眼屏幕左下角有没有「小条」（最小化着、没有标题栏或任务栏按钮的窗口），
+    #      有就在终端里写一次是哪个程序的，方便找原因（不会去动别的软件的窗口）
+    seen = set()
+    import os as _os
+    me = {_os.getpid()}
+    try:
+        me.add(_os.getppid())
+    except Exception:
         pass
+    while True:
+        try:
+            _t.sleep(30)
+            for b in web_model.find_stray_bars():
+                if b["hwnd"] in seen:
+                    continue
+                seen.add(b["hwnd"])
+                who = "本软件自己的小窗（这版起会自动放回去）" if b["pid"] in me else (b["name"] or "未知程序")
+                _clog("窗口", "左下角有个小条：%s 「%s」（%s）" % (who, b["title"][:30], b["cls"][:40]))
+        except Exception:
+            _t.sleep(60)
 
 
 if __name__ == "__main__":
