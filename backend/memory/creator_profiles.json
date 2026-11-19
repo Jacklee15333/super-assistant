@@ -1958,5 +1958,39 @@
     "avatar_file": "2379fc7b496957ff.jpg",
     "avatar_manual": true,
     "updated": 1795064513
+  },
+  "江白工作号": {
+    "key": "江白工作号",
+    "url": "https://www.douyin.com/user/MS4wLjABAAAASqUbbZvP2znnPfTAFl9T2JDPQIdiY3-ONT7rA2pD6ptpukRD1hhkACE0RVJQWvXw",
+    "platform": "douyin",
+    "updated": 1795065641,
+    "auto": true,
+    "source_video": "https://www.douyin.com/video/7708431156292025253",
+    "found_via": "缓存",
+    "home": "https://www.douyin.com/user/MS4wLjABAAAASqUbbZvP2znnPfTAFl9T2JDPQIdiY3-ONT7rA2pD6ptpukRD1hhkACE0RVJQWvXw",
+    "name": "江白工作号",
+    "uid": "MS4wLjABAAAASqUbbZvP2znnPfTAFl9T2JDPQIdiY3-ONT7rA2pD6ptpukRD1hhkACE0RVJQWvXw",
+    "followers": 15871,
+    "signature": "专注IP自动化内容系统定制\n为有业务的老板搭建IP大脑+四大内容引擎\n6小时线下1对1深度前采\n量身打造专属你的内容生产体系",
+    "handle": "92477422040",
+    "avatar_src": "https://p3-pc.douyinpic.com/aweme/100x100/aweme-avatar/tos-cn-avt-0015_476e20b9f7698e4ef0623dd36a722599.jpeg?from=327834062",
+    "avatar_file": "30bd1aaf16f341d3.jpg"
+  },
+  "叫我Ryder就好": {
+    "key": "叫我Ryder就好",
+    "url": "https://www.douyin.com/user/MS4wLjABAAAAwPg623JYalQjMBbs1_6UBxP78FFZp5TsTWlDN2-mr-_FEr61Z4e7z1RANV3K2PDL",
+    "platform": "douyin",
+    "updated": 1795065718,
+    "auto": true,
+    "source_video": "https://www.douyin.com/video/7709378111510514995",
+    "found_via": "缓存",
+    "home": "https://www.douyin.com/user/MS4wLjABAAAAwPg623JYalQjMBbs1_6UBxP78FFZp5TsTWlDN2-mr-_FEr61Z4e7z1RANV3K2PDL",
+    "name": "叫我Ryder就好",
+    "uid": "MS4wLjABAAAAwPg623JYalQjMBbs1_6UBxP78FFZp5TsTWlDN2-mr-_FEr61Z4e7z1RANV3K2PDL",
+    "followers": 2433,
+    "signature": "某研究院在职PM\n一个帮你少被 AI 割韭菜的年轻人",
+    "handle": "92944317038",
+    "avatar_src": "https://p3-pc.douyinpic.com/aweme/100x100/aweme-avatar/tos-cn-i-c9aec8xkvj_f45cb478ec8b4da6b0c38498eb7070fe.jpeg?from=327834062",
+    "avatar_file": "c5d0cf132b977d7f.jpg"
   }
 }
