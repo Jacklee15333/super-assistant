@@ -1782,7 +1782,7 @@ async function startVideoJob(url, level) {
     // 读「提取后自动 AI 分析」开关（不存在就当勾选=老行为）；
     // 不勾时只提取文字稿、完全不调 AI，插图也随之不可用。
     const anEl = document.getElementById("videoAnalyze");
-    const analyze = !anEl || !!anEl.checked;
+    const analyze = !!(anEl && anEl.checked);      // v66：默认只提取原文，需要时再点「AI 分析」
     const screenshot = analyze && !!(shotEl && shotEl.checked);
     const link = !!(linkEl && linkEl.checked);
     // 读字幕模式（auto / subtitle_only / transcribe），默认 auto
@@ -1870,7 +1870,7 @@ async function startLocalVideoJob(filePath, author, noteFolder, opts) {
     const linkEl = document.getElementById("videoLink");
     const anEl = document.getElementById("videoAnalyze");
     const analyze = (typeof opts.analyze === "boolean")
-      ? opts.analyze : (!anEl || !!anEl.checked);
+      ? opts.analyze : !!(anEl && anEl.checked);      // v66：默认只提取原文
     const screenshot = analyze && ((typeof opts.screenshot === "boolean")
       ? opts.screenshot : !!(shotEl && shotEl.checked));
     const link = (typeof opts.link === "boolean")
@@ -2062,8 +2062,8 @@ function askImportOptions(cfg) {
       return { lab, c };
     };
     const anEl0 = document.getElementById("videoAnalyze");
-    const an = mkCheck("提取后自动 AI 分析（取消 = 只存文字稿，之后可在笔记列表补做）",
-                       !anEl0 || anEl0.checked);
+    const an = mkCheck("提取完马上 AI 分析（不勾 = 只存原文，需要时再点「🤖 AI 分析」）",
+                       !!(anEl0 && anEl0.checked));     // v66：默认不勾
     row("🤖 AI 分析", an.lab);
     const shotEl0 = document.getElementById("videoShot");
     const shot = mkCheck("插图（自动截取关键画面，稍慢）", !!(shotEl0 && shotEl0.checked));
@@ -2126,7 +2126,7 @@ async function pickAndImportLocal(targetFolder) {
     }
     setVideoStatus("📁 已提交 " + paths.length + " 个文件进队列，将逐个提取"
                    + (o.noteFolder ? ("，完成的笔记会自动归进「" + o.noteFolder + "」") : "")
-                   + (o.analyze ? "" : "（仅提取文字稿，不做 AI 分析）") + "。",
+                   + (o.analyze ? "，提取完会马上 AI 分析" : "（只提取原文，需要时再点「🤖 AI 分析」）") + "。",
                    "ok", { priority: true, holdMs: 6000 });
   } catch (e) {
     setVideoStatus("选文件出错：" + (e && e.message ? e.message : e), "warn");
@@ -2161,7 +2161,7 @@ async function pickAndImportFolder(targetFolder) {
     }
     setVideoStatus("📂 已提交 " + n + " 个文件进队列，将逐个提取"
                    + (o.noteFolder ? ("，完成的笔记会自动归进「" + o.noteFolder + "」") : "")
-                   + (o.analyze ? "" : "（仅提取文字稿，不做 AI 分析）") + "。",
+                   + (o.analyze ? "，提取完会马上 AI 分析" : "（只提取原文，需要时再点「🤖 AI 分析」）") + "。",
                    "ok", { priority: true, holdMs: 6000 });
   } catch (e) {
     setVideoStatus("导入文件夹出错：" + (e && e.message ? e.message : e), "warn");
@@ -3203,6 +3203,10 @@ function mountVideoDone(res) {
   go.type = "button"; go.className = "vdone-go"; go.textContent = "去「最新提取」看 ›";
   go.title = "在下面的「最新提取」里找到这一条（点标题就能看完整笔记）";
   go.addEventListener("click", () => vnRevealRecent(res.saved_as));
+  if (res.unanalyzed && res.saved_as) {          // v66：默认只提取原文；需要时点这里分析
+    const ab = vnAnButton(res.saved_as, "🤖 AI 分析", "vdone-go vdone-an", false);
+    box.appendChild(ab);
+  }
   box.appendChild(go);
   const pv = (res.page_videos || []).filter(Boolean);      // v65：文章页面里还有视频
   if (pv.length) {
@@ -4047,19 +4051,12 @@ function makeVideoNoteItem(n, folders) {
   }
   // 「仅提取」模式存的未分析笔记：右侧给一个「AI 分析」补做按钮
   if (n.analyzed === false) {
-    const an = document.createElement("button");
-    an.className = "vn-analyze";
-    an.textContent = "🤖 AI 分析";
-    an.title = "这条当时只提取了文字稿，点这里补做 AI 分析";
+    const an = vnAnButton(n.name, "🤖 AI 分析", "vn-analyze", false);
+    an.title = "这条只提取了原文，点这里让 AI 写分析笔记（分析中再点一下可以停止）";
     an.style.cssText =
       "flex:0 0 auto;border:0.5px solid var(--accent,#1a73e8);" +
       "background:transparent;color:var(--accent,#1a73e8);border-radius:7px;" +
       "padding:2px 9px;font-size:12px;cursor:pointer;white-space:nowrap";
-    an.addEventListener("click", (e) => {
-      e.stopPropagation();
-      an.disabled = true; an.textContent = "已提交…";
-      startNoteAnalyze(n.name);
-    });
     item.appendChild(an);
   }
   // 移动到文件夹
@@ -4272,14 +4269,8 @@ async function openVideoNote(name) {
     if (/-\s*状态[：:]\s*未分析/.test(data.content || "")) {
       const pane = resultEl.querySelector("#vAnalysis");
       if (pane) {
-        const b = document.createElement("button");
-        b.className = "send-btn";
-        b.textContent = "🤖 立即 AI 分析这条笔记";
+        const b = vnAnButton(name, "🤖 立即 AI 分析这条笔记", "send-btn", true);   // v66：分析中再点一下 = 停止
         b.style.cssText = "display:block;margin:12px 0 4px";
-        b.addEventListener("click", () => {
-          b.disabled = true; b.textContent = "已提交，分析中…";
-          startNoteAnalyze(name, { reopen: true });
-        });
         pane.appendChild(b);
       }
     }
@@ -4291,6 +4282,63 @@ async function openVideoNote(name) {
 
 // ── 给「未分析」的已存笔记补做 AI 分析（后台跑，这里轮询进度）──
 let _noteAnPollTimer = null;
+let _noteAnRunning = "";      // v66：正在分析哪一条
+let _noteAnStopReq = false;   // v66：用户点了停止
+
+// v66：「🤖 AI 分析」按钮（完成那一行、笔记列表、打开的笔记里都用它）：
+// 点一下开始分析；分析中再点一下 = 停止（AI 池卡住时用）；分析好了点它打开笔记。
+function vnAnButton(name, label, cls, reopen) {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = cls || "vdone-go";
+  b.dataset.anFor = name; b.dataset.anLabel = label || "🤖 AI 分析";
+  b.textContent = b.dataset.anLabel;
+  b.title = "让 AI 写分析笔记（原文已经存好了，AI 池卡住也不影响；分析中再点一下可以停止）";
+  b.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (b.dataset.anState === "done") { openVideoNote(name); return; }
+    if (b.dataset.anState === "running") { stopNoteAnalyze(name); return; }
+    b.dataset.anState = "running"; b.textContent = "已提交…";
+    startNoteAnalyze(name, { reopen: !!reopen });
+  });
+  if (_noteAnRunning === name) setTimeout(() => vnAnState(name, "running", ""), 0);
+  return b;
+}
+
+function vnAnState(name, st, text) {
+  document.querySelectorAll("[data-an-for]").forEach((b) => {
+    if (b.dataset.anFor !== name) return;
+    b.dataset.anState = st; b.disabled = false;
+    if (st === "running") {
+      b.textContent = _noteAnStopReq ? "正在停止…" : "⏹ 分析中…点这里停止";
+      b.title = (text ? "现在：" + text + "\n" : "") + "AI 池卡住了就点这里，马上放下这条（原文不受影响）";
+      if (_noteAnStopReq) b.disabled = true;
+    } else if (st === "done") {
+      b.textContent = "✓ 分析好了，点开看";
+    } else {
+      b.textContent = st === "stopped" ? "🤖 AI 分析（已停止，可以再点）"
+        : st === "fail" ? "🤖 AI 分析（没成功，再试一次）" : (b.dataset.anLabel || "🤖 AI 分析");
+    }
+  });
+}
+
+async function stopNoteAnalyze(name) {
+  _noteAnStopReq = true;
+  vnAnState(name, "running", "");
+  try {
+    const d = await (await fetch(BACKEND + "/video_note_analyze_stop", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })).json();
+    if (!d.ok) {
+      _noteAnStopReq = false;
+      vnAnState(name, "running", "");
+      setVideoStatus(d.message || "没停下来", "warn", { priority: true, holdMs: 6000 });
+    } else {
+      setVideoStatus("⏹ 正在停止分析…（一两秒）", "", { priority: true, holdMs: 3000 });
+    }
+  } catch (e) {
+    _noteAnStopReq = false;
+    setVideoStatus("停止出错：" + e.message, "warn", { priority: true, holdMs: 6000 });
+  }
+}
 async function startNoteAnalyze(name, opts) {
   opts = opts || {};
   try {
@@ -4303,9 +4351,12 @@ async function startNoteAnalyze(name, opts) {
     if (!d.ok) {
       setVideoStatus("补分析没开始：" + (d.error || "未知原因"), "warn",
                      { priority: true, holdMs: 6000 });
+      vnAnState(name, "idle");
       loadVideoNotes();   // 把按钮的「已提交…」状态恢复回来
       return;
     }
+    _noteAnRunning = name; _noteAnStopReq = false;
+    vnAnState(name, "running", "已提交");
     setVideoStatus("🤖 正在给这条笔记补做 AI 分析…（可能要一两分钟，完成后自动刷新）",
                    "", { priority: true, holdMs: 3000 });
     pollNoteAnalyze(name, !!opts.reopen);
@@ -4321,12 +4372,19 @@ function pollNoteAnalyze(name, reopen) {
       const r = await fetch(BACKEND + "/video_note_analyze_progress");
       const p = await r.json();
       if (p.running) {
-        setVideoStatus("🤖 补分析中：" + (p.stage || "处理中…"), "",
+        setVideoStatus("🤖 补分析中：" + (p.stage || "处理中…") + "（卡住了可以点「分析中…」按钮停止）", "",
                        { priority: true, holdMs: 1800 });
+        vnAnState(name, "running", p.stage || "");
         return;
       }
       clearInterval(_noteAnPollTimer); _noteAnPollTimer = null;
-      if (p.ok) {
+      const stopped = _noteAnStopReq;
+      _noteAnRunning = ""; _noteAnStopReq = false;
+      vnAnState(name, p.ok ? "done" : (stopped ? "stopped" : "fail"));
+      if (!p.ok && stopped) {
+        setVideoStatus("⏹ 已停止分析。原文还在，需要时再点「🤖 AI 分析」。", "ok", { priority: true, holdMs: 8000 });
+        loadVideoNotes();
+      } else if (p.ok) {
         setVideoStatus("✅ 这条笔记的 AI 分析已补好并保存。", "ok",
                        { priority: true, holdMs: 8000 });
         loadVideoNotes();
