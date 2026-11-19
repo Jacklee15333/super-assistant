@@ -3390,6 +3390,7 @@ function mountVideoResult(data, target) {
 
   // 容器内查询（不用 getElementById），这样同一个视图可以在多处复用而不冲突
   const $ = (sel) => resultEl.querySelector(sel);
+  if (data._noteName) { try { _vtTidyBar(resultEl, data); } catch (e) {} }   // v88：「完整原文」上方的「整理原文」按钮
 
   // ---- 页面内二级标签：展示 + 编辑 ----
   let curTags = Array.isArray(data.tags) ? data.tags.slice() : [];
@@ -11839,4 +11840,66 @@ function _phSyncDefaults() {
     try { _phFeishuOn = !!(await _phFetch("/feishu_inbox/status")).enabled; } catch (e) {}
     _phPoll();
   }, 4000);
+})();
+
+
+// ════════════════════ v88：整理原文（AI 加标点、按意思分段）════════════════════
+// ① 「开始提取」卡片里一个开关：提取完自动整理（默认开，存在后端，手机 / 飞书发来的也照这个办）
+// ② 打开一条笔记，「完整原文」上方一个按钮：给以前提取的笔记补整理
+function _vtTidyBar(resultEl, data) {
+  const box = resultEl.querySelector("#vTranscript");
+  if (!box || box.querySelector(".vt-tidy-bar")) return;
+  const bar = document.createElement("div");
+  bar.className = "vt-tidy-bar";
+  bar.innerHTML = '<button class="vbtn" type="button">✨ 整理原文</button>' +
+    '<span class="vt-tidy-msg">让 AI 加标点、按意思分段（只加标点和换行，不删改内容）</span>';
+  box.insertBefore(bar, box.firstChild);
+  const btn = bar.querySelector("button"), msg = bar.querySelector(".vt-tidy-msg");
+  const render = (t) => {
+    Array.from(box.children).forEach((c) => { if (c !== bar) c.remove(); });
+    const div = document.createElement("div");
+    div.innerHTML = renderMarkdown(paragraphizeCN(t || "（无文字稿）"));
+    box.appendChild(div);
+  };
+  let timer = null;
+  const poll = async () => {
+    try {
+      const r = await fetch(BACKEND + "/video_note_tidy_status?name=" + encodeURIComponent(data._noteName));
+      const st = await r.json();
+      msg.textContent = st.msg || "";
+      if (st.running) { timer = setTimeout(poll, 2000); return; }
+      btn.disabled = false; btn.textContent = "✨ 整理原文";
+      msg.className = "vt-tidy-msg " + (st.ok ? "ok" : "");
+      if (st.ok && st.transcript) { data.transcript = st.transcript; render(st.transcript); }
+    } catch (e) { btn.disabled = false; btn.textContent = "✨ 整理原文"; msg.textContent = "后端没连上"; }
+  };
+  btn.addEventListener("click", async () => {
+    btn.disabled = true; btn.textContent = "整理中…"; msg.className = "vt-tidy-msg"; msg.textContent = "准备整理…";
+    try {
+      const r = await fetch(BACKEND + "/video_note_tidy", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: data._noteName }) });
+      const d = await r.json();
+      if (!d.ok) { btn.disabled = false; btn.textContent = "✨ 整理原文"; msg.textContent = d.error || "没成功"; return; }
+      clearTimeout(timer); timer = setTimeout(poll, 1500);
+    } catch (e) { btn.disabled = false; btn.textContent = "✨ 整理原文"; msg.textContent = "后端没连上"; }
+  });
+}
+
+(function _vtTidyAutoToggle() {
+  const anchor = document.querySelector("#view-video .video-creator-row");
+  if (!anchor || document.getElementById("videoTidyAuto")) return;
+  const row = document.createElement("label");
+  row.className = "vt-tidy-auto";
+  row.title = "语音识别出来的文字没标点、不分段；开着这个，提取完会让 AI 加标点、按意思分段（只加标点和换行，不删改内容）。手机 / 飞书发来的也一样";
+  row.innerHTML = '<input type="checkbox" id="videoTidyAuto" checked> ✨ 提取完自动整理原文（AI 加标点、按意思分段）';
+  anchor.parentNode.insertBefore(row, anchor.nextSibling);
+  const cb = row.querySelector("input");
+  setTimeout(async () => {
+    try { const r = await fetch(BACKEND + "/transcript_tidy/config"); cb.checked = !!(await r.json()).auto; } catch (e) {}
+  }, 3000);
+  cb.addEventListener("change", () => {
+    fetch(BACKEND + "/transcript_tidy/config", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ auto: cb.checked }) }).catch(() => {});
+  });
 })();

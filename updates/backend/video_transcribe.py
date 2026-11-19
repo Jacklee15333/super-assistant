@@ -184,6 +184,32 @@ def _resolve_model(size):
     return size
 
 
+def _compose_from_segments(seg_list):
+    """v88：用带时间的分句拼原文——每句之间按停顿补标点（停得久 = 句号，短 = 逗号），
+    停顿很长或者一段已经很长就另起一段。比把所有字硬连成一大块好读得多；
+    之后 AI「整理原文」会再按意思细分。"""
+    segs = [x for x in (seg_list or []) if (x.get("text") or "").strip()]
+    if not segs:
+        return ""
+    paras, cur = [], ""
+    for i, sg in enumerate(segs):
+        t = sg["text"].strip()
+        nxt = segs[i + 1] if i + 1 < len(segs) else None
+        try:
+            gap = float(nxt["start"]) - float(sg.get("end", sg["start"])) if nxt else 9.9
+        except Exception:
+            gap = 0.0
+        if t[-1] not in "。！？!?…；;，,、：:":
+            t += "。" if (gap >= 0.6 or nxt is None or len(t) >= 20) else "，"
+        cur += t
+        if nxt is None or (gap >= 2.0 and len(cur) >= 40) or (len(cur) >= 160 and t[-1] in "。！？!?…"):
+            paras.append(cur)
+            cur = ""
+    if cur:
+        paras.append(cur)
+    return "\n\n".join(paras)
+
+
 def _paragraphize(text):
     """把一长串识别文字切成自然段落。优先按句末标点；没有就按逗号；
     再没有就按长度硬切——保证再难看的无标点文本也能分段。"""
@@ -1686,7 +1712,13 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
             "segments": seg_list})
     raw = "".join(parts).strip()
     # 返回 (分好段的文字稿, 带时间戳的分段列表)
-    return _paragraphize(raw), seg_list
+    composed = ""
+    try:
+        if seg_list and all("end" in x for x in seg_list):
+            composed = _compose_from_segments(seg_list)
+    except Exception:
+        composed = ""
+    return (composed or _paragraphize(raw)), seg_list
 
 
 def _video_file_dir(url):
