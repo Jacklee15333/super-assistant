@@ -552,6 +552,30 @@ def remove(key):
 
 # ════════════════════ v59：根据视频链接找博主主页 ════════════════════
 
+def list_raw():
+    with _lock:
+        return {k: dict(v) for k, v in _load().items()}
+
+
+def rename_key(old, new):
+    """v63：博主改名了——把 old 名下的资料挪到 new 名下（new 下已经有主页的，就保留 new 的那份）。"""
+    old, new = (old or "").strip(), (new or "").strip()
+    if not old or not new or old == new:
+        return False
+    with _lock:
+        store = _load()
+        p = store.pop(old, None)
+        if p is None:
+            return False
+        q = store.get(new) or {}
+        if not (q.get("url") or q.get("avatar_file")):
+            p["key"] = new
+            p["renamed_from"] = old
+            store[new] = p
+        _save(store)
+    return True
+
+
 def profile_state(key):
     """这个博主现在存着的资料（原样，没有返回空字典）。"""
     with _lock:

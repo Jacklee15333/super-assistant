@@ -1,0 +1,16 @@
+{
+  "id": "auto-20261119-090057-47be",
+  "title": "🤖 自动 · 最新AI动态 · 11-19 09:00",
+  "created_at": "2026-11-19T09:02:41",
+  "updated_at": "2026-11-19T09:02:41",
+  "messages": [
+    {
+      "role": "user",
+      "content": "查最新 OpenAI ； Anthropic； 英伟达的最新动态"
+    },
+    {
+      "role": "assistant",
+      "content": "#### ChatGPT 说：\n\n# AI 情报简报｜OpenAI · Anthropic · NVIDIA\n2026 年 11 月 19 日\n重点覆盖：11 月 12—19 日\n官方公告 + 路透社\n\n## 一、核心结论\n最近几天，三家公司的动态都很重要，但代表了 AI 产业的三个不同方向：\n- OpenAI：模型能力和商业化继续推进。 11 月 17 日发布 GPT-6.2 Astra 与 Sol，同时向销售、医疗等行业扩张。\n- Anthropic：资本市场迎来重大事件。 路透社 11 月 18 日报道，其 IPO 以每股 83 美元定价，募资约 813.1 亿美元，创下全球 IPO 募资纪录。\n![图片](https://www.google.com/s2/favicons?domain=https://www.reuters.com&sz=32)\n\nReuters\n- NVIDIA（英伟达）：AI 算力需求仍然强劲。 最新季度营收达到 1,158 亿美元，同比增长 103%，Vera Rubin 平台已开始出货。\n![图片](https://www.google.com/s2/favicons?domain=https://investor.nvidia.com&sz=32)\n\nNVIDIA 投资者关系\n\n初步判断： AI 竞争正在同时向三个方向推进——更强的智能体、企业级场景的规模化落地，以及超大规模计算基础设施。不过，商业增长强劲不等于相关资产价格一定上涨，技术优势也不自动等于客户愿意持续付费。\n下面分开看具体发布、行业意义和可落地机会。"
+    }
+  ]
+}

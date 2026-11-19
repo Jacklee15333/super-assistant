@@ -1,0 +1,16 @@
+{
+  "id": "auto-20261119-092141-r8g7",
+  "title": "🤖 自动 · 最新github开源项目 · 11-19 09:21",
+  "created_at": "2026-11-19T09:24:12",
+  "updated_at": "2026-11-19T09:24:12",
+  "messages": [
+    {
+      "role": "user",
+      "content": "查最新 github 最新的，最热门的开源项目"
+    },
+    {
+      "role": "assistant",
+      "content": "#### ChatGPT 说：\n\n我查 GitHub Trending 的最新日榜和周榜，再核对项目主页，重点筛出真正热、近期增长快、值得关注或动手试的开源项目。会把链接、用途、热度依据和风险一起给你。"
+    }
+  ]
+}

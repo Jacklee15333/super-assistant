@@ -2451,3 +2451,9 @@ body.lv-standalone .lv-root { height: 100%; }
 .vn-ctile.vn-av-pop .vn-av { animation: vnAvPop .9s ease; }
 @keyframes vnAvPop { 0% { transform: scale(.55); opacity: .25; } 60% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); } }
 
+/* ════════ v63：博主墙可折叠 ════════ */
+.vn-chead.vn-wall-head { cursor: pointer; background: var(--bg-hover); border-radius: 10px; padding: 8px 12px; margin: 6px 0 6px; }
+.vn-wall-head .vn-caret { margin-right: -6px; }
+.vn-wall-sum { color: var(--text-dim); font-size: 12.5px; font-weight: 400; }
+.vn-wall-body[hidden], .vn-csorts[hidden] { display: none !important; }
+

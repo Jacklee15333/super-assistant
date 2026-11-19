@@ -1644,5 +1644,22 @@
     "key": "laozhoubushuode",
     "auto_fail_at": 1794987332,
     "error": "自动找主页没成功：抖音没找到作者：这条视频已经删了或设成私密了（页面上写着「视频不存在」）"
+  },
+  "吉豆茄": {
+    "key": "吉豆茄",
+    "url": "https://www.douyin.com/user/MS4wLjABAAAAgWg_wAcWdfpLiHYXtxbOQJpyyG6NwLW-DEs2GgINsaU_jwuy_UgbogfqmoQ2Xpkn",
+    "platform": "douyin",
+    "updated": 1794989160,
+    "auto": true,
+    "source_video": "https://www.douyin.com/video/7709215656201227570",
+    "found_via": "缓存",
+    "home": "https://www.douyin.com/user/MS4wLjABAAAAgWg_wAcWdfpLiHYXtxbOQJpyyG6NwLW-DEs2GgINsaU_jwuy_UgbogfqmoQ2Xpkn",
+    "name": "吉豆茄",
+    "uid": "MS4wLjABAAAAgWg_wAcWdfpLiHYXtxbOQJpyyG6NwLW-DEs2GgINsaU_jwuy_UgbogfqmoQ2Xpkn",
+    "followers": 33703,
+    "signature": "🎯一人公司怎么开、怎么赚钱\n🤖如何用 AI 做FDE、拓客、降本增效\n🏢 8 年一人公司 3 家在营（工商可查）\n📩学习 🔗 🈴 ➕ jidouqie777",
+    "handle": "87957032383",
+    "avatar_src": "https://p3-pc.douyinpic.com/aweme/100x100/aweme-avatar/tos-cn-avt-0015_325723e5dba392bda1e5c79aed4d118b.jpeg?from=327834062",
+    "avatar_file": "bf600ff1541e7b1b.jpg"
   }
 }

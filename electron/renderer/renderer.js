@@ -3816,6 +3816,12 @@ function vnRenderBatchBar(list, notes) {
     const open = body.hidden;
     apply(open);
     try { localStorage.setItem("vnBatchOpen", open ? "1" : "0"); } catch (_) {}
+    if (open) {                     // v63：展开这一组时，里面的「AI 实时画面」也一起展开
+      try { localStorage.setItem("vnLiveOpen", "1"); } catch (_) {}
+      const lb = document.getElementById("vnLiveBody"), lc = document.getElementById("vnLiveCaret");
+      if (lb) lb.hidden = false;
+      if (lc) lc.textContent = "▾";
+    }
     vnLivePoll();
   });
   list.appendChild(bar);
@@ -9785,6 +9791,7 @@ function vnGroupStats(items) {
 // 找到一个，墙上对应的头像马上换成真头像（原地换，不重画整面墙）；可以随时停止，下次接着找剩下的。
 let _vnCpbTimer = null;
 let _vnCpbSeen = -1;
+let _vnCpbRenamed = -1;     // v63：有博主改了名 → 整面墙按新名字重画
 
 function vnTileAvatar(g) {
   const st = g.stats;
@@ -9882,6 +9889,8 @@ function vnCpbRender(bar, d) {
     const el = bar.querySelector(".vn-cpb-txt"); el.textContent = txt; el.title = txt;
     const note = bar.querySelector(".vn-cpb-note");
     note.hidden = !d.note; note.textContent = d.note ? "⏸ " + d.note : "";
+    const ws = document.getElementById("vnWallSum");
+    if (ws) ws.textContent = "正在识别博主主页 " + d.done + " / " + d.total + " · 成功 " + (d.ok + d.noav);
     return;
   }
   const todo = vnCpbTodo(bar._groups);
@@ -9890,17 +9899,26 @@ function vnCpbRender(bar, d) {
   btn.textContent = todo.length ? "🔍 一键识别博主主页（" + todo.length + " 个还没主页）" : "✓ 博主都有主页了";
   sum.innerHTML = "";
   bar.querySelectorAll(".vn-cpb-list").forEach((x) => x.remove());
+  const ws = document.getElementById("vnWallSum");
+  if (ws) {
+    const gs = bar._groups || [];
+    const haveN = gs.filter((g) => (_vnProfiles[g.key] || {}).url).length;
+    ws.textContent = "已有主页 " + haveN + " 个" + (todo.length ? " · 还有 " + todo.length + " 个没主页" : "");
+  }
+  const ren = (d && d.renamed) || [];
   if (d && d.finished && d.total) {
     let s = "上次识别了 " + d.done + " 个：成功 " + (d.ok + d.noav) +
       (d.noav ? "（其中 " + d.noav + " 个没取到头像）" : "") +
-      (d.fail ? "，没找到 " + d.fail : "") + (d.skip ? "，跳过 " + d.skip : "") + "。";
+      (d.fail ? "，没找到 " + d.fail : "") + (d.skip ? "，跳过 " + d.skip : "") + "。" +
+      (ren.length ? "其中 " + ren.length + " 个博主改了名，软件里已换成新名字。" : "");
     if (d.note) s += d.note;
     sum.appendChild(document.createTextNode(s));
     const bad = (d.results || []).filter((r) => r.status !== "ok");
-    if (bad.length) {
+    if (bad.length || ren.length) {
       const more = document.createElement("a");
-      more.href = "#"; more.className = "vn-cpb-more"; more.textContent = "看看没成功的 ›";
+      more.href = "#"; more.className = "vn-cpb-more"; more.textContent = "看看详情 ›";
       const listEl = document.createElement("div"); listEl.className = "vn-cpb-list"; listEl.hidden = true;
+      ren.forEach((t) => { const row = document.createElement("div"); row.textContent = "✎ 博主改名：" + t; listEl.appendChild(row); });
       bad.forEach((r) => {
         const row = document.createElement("div");
         row.textContent = r.status === "noav" ? "△ " + r.key + "：找到了主页（" + (r.msg || "") + "），但没取到头像，可以进去上传一张"
@@ -9909,7 +9927,7 @@ function vnCpbRender(bar, d) {
       });
       more.addEventListener("click", (e) => {
         e.preventDefault(); listEl.hidden = !listEl.hidden;
-        more.textContent = listEl.hidden ? "看看没成功的 ›" : "收起";
+        more.textContent = listEl.hidden ? "看看详情 ›" : "收起";
       });
       sum.appendChild(more);
       bar.appendChild(listEl);
@@ -9942,6 +9960,14 @@ async function vnCpbPoll() {
     d = await (await fetch(BACKEND + "/creator_profiles_batch", { cache: "no-store" })).json();
   } catch (e) { _vnCpbTimer = setTimeout(vnCpbPoll, 4000); return; }
   if (!document.getElementById("vnCpb")) return;
+  const rn = (d.renamed || []).length;
+  if (_vnCpbRenamed !== -1 && rn !== _vnCpbRenamed) {
+    _vnCpbRenamed = rn; _vnCpbSeen = d.done;
+    await vnLoadProfiles();
+    loadVideoNotes();                     // 名字变了，图标要重新分组；重画后会自己接着轮询
+    return;
+  }
+  _vnCpbRenamed = rn;
   if (d.done !== _vnCpbSeen) {
     if (_vnCpbSeen !== -1) { await vnLoadProfiles(); vnRefreshTileAvatars(); }
     _vnCpbSeen = d.done;
@@ -10153,7 +10179,10 @@ function vnRenderIconView(list, notes, folders, byFolder, ungrouped) {
     groups.sort((a, b) => (a.name === "未填作者") - (b.name === "未填作者") || cmp(a, b));
 
     const head = document.createElement("div");
-    head.className = "vn-chead";
+    head.className = "vn-chead vn-wall-head";                // v63：整面墙可以折叠（像「最新提取」）
+    head.title = "点击展开 / 收起";
+    const wcaret = document.createElement("span"); wcaret.className = "vn-caret";
+    head.appendChild(wcaret);
     const ttl = document.createElement("span");
     ttl.className = "vn-chead-title";
     ttl.textContent = "博主 · 文件夹（" + groups.length + "）";
@@ -10172,25 +10201,40 @@ function vnRenderIconView(list, notes, folders, byFolder, ungrouped) {
     });
     head.appendChild(sorts);
     wrap.appendChild(head);
-    wrap.appendChild(vnCpbBar(groups));      // v60：一键识别博主主页
+    const wbody = document.createElement("div"); wbody.className = "vn-wall-body";
+    wbody.appendChild(vnCpbBar(groups));      // v60：一键识别博主主页
     const tip = document.createElement("div");
     tip.className = "vn-auto-tip";
     tip.textContent = "圆角方形是你建的文件夹，圆形是按作者自动分的组。点头像进去看笔记。个别没找到主页的，" +
       "鼠标移到头像上点 🔗 粘贴主页链接（抖音 / B站 / YouTube…），或者点进去上传一张头像。";
-    wrap.appendChild(tip);
+    wbody.appendChild(tip);
     const grid = document.createElement("div");
     grid.className = "vn-cgrid";
     groups.forEach((g) => grid.appendChild(vnCreatorTile(g, sortKey)));
-    wrap.appendChild(grid);
+    wbody.appendChild(grid);
     if (!groupAuthors && ungrouped.length) {
       const t2 = document.createElement("div");
       t2.className = "vn-auto-tip"; t2.textContent = "还没放进文件夹的笔记";
-      wrap.appendChild(t2);
+      wbody.appendChild(t2);
       const g2 = document.createElement("div");
       g2.className = "vn-icon-grid notes";
       ungrouped.forEach((n) => g2.appendChild(vnNoteTile(n)));
-      wrap.appendChild(g2);
+      wbody.appendChild(g2);
     }
+    const wsum = document.createElement("span"); wsum.className = "vn-wall-sum"; wsum.id = "vnWallSum";
+    const haveN = groups.filter((g) => (_vnProfiles[g.key] || {}).url).length, todoN = vnCpbTodo(groups).length;
+    wsum.textContent = "已有主页 " + haveN + " 个" + (todoN ? " · 还有 " + todoN + " 个没主页" : "");
+    head.insertBefore(wsum, sorts);
+    const applyW = (o) => { wbody.hidden = !o; sorts.hidden = !o; wcaret.textContent = o ? "▾" : "▸"; };
+    let wOpen = true;
+    try { wOpen = localStorage.getItem("vnWallOpen") !== "0"; } catch (_) {}
+    applyW(wOpen);
+    head.addEventListener("click", (e) => {
+      if (e.target.closest(".vn-csorts")) return;            // 点排序按钮不折叠
+      const o = wbody.hidden; applyW(o);
+      try { localStorage.setItem("vnWallOpen", o ? "1" : "0"); } catch (_) {}
+    });
+    wrap.appendChild(wbody);
     list.appendChild(wrap);
     return;
   }

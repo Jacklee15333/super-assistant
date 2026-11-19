@@ -281,16 +281,18 @@ _SEND_STATE_JS = r"""() => {
 
 
 def _win_taskbar_set(show):
-    """v62（Windows）：把挪到屏幕外的 AI 池浏览器窗口从任务栏拿掉 / 放回来。
-    做法：给窗口加上「工具窗口」样式（任务栏和 Alt+Tab 里都不显示），窗口本身照常工作、不最小化。
-    只认「Chrome 窗口 + 在屏幕外」的那一个，不会动你自己开的浏览器。返回处理了几个窗口。"""
+    """v63（Windows）：把挪到屏幕外的 AI 池浏览器窗口从任务栏拿掉 / 放回来。
+    v62 是「先藏一下窗口再显示」来刷新任务栏，副作用是 Chrome 可能不再重画页面（实时画面看不到了）。
+    现在完全不碰窗口的显示状态：① 加上「工具窗口」样式（Alt+Tab 和任务栏以后都不再收它）；
+    ② 用系统的任务栏接口（ITaskbarList）直接删掉它的按钮。显示时反过来。
+    只认「Chrome 窗口 + 在屏幕外」的那一个，不会动你自己开的浏览器。返回认到了几个窗口。"""
     import sys as _sys
     if _sys.platform != "win32":
         return 0
     try:
         import ctypes
         from ctypes import wintypes
-        user32 = ctypes.windll.user32
+        user32, ole32 = ctypes.windll.user32, ctypes.windll.ole32
         GWL_EXSTYLE, WS_EX_TOOLWINDOW, WS_EX_APPWINDOW = -20, 0x00000080, 0x00040000
         get = getattr(user32, "GetWindowLongPtrW", user32.GetWindowLongW)
         setl = getattr(user32, "SetWindowLongPtrW", user32.SetWindowLongW)
@@ -315,16 +317,43 @@ def _win_taskbar_set(show):
                 pass
             return True
         user32.EnumWindows(proto(cb), 0)
-        n = 0
+        if not hits:
+            return 0
+        flags = 0x1 | 0x2 | 0x4 | 0x10 | 0x20   # 不改大小/位置/层级、不抢焦点，只让新样式生效
         for hwnd in hits:
             ex = get(hwnd, GWL_EXSTYLE)
             new = ((ex | WS_EX_APPWINDOW) & ~WS_EX_TOOLWINDOW) if show else ((ex | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW)
             if new != ex:
-                user32.ShowWindow(hwnd, 0)          # SW_HIDE：先藏一下，任务栏才会按新样式刷新
                 setl(hwnd, GWL_EXSTYLE, new)
-                user32.ShowWindow(hwnd, 4)          # SW_SHOWNOACTIVATE：马上再显示（还在屏幕外），不抢焦点
-                n += 1
-        return n
+                user32.SetWindowPos(hwnd, None, 0, 0, 0, 0, flags)
+        try:
+            class _GUID(ctypes.Structure):
+                _fields_ = [("a", ctypes.c_ulong), ("b", ctypes.c_ushort), ("c", ctypes.c_ushort),
+                            ("d", ctypes.c_ubyte * 8)]
+
+            def guid(t):
+                g = _GUID()
+                ole32.CLSIDFromString(ctypes.c_wchar_p(t), ctypes.byref(g))
+                return g
+            ole32.CoInitializeEx(None, 2)
+            clsid = guid("{56FDF344-FD6D-11d0-958A-006097C9A090}")     # TaskbarList
+            iid = guid("{56FDF342-FD6D-11d0-958A-006097C9A090}")       # ITaskbarList
+            ptr = ctypes.c_void_p()
+            if ole32.CoCreateInstance(ctypes.byref(clsid), None, 1, ctypes.byref(iid), ctypes.byref(ptr)) == 0 \
+                    and ptr.value:
+                vt = ctypes.cast(ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
+                fn = ctypes.WINFUNCTYPE
+                hr_init = fn(ctypes.c_long, ctypes.c_void_p)(vt[3])
+                add_tab = fn(ctypes.c_long, ctypes.c_void_p, wintypes.HWND)(vt[4])
+                del_tab = fn(ctypes.c_long, ctypes.c_void_p, wintypes.HWND)(vt[5])
+                release = fn(ctypes.c_ulong, ctypes.c_void_p)(vt[2])
+                hr_init(ptr)
+                for hwnd in hits:
+                    (add_tab if show else del_tab)(ptr, hwnd)
+                release(ptr)
+        except Exception:
+            pass
+        return len(hits)
     except Exception:
         return 0
 

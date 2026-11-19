@@ -379,7 +379,7 @@ def _vn_pick_sources(key, index=None, limit=3):
 # ════════ v60：一键识别博主主页（给还没主页的博主一个个找主页、取头像和资料）════════
 _cpb_lock = _threading.Lock()
 _cpb = {"running": False, "stop": False, "total": 0, "done": 0, "ok": 0, "noav": 0, "fail": 0,
-        "skip": 0, "current": "", "started": 0, "finished": 0, "results": [], "note": ""}
+        "skip": 0, "current": "", "started": 0, "finished": 0, "results": [], "note": "", "renamed": []}
 _CPB_GAP = (3.0, 2.0)         # 每个博主之间歇 3~5 秒，别被抖音等平台限流
 _CPB_PAUSE_AFTER = 6          # 连续这么多个没找到 → 歇一分钟
 _CPB_STOP_AFTER = 12          # 连续这么多个没找到 → 先停下（多半没网或被限流）
@@ -434,6 +434,13 @@ def _cpb_worker(keys):
                     except Exception as e:
                         ok, info = False, "出错：%s" % e
                     if ok and isinstance(info, dict):
+                        try:
+                            _nk, rn = _vn_after_bind(key, info)      # v63：博主改名了 → 软件里也改
+                        except Exception:
+                            rn = ""
+                        if rn:
+                            with _cpb_lock:
+                                _cpb["renamed"].append(rn)
                         res.update(status="ok" if info.get("has_avatar") else "noav",
                                    msg=(info.get("platform_label") or "") +
                                    ("（%s）" % info["found_via"] if info.get("found_via") else ""),
@@ -503,6 +510,80 @@ def _vn_find_source_url(key):
     return ""
 
 
+def _vn_rename_blogger(old, new):
+    """v63：博主改名了 → 软件里也改成新名字：作者是 old 的笔记都改成 new；同名的文件夹也改名；
+    博主资料挪到新名字下。返回改了几条笔记。"""
+    old, new = (old or "").strip(), (new or "").strip()[:40]
+    if not old or not new or old == new:
+        return 0
+    n = 0
+    try:
+        files = list(_cx_video_dir().glob("*.md"))
+    except Exception:
+        files = []
+    for p in files:
+        try:
+            lines = p.read_text(encoding="utf-8", errors="replace").split("\n")
+        except Exception:
+            continue
+        for i in range(1, min(8, len(lines))):
+            t = lines[i].strip().lstrip("-").strip()
+            if t.startswith(("作者：", "作者:")):
+                if t[3:].strip()[:40] == old:
+                    lines[i] = "- 作者：" + new
+                    try:
+                        p.write_text("\n".join(lines), encoding="utf-8")
+                        n += 1
+                    except Exception:
+                        pass
+                break
+    try:
+        with _vn_lock:
+            folders, mapping = _vn_load_folders()
+            if old in folders and new not in folders:
+                folders[folders.index(old)] = new
+                for k, v in list(mapping.items()):
+                    if v == old:
+                        mapping[k] = new
+                _vn_save_folders(folders, mapping)
+    except Exception:
+        pass
+    try:
+        import creator_profiles as _cpf
+        _cpf.rename_key(old, new)
+    except Exception:
+        pass
+    _clog("博主", "✎ 博主改名：%s → %s（已更新 %d 条笔记）" % (old, new, n))
+    return n
+
+
+def _vn_after_bind(key, info):
+    """v63：绑定成功后看看博主是不是改名了。返回 (现在用的名字, 改名说明或空)。
+      ① 视频数据里的名字和软件里的不一样（抖音 / B站）→ 软件里改成新名字；
+      ② 同一个主页之前绑在别的名字（旧名字）下 → 那些笔记也改成现在的名字。"""
+    if not isinstance(info, dict):
+        return key, ""
+    plat = info.get("platform") or ""
+    if plat not in ("douyin", "bilibili"):
+        return key, ""
+    import douyin_resolver as _dr
+    import creator_profiles as _cpf
+    notes = []
+    new = re.sub(r"\s+", " ", (info.get("name") or "")).strip()
+    if (new and len(new) <= 40 and not new.isdigit() and not _dr._name_match(new, key)
+            and not new.startswith(key) and not key.startswith(new)):
+        n = _vn_rename_blogger(key, new)
+        notes.append("%s → %s（%d 条笔记）" % (key, new, n))
+        key = new
+    uid = info.get("uid") or ""
+    if uid:
+        for k, p in _cpf.list_raw().items():
+            if k != key and p.get("uid") == uid and p.get("platform") == plat:
+                n = _vn_rename_blogger(k, key)
+                notes.append("%s → %s（%d 条笔记）" % (k, key, n))
+    return key, "；".join(notes)
+
+
 def _vn_creator_after_save(job, res, cb=None):
     """v59：提取完成、笔记存好后，给这条笔记的博主建「博主板块」资料（头像、昵称、粉丝数、简介）。
       · 提取卡片里填了「博主主页」→ 按它绑定（笔记没有作者时，顺便把作者填成博主昵称）；
@@ -544,6 +625,13 @@ def _vn_creator_after_save(job, res, cb=None):
         if not key and k and fname and _vn_set_note_author(fname, k):
             res["uploader"] = k
         _clog("博主", "✓ 已识别「%s」的主页：%s" % (k, info.get("home") or info.get("url") or ""))
+        try:
+            k2, _rn = _vn_after_bind(k, info)     # v63：同一个主页以前绑在旧名字下 → 统一成现在的名字
+            if k2 != k:
+                k = k2
+                res["uploader"] = k2
+        except Exception:
+            pass
         return {"key": k, "status": "bound", "name": info.get("name") or k,
                 "platform": info.get("platform_label") or "", "auto": not creator_url}
     _clog("博主", "✗「%s」的主页没识别出来：%s" % (key or "博主", str(info)[:120]))
@@ -3064,7 +3152,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send({"ok": False, "message": "已经在识别了（%d/%d），等它结束或先点「停止」"
                                        % (_cpb["done"], _cpb["total"])})
                 _cpb.update(running=True, stop=False, total=len(keys), done=0, ok=0, noav=0, fail=0,
-                            skip=0, current="", started=_time_now(), finished=0, results=[], note="")
+                            skip=0, current="", started=_time_now(), finished=0, results=[], note="", renamed=[])
             _clog("博主", "开始一键识别博主主页：%d 个" % len(keys))
             _threading.Thread(target=_cpb_worker, args=(keys,), daemon=True).start()
             return self._send({"ok": True, "total": len(keys)})
@@ -3090,6 +3178,13 @@ class Handler(BaseHTTPRequestHandler):
                         ok, res = False, why + "，没法自动找，可以粘贴主页链接"
                     else:
                         ok, res, _k = _cpf.auto_bind_from_videos(key, urls, force=True)
+                        if ok and isinstance(res, dict):
+                            try:
+                                _nk, rn = _vn_after_bind(key, res)
+                                if rn:
+                                    res["note"] = (res.get("note") or "") + "（博主改名了：%s，软件里已改成新名字）" % rn
+                            except Exception:
+                                pass
                 else:
                     ok, res = False, "不认识的操作"
             except Exception as e:
