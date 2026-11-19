@@ -1,159 +1,5 @@
 [
   {
-    "id": "video-1783675630817",
-    "ts": "07-10 17:27:10",
-    "kind": "video",
-    "title": "视频提取：.com/twI1b79_0OA/ 复制此链接，打开Dou音搜索，直接观看视频！",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "加载语音模型",
-      "语音转文字"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1
-    },
-    "steps": 5,
-    "error": "",
-    "outcome": "",
-    "status": "running",
-    "tokens_est": 0,
-    "seconds": 0,
-    "_start": 1783675630.8175397
-  },
-  {
-    "id": "video-1784089793882",
-    "ts": "07-15 12:29:53",
-    "kind": "video",
-    "title": "装过上百个skill后，推荐这16个 #AI #skill #skills #人工智能  #vibecoding #vibecoding大赏",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "获取标题",
-      "加载语音模型",
-      "语音转文字",
-      "保存"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "获取标题": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "保存": 1
-    },
-    "steps": 7,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 82,
-    "note": "✅ 已完成《装过上百个skill后，推荐这16个 #》，继续处理下一个（还剩 1 个）"
-  },
-  {
-    "id": "video-1784089876767",
-    "ts": "07-15 12:31:16",
-    "kind": "video",
-    "title": "人生有了这两个神级技能，你就该起势了。 #人性 #成长 #心理学 #思维 #杀不死我的只会让我更强大",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "保存"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "保存": 1
-    },
-    "steps": 5,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 14,
-    "note": "✅ 已完成《人生有了这两个神级技能，你就该起势了。 》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1788688117488",
-    "ts": "09-06 17:48:37",
-    "kind": "video",
-    "title": "视频提取：https://v.douyin.com/N7qrCWfF2vw/",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1
-    },
-    "steps": 3,
-    "error": "提取失败：ERROR: [Douyin] 7680840678397947215: Fresh cookies (not necessarily logged in) are needed; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U\n\n提示：本软件已先尝试「抖音分享页直链解析」、再用 yt-dl",
-    "outcome": "stopped",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 2,
-    "note": "⚠ 这条没成功，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1791788138990",
-    "ts": "10-12 14:55:38",
-    "kind": "video",
-    "title": "视频提取：https://v.douyin.com/P_KN51iZ-nQ/",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1
-    },
-    "steps": 3,
-    "error": "提取失败：ERROR: [Douyin] 7695440948033064227: Fresh cookies (not necessarily logged in) are needed; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U\n\n提示：本软件已先尝试「抖音分享页直链解析」、再用 yt-dl",
-    "outcome": "stopped",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 1,
-    "note": "⚠ 这条没成功，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1794881813918",
-    "ts": "11-17 10:16:53",
-    "kind": "video",
-    "title": "视频提取：https://v.douyin.com/pqNd-ChxVco/",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1
-    },
-    "steps": 3,
-    "error": "提取失败：ERROR: [Douyin] 7683085358866779407: Fresh cookies (not necessarily logged in) are needed; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U\n\n提示：本软件已先尝试「抖音分享页直链解析」、再用 yt-dl",
-    "outcome": "stopped",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 3,
-    "note": "⚠ 这条没成功，队列已清空，等待新任务"
-  },
-  {
     "id": "video-1794881930212",
     "ts": "11-17 10:18:50",
     "kind": "video",
@@ -1402,5 +1248,181 @@
     "tokens_est": 0,
     "seconds": 15,
     "note": "✅ 已完成《能不打官司则不打官司》，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1795070056425",
+    "ts": "11-19 14:34:16",
+    "kind": "video",
+    "title": "反洗钱系列丨水房是什么？钱是怎么被洗白的？ #跑分水房  #洗钱罪  #刑事辩护律师  #抖来普法2026 #秀出我的诉讼策略",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型",
+      "语音转文字",
+      "保存",
+      "博主主页"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1,
+      "保存": 1,
+      "博主主页": 1
+    },
+    "steps": 7,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 47,
+    "note": "✅ 已完成《反洗钱系列丨水房是什么？钱是怎么被洗白的》，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1795070471412",
+    "ts": "11-19 14:41:11",
+    "kind": "video",
+    "title": "Remotion，大模型手里的剪映 #抖音前沿科技首发计划  #AI新星计划  #Vibe知识大赏  #抖音精选App知识充电站  #AI做视频",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "保存",
+      "博主主页"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "保存": 1,
+      "博主主页": 1
+    },
+    "steps": 6,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 34,
+    "note": "✅ 已完成《Remotion，大模型手里的剪映 #抖》，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1795070918640",
+    "ts": "11-19 14:48:38",
+    "kind": "video",
+    "title": "为什么很多人接受不了批评？#认知思维 #人际关系 #社会化训练 #个人成长 #清醒",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "保存"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "保存": 1
+    },
+    "steps": 5,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 39,
+    "note": "✅ 已完成《为什么很多人接受不了批评？#认知思维 #》，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1795071297199",
+    "ts": "11-19 14:54:57",
+    "kind": "video",
+    "title": "deepseek限额 deepseek限流 和老黄有关系吗？ #深度求索  #deepseek #算力不足  #deepseek限额  #青衿论",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "保存",
+      "博主主页"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "保存": 1,
+      "博主主页": 1
+    },
+    "steps": 6,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 38,
+    "note": "✅ 已完成《deepseek限额 deepseek限》，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1795071400881",
+    "ts": "11-19 14:56:40",
+    "kind": "video",
+    "title": "黄金白金不如现金，当下时代，现金为王。\n#黄金价格未来发展趋势 #黄金价格",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "保存",
+      "博主主页"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "保存": 1,
+      "博主主页": 1
+    },
+    "steps": 6,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 30,
+    "note": "✅ 已完成《黄金白金不如现金，当下时代，现金为王。\n》，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1795072743630",
+    "ts": "11-19 15:19:03",
+    "kind": "video",
+    "title": "vibe coding 的浪潮开始褪去",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "获取标题",
+      "语音转文字",
+      "保存",
+      "博主主页"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "获取标题": 1,
+      "语音转文字": 1,
+      "保存": 1,
+      "博主主页": 1
+    },
+    "steps": 7,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 35,
+    "note": "✅ 已完成《vibe coding 的浪潮开始褪去》，队列已清空，等待新任务"
   }
 ]

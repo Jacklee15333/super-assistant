@@ -4018,7 +4018,9 @@ function vnUnRow(n, idx) {
   nm.textContent = n.title || (n.name || "").replace(/\.md$/, "");
   r.appendChild(nm);
   if (n.author) {
-    const au = document.createElement("span"); au.className = "vn-un-author"; au.textContent = "👤 " + n.author;
+    const au = document.createElement("span"); au.className = "vn-un-author";
+    au.appendChild(vnAvatarEl({ key: n.author, name: n.author, kind: "author" }, "mini"));   // v81
+    au.appendChild(document.createTextNode(n.author));
     r.appendChild(au);
   }
   const st = document.createElement("span"); st.className = "vn-un-state";
@@ -4218,7 +4220,10 @@ function makeVideoNoteItem(n, folders) {
   if (n.author) {
     const au = document.createElement("span");
     au.className = "vn-author";
-    au.textContent = "👤 " + n.author;
+    au.appendChild(vnAvatarEl({ key: n.author, name: n.author, kind: "author" }, "mini"));   // v81：博主 mini 头像
+    const aun = document.createElement("span");
+    aun.className = "vn-au-name"; aun.textContent = n.author;
+    au.appendChild(aun);
     au.title = "作者：" + n.author + "（点右侧 ✎ 可修改）";
     au.addEventListener("click", () => openVideoNote(n.name));
     item.appendChild(au);
@@ -7818,7 +7823,7 @@ function renderFindings(list) {
         '<div class="cw-v-main">' +
           '<div class="cw-v-title"><span class="cw-new-badge">新</span>' + ic + " " + escapeHtml(title) + "</div>" +
           '<div class="cw-v-zh">' + zhText + "</div>" +
-          '<div class="cw-v-meta"><span class="cw-tag">' + escapeHtml(f.creator_title || "") + "</span>" +
+          '<div class="cw-v-meta"><span class="cw-tag cw-tag-au">' + _cwMiniAv(f.creator_id, f.creator_title) + escapeHtml(f.creator_title || "") + "</span>" +
             '<a class="cw-vlink" href="' + escapeHtml(f.url) + '" target="_blank">原视频↗</a><span>' + escapeHtml(f.found_at || "") + "</span></div>" +
         "</div>" +
       "</div>";
@@ -8535,7 +8540,7 @@ function renderDigest(errors) {
             '<div class="cw-v-title">' + newBadge + doneBadge + platIcon + " " + escapeHtml(it.title || it.url || "(无标题)") + "</div>" +
             zh +
             '<div class="cw-v-meta">' +
-              '<span class="cw-tag">' + escapeHtml(it.creator_title || g.title || "") + "</span>" +
+              '<span class="cw-tag cw-tag-au">' + _cwMiniAv(it.creator_id, it.creator_title || g.title) + escapeHtml(it.creator_title || g.title || "") + "</span>" +
               when + ago +
               '<a class="cw-vlink" href="' + escapeHtml(it.url) + '" target="_blank">原视频↗</a></div>' +
           "</div>" +
@@ -10030,7 +10035,7 @@ function vnFmtNum(n) {
 function vnAvatarEl(g, size) {
   const p = _vnProfiles[g.key] || {};
   const av = document.createElement("div");
-  av.className = "vn-av" + (g.kind === "author" ? " round" : "") + (size === "big" ? " big" : "");
+  av.className = "vn-av" + (g.kind === "author" ? " round" : "") + (size === "big" ? " big" : size === "mini" ? " mini" : "");
   if (p.has_avatar) {
     const img = document.createElement("img");
     img.alt = "";
@@ -11040,6 +11045,13 @@ renderCreators = function (list) {
       }));
     }
     _cwTilesMark();
+    const avSig = _cwLastList.filter((c) => c.avatar).map((c) => c.id + ":" + c.avatar.v).join(",");
+    if (avSig !== _cwAvSig) {                      // v81：头像有变化 → 「扫出来的新视频」重画，换上 mini 头像
+      _cwAvSig = avSig;
+      if (typeof renderFindings === "function" && Array.isArray(_cwFindings) && _cwFindings.length) {
+        try { renderFindings(_cwFindings); } catch (_) {}
+      }
+    }
     if (box) box.querySelectorAll(".cw-tile .cw-parse-one").forEach((b) => b.addEventListener("click", (e) => {
       e.stopPropagation();
       const t = b.closest(".cw-tile");
@@ -11497,3 +11509,24 @@ function vFindBuild() {
 vFindBuild();
 _cwfPanels().forEach(_cwfBind);
 _cwFindPoll();
+
+
+// ════════════════════ v81：列表里的博主 mini 头像 ════════════════════
+// 视频页的笔记列表（最新提取、文件夹、博主里、还没分析的）作者前面一个小圆头像，名字小一号；
+// 嗅探页「扫出来的新视频」「按时间看全部」里的博主名前面也一样。没有头像的用名字首字 + 固定配色。
+var _cwAvSig = "";
+function _cwMiniAv(cid, title) {
+  const list = (typeof _cwLastList !== "undefined" && _cwLastList) || [];
+  const c = list.find((x) => String(x.id) === String(cid)) || list.find((x) => title && x.title === title) || {};
+  const nm = String(title || c.title || "?");
+  const ch = Array.from(nm.replace(/^[\s@＠#]+/, ""))[0] || "?";
+  const hue = typeof vnHue === "function" ? vnHue(nm) : 200;
+  const img = c.avatar ? '<img src="' + BACKEND + "/creator_avatar?key=" + encodeURIComponent(c.avatar.key) +
+    "&v=" + (c.avatar.v || 0) + '" alt="">' : "";
+  return '<span class="cw-mini-av" style="--h:' + hue + '"><span>' + escapeHtml(ch.toUpperCase()) + "</span>" + img + "</span>";
+}
+document.addEventListener("error", (e) => {           // 头像图片打不开 → 显示首字
+  const t = e.target;
+  if (t && t.tagName === "IMG" && t.parentElement && t.parentElement.classList.contains("cw-mini-av")) t.remove();
+}, true);
+
