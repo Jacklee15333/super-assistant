@@ -31,14 +31,20 @@ REPOS = {
     "medium": "Systran/faster-whisper-medium",
     "large-v2": "Systran/faster-whisper-large-v2",
     "large-v3": "Systran/faster-whisper-large-v3",
+    "kotoba-v2": "kotoba-tech/kotoba-whisper-v2.0-faster",     # v97：日语专用
 }
-APPROX_GB = {"tiny": 0.08, "base": 0.15, "small": 0.48, "medium": 1.5, "large-v2": 3.1, "large-v3": 3.1}
+APPROX_GB = {"kotoba-v2": 1.5, "tiny": 0.08, "base": 0.15, "small": 0.48, "medium": 1.5, "large-v2": 3.1, "large-v3": 3.1}
 
 # 小文件先下（坏了马上知道），最后下 model.bin
 SMALL_REQUIRED = ["config.json", "tokenizer.json"]
 VOCAB = ["vocabulary.json", "vocabulary.txt"]          # 两种写法有一个就行
 PREPROC = "preprocessor_config.json"                    # large-v3 必须有（128 维特征），别的型号没有这个文件
-NEED_PREPROC = {"large-v3"}
+NEED_PREPROC = {"large-v3", "kotoba-v2"}
+# kotoba-whisper 是在 large-v3 上训练的（128 维特征）。仓库里万一没放特征配置，就按 large-v3 的写一份
+_DEFAULT_PREPROC = {"chunk_length": 30, "feature_extractor_type": "WhisperFeatureExtractor", "feature_size": 128,
+                    "hop_length": 160, "n_fft": 400, "n_samples": 480000, "nb_max_frames": 3000,
+                    "padding_side": "right", "padding_value": 0.0, "processor_class": "WhisperProcessor",
+                    "return_attention_mask": False, "sampling_rate": 16000}
 BIG = "model.bin"
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) chaoneng-assistant/model-download"
@@ -207,7 +213,9 @@ def _fetch_all(opener, ep, repo, size, part, label, progress, check):
         try:
             _fetch(opener, base + PREPROC, part / PREPROC, check=check)
         except _NotFound:
-            if size in NEED_PREPROC:
+            if size.startswith("kotoba"):
+                (part / PREPROC).write_text(json.dumps(_DEFAULT_PREPROC), encoding="utf-8")
+            elif size in NEED_PREPROC:
                 raise RuntimeError("仓库里没找到 %s" % PREPROC)
     # ② 大文件，带进度
     if (part / BIG).is_file():

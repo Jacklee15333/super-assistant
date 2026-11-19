@@ -2055,7 +2055,7 @@ function askImportOptions(cfg) {
     levelSel.className = "text-input";
     levelSel.style.cssText = "flex:1 1 auto";
     [["speed", "快速（糙）"], ["balanced", "均衡（推荐）"],
-     ["accurate", "精准（慢）"], ["ultra", "超精准（大模型）"]].forEach(([v, t]) => {
+     ["accurate", "精准（慢）"], ["ultra", "超精准（大模型）"], ["ja", "日语专用（kotoba）"]].forEach(([v, t]) => {
       const o = document.createElement("option");
       o.value = v; o.textContent = t; levelSel.appendChild(o);
     });
@@ -12637,6 +12637,7 @@ async function _vtSubBar(resultEl, data) {
     '<span class="vt-sub-seg"><button type="button" data-v="text" class="on">📄 原文</button>' +
     '<button type="button" data-v="subs">🎬 字幕</button><button type="button" data-v="zh">🀄 中文</button></span>' +
     '<span class="vt-sub-lang"></span>' +
+    '<select class="vt-sub-eng" title="用哪个模型翻译：本地模型最快（在你自己的显卡上跑、不排队）；AI 池是网页版，慢一些"></select>' +
     '<button type="button" class="vbtn vt-sub-tr"></button>' +
     '<select class="vt-sub-exp" title="导出 .srt 字幕文件，拖进播放器（PotPlayer、VLC…）就能看">' +
     '<option value="">⬇ 导出字幕…</option><option value="orig">原文字幕</option>' +
@@ -12651,6 +12652,21 @@ async function _vtSubBar(resultEl, data) {
         exp = bar.querySelector(".vt-sub-exp"), save = bar.querySelector(".vt-sub-save");
   bar.querySelector(".vt-sub-lang").textContent = "语言：" + (d.lang_label || "中文");
   let view = "text", timer = null;
+  // v96：翻译用哪个模型——默认本地模型（快），也可以选别的本地模型或 AI 池
+  const eng = bar.querySelector(".vt-sub-eng");
+  (async () => {
+    let e = { local: [], default: "" };
+    try { e = await (await fetch(BACKEND + "/translate_engines")).json(); } catch (_) {}
+    const add = (v, t) => { const o = document.createElement("option"); o.value = v; o.textContent = t; eng.appendChild(o); };
+    (e.local || []).forEach((m) => add("local:" + m, "翻译用：本地 " + m + (m === e.default ? "（默认）" : "")));
+    if (!(e.local || []).length) add("local", "翻译用：本地模型（没找到，会先试着拉起 Ollama）");
+    add("pool", "翻译用：AI 池（网页版，慢）");
+    let pick = "";
+    try { pick = localStorage.getItem("trEngine") || ""; } catch (_) {}
+    if (pick && eng.querySelector('option[value="' + pick.replace(/"/g, "") + '"]')) eng.value = pick;
+    else if (e.default) eng.value = "local:" + e.default;
+  })();
+  eng.addEventListener("change", () => { try { localStorage.setItem("trEngine", eng.value); } catch (_) {} });
   const textNodes = () => Array.from(box.children).filter((c) => c !== bar && c !== subBox && !c.classList.contains("vt-tidy-bar"));
   const zhProse = () => {
     const paras = []; let cur = "", n = 0;
@@ -12692,6 +12708,7 @@ async function _vtSubBar(resultEl, data) {
       zhProse().forEach((p) => { const e = document.createElement("p"); e.textContent = p; subBox.appendChild(e); });
     }
     trBtn.hidden = !foreign;
+    eng.hidden = !foreign;
     trBtn.textContent = d.has_zh ? "🔁 重新翻译" : "🌐 翻译成中文";
     trBtn.title = d.has_zh ? "全部重新翻译一遍（AI 翻得不好时用）" : "让 AI 一句一句翻译成中文，时间对得上，能做双语字幕";
     exp.querySelector('[value="zh"]').disabled = exp.querySelector('[value="both"]').disabled = !d.has_zh;
@@ -12725,7 +12742,7 @@ async function _vtSubBar(resultEl, data) {
     trBtn.disabled = true; msg.className = "vt-tidy-msg vt-sub-msg"; msg.textContent = "准备翻译…";
     try {
       const r = await (await fetch(BACKEND + "/video_note_translate", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: data._noteName, redo: !!d.has_zh }) })).json();
+        body: JSON.stringify({ name: data._noteName, redo: !!d.has_zh, engine: eng.value || "local" }) })).json();
       if (!r.ok) { trBtn.disabled = false; msg.textContent = r.error || "没成功"; return; }
       clearTimeout(timer); timer = setTimeout(poll, 1500);
     } catch (e) { trBtn.disabled = false; msg.textContent = "后端没连上"; }
@@ -12758,3 +12775,29 @@ async function _vtSubBar(resultEl, data) {
   render();
   if ((d.translate || {}).running) { trBtn.disabled = true; poll(); }
 }
+
+
+// ════════════════════ v97：日语专用模型 ════════════════════
+// 质量下拉框加「日语专用（kotoba-whisper）」：日本团队用几万小时日语训练的，日语比 large-v3 准、还快；
+// 第一次用要下载约 1.5GB。选它时，语言自动切到「日语」（日语模式：小声的放大、静音检测放宽、漏的段补得更细）。
+(function _vtJaLevel() {
+  const sel = document.getElementById("videoLevel");
+  if (!sel || sel.querySelector('option[value="ja"]')) return;
+  const o = document.createElement("option");
+  o.value = "ja"; o.textContent = "日语专用（kotoba-whisper）";
+  o.title = "专门识别日语的模型，日语比「超精准」更准、更快；第一次用要下载约 1.5GB";
+  sel.appendChild(o);
+  try {
+    const saved = localStorage.getItem("videoLevelPick");
+    if (saved === "ja") sel.value = "ja";
+  } catch (e) {}
+  const sync = () => {
+    const lang = document.getElementById("videoLang");
+    if (sel.value === "ja" && lang && lang.value !== "ja") {
+      lang.value = "ja";
+      try { localStorage.setItem("videoLangPick", "ja"); } catch (_) {}
+    }
+  };
+  sel.addEventListener("change", sync);
+  sync();
+})();

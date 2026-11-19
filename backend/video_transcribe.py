@@ -293,7 +293,9 @@ def models_info():
                 if p.is_dir() and "faster-whisper" in n and not n.endswith(".downloading") and ".bak-" not in n:
                     # 友好显示：精准/均衡/快速
                     label = n
-                    if "large" in n:
+                    if "kotoba" in n:
+                        label = "日语专用模型 (kotoba-whisper)"
+                    elif "large" in n:
                         label = "超精准模型 (large-v3)"
                     elif "medium" in n:
                         label = "精准模型 (medium)"
@@ -318,6 +320,7 @@ MODEL_MAP = {
     "balanced": "small",
     "accurate": "medium",
     "ultra": "large-v3",      # v87：超精准（大模型，约 3GB，显卡上跑；方言、快语速认得更准）
+    "ja": "kotoba-v2",        # v97：日语专用（kotoba-whisper v2，用几万小时日语训练，日语比 large-v3 准、还快）
 }
 
 # v87：给 whisper 的开头提示——让它输出标点、用简体字（不影响内容，只影响格式）
@@ -333,6 +336,39 @@ LANGS = {
     "auto": ("自动识别", None),
 }
 _LANG = {"v": "zh"}
+
+
+def _ja_mode():
+    """v97：日语模式（选了日语，或用日语专用模型）——小声的先放大，静音检测放宽，漏掉的段补得更细。"""
+    return _LANG["v"] == "ja"
+
+
+def _boost_quiet(x):
+    """v97：把小声的地方放大（每 0.4 秒算一次音量，太小就往上提，最多放大 8 倍；大声的不动，不会爆音）。
+    对说悄悄话、离麦克风远、背景声大的视频很有用——以前这些地方常被当成「没人说话」整段跳过。"""
+    try:
+        import numpy as np
+        a = np.asarray(x, dtype="float32")
+        if a.size < _SR:
+            return a
+        win = int(_SR * 0.4)
+        n = a.size // win
+        if n < 2:
+            return a
+        frames = a[: n * win].reshape(n, win)
+        rms = np.sqrt((frames ** 2).mean(axis=1) + 1e-12)
+        target = max(0.05, float(np.percentile(rms, 90)) * 0.7)        # 以这段视频里「正常说话」的音量为准
+        gain = np.clip(target / np.maximum(rms, 0.004), 1.0, 8.0)      # 几乎没声音的（<0.004）不硬放大底噪
+        k = np.ones(5) / 5.0
+        gain = np.convolve(np.pad(gain, 2, mode="edge"), k, mode="valid")   # 平滑，别忽大忽小
+        g = np.repeat(gain, win)
+        out = a.copy()
+        out[: n * win] *= g
+        if a.size > n * win:
+            out[n * win:] *= gain[-1]
+        return np.clip(out, -1.0, 1.0).astype("float32")
+    except Exception:
+        return x
 
 
 def lang_label(code):
@@ -353,7 +389,8 @@ def _lang_prompt():
 # v87：whisper 在没人说话 / 只有音乐的地方常会「编」出来的话，补漏时一律丢掉
 _HALLU = ("请不吝点赞", "订阅转发", "打赏支持", "明镜与点点", "Amara.org", "字幕由", "字幕提供",
           "谢谢观看", "感谢观看", "優優獨播", "优优独播", "YoYo", "中文字幕", "请订阅", "欢迎订阅",
-          "点赞订阅", "下集再见", "我们下期再见")
+          "点赞订阅", "下集再见", "我们下期再见",
+          "ご視聴ありがとうございました", "チャンネル登録", "最後までご視聴", "字幕作成")
 
 
 def _looks_hallucinated(t):
@@ -378,10 +415,10 @@ def _fill_gaps(model, full, total, seg_list, progress_cb=None):
     gaps, prev = [], 0.0
     for sg in segs:
         st = float(sg.get("start") or 0)
-        if st - prev > 12:
+        if st - prev > (4 if _ja_mode() else 12):       # v97：日语模式空 4 秒就再听一遍
             gaps.append((prev, st))
         prev = max(prev, float(sg.get("end") or 0))
-    if total - prev > 6:
+    if total - prev > (3 if _ja_mode() else 6):
         gaps.append((prev, total))
     if not gaps:
         return []
@@ -389,7 +426,7 @@ def _fill_gaps(model, full, total, seg_list, progress_cb=None):
     sec = sum(b - a for a, b in gaps)
     if progress_cb:
         progress_cb("检查漏识别", "有 %d 段共 %d 秒没认出字，再仔细听一遍…" % (len(gaps), int(sec)))
-    for a, b in gaps[:20]:
+    for a, b in gaps[:(80 if _ja_mode() else 20)]:
         _check_cancel()
         a0 = max(0.0, a - 0.5)
         clip = full[int(a0 * _SR): int(min(total, b + 0.5) * _SR)]
@@ -403,7 +440,8 @@ def _fill_gaps(model, full, total, seg_list, progress_cb=None):
                 t = (sg.text or "").strip()
                 if _looks_hallucinated(t):
                     continue
-                if (getattr(sg, "no_speech_prob", 0) or 0) > 0.6 or (getattr(sg, "avg_logprob", 0) or 0) < -1.0:
+                _ns, _lp = (0.8, -1.3) if _ja_mode() else (0.6, -1.0)       # v97：日语模式小声的也收
+                if (getattr(sg, "no_speech_prob", 0) or 0) > _ns or (getattr(sg, "avg_logprob", 0) or 0) < _lp:
                     continue
                 got.append({"start": round(a0 + float(sg.start or 0), 2),
                             "end": round(a0 + float(sg.end or 0), 2), "text": t})
@@ -1628,6 +1666,10 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
         from faster_whisper.audio import decode_audio
         full = decode_audio(path, sampling_rate=_SR)
         total = round(len(full) / _SR, 2)
+        if _ja_mode():
+            full = _boost_quiet(full)                   # v97：小声的先放大，再识别
+            if progress_cb:
+                progress_cb("语音转文字", "日语模式：小声的部分先放大，静音检测放宽，尽量一句不漏…")
         can_resume = True
         if offset > 0 and offset < total:
             audio_input = full[int(offset * _SR):]
@@ -1662,11 +1704,19 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
     # vad_filter 会跳过静音，能省不少时间；但它让 whisper 上报的时间戳基于「去静音后」
     # 的位置，导致进度百分比相对真实音频忽快忽慢。这里把静音判定阈值调大一点
     # （只把较长的停顿当静音切掉），减少碎片化、让进度更线性，也略微提速。
+    _kw = {}
+    if _ja_mode():
+        # v97：日语模式——静音检测放宽（小声的也算人在说话），前后多留一点，避免句子头尾被切掉
+        _vad = {"threshold": 0.25, "min_silence_duration_ms": 1500, "speech_pad_ms": 600}
+    else:
+        _vad = {"min_silence_duration_ms": 800, "speech_pad_ms": 200}
+    if MODEL_MAP.get(level, "").startswith("kotoba"):
+        # kotoba-whisper 官方建议：按 15 秒一段听，不拿上一段的结果当提示（减少「复读」和编造）
+        _kw.update(chunk_length=15, condition_on_previous_text=False)
     segments, info = model.transcribe(
         audio_input, language=_whisper_lang(), vad_filter=True,
         initial_prompt=_lang_prompt(),                  # v87：带标点、简体；v95：按选的语言
-        vad_parameters={"min_silence_duration_ms": 800,
-                        "speech_pad_ms": 200})
+        vad_parameters=_vad, **_kw)
     # ── 进度分母 total：优先用我们自己解码出来的真实音频秒数（最准），
     #    没有再退回 whisper 报告的 duration。这一份是「整段」时长，和下面
     #    加了 offset 的 seg_end 同基准，百分比才不会偏。
@@ -1799,7 +1849,7 @@ def extract(url, level="balanced", progress_cb=None, need_video=False, mode="aut
       · "subtitle_only" —— 优先字幕；万一拿不到，仍回退听写保证有结果；
       · "transcribe"    —— 跳过字幕，直接下视频听写（字幕可能不全/有错时更准更全）。
     """
-    _set_lang(lang)                     # v95：这次视频说的是什么话
+    _set_lang("ja" if level == "ja" else lang)   # v95：这次视频说的是什么话；v97：日语专用模型一定按日语
     def step(s, d=""):
         if progress_cb:
             progress_cb(s, d)
@@ -2035,7 +2085,7 @@ def extract_local(file_path, level="balanced", progress_cb=None, lang="zh"):
     返回结构与 extract() 完全一致（ok/title/uploader/url/transcript/segments/source…），
     这样上层 worker 的后续处理（AI 分析、存笔记、插图）可以原样复用。
     标题默认用文件名（不含扩展名），交给 AI 分析时若识别出更好的标题会覆盖。"""
-    _set_lang(lang)                     # v95：这次视频说的是什么话
+    _set_lang("ja" if level == "ja" else lang)   # v95：这次视频说的是什么话；v97：日语专用模型一定按日语
     def step(s, d=""):
         if progress_cb:
             progress_cb(s, d)
