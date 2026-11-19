@@ -3554,6 +3554,7 @@ async function loadVideoNotes() {
     const data = await resp.json();
     const notes = data.notes || [];
     const folders = data.folders || [];
+    if (data.tidy && data.tidy.length) _vnTidyMsgs = _vnTidyMsgs.concat(data.tidy).slice(-6);   // v64
     list.innerHTML = "";
 
     // 顶部小工具条：新建文件夹（把同一作者/同一主题的笔记归到一起）
@@ -3582,6 +3583,7 @@ async function loadVideoNotes() {
     bar.appendChild(nf);
     bar.insertBefore(vnViewToggle(), nf);   // v57：列表 / 图标 切换
     list.appendChild(bar);
+    vnRenderTidyTip(list);                  // v64：自动合并了同名博主时提示一下
 
     if (notes.length === 0 && folders.length === 0) {
       const em = document.createElement("div");
@@ -3816,13 +3818,7 @@ function vnRenderBatchBar(list, notes) {
     const open = body.hidden;
     apply(open);
     try { localStorage.setItem("vnBatchOpen", open ? "1" : "0"); } catch (_) {}
-    if (open) {                     // v63：展开这一组时，里面的「AI 实时画面」也一起展开
-      try { localStorage.setItem("vnLiveOpen", "1"); } catch (_) {}
-      const lb = document.getElementById("vnLiveBody"), lc = document.getElementById("vnLiveCaret");
-      if (lb) lb.hidden = false;
-      if (lc) lc.textContent = "▾";
-    }
-    vnLivePoll();
+    vnLivePoll();                   // v64：实时画面不再单独折叠——点开「批量 AI 分析」就直接看得到
   });
   list.appendChild(bar);
   vnPollBatch();          // 页面刷新时如果有批量在跑，接着显示进度
@@ -9282,7 +9278,8 @@ function termAfterBackendReady() {
   if (wasOpen) termDrawerSetOpen(true);
 }
 
-// ════════════════════ v55：批量分析 ·「AI 实时画面」（可展开 / 折叠） ════════════════════
+// ════════════════════ v55：批量分析 ·「AI 实时画面」 ════════════════════
+// v64：不再单独折叠——点开「批量 AI 分析」这一组就直接看得到（以前还得再点一下「AI 实时画面」）。
 // 展开后能看到：正在分析哪一篇、AI 池浏览器的实时截图、AI 正在写的回复、每一步做了什么；
 // 不用再去看浏览器和黑窗口。「显示浏览器」「显示终端」可以把它们单独调出来。
 let _vnLiveTimer = null;
@@ -9290,15 +9287,14 @@ let _vnLiveShotTs = 0;
 let _vnLiveTab = "reply";
 
 function vnLiveIsOpen() {
-  try { return localStorage.getItem("vnLiveOpen") !== "0"; } catch (_) { return true; }
+  return true;          // v64：实时画面跟着「批量 AI 分析」这一组一起开 / 关，自己不再折叠
 }
 
 function vnBuildLive() {
   const box = document.createElement("div");
   box.className = "vn-live"; box.id = "vnLive"; box.hidden = true;
   box.innerHTML =
-    '<div class="vn-live-head" id="vnLiveHead" title="点击展开 / 折叠">' +
-      '<span class="vn-live-caret" id="vnLiveCaret">▾</span>' +
+    '<div class="vn-live-head" id="vnLiveHead">' +
       '<span class="vn-live-title">AI 实时画面</span>' +
       '<span class="vn-live-sum" id="vnLiveSum"></span>' +
     "</div>" +
@@ -9325,17 +9321,6 @@ function vnBuildLive() {
         '<span class="vn-live-msg" id="vnLiveMsg"></span>' +
       "</div>" +
     "</div>";
-
-  const body = box.querySelector("#vnLiveBody");
-  const caret = box.querySelector("#vnLiveCaret");
-  const applyOpen = (open) => { body.hidden = !open; caret.textContent = open ? "▾" : "▸"; };
-  applyOpen(vnLiveIsOpen());
-  box.querySelector("#vnLiveHead").addEventListener("click", () => {
-    const open = body.hidden;
-    applyOpen(open);
-    try { localStorage.setItem("vnLiveOpen", open ? "1" : "0"); } catch (_) {}
-    vnLivePoll();
-  });
 
   const setTab = (t) => {
     _vnLiveTab = t;
@@ -9717,6 +9702,7 @@ async function vnLoadProfiles() {
   try {
     const d = await (await fetch(BACKEND + "/creator_profiles", { cache: "no-store" })).json();
     _vnProfiles = d.profiles || {};
+    _vnMerges = d.merges || [];
   } catch (_) { _vnProfiles = {}; }
 }
 
@@ -10111,15 +10097,202 @@ function vnProfileCard(g) {
   if (!p.url) btn("🔍 自动找主页", "根据这个博主最新一条视频，自动找到他的主页，取头像和资料", () => vnProfileAction({ action: "auto", key: g.key }, msg));
   if (p.url) btn("刷新资料", "重新去主页取一次头像、粉丝数、简介", () => vnProfileAction({ action: "refresh", key: g.key }, msg));
   btn("上传头像", "用电脑里的一张图片当头像", () => vnUploadAvatar(g.key, msg));
+  if (g.name !== "未填作者") {
+    btn("🔗 合并…", "大小号、改过名的同一个人：合并成一个博主，笔记都算到一个名字下", () => vnMergeFlow(g, msg));
+  }
   if (p.url || p.has_avatar) {
     btn("解除绑定", "删掉绑定的主页和头像", () => {
       if (confirm("解除「" + g.key + "」的主页绑定和头像？笔记不受影响。")) vnProfileAction({ action: "remove", key: g.key }, msg);
     });
   }
   main.appendChild(acts);
+  const mine = (_vnMerges || []).filter((m) => m.dst === g.key);
+  if (mine.length) {                           // v64：合并过谁，随时可以撤销
+    const ml = document.createElement("div");
+    ml.className = "vn-cprof-merged";
+    ml.appendChild(document.createTextNode("已合并："));
+    mine.forEach((m, i) => {
+      if (i) ml.appendChild(document.createTextNode("、"));
+      const nm2 = document.createElement("b"); nm2.textContent = m.src;
+      nm2.title = (m.n || 0) + " 条笔记" + (m.at ? "，" + new Date(m.at * 1000).toLocaleString() + " 合并" : "");
+      ml.appendChild(nm2);
+      const u = document.createElement("button");
+      u.type = "button"; u.className = "vn-cprof-undo"; u.textContent = "撤销";
+      u.title = "把「" + m.src + "」分出来，笔记恢复成合并前的样子";
+      u.addEventListener("click", () => vnUnmerge(m, msg));
+      ml.appendChild(u);
+    });
+    main.appendChild(ml);
+  }
   main.appendChild(msg);
   card.appendChild(main);
   return card;
+}
+
+// ════════════════════ v64：合并博主（大小号 / 同一个人用过两个名字） ════════════════════
+// 同名的文件夹和作者、只差表情空格的名字，后台加载列表时会自动合并（见 _vnTidyMsgs 的提示）；
+// 名字不一样的大小号，在博主资料卡上点「🔗 合并…」手动合并，合并后随时可以撤销。
+let _vnMerges = [];
+let _vnIconGroups = [];
+let _vnTidyMsgs = [];
+
+function vnRenderTidyTip(list) {
+  if (!_vnTidyMsgs.length) return;
+  const box = document.createElement("div");
+  box.className = "vn-tidy-tip";
+  const txt = document.createElement("div");
+  txt.className = "vn-tidy-text";
+  txt.textContent = _vnTidyMsgs.map((t) => "🔗 " + t).join("\n");
+  const x = document.createElement("button");
+  x.type = "button"; x.className = "vn-tidy-x"; x.textContent = "×"; x.title = "知道了";
+  x.addEventListener("click", () => { _vnTidyMsgs = []; box.remove(); });
+  box.appendChild(txt); box.appendChild(x);
+  list.appendChild(box);
+}
+
+function vnNormName(s) {
+  return String(s || "").normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+// 两个名字有多像：去掉表情、空格、标点后，最长的一段相同文字有多重——汉字等算 2，字母数字算 1
+// （两个汉字一样就值得推荐；两个英文字母一样不算数）
+function vnNameW(ch) { return /[\u0000-\u007f]/.test(ch) ? 1 : 2; }
+function vnNameLike(a, b) {
+  const x = [...vnNormName(a)], y = [...vnNormName(b)];
+  if (!x.length || !y.length) return 0;
+  let best = 0;
+  for (let i = 0; i < x.length; i++) {
+    for (let j = 0; j < y.length; j++) {
+      let k = 0, w = 0;
+      while (i + k < x.length && j + k < y.length && x[i + k] === y[j + k]) { w += vnNameW(x[i + k]); k++; }
+      if (w > best) best = w;
+    }
+  }
+  return best;
+}
+
+// 弹框：和谁合并、合并后用哪个名字。返回 {src, dst, other} 或 null（取消）
+function vnAskMerge(g) {
+  return new Promise((resolve) => {
+    const seen = new Set([g.name]);
+    const others = [];
+    (_vnIconGroups || []).forEach((x) => {
+      if (x.name === "未填作者" || seen.has(x.name)) return;
+      seen.add(x.name);
+      others.push(x);
+    });
+    const wOf = (n) => [...vnNormName(n)].reduce((t, ch) => t + vnNameW(ch), 0);
+    const myW = wOf(g.name);
+    const like = others.map((x) => ({ x, s: vnNameLike(g.name, x.name) }))
+      .filter((o) => o.s >= 2 && o.s >= Math.min(4, myW, wOf(o.x.name)))   // 短名字整个包含在里面也算
+      .sort((a, b) => b.s - a.s || b.x.items.length - a.x.items.length)
+      .slice(0, 8).map((o) => o.x);
+    const old = document.getElementById("vnMergeAsk");
+    if (old) old.remove();
+    const wrap = document.createElement("div");
+    wrap.id = "vnMergeAsk"; wrap.className = "vn-merge-mask";
+    const box = document.createElement("div");
+    box.className = "vn-merge-box";
+    box.innerHTML =
+      '<div class="vn-merge-title"></div>' +
+      '<div class="vn-merge-desc">大小号、改过名的同一个人，可以合并成一个博主：笔记都算到一个名字下，' +
+      "以后这个号的新视频也会自动归进来。合并后在资料卡上随时可以撤销。</div>" +
+      '<div class="vn-merge-lab">和谁合并？</div>' +
+      '<input type="text" class="text-input vn-merge-input" list="vnMergeList" placeholder="输入名字搜索，或点下面推荐的" />' +
+      '<datalist id="vnMergeList"></datalist>' +
+      '<div class="vn-merge-like"></div>' +
+      '<div class="vn-merge-lab">合并后用哪个名字？</div>' +
+      '<div class="vn-merge-picks"><button type="button" class="send-btn vn-merge-keep" data-keep="me"></button>' +
+      '<button type="button" class="send-btn vn-merge-keep" data-keep="other" disabled>先选上面要合并的博主</button></div>' +
+      '<div class="vn-merge-row"><span class="vn-merge-note"></span><button type="button" class="vn-merge-cancel">取消</button></div>';
+    box.querySelector(".vn-merge-title").textContent = "合并博主「" + g.name + "」";
+    const dl = box.querySelector("#vnMergeList");
+    others.forEach((x) => {
+      const o = document.createElement("option");
+      o.value = x.name; o.label = x.items.length + " 条" + (x.kind === "folder" ? " · 文件夹" : "");
+      dl.appendChild(o);
+    });
+    const input = box.querySelector(".vn-merge-input");
+    const likeBox = box.querySelector(".vn-merge-like");
+    if (like.length) {
+      const lab = document.createElement("span"); lab.className = "vn-merge-likelab"; lab.textContent = "名字相近的：";
+      likeBox.appendChild(lab);
+      like.forEach((x) => {
+        const c = document.createElement("button");
+        c.type = "button"; c.className = "vn-recent-chip";
+        c.textContent = x.name;
+        const b = document.createElement("b"); b.textContent = x.items.length + " 条"; c.appendChild(b);
+        c.addEventListener("click", () => { input.value = x.name; sync(); });
+        likeBox.appendChild(c);
+      });
+    } else {
+      likeBox.textContent = "没找到名字相近的博主，在上面输入名字找。";
+      likeBox.classList.add("empty");
+    }
+    const keepMe = box.querySelector('[data-keep="me"]'), keepOther = box.querySelector('[data-keep="other"]');
+    const note = box.querySelector(".vn-merge-note");
+    keepMe.disabled = true;
+    keepMe.textContent = "用「" + g.name + "」（" + g.items.length + " 条）";
+    let target = null;
+    const sync = () => {
+      const v = input.value.trim();
+      target = others.find((x) => x.name === v) || null;
+      likeBox.querySelectorAll(".vn-recent-chip").forEach((c) => c.classList.toggle("active", !!target && c.firstChild.textContent === target.name));
+      keepMe.disabled = keepOther.disabled = !target;
+      keepOther.textContent = target ? "用「" + target.name + "」（" + target.items.length + " 条）" : "先选上面要合并的博主";
+      note.textContent = v && !target ? "没有叫「" + v + "」的博主" : "";
+    };
+    input.addEventListener("input", sync);
+    const done = (val) => { try { wrap.remove(); } catch (_) {} resolve(val); };
+    keepMe.addEventListener("click", () => target && done({ src: target.name, dst: g.name, other: target }));
+    keepOther.addEventListener("click", () => target && done({ src: g.name, dst: target.name, other: target }));
+    box.querySelector(".vn-merge-cancel").addEventListener("click", () => done(null));
+    wrap.addEventListener("click", (e) => { if (e.target === wrap) done(null); });
+    input.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); done(null); } });
+    wrap.appendChild(box);
+    document.body.appendChild(wrap);
+    setTimeout(() => input.focus(), 0);
+  });
+}
+
+async function vnMergeFlow(g, msgEl) {
+  const r = await vnAskMerge(g);
+  if (!r) return;
+  const srcN = r.src === g.name ? g.items.length : r.other.items.length;
+  if (!confirm("把「" + r.src + "」（" + srcN + " 条笔记）合并到「" + r.dst + "」名下？\n\n" +
+      "· 「" + r.src + "」的笔记都会算到「" + r.dst + "」名下；\n" +
+      "· 以后「" + r.src + "」的新视频也会自动归到「" + r.dst + "」；\n" +
+      "· 合并后在「" + r.dst + "」的资料卡上随时可以撤销。")) return;
+  if (msgEl) msgEl.textContent = "正在合并…";
+  try {
+    const d = await (await fetch(BACKEND + "/creator_merge", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ src: r.src, dst: r.dst }) })).json();
+    if (!d.ok) { if (msgEl) msgEl.textContent = "没合并成：" + (d.message || "未知原因"); return; }
+    _vnTidyMsgs = _vnTidyMsgs.concat([d.message || "合并好了"]).slice(-6);
+    const kind = (g.kind === "folder" || r.other.kind === "folder") ? "folder" : "author";
+    _vnIconPath = { kind, name: r.dst }; _vnIconPage = 1;
+    await vnLoadProfiles();
+    loadVideoNotes();
+  } catch (e) {
+    if (msgEl) msgEl.textContent = "出错：" + e.message;
+  }
+}
+
+async function vnUnmerge(m, msgEl) {
+  if (!confirm("撤销这次合并？\n\n「" + m.src + "」会重新分出来，它的笔记恢复成合并前的样子。")) return;
+  if (msgEl) msgEl.textContent = "正在撤销…";
+  try {
+    const d = await (await fetch(BACKEND + "/creator_merge", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "undo", id: m.id }) })).json();
+    if (!d.ok) { if (msgEl) msgEl.textContent = "没撤销成：" + (d.message || "未知原因"); return; }
+    _vnTidyMsgs = _vnTidyMsgs.concat([d.message || "已撤销"]).slice(-6);
+    await vnLoadProfiles();
+    loadVideoNotes();
+  } catch (e) {
+    if (msgEl) msgEl.textContent = "出错：" + e.message;
+  }
 }
 
 const VN_ICO_NOTE = '<svg viewBox="0 0 48 60" aria-hidden="true"><path d="M7 2h25l13 13v41a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="#fff" stroke="#c8c8c8" stroke-width="2"/>' +
@@ -10161,6 +10334,7 @@ function vnRenderIconView(list, notes, folders, byFolder, ungrouped) {
   folders.forEach((f) => groups.push({ kind: "folder", name: f, key: f, items: byFolder[f] || [] }));
   Object.keys(authors).forEach((k) => groups.push({ kind: "author", name: k, key: k, items: authors[k] }));
   groups.forEach((g) => { g.stats = vnGroupStats(g.items); });
+  _vnIconGroups = groups;            // v64：「合并博主」选人用
 
   const p = _vnIconPath;
   const cur = p ? groups.find((g) => g.kind === p.kind && g.name === p.name) : null;

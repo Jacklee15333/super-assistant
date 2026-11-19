@@ -104,6 +104,7 @@ _LOG_PATH_LABEL = {
     "/video_note_analyze": "补做笔记 AI 分析",
     "/video_note_set_author": "修改笔记作者",
     "/video_folder": "视频笔记文件夹操作",
+    "/creator_merge": "合并 / 拆开博主",
     "/video_shot": "抓取视频截图",
     "/chat": "发送对话消息",
     "/tts": "语音播报",
@@ -512,11 +513,95 @@ def _vn_find_source_url(key):
 
 def _vn_rename_blogger(old, new):
     """v63：博主改名了 → 软件里也改成新名字：作者是 old 的笔记都改成 new；同名的文件夹也改名；
-    博主资料挪到新名字下。返回改了几条笔记。"""
+    博主资料挪到 new 名下。返回改了几条笔记。（v64：和「合并博主」共用 _vn_move_blogger）"""
     old, new = (old or "").strip(), (new or "").strip()[:40]
     if not old or not new or old == new:
         return 0
-    n = 0
+    n, _nf = _vn_move_blogger(old, new)
+    _clog("博主", "✎ 博主改名：%s → %s（已更新 %d 条笔记）" % (old, new, n))
+    return n
+
+
+# ════════════════ v64：合并博主（大小号 / 同名的文件夹和作者 / 只差表情空格的名字） ════════════════
+# video_notes/_merged.json：
+#   alias    {小号名: 大号名}        合并过的名字，以后这个名字的新视频自动算到大号名下
+#   keep_out {笔记文件名: 文件夹名}  用户自己从同名文件夹里移出来的笔记，不再自动放回去
+#   history  [合并记录]              手动合并的记录（撤销用，最多留 50 条）
+_vn_merge_lock = _threading.Lock()
+
+
+def _vn_merged_path():
+    return _cx_video_dir() / "_merged.json"
+
+
+def _vn_load_merged():
+    try:
+        d = json.loads(_vn_merged_path().read_text(encoding="utf-8", errors="replace"))
+        if not isinstance(d, dict):
+            d = {}
+    except Exception:
+        d = {}
+    d["alias"] = {str(k).strip(): str(v).strip() for k, v in (d.get("alias") or {}).items()
+                  if str(k).strip() and str(v).strip() and str(k).strip() != str(v).strip()}
+    d["keep_out"] = {str(k): str(v) for k, v in (d.get("keep_out") or {}).items()}
+    d["history"] = [h for h in (d.get("history") or []) if isinstance(h, dict) and h.get("id")]
+    return d
+
+
+def _vn_save_merged(d):
+    try:
+        _vn_merged_path().write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _vn_norm(s):
+    """比较名字用：全角转半角，去掉表情、空格、标点，字母转小写。"""
+    import unicodedata as _ud
+    s = _ud.normalize("NFKC", s or "")
+    return re.sub(r"[^\w]+", "", s.lower()).replace("_", "")
+
+
+def _vn_alias_of(name, alias):
+    """合并过的小号名 → 现在用的大号名（顺着找，最多 6 层，防止绕圈）。"""
+    cur, seen = name, {name}
+    for _ in range(6):
+        nxt = alias.get(cur)
+        if not nxt or nxt in seen:
+            break
+        seen.add(nxt)
+        cur = nxt
+    return cur
+
+
+def _vn_note_author(name):
+    """读一条笔记的作者（和列表的认法一样：第一条「作者：」，最多 40 字）。读不到返回空串。"""
+    try:
+        with open(_cx_video_dir() / name, encoding="utf-8", errors="replace") as f:
+            lines = f.read(2500).split("\n")
+    except Exception:
+        return ""
+    for ln in lines[1:8]:
+        t = ln.strip().lstrip("-").strip()
+        if t.startswith(("作者：", "作者:")):
+            return t[3:].strip()[:40]
+    return ""
+
+
+def _vn_move_blogger(old, new, record=None):
+    """把 old 名下的一切挪到 new 名下（v63 博主改名、v64 合并博主共用）：
+      · 作者是 old 的笔记 → 作者改成 new；
+      · old 是文件夹：new 还没有文件夹 → old 直接改名成 new；new 已经有文件夹 → 笔记都挪进 new，删掉 old；
+      · new 是文件夹 → 没进文件夹、作者是 new 的笔记也归进去（不然又会多出一个同名的圆头像）；
+      · 博主资料（头像、主页）挪到 new 下；new 已经有主页 / 头像的，保留 new 的。
+    record 是 dict 时，把每条笔记原来的作者 / 文件夹记到 record["notes"]（撤销用）。
+    返回 (改了作者的笔记数, 挪了文件夹的笔记数)。"""
+    old, new = (old or "").strip(), (new or "").strip()[:40]
+    if not old or not new or old == new:
+        return 0, 0
+    log = {}                      # 笔记 → [原作者或 None, 原文件夹或 None, 是不是新归进文件夹的]
+    authors = {}
+    n_author = 0
     try:
         files = list(_cx_video_dir().glob("*.md"))
     except Exception:
@@ -529,22 +614,44 @@ def _vn_rename_blogger(old, new):
         for i in range(1, min(8, len(lines))):
             t = lines[i].strip().lstrip("-").strip()
             if t.startswith(("作者：", "作者:")):
-                if t[3:].strip()[:40] == old:
+                cur = t[3:].strip()
+                authors[p.name] = cur[:40]
+                if cur[:40] == old:
                     lines[i] = "- 作者：" + new
                     try:
                         p.write_text("\n".join(lines), encoding="utf-8")
-                        n += 1
+                        n_author += 1
+                        authors[p.name] = new
+                        log.setdefault(p.name, [None, None, False])[0] = cur
                     except Exception:
                         pass
                 break
+    n_folder = 0
     try:
         with _vn_lock:
             folders, mapping = _vn_load_folders()
-            if old in folders and new not in folders:
-                folders[folders.index(old)] = new
+            changed = False
+            if old in folders:
+                if new in folders:
+                    folders.remove(old)
+                else:
+                    folders[folders.index(old)] = new
                 for k, v in list(mapping.items()):
                     if v == old:
                         mapping[k] = new
+                        log.setdefault(k, [None, None, False])[1] = old
+                        n_folder += 1
+                changed = True
+            if new in folders:
+                for k, a in authors.items():
+                    if a == new and mapping.get(k) not in folders:
+                        mapping[k] = new
+                        e = log.setdefault(k, [None, None, False])
+                        if e[1] is None:
+                            e[2] = True
+                        n_folder += 1
+                        changed = True
+            if changed:
                 _vn_save_folders(folders, mapping)
     except Exception:
         pass
@@ -553,8 +660,244 @@ def _vn_rename_blogger(old, new):
         _cpf.rename_key(old, new)
     except Exception:
         pass
-    _clog("博主", "✎ 博主改名：%s → %s（已更新 %d 条笔记）" % (old, new, n))
-    return n
+    if isinstance(record, dict):
+        record["notes"] = log
+    return n_author, n_folder
+
+
+def _vn_merge_bloggers(src, dst):
+    """v64：把博主 src 合并到 dst 名下（大小号、同一个人用过两个名字）。
+    src 的笔记都算到 dst 名下；以后 src 这个名字的新视频也自动算到 dst。可以撤销。
+    返回 (ok, 说明)。"""
+    src, dst = (src or "").strip(), (dst or "").strip()[:40]
+    if not src or not dst:
+        return False, "缺少要合并的博主"
+    if src == dst:
+        return False, "是同一个名字，不用合并"
+    if "未填作者" in (src, dst):
+        return False, "「未填作者」不是一个博主，不能合并"
+    import creator_profiles as _cpf
+    folders, _mp = _vn_load_folders()
+    rec = {"id": "%x%04x" % (int(_time_now() * 1000), os.getpid() % 65536), "src": src, "dst": dst,
+           "at": int(_time_now()), "src_folder": src in folders, "dst_folder": dst in folders,
+           "src_profile": _cpf.profile_state(src) or None, "dst_profile": _cpf.profile_state(dst) or None}
+    _vn_move_blogger(src, dst, record=rec)
+    after = _cpf.profile_state(dst) or {}
+    rec["moved_profile"] = bool(rec["src_profile"]) and after.get("renamed_from") == src and \
+        after != (rec["dst_profile"] or {})
+    rec["n"] = len(rec.get("notes") or {})
+    with _vn_merge_lock:
+        m = _vn_load_merged()
+        al = m["alias"]
+        al.pop(dst, None)                       # 防止绕圈：dst 自己不能再指向别人
+        for k, v in list(al.items()):
+            if v == src:
+                al[k] = dst                     # 以前并到 src 的，现在也跟着到 dst
+        al[src] = dst
+        m["history"] = ([rec] + m["history"])[:50]
+        _vn_save_merged(m)
+    _clog("博主", "🔗 合并博主：%s → %s（%d 条笔记）" % (src, dst, rec["n"]))
+    return True, "已把「%s」合并到「%s」名下（%d 条笔记）" % (src, dst, rec["n"])
+
+
+def _vn_unmerge(hid):
+    """v64：撤销一次合并：笔记的作者、文件夹、博主资料都恢复成合并前的样子。返回 (ok, 说明)。"""
+    with _vn_merge_lock:
+        m = _vn_load_merged()
+        rec = next((h for h in m["history"] if h.get("id") == hid), None)
+    if not rec:
+        return False, "找不到这次合并的记录（可能已经撤销过了）"
+    src, dst = rec.get("src") or "", rec.get("dst") or ""
+    notes = rec.get("notes") or {}
+    for name, e in notes.items():
+        if isinstance(e, list) and e and e[0] is not None:
+            _vn_set_note_author(name, e[0])
+    try:
+        with _vn_lock:
+            folders, mapping = _vn_load_folders()
+            if rec.get("src_folder") and src not in folders:
+                folders.append(src)
+            for name, e in notes.items():
+                if not isinstance(e, list) or len(e) < 3:
+                    continue
+                if e[1]:
+                    mapping[name] = e[1]
+                elif e[2] and mapping.get(name) == dst:
+                    mapping.pop(name, None)
+            if not rec.get("dst_folder") and dst in folders and dst not in mapping.values():
+                folders.remove(dst)
+            _vn_save_folders(folders, mapping)
+    except Exception:
+        pass
+    try:
+        import creator_profiles as _cpf
+        _cpf.restore_after_unmerge(src, dst, rec.get("src_profile"), rec.get("dst_profile"),
+                                   bool(rec.get("moved_profile")))
+    except Exception:
+        pass
+    with _vn_merge_lock:
+        m = _vn_load_merged()
+        if m["alias"].get(src) == dst:
+            m["alias"].pop(src, None)
+        m["history"] = [h for h in m["history"] if h.get("id") != hid]
+        _vn_save_merged(m)
+    _clog("博主", "↶ 撤销合并：「%s」又从「%s」里分出来了" % (src, dst))
+    return True, "已撤销：「%s」又分出来了" % src
+
+
+def _vn_canon_name(author, folders):
+    """新笔记的作者 → 软件里已经在用的名字：合并过的小号 → 大号；和已有的文件夹 / 绑了主页的博主
+    只差表情、空格、标点、全半角 → 用已有的那个写法。都不是就原样返回。"""
+    a = (author or "").strip()
+    if not a:
+        return a
+    try:
+        alias = _vn_load_merged()["alias"]
+    except Exception:
+        alias = {}
+    if a in alias:
+        return _vn_alias_of(a, alias)
+    n = _vn_norm(a)
+    if not n:
+        return a
+    for k, v in alias.items():
+        if _vn_norm(k) == n:
+            return _vn_alias_of(k, alias)
+    for f in folders:
+        if _vn_norm(f) == n:
+            return f
+    try:
+        import creator_profiles as _cpf
+        for k, p in _cpf.list_raw().items():
+            if k != a and _vn_norm(k) == n and (p.get("url") or p.get("avatar_file")):
+                return k
+    except Exception:
+        pass
+    return a
+
+
+def _vn_canon_new_note(job, res):
+    """v64：新笔记存好后（在找博主主页之前）整理一下博主名：
+      · 作者是合并过的小号 / 只差表情空格 → 改成软件里已经在用的名字；
+      · 作者和某个文件夹同名 → 直接归进那个文件夹（任务自己指定了文件夹的不动）。
+    这样「姜胡说」文件夹以后不会再多出一个同名的圆头像。"""
+    fname = res.get("saved_as") or ""
+    au = (res.get("uploader") or job.get("author") or "").strip()
+    if not fname or not au:
+        return
+    folders, mapping = _vn_load_folders()
+    canon = _vn_canon_name(au, folders)
+    if canon and canon != au and _vn_set_note_author(fname, canon):
+        res["uploader"] = canon
+        _clog("博主", "「%s」记到「%s」名下（合并过 / 同一个名字）" % (au, canon))
+    if (canon in folders and not (job.get("note_folder") or "").strip()
+            and mapping.get(fname) not in folders):
+        _vn_assign_folder(fname, canon)
+        _clog("视频", "📁 这条笔记归进了「%s」文件夹（作者和文件夹同名）" % canon)
+
+
+def _vn_tidy_same_name(items, folders):
+    """v64：笔记列表每次加载时顺手整理一下（items 原地更新），让头像墙上不出现重名的博主：
+      ① 作者是合并过的小号 → 改成大号名；
+      ② 没进文件夹的笔记，作者和某个文件夹同名（不管表情、空格、标点）→ 归进那个文件夹
+         （用户自己从文件夹里移出来的不动）；
+      ③ 没进文件夹的作者里，只差表情 / 空格 / 标点 / 全半角的几个名字 → 统一成一个
+         （优先用绑了主页的那个，其次用最新一条视频里的写法）。
+    返回做了什么（每件事一句话），什么都没做返回空列表。"""
+    done = []
+    try:
+        mg = _vn_load_merged()
+    except Exception:
+        return done
+    alias, keep_out = mg["alias"], mg["keep_out"]
+    fset = set(folders)
+    # ① 合并过的小号名
+    if alias:
+        hit = {}
+        for it in items:
+            a = it.get("author") or ""
+            if a in alias:
+                c = _vn_alias_of(a, alias)
+                if c != a and _vn_set_note_author(it["name"], c):
+                    it["author"] = c
+                    hit.setdefault((a, c), 0)
+                    hit[(a, c)] += 1
+        for (a, c), k in hit.items():
+            done.append("「%s」的 %d 条新笔记算到了「%s」名下（合并过）" % (a, k, c))
+    # ② 作者和文件夹同名 → 归进文件夹
+    fnorm = {}
+    for f in folders:
+        nf = _vn_norm(f)
+        if nf and nf not in fnorm:
+            fnorm[nf] = f
+    to_file = {}
+    for it in items:
+        if it.get("folder") in fset or it["name"] in keep_out:
+            continue
+        f = fnorm.get(_vn_norm(it.get("author") or ""))
+        if f:
+            to_file[it["name"]] = f
+    if to_file:
+        try:
+            with _vn_lock:
+                fs, mp = _vn_load_folders()
+                for k, f in list(to_file.items()):
+                    if f in fs and mp.get(k) not in fs:
+                        mp[k] = f
+                    else:
+                        to_file.pop(k)
+                if to_file:
+                    _vn_save_folders(fs, mp)
+        except Exception:
+            to_file = {}
+        cnt = {}
+        for it in items:
+            f = to_file.get(it["name"])
+            if f:
+                it["folder"] = f
+                cnt[f] = cnt.get(f, 0) + 1
+        for f, k in cnt.items():
+            done.append("「%s」有 %d 条笔记没在同名文件夹里，已归进「%s」文件夹" % (f, k, f))
+    # ③ 只差表情 / 空格 / 标点的作者名 → 统一成一个
+    groups = {}
+    for it in items:
+        a = it.get("author") or ""
+        if not a or it.get("folder") in fset:
+            continue
+        na = _vn_norm(a)
+        if na:
+            groups.setdefault(na, []).append(it)
+    multi = {na: its for na, its in groups.items() if len({x["author"] for x in its}) > 1}
+    if multi:
+        try:
+            import creator_profiles as _cpf
+            raw = _cpf.list_raw()
+        except Exception:
+            _cpf, raw = None, {}
+        for na, its in multi.items():
+            names = []
+            for x in sorted(its, key=lambda x: -(x.get("ts") or 0)):     # 新的在前
+                if x["author"] not in names:
+                    names.append(x["author"])
+            bound = [nm for nm in names if (raw.get(nm) or {}).get("url")]
+            canon = bound[0] if bound else names[0]
+            for nm in names:
+                if nm == canon:
+                    continue
+                k = 0
+                for x in its:
+                    if x["author"] == nm and _vn_set_note_author(x["name"], canon):
+                        x["author"] = canon
+                        k += 1
+                if _cpf is not None:
+                    try:
+                        _cpf.rename_key(nm, canon)
+                    except Exception:
+                        pass
+                done.append("「%s」和「%s」只差表情 / 空格 / 标点，统一成了「%s」（%d 条笔记）" % (nm, canon, canon, k))
+    for line in done:
+        _clog("博主", "🔗 " + line)
+    return done
 
 
 def _vn_after_bind(key, info):
@@ -1667,6 +2010,10 @@ def _video_worker():
             # v59：博主板块——填了博主主页就按它绑；没填就根据视频链接自动找博主主页（头像、昵称、粉丝数）
             if isinstance(res, dict) and res.get("ok") and res.get("saved_as"):
                 try:
+                    _vn_canon_new_note(job, res)       # v64：合并过的小号 → 大号名；作者和文件夹同名 → 归进去
+                except Exception as _e:
+                    _clog("博主", "整理新笔记的博主名出错：%s" % _e)
+                try:
                     _cr = _vn_creator_after_save(job, res, cb)
                     if _cr:
                         res["creator"] = _cr
@@ -2603,7 +2950,12 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/creator_profiles":
             try:
                 import creator_profiles as _cpf
-                return self._send({"profiles": _cpf.list_profiles()})
+                try:                                  # v64：合并记录（博主资料卡上显示「合并了谁 · 撤销」）
+                    merges = [{"id": h.get("id"), "src": h.get("src"), "dst": h.get("dst"),
+                               "at": h.get("at"), "n": h.get("n", 0)} for h in _vn_load_merged()["history"]]
+                except Exception:
+                    merges = []
+                return self._send({"profiles": _cpf.list_profiles(), "merges": merges})
             except Exception as e:
                 return self._send({"profiles": {}, "error": str(e)})
         if path == "/creator_avatar":
@@ -3201,6 +3553,16 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_video_note_set_author(body)
         if path == "/video_folder":
             return self._handle_video_folder(body)
+        if path == "/creator_merge":
+            # v64：合并博主 {src, dst}；撤销 {action: "undo", id}
+            try:
+                if (body.get("action") or "") == "undo":
+                    ok, msg = _vn_unmerge((body.get("id") or "").strip())
+                else:
+                    ok, msg = _vn_merge_bloggers(body.get("src"), body.get("dst"))
+                return self._send({"ok": ok, "message": msg})
+            except Exception as e:
+                return self._send({"ok": False, "message": "出错：%s" % e})
         if path == "/library_set_tags":
             return self._handle_library_set_tags(body)
         if path == "/library_autotag":
@@ -4972,7 +5334,12 @@ class Handler(BaseHTTPRequestHandler):
                     for k in stale:
                         _m2.pop(k, None)
                     _vn_save_folders(_f2, _m2)
-            return self._send({"ok": True, "notes": items, "folders": folders})
+            tidy = []
+            try:
+                tidy = _vn_tidy_same_name(items, folders)     # v64：头像墙上不出现重名的博主
+            except Exception as _e:
+                _clog("博主", "整理同名博主出错：%s" % _e)
+            return self._send({"ok": True, "notes": items, "folders": folders, "tidy": tidy})
         except Exception as e:
             return self._send({"ok": False, "notes": [], "folders": [],
                                "error": str(e)})
@@ -5025,6 +5392,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not (self._video_dir() / note).exists():
                     return self._send({"ok": False, "error": "找不到这条笔记"})
                 target = _vn_ok_folder_name(body.get("name"))
+                prev = mapping.get(note, "")
                 if target:
                     if target not in folders:
                         folders.append(target)
@@ -5032,6 +5400,21 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     mapping.pop(note, None)
                 _vn_save_folders(folders, mapping)
+                try:                                 # v64：从同名文件夹里移出来的，别再自动放回去
+                    with _vn_merge_lock:
+                        mg = _vn_load_merged()
+                        ko = mg["keep_out"]
+                        before = dict(ko)
+                        if target:
+                            ko.pop(note, None)
+                        elif prev in folders:
+                            na = _vn_norm(_vn_note_author(note))
+                            if na and any(_vn_norm(f) == na for f in folders):
+                                ko[note] = prev
+                        if ko != before:
+                            _vn_save_merged(mg)
+                except Exception:
+                    pass
                 return self._send({"ok": True})
             return self._send({"ok": False, "error": "未知操作：" + op})
 
