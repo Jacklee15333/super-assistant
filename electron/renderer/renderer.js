@@ -1599,6 +1599,17 @@ function setVideoStatus(text, kind, opts) {
   el.style.cssText =
     "display:block;margin:0 0 12px;padding:9px 13px;border-radius:9px;" +
     "font-size:13px;font-weight:500;line-height:1.5;background:" + bg + ";color:" + fg + ";";
+  // v72：提示文字过一会儿自己消失（一直留着，「处理进度」那块就一直占着）：普通提示 15 秒、警告 60 秒。
+  //      有任务在跑时先不清（进度会自己更新），过 5 秒再看。
+  const tok = (setVideoStatus._tok = (setVideoStatus._tok || 0) + 1);
+  clearTimeout(setVideoStatus._t);
+  const clear = () => {
+    if (tok !== setVideoStatus._tok) return;
+    if (typeof _videoBusyNow === "function" && _videoBusyNow()) { setVideoStatus._t = setTimeout(clear, 5000); return; }
+    const e2 = document.getElementById("videoStatus");
+    if (e2) { e2.textContent = ""; e2.className = "video-status"; e2.style.cssText = ""; }
+  };
+  setVideoStatus._t = setTimeout(clear, kind === "warn" ? 60000 : 15000);
 }
 
 let _videoSubmitting = false;   // 防止「提取并分析」被重复点 / 重复入队
@@ -1708,6 +1719,7 @@ window.startVideoFromFloat = function (url) {
   document.querySelector('.nav-item[data-view="video"]').click();
   const box = document.getElementById("videoUrl");
   if (box) {
+    vExtractSetCollapsed(false);   // v72：卡片收起着也要让人看到填进来的链接
     box.value = url;
     // 滚动到可见、聚焦、并加一圈醒目高亮动画
     try { box.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) {}
@@ -3223,6 +3235,7 @@ function mountVideoDone(res) {
     });
     box.appendChild(vb);
   }
+  vnDoneAutoHide(box);            // v72：处理完一会儿就自己消失，不一直占着
   if (isDoc && res.truncated) {
     const tr = document.createElement("span");
     tr.className = "vdone-who"; tr.textContent = "（原文太长，只导入了前 40 万字）";
@@ -3230,6 +3243,57 @@ function mountVideoDone(res) {
   }
   el.appendChild(box);
 }
+
+// v72：「处理进度」里的完成那一行，15 秒后自己淡出消失（整张卡片随之收起）。
+// 鼠标停在上面、或者点了「AI 分析」正在分析时先不消失；分析完再等 15 秒。
+function vnDoneAutoHide(box) {
+  clearTimeout(vnDoneAutoHide._t);
+  let waitUntil = Date.now() + 15000;
+  const tick = () => {
+    if (!box.isConnected) return;
+    const analyzing = !!box.querySelector('[data-an-state="running"]');
+    if (analyzing) waitUntil = Date.now() + 15000;
+    if (analyzing || box.matches(":hover") || Date.now() < waitUntil) {
+      vnDoneAutoHide._t = setTimeout(tick, 1000);
+      return;
+    }
+    box.classList.add("vdone-fade");
+    setTimeout(() => { try { box.remove(); } catch (_) {} }, 600);
+  };
+  vnDoneAutoHide._t = setTimeout(tick, 1000);
+}
+
+// v72：「开始提取」卡片可以收起（点标题行），记住上次的选择
+function vExtractSetCollapsed(c) {
+  const card = document.querySelector(".v-card-extract");
+  if (!card) return;
+  card.classList.toggle("v-collapsed", !!c);
+  const caret = card.querySelector(".v-extract-caret");
+  if (caret) caret.textContent = c ? "▸" : "▾";
+  try { localStorage.setItem("vExtractCollapsed", c ? "1" : "0"); } catch (_) {}
+}
+(function vExtractInit() {
+  const card = document.querySelector(".v-card-extract");
+  const head = card && card.querySelector(".v-card-head");
+  if (!head) return;
+  const caret = document.createElement("span");
+  caret.className = "v-extract-caret"; caret.textContent = "▾";
+  head.insertBefore(caret, head.firstChild);
+  const hint = document.createElement("span");
+  hint.className = "v-extract-hint"; hint.textContent = "已收起，点这里展开";
+  head.appendChild(hint);
+  head.title = "点击收起 / 展开";
+  head.addEventListener("click", (e) => {
+    if (e.target.closest("button, input, select, a")) return;
+    vExtractSetCollapsed(!card.classList.contains("v-collapsed"));
+  });
+  card.addEventListener("click", (e) => {            // 收起时点卡片任何地方都能展开
+    if (card.classList.contains("v-collapsed") && !e.target.closest(".v-card-head")) vExtractSetCollapsed(false);
+  });
+  let c = false;
+  try { c = localStorage.getItem("vExtractCollapsed") === "1"; } catch (_) {}
+  vExtractSetCollapsed(c);
+})();
 
 // ════════════════ v65：导入的文档 / 网页文章的类型标签 ════════════════
 function vnKindInfo(kind) {

@@ -4728,7 +4728,8 @@
       "when": "20261118",
       "uploader": "NVIDIA",
       "text": "Pula aims to protect 100 million farmers from climate shocks by 2030. Climate modeling powered by NVIDIA Earth-2 will help it pursue that goal. 🌱\n\nAt The Earthshot Prize’s Impact Assembly in Mumbai, 2026 Finalist Pula announced it is joining NVIDIA Inception and will use Earth-2 https://t.co/ZqPj3VhMf7",
-      "found_at": "2026-11-19 11:53"
+      "found_at": "2026-11-19 11:53",
+      "title_zh": "Pula计划到2030年保护1亿名农民免受气候冲击。气候模型"
     },
     {
       "creator_id": "cw1782801381732820",
@@ -4740,7 +4741,8 @@
       "when": "20261118",
       "uploader": "NVIDIA",
       "text": "The AI Podcast is back.\n\n@huggingface's @Thom_Wolf and @ServiceNow's Amanda Grady join us to talk open models, agent safety, and helping more people build with AI.\n\n0:00 AI safety beyond the prompt\n1:50 Open and proprietary models for cyber defense\n3:28 Giving agents their own https://t.co/vZ0QpCQvUx",
-      "found_at": "2026-11-19 11:53"
+      "found_at": "2026-11-19 11:53",
+      "title_zh": "AI播客回归。@huggingface的@Thom_Wolf和@ServiceNow的Amanda Grady"
     },
     {
       "creator_id": "cw1782801438636820",
@@ -4752,7 +4754,8 @@
       "when": "20261118",
       "uploader": "OpenAI",
       "text": "We're sharing new data on how AI is changing research at OpenAI.\n\nWe find researchers' AI use continues to rise exponentially, and agents are completing longer tasks, but human involvement remains central in research. Researchers are also spending more time on safety and",
-      "found_at": "2026-11-19 11:53"
+      "found_at": "2026-11-19 11:53",
+      "title_zh": "我们正分享关于AI如何改变OpenAI研究的新数据。我们发现研究"
     },
     {
       "creator_id": "cw1782801438636820",
@@ -4764,7 +4767,8 @@
       "when": "20261118",
       "uploader": "OpenAI",
       "text": "We’re sharing how we approach safety at every stage of a model’s lifecycle, from early research to internal use to public deployment.",
-      "found_at": "2026-11-19 11:53"
+      "found_at": "2026-11-19 11:53",
+      "title_zh": "我们将介绍在模型全生命周期各阶段如何保障安全，从"
     },
     {
       "creator_id": "cw1782801438636820",
@@ -4776,7 +4780,8 @@
       "when": "20261118",
       "uploader": "OpenAI",
       "text": "Working with @AMD, our models identified up to 14% PPA improvement on flagship GPU IP in less than five months—building on designs AMD’s engineers had already spent years optimizing.\n\nThe same approach helped improve Jalapeño, our first custom inference chip, with gains verified https://t.co/nKsnM3bTXx",
-      "found_at": "2026-11-19 11:53"
+      "found_at": "2026-11-19 11:53",
+      "title_zh": "联合@AMD，我们的模型在旗舰GPU上可实现高达14%的PPA提升"
     },
     {
       "creator_id": "cw1782801459311820",
@@ -4788,7 +4793,8 @@
       "when": "20261118",
       "uploader": "Sam Altman",
       "text": "RT @kaicathyc: A lot has happened in the past couple months, to say the least.\n\nToday we are sharing a recap of what it takes to move a fro…",
-      "found_at": "2026-11-19 11:53"
+      "found_at": "2026-11-19 11:53",
+      "title_zh": "RT @kaicathyc: 近几个月发生了很多事，至少可以说"
     },
     {
       "creator_id": "cw1782801459311820",
@@ -4800,7 +4806,8 @@
       "when": "20261118",
       "uploader": "Sam Altman",
       "text": "RT @ithilgore: Proud of what we built here! Codex can use the tools you already work with, and you decide what it can access. Here’s how we…",
-      "found_at": "2026-11-19 11:53"
+      "found_at": "2026-11-19 11:53",
+      "title_zh": "RT @ithilgore: 为我们在Codex上的成就感到自豪！Codex可以使用你已有的工具"
     },
     {
       "creator_id": "cw1782801459311820",
@@ -4812,7 +4819,8 @@
       "when": "20261118",
       "uploader": "Sam Altman",
       "text": "So fun to do DealBook with my friend and partner of 11 years, @gdb. Thrilled the world got to see the brilliant, fiercely determined leader I have the privilege of working with every day.\n\nGreg’s role at OpenAI has evolved from writing code 100 hours a week in the early days to",
-      "found_at": "2026-11-19 11:53"
+      "found_at": "2026-11-19 11:53",
+      "title_zh": "与合作了11年的朋友兼搭档@gdb一起做DealBook非常有趣。很高兴能和他一起"
     },
     {
       "creator_id": "cw1782805126154204",
@@ -6832,7 +6840,8 @@
           "when": "20261118",
           "uploader": "NVIDIA",
           "when_human": "2026-11-18",
-          "days_ago": 1
+          "days_ago": 1,
+          "title_zh": "Pula计划到2030年保护1亿名农民免受气候冲击。气候模型"
         },
         {
           "vid": "2123068342013710394",
@@ -6842,7 +6851,8 @@
           "when": "20261118",
           "uploader": "NVIDIA",
           "when_human": "2026-11-18",
-          "days_ago": 1
+          "days_ago": 1,
+          "title_zh": "AI播客回归。@huggingface的@Thom_Wolf和@ServiceNow的Amanda Grady"
         },
         {
           "vid": "2122429877488169123",
@@ -7003,7 +7013,8 @@
           "when": "20261118",
           "uploader": "OpenAI",
           "when_human": "2026-11-18",
-          "days_ago": 1
+          "days_ago": 1,
+          "title_zh": "我们正分享关于AI如何改变OpenAI研究的新数据。我们发现研究"
         },
         {
           "vid": "2123165872261075233",
@@ -7013,7 +7024,8 @@
           "when": "20261118",
           "uploader": "OpenAI",
           "when_human": "2026-11-18",
-          "days_ago": 1
+          "days_ago": 1,
+          "title_zh": "我们将介绍在模型全生命周期各阶段如何保障安全，从"
         },
         {
           "vid": "2123100386638877054",
@@ -7023,7 +7035,8 @@
           "when": "20261118",
           "uploader": "OpenAI",
           "when_human": "2026-11-18",
-          "days_ago": 1
+          "days_ago": 1,
+          "title_zh": "联合@AMD，我们的模型在旗舰GPU上可实现高达14%的PPA提升"
         },
         {
           "vid": "2122750135608528984",
@@ -7173,7 +7186,8 @@
           "when": "20261118",
           "uploader": "Sam Altman",
           "when_human": "2026-11-18",
-          "days_ago": 1
+          "days_ago": 1,
+          "title_zh": "RT @kaicathyc: 近几个月发生了很多事，至少可以说"
         },
         {
           "vid": "2123177797665587644",
@@ -7183,7 +7197,8 @@
           "when": "20261118",
           "uploader": "Sam Altman",
           "when_human": "2026-11-18",
-          "days_ago": 1
+          "days_ago": 1,
+          "title_zh": "RT @ithilgore: 为我们在Codex上的成就感到自豪！Codex可以使用你已有的工具"
         },
         {
           "vid": "2123103873166381287",
@@ -7193,7 +7208,8 @@
           "when": "20261118",
           "uploader": "Sam Altman",
           "when_human": "2026-11-18",
-          "days_ago": 1
+          "days_ago": 1,
+          "title_zh": "与合作了11年的朋友兼搭档@gdb一起做DealBook非常有趣。很高兴能和他一起"
         },
         {
           "vid": "2122798042734633452",
@@ -8095,7 +8111,15 @@
     "Catching the ship was the last major piece of the puzzle": "抓住飞船是拼图的最后一块",
     "RT @KanekoaTheGreat: Elon Musk reveals how Starlink saved Ukraine from collapse,": "RT @KanekoaTheGreat：埃隆·马斯克揭示Starlink如何拯救乌克兰免于崩溃",
     "RT @wallstengine: Elon Musk says SpaceX aims to bring online over 1 GW of terres": "RT @wallstengine：埃隆·马斯克称SpaceX旨在上线超过1 GW的地面太阳能发电",
-    "RT @TashaARK: My recap from witnessing the most important engineering feat I've": "RT @TashaARK：目睹我这辈子最重要的工程壮举后的总结"
+    "RT @TashaARK: My recap from witnessing the most important engineering feat I've": "RT @TashaARK：目睹我这辈子最重要的工程壮举后的总结",
+    "Pula aims to protect 100 million farmers from climate shocks by 2030. Climate mo": "Pula计划到2030年保护1亿名农民免受气候冲击。气候模型",
+    "The AI Podcast is back. @huggingface's @Thom_Wolf and @ServiceNow's Amanda Grady": "AI播客回归。@huggingface的@Thom_Wolf和@ServiceNow的Amanda Grady",
+    "We're sharing new data on how AI is changing research at OpenAI. We find researc": "我们正分享关于AI如何改变OpenAI研究的新数据。我们发现研究",
+    "We’re sharing how we approach safety at every stage of a model’s lifecycle, from": "我们将介绍在模型全生命周期各阶段如何保障安全，从",
+    "Working with @AMD, our models identified up to 14% PPA improvement on flagship G": "联合@AMD，我们的模型在旗舰GPU上可实现高达14%的PPA提升",
+    "RT @kaicathyc: A lot has happened in the past couple months, to say the least. T": "RT @kaicathyc: 近几个月发生了很多事，至少可以说",
+    "RT @ithilgore: Proud of what we built here! Codex can use the tools you already": "RT @ithilgore: 为我们在Codex上的成就感到自豪！Codex可以使用你已有的工具",
+    "So fun to do DealBook with my friend and partner of 11 years, @gdb. Thrilled the": "与合作了11年的朋友兼搭档@gdb一起做DealBook非常有趣。很高兴能和他一起"
   },
   "extracted": {
     "cw1782303553561476|P3KDebPTUrw": {
