@@ -184,6 +184,65 @@ def _resolve_model(size):
     return size
 
 
+def _compose_from_segments(seg_list):
+    """v88/v89：用带时间的分句拼原文——不用 AI，一定成功。
+    · 句子之间按停顿补标点：停顿比这个人平时的停顿明显长 → 句号；短 → 逗号；
+      一句已经很长了也会断成句号（语速快、几乎不停顿的人也不会一逗到底）；结尾是「吗」→ 问号；
+    · 分段：一段到 120 字左右、又遇到较长的停顿就另起一段；最长不超过约 220 字。
+    · 只加标点和换行，字一个不动。之后 AI「整理原文」会再按意思细调。
+    · 以前存的时间轴只有开始时间：按每秒约 4.5 个字估出结束时间。"""
+    segs = [dict(x) for x in (seg_list or []) if (x.get("text") or "").strip()]
+    if not segs:
+        return ""
+    for i, sg in enumerate(segs):
+        sg["text"] = sg["text"].strip()
+        try:
+            st0 = float(sg.get("start") or 0)
+        except Exception:
+            st0 = 0.0
+        sg["start"] = st0
+        if sg.get("end") is None:
+            est = st0 + len(sg["text"]) / 4.5
+            if i + 1 < len(segs):
+                try:
+                    est = min(est, float(segs[i + 1].get("start") or est))
+                except Exception:
+                    pass
+            sg["end"] = est
+        try:
+            sg["end"] = float(sg["end"])
+        except Exception:
+            sg["end"] = st0
+    gaps = [max(0.0, segs[i + 1]["start"] - segs[i]["end"]) for i in range(len(segs) - 1)]
+    srt = sorted(gaps) or [0.0]
+    pick = lambda q: srt[min(len(srt) - 1, int(len(srt) * q))]
+    g_sent = max(0.3, pick(0.6))        # 比这个人六成的停顿都长 → 句号
+    g_para = max(0.8, pick(0.85))       # 比八成五的停顿都长 → 可以分段
+    ends = "。！？!?…；;，,、：:"
+    paras, cur, sent = [], "", 0
+    for i, sg in enumerate(segs):
+        t = sg["text"]
+        last = i == len(segs) - 1
+        gap = 9.9 if last else gaps[i]
+        sent += len(t)
+        if t[-1] not in ends and t.endswith(("吗", "吗啊")):
+            t += "？"
+        elif t[-1] not in ends:
+            if last or gap >= g_sent or sent >= 60 or (sent >= 36 and gap >= pick(0.4)):
+                t += "？" if t.endswith(("吗", "吗啊", "么")) else "。"
+            else:
+                t += "，"
+        if t[-1] in "。！？!?…":
+            sent = 0
+        cur += t
+        if last or (t[-1] in "。！？!?…" and ((len(cur) >= 120 and gap >= g_para) or len(cur) >= 220)):
+            paras.append(cur)
+            cur = ""
+    if cur:
+        paras.append(cur)
+    return "\n\n".join(paras)
+
+
 def _paragraphize(text):
     """把一长串识别文字切成自然段落。优先按句末标点；没有就按逗号；
     再没有就按长度硬切——保证再难看的无标点文本也能分段。"""
@@ -225,7 +284,7 @@ def models_info():
         if d.exists():
             for p in sorted(d.iterdir()):
                 n = p.name
-                if p.is_dir() and "faster-whisper" in n:
+                if p.is_dir() and "faster-whisper" in n and not n.endswith(".downloading") and ".bak-" not in n:
                     # 友好显示：精准/均衡/快速
                     label = n
                     if "large" in n:
@@ -1440,43 +1499,28 @@ def _get_model(level, progress_cb=None):
         _model_cache[size] = cached
     if cached is not None:
         model, dev = cached
-        st = gpu_accel.status()
-        upgrade = (dev == "cpu" and st.get("has_nvidia") and st.get("libs_ok")
-                   and st.get("gpu_works") is not False
-                   and os.environ.get("CX_WHISPER_DEVICE", "").lower() != "cpu")
+        upgrade = dev == "cpu" and gpu_accel.gpu_retry_due()      # v89：CPU 版过一会儿就再试显卡
         if not upgrade:
             return model, dev
         _model_cache.pop(size, None)    # 显卡运行库刚装好 → 丢掉 CPU 版，重新用 GPU 加载
         del model
-    model_ref = _resolve_model(size)
-    is_local = model_ref != size
-    download_root = None
-    if not is_local:
-        mdir = _models_dir()
-        try:
-            mdir.mkdir(parents=True, exist_ok=True)
-        except Exception:
-            pass
-        download_root = str(mdir)
-    # 自动下载过的模型存在 download_root 下的 models--Systran--faster-whisper-<size> 里，
-    # 这种也算「已经下好了」，别再提示「首次使用要下载」
-    cached_dl = False
-    if download_root:
-        try:
-            cached_dl = any((Path(download_root) / n).is_dir() for n in (
-                f"models--Systran--faster-whisper-{size}",
-                f"models--mobiuslabsgmbh--faster-whisper-{size}"))
-        except Exception:
-            cached_dl = False
-    if progress_cb:
-        if is_local or cached_dl:
+    # v89：先确保模型文件在本机（自己下载：国内镜像 → 代理，带进度、断点续传），再加载。
+    #      这样加载时完全不联网，下载出问题也不会被当成「显卡坏了」而退回 CPU。
+    import model_download as _md
+    mdir = _models_dir()
+    path = _md.find_local(size, mdir)
+    if path:
+        if progress_cb:
             progress_cb("加载语音模型", f"用本地已下载的 {size} 模型，无需联网")
-        else:
-            progress_cb("加载语音模型",
-                        f"首次使用要下载 {size} 模型到 {_models_dir()}（经国内镜像），"
-                        "可能要等几分钟，只这一次")
-    model, dev, ct = gpu_accel.load_model(model_ref, download_root=download_root,
-                                          progress_cb=progress_cb)
+    else:
+        if progress_cb:
+            progress_cb("下载语音模型", f"第一次用 {size} 模型，要先下载（约 {_md.approx_gb(size):.1f} GB）到 "
+                                     f"{mdir}，只下这一次…")
+        path = _md.download(size, mdir, progress=(lambda m: progress_cb("下载语音模型", m)) if progress_cb else None,
+                            check=_check_cancel)
+        if progress_cb:
+            progress_cb("加载语音模型", f"{size} 模型下载好了，正在加载…")
+    model, dev, ct = gpu_accel.load_model(path, progress_cb=progress_cb)
     _model_cache[size] = (model, dev)
     return model, dev
 
@@ -1686,7 +1730,13 @@ def _transcribe_once(path, level="balanced", progress_cb=None, job_dir=None):
             "segments": seg_list})
     raw = "".join(parts).strip()
     # 返回 (分好段的文字稿, 带时间戳的分段列表)
-    return _paragraphize(raw), seg_list
+    composed = ""
+    try:
+        if seg_list and all("end" in x for x in seg_list):
+            composed = _compose_from_segments(seg_list)
+    except Exception:
+        composed = ""
+    return (composed or _paragraphize(raw)), seg_list
 
 
 def _video_file_dir(url):

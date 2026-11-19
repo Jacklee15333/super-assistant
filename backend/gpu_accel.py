@@ -40,6 +40,8 @@ _state = {
     "device": "",            # 当前语音模型实际用的设备：cuda / cpu
     "compute_type": "",      # 实际用的精度
     "reason": "",            # 没用上 GPU 的原因（给用户看）
+    "gpu_fail_at": 0.0,      # v89：上次显卡出错的时间（过一会儿会再试，不会整场锁死在 CPU）
+    "libs_try_at": 0.0,      # v89：上次装运行库的时间（没装成的，过 10 分钟再试）
 }
 _lock = threading.RLock()
 _install_done = threading.Event()
@@ -275,12 +277,15 @@ def ensure_libs():
         return False
     with _lock:
         if _state["libs_ok"] is not None and not _state["installing"]:
-            return _state["libs_ok"]
+            # v89：没装成的不永远放弃，过 10 分钟再试一次（网络可能好了）
+            if _state["libs_ok"] or time.time() - _state.get("libs_try_at", 0) < 600:
+                return _state["libs_ok"]
         if _state["installing"]:
             wait = True
         else:
             wait = False
             _state["installing"] = True
+            _state["libs_try_at"] = time.time()
             _install_done.clear()
     if wait:
         _install_done.wait(timeout=1900)
@@ -362,12 +367,45 @@ def is_gpu_error(e):
     return any(k in s for k in keys)
 
 
+def is_model_file_error(e):
+    """v89：是不是「模型文件」的问题（没下载完、文件坏了、下载站连不上）。
+    这种错换 CPU 也一样会错，而且和显卡无关——以前把它当成「显卡坏了」，
+    结果超精准模型下载失败后，连精准模型也一直用 CPU。"""
+    parts = [type(e).__name__, str(e)]
+    c = getattr(e, "__cause__", None) or getattr(e, "__context__", None)
+    if c is not None:
+        parts += [type(c).__name__, str(c)]
+    s = " ".join(parts).lower()
+    keys = ("snapshot folder", "locate the files on the hub", "localentrynotfound", "entrynotfound",
+            "repositorynotfound", "unable to open file", "no such file", "filenotfound",
+            "model.bin", "config.json", "tokenizer.json", "preprocessor_config", "vocabulary",
+            "hf-mirror", "huggingface.co", "connecterror", "connectionerror", "connection refused",
+            "name resolution", "getaddrinfo", "ssl", "certificate")
+    return any(k in s for k in keys)
+
+
 def mark_gpu_broken(reason):
     with _lock:
         _state["gpu_works"] = False
         _state["device"] = "cpu"
         _state["reason"] = reason
-    _log("GPU 不可用，改用 CPU：%s" % reason)
+        _state["gpu_fail_at"] = time.time()
+    _log("这次先用 CPU（过几分钟会再试显卡）：%s" % reason)
+
+
+def gpu_retry_due(min_gap=180):
+    """v89：缓存里的模型是 CPU 版时，要不要重新用显卡加载一次。
+    有 NVIDIA 显卡、没强制 CPU，且（还没失败过 / 上次失败已经过了 min_gap 秒）就再试。"""
+    if os.environ.get("CX_WHISPER_DEVICE", "").lower() == "cpu":
+        return False
+    with _lock:
+        if not _state.get("has_nvidia"):
+            return False
+        if _state.get("libs_ok") is False and time.time() - _state.get("libs_try_at", 0) < 600:
+            return False
+        if _state.get("gpu_works") is False:
+            return time.time() - _state.get("gpu_fail_at", 0) >= min_gap
+        return True
 
 
 def load_model(model_ref, download_root=None, progress_cb=None):
@@ -380,7 +418,10 @@ def load_model(model_ref, download_root=None, progress_cb=None):
         base_kwargs["download_root"] = download_root
 
     forced = os.environ.get("CX_WHISPER_DEVICE", "").lower()
-    want_gpu = forced != "cpu" and _state.get("gpu_works") is not False
+    # v89：不管哪个模型，每次加载都先试显卡；只有「刚刚（3 分钟内）显卡真出过错」才先用 CPU，
+    #      免得转写中途显卡出错、换 CPU 接着转的那一下又绕回显卡
+    want_gpu = forced != "cpu" and (_state.get("gpu_works") is not False
+                                    or time.time() - _state.get("gpu_fail_at", 0) >= 180)
 
     if want_gpu and detect():
         # 运行库还在下载就等它（会在进度条里提示）
@@ -401,13 +442,19 @@ def load_model(model_ref, download_root=None, progress_cb=None):
                         _state["device"] = "cuda"
                         _state["compute_type"] = ct
                         _state["reason"] = ""
+                        _state["gpu_fail_at"] = 0.0
                     _log("语音模型已用 GPU 加载（%s，%s）" % (_state["gpu_name"], ct))
                     return m, "cuda", ct
                 except Exception as e:
+                    if is_model_file_error(e):
+                        # v89：模型文件的问题（没下完 / 坏了），不是显卡的错：直接报出去，不记「显卡坏了」
+                        _log("模型文件有问题（不是显卡的问题）：%s" % str(e)[:300])
+                        raise
                     errs.append("%s: %s" % (ct, str(e)[:200]))
                     _log("GPU 精度 %s 加载/自检失败：%s" % (ct, e))
-                    if "compute type" not in str(e).lower():
-                        break   # 不是「精度不支持」（比如缺 DLL / 驱动问题），换精度也没用
+                    low = str(e).lower()
+                    if not ("compute type" in low or "memory" in low or "alloc" in low):
+                        break   # 不是「精度不支持 / 显存不够」（比如缺 DLL / 驱动问题），换精度也没用
                     m = None
                     try:
                         import gc
@@ -433,7 +480,7 @@ def status():
     elif s["has_nvidia"] and s["gpu_works"] is None and s["libs_ok"]:
         s["summary"] = "已准备好显卡加速：%s（下次提取视频时生效）" % (s["gpu_name"] or "NVIDIA")
     elif s["reason"]:
-        s["summary"] = "使用 CPU：" + s["reason"]
+        s["summary"] = "使用 CPU：" + s["reason"] + ("（下次加载模型会再试显卡）" if s["has_nvidia"] else "")
     elif not s["checked"]:
         s["summary"] = "正在检测显卡…"
     else:

@@ -80,7 +80,7 @@ def _clog(tag, msg):
 # 这些接口是前端**定时高频轮询**或页面加载时被动拉取的（查状态/进度/列表/配置），
 # 一旦打印就会把控制台刷爆、淹没真正有用的操作日志，所以一律静音、不记。
 _LOG_QUIET_PATHS = {
-    "/ping", "/phone_inbox/status", "/feishu_inbox/status", "/feishu_inbox/alive", "/feishu_inbox/incoming", "/video_progress", "/video_health", "/video_deps", "/video_notes", "/creator_profiles_batch", "/creator/avatars_status", "/creator/discover",
+    "/ping", "/video_note_tidy_status", "/phone_inbox/status", "/feishu_inbox/status", "/feishu_inbox/alive", "/feishu_inbox/incoming", "/video_progress", "/video_health", "/video_deps", "/video_notes", "/creator_profiles_batch", "/creator/avatars_status", "/creator/discover",
     "/video_note_analyze_progress", "/sniff/feed", "/sniff/discover", "/video_note_analyze_batch",
     "/chat_progress", "/heartbeat/status", "/lumi/status", "/lumi/evolve_status",
     "/web_model/state", "/web_model/config", "/loop/status", "/insight/status",
@@ -2072,6 +2072,19 @@ def _video_worker():
             #   AI 分析和保存，直接把结果标记为"已取消"。
             if _video_cancel.get("all") or (isinstance(res, dict) and res.get("cancelled")):
                 res = {"ok": False, "cancelled": True, "error": "已取消"}
+            # v88：语音识别出来的原文先整理一下（AI 加标点、按意思分段）；文章 / 文档本来就有标点，不用
+            if (isinstance(res, dict) and res.get("ok") and res.get("transcript")
+                    and res.get("source") not in ("doc", "article") and not _video_cancel.get("all")):
+                try:
+                    import transcript_tidy as _tt
+                    if _tt.auto_on() and len(_tt._bare(res["transcript"])) >= 60:
+                        cb("整理原文", "让 AI 加标点、按意思分段…")
+                        _new, _msg = _tidy_text(res["transcript"], progress=lambda m: cb("整理原文", m),
+                                                force=True, wait_pool=False)
+                        res["transcript"] = _new
+                        _clog("整理原文", _msg)
+                except Exception as _e:
+                    _clog("整理原文", "跳过（%s）" % _e)
             if res.get("ok") and not job.get("analyze", False):     # v66：没说要分析的任务，一律只提取原文
                 # ★「仅提取文字稿」模式（新增）：完全不调用 AI——分析、补标签、
                 #   翻标题三处 AI 全部跳过（避免和别的软件抢占同一个 AI），只保存
@@ -2106,8 +2119,9 @@ def _video_worker():
                             "url": clean_url,
                             "link": bool(job.get("link")),
                             "segments": [
-                                {"start": s.get("start", 0),
-                                 "text": (s.get("text") or "")}
+                                dict({"start": s.get("start", 0),
+                                      "text": (s.get("text") or "")},
+                                     **({"end": s.get("end")} if s.get("end") is not None else {}))
                                 for s in segments],
                         }
                         _cx_segments_dir().joinpath(note_stem + ".json").write_text(
@@ -2693,6 +2707,94 @@ class _AIGate:
 
 
 _ai_gate = _AIGate()
+
+
+# ════════════════ v88：整理原文（AI 加标点、按意思分段）════════════════
+_tidy_state = {}          # 笔记名 -> {"running", "msg", "ok", "transcript"}
+_tidy_lock = _threading.Lock()
+
+
+def _tidy_llm(prompt, wait_pool=True):
+    """整理原文用哪个 AI：本机装了 Ollama 模型就用本地的（快、不占 AI 池）；没有或失败再用 AI 池。
+    wait_pool=False：AI 池正忙（比如在批量分析）就不排队了，直接报错（提取流水线用，别把队列卡住）。"""
+    try:
+        names = core.installed_local_models()
+    except Exception:
+        names = []
+    if names:
+        try:
+            ul, m = core.prefer_local_model(True, "qwen2.5")
+            if ul and m:
+                client = core.make_client(True)
+                resp = client.chat.completions.create(model=m, messages=[{"role": "user", "content": prompt}])
+                out = (resp.choices[0].message.content or "").strip()
+                if out:
+                    return out
+        except Exception as e:
+            _clog("整理原文", "本地模型没成功（%s），改用 AI 池" % str(e)[:80])
+    if not wait_pool and (_ai_gate.status().get("busy") or _ai_gate.status().get("waiting")):
+        raise RuntimeError("AI 池正忙，这次先按停顿分句；等它空了，在笔记「完整原文」里点「✨ 整理原文」")
+    t = _ai_gate.acquire("整理原文（加标点、分段）")
+    try:
+        client = core.make_client_for("web", False)
+        resp = client.chat.completions.create(model="web", messages=[{"role": "user", "content": prompt}])
+        return (resp.choices[0].message.content or "").strip()
+    finally:
+        _ai_gate.release(t)
+
+
+def _tidy_text(text, progress=None, force=False, wait_pool=True):
+    """返回 (整理后的文字, 说明)。不需要整理 / 出错时原样返回。"""
+    import transcript_tidy as _tt
+    if not force and not _tt.needs_tidy(text):
+        return text, "原文已经有标点和分段了，不用整理"
+    try:
+        return _tt.tidy(text, lambda p: _tidy_llm(p, wait_pool=wait_pool), progress=progress)
+    except Exception as e:
+        return text, "没整理成：%s" % e
+
+
+def _note_tidy_worker(name):
+    """给一条已存的笔记整理原文：读 md → 整理「完整文字稿」那一节 → 原地写回。"""
+    st = _tidy_state[name]
+    try:
+        p = _cx_video_dir() / name
+        text = p.read_text(encoding="utf-8", errors="replace")
+        tmark = text.find("完整文字稿")
+        tstart = text.find("\n", tmark) if tmark >= 0 else -1
+        if tstart < 0:
+            raise RuntimeError("这条笔记里没找到文字稿")
+        old = text[tstart:].strip()
+        _clog("整理原文", "▶ 开始：%s" % name[:50])
+        # v89：有存下来的分句时间轴的，先按说话停顿加标点、分段（不用 AI，一定成功），再让 AI 细调；
+        #      AI 不在 / 没整理成，也至少是按停顿分好的样子，不再是一整块
+        base = old
+        try:
+            import transcript_tidy as _tt
+            import video_transcribe as _vt
+            sp = _cx_segments_dir() / (name[:-3] + ".json")
+            if _tt.needs_tidy(old) and sp.exists():
+                _segs = (json.loads(sp.read_text(encoding="utf-8", errors="replace")) or {}).get("segments") or []
+                comp = _vt._compose_from_segments(_segs) if _segs else ""
+                if comp and _tt.check(old, comp)[0]:
+                    base = comp
+                    st.update(msg="先按说话停顿加了标点、分了段，再让 AI 细调…")
+        except Exception as _e:
+            _clog("整理原文", "按停顿分句跳过（%s）" % _e)
+        new, msg = _tidy_text(base, progress=lambda m: st.update(msg=m), force=True)
+        if base != old and new.strip() == base.strip():
+            msg = "按说话停顿加了标点、分了段（AI 这次没整理成：%s）" % msg.replace("没整理成：", "")
+        if new.strip() != old:
+            cur = p.read_text(encoding="utf-8", errors="replace")     # 写回前再读一次，别盖掉别人刚写的
+            if cur[cur.find("完整文字稿"):].find(old[:50]) < 0:
+                raise RuntimeError("这条笔记刚被别的操作改过，请再点一次")
+            k = cur.find("\n", cur.find("完整文字稿"))
+            p.write_text(cur[:k] + "\n\n" + new.strip() + "\n", encoding="utf-8")
+        st.update(running=False, ok=new.strip() != old, msg=msg, transcript=new.strip())
+        _clog("整理原文", "%s：%s" % ("✓" if new.strip() != old else "—", msg))
+    except Exception as e:
+        st.update(running=False, ok=False, msg=str(e)[:200])
+        _clog("整理原文", "没成功：%s" % e)
 
 
 def _note_analyze_worker(name, use_local, model):
@@ -3327,6 +3429,13 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/video_note_analyze_progress":
             with _note_an_lock:
                 return self._send(dict(_note_an_state))
+        if path == "/video_note_tidy_status":        # v88
+            nm = (qs.get("name") or [""])[0]
+            with _tidy_lock:
+                return self._send(dict(_tidy_state.get(nm) or {"running": False, "msg": ""}))
+        if path == "/transcript_tidy/config":         # v88
+            import transcript_tidy as _tt
+            return self._send(_tt.config())
         if path == "/logs":
             # v55：软件里的「终端」面板 / 独立终端窗口，增量读后端日志
             try:
@@ -3995,6 +4104,20 @@ class Handler(BaseHTTPRequestHandler):
             return self._send({"ok": False, "message": res})
         if path == "/video_note_analyze":
             return self._handle_video_note_analyze(body)
+        if path == "/transcript_tidy/config":         # v88：提取后自动整理原文 开 / 关
+            import transcript_tidy as _tt
+            return self._send(_tt.set_config(body.get("auto")))
+        if path == "/video_note_tidy":                # v88：给已存的笔记整理原文
+            nm = os.path.basename((body.get("name") or "").strip())
+            if not nm.endswith(".md") or not (_cx_video_dir() / nm).exists():
+                return self._send({"ok": False, "error": "找不到这条笔记"})
+            with _tidy_lock:
+                cur = _tidy_state.get(nm)
+                if cur and cur.get("running"):
+                    return self._send({"ok": True, "running": True})
+                _tidy_state[nm] = {"running": True, "msg": "准备整理…", "ok": False}
+            _threading.Thread(target=_note_tidy_worker, args=(nm,), daemon=True).start()
+            return self._send({"ok": True, "running": True})
         if path == "/video_note_analyze_stop":
             # v66：停止正在做的这一条 AI 分析（AI 池卡住时用）；原文不受影响
             if _note_batch.get("running"):
@@ -4477,7 +4600,22 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 import creator_watch
                 items = body.get("items") or []
-                level = body.get("level", "balanced")
+                # v89：识别质量用前端传来的（视频页当前选的）；老界面没传 → 用电脑上最近一次提取时的选择
+                level = body.get("level") or ""
+                if level not in ("speed", "balanced", "accurate", "ultra"):
+                    level = ""
+                    try:
+                        import phone_inbox as _pi
+                        level = ((_pi._load() or {}).get("defaults") or {}).get("level") or ""
+                    except Exception:
+                        level = ""
+                    if level not in ("speed", "balanced", "accurate", "ultra"):
+                        level = "balanced"
+                _cw_store = None
+                try:
+                    _cw_store = creator_watch._load()        # v89：读一次，后面每条都用它（以前每条读一遍）
+                except Exception:
+                    _cw_store = None
                 use_local = body.get("use_local", True)
                 model = body.get("model", "qwen2.5")
                 mode = body.get("mode") or "auto"
@@ -4504,9 +4642,9 @@ class Handler(BaseHTTPRequestHandler):
                     # ── X 推文：文字内容，直接存成笔记，不进视频听写队列 ──
                     # 前端 item 可能没带 platform/text，从待办记录里补回来
                     meta = {}
-                    if (not it.get("text")) or (not it.get("platform")):
+                    if (not it.get("text")) or (not it.get("platform")) or (not it.get("title_zh")):
                         try:
-                            meta = creator_watch.get_finding_meta(cid, vid, u) or {}
+                            meta = creator_watch.get_finding_meta(cid, vid, u, store=_cw_store) or {}
                         except Exception:
                             meta = {}
                     plat = it.get("platform") or meta.get("platform") or ""
@@ -4517,11 +4655,15 @@ class Handler(BaseHTTPRequestHandler):
                             it["uploader"] = meta.get("uploader") or ""
                         if not it.get("title"):
                             it["title"] = meta.get("title") or ""
+                        if not it.get("title_zh"):
+                            it["title_zh"] = meta.get("title_zh") or ""
                         try:
-                            self._save_x_note(it, tweet_text, use_local, model)
+                            # v89：马上存成笔记，不在这里等 AI（以前每条推文要排队调两次 AI，点了半天没反应）；
+                            #      需要时在笔记上点「🤖 AI 分析」，和视频笔记一样
+                            self._save_x_note(it, tweet_text, use_local, model, analyze=False)
                             x_saved += 1
-                        except Exception:
-                            pass
+                        except Exception as _xe:
+                            _clog("嗅探", "推文存笔记没成功：%s" % _xe)
                         new_marks.append({"creator_id": cid, "vid": vid, "url": u,
                                           "title": it.get("title") or ""})
                         done_keys.append({"creator_id": cid, "vid": vid, "url": u})
@@ -4543,7 +4685,7 @@ class Handler(BaseHTTPRequestHandler):
                 if queued:
                     parts.append("已把 %d 个视频加入提取队列" % queued)
                 if x_saved:
-                    parts.append("已直接保存 %d 条 X 推文为笔记" % x_saved)
+                    parts.append("已把 %d 条推文存成笔记（还没做 AI 分析，需要时在笔记上点「🤖 AI 分析」）" % x_saved)
                 if skipped:
                     parts.append("%d 个之前提取过，已跳过" % skipped)
                 msg = "；".join(parts) if parts else "没有可提取的内容"
@@ -5579,13 +5721,38 @@ class Handler(BaseHTTPRequestHandler):
             # 检测失败就当没字幕，前端照常按「自动」提交，不卡用户
             return self._send({"ok": True, "has": False, "error": str(e)})
 
-    def _save_x_note(self, item, tweet_text, use_local, model):
+    def _save_x_note(self, item, tweet_text, use_local, model, analyze=True):
         """把一条 X 推文直接存成笔记（文字内容，不走视频听写）。
-        格式与视频笔记一致，能直接在「视频笔记 / 数据库」里看到。"""
+        格式与视频笔记一致，能直接在「视频笔记 / 数据库」里看到。
+        v89：analyze=False 时不调 AI，马上存好（状态「未分析」，需要时再点「🤖 AI 分析」）。"""
         import datetime as _dt
         url = (item.get("url") or "").strip()
         uploader = (item.get("uploader") or "").strip()
         raw_title = (item.get("title") or tweet_text[:40] or "X 推文").strip()
+        if not analyze:
+            ts = _dt.datetime.now()
+            title_zh = (item.get("title_zh") or "").strip()
+            display_title = (title_zh if title_zh and title_zh != raw_title else raw_title).replace("\n", " ")[:120]
+            orig_line = f"- 原文标题：{raw_title}\n" if display_title != raw_title else ""
+            safe = "".join(c for c in display_title[:20] if c.isalnum() or c in " 　-_") or "x_post"
+            stem = (f"{ts.strftime('%Y%m%d-%H%M%S')}-{safe}").replace(" ", "_")
+            d = _cx_video_dir()
+            fname, k = stem + ".md", 2
+            while (d / fname).exists():                  # 同一秒存好几条、标题开头又一样：别互相盖掉
+                fname, k = "%s-%d.md" % (stem, k), k + 1
+            placeholder = ("（这条只存了推文原文，还没做 AI 分析。需要的时候点「🤖 AI 分析」就行：笔记列表里这一条的右边、"
+                           "或者打开笔记后的按钮都可以。）")
+            doc = (f"# {display_title}\n\n"
+                   f"- 来源链接：{url}\n"
+                   f"- 作者：{uploader}\n"
+                   f"- 平台：X（推特）\n"
+                   f"- 提取时间：{ts.strftime('%Y-%m-%d %H:%M')}\n"
+                   f"- 状态：未分析\n"
+                   f"{orig_line}\n"
+                   f"## 🤖 AI 分析\n\n{placeholder}\n\n"
+                   f"---\n\n## 📝 完整文字稿\n\n{tweet_text}\n")
+            (d / fname).write_text(doc, encoding="utf-8")
+            return fname
         # 让模型把推文整理成中文笔记（推文可能是英文）。失败就退回原文。
         analysis = ""
         title_zh = ""

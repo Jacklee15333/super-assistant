@@ -2770,3 +2770,36 @@ body.dark .fs-status.bad { color: #ef6b5b; }
 .fs-guide li > div { color: var(--text); font-size: 13px; line-height: 1.7; }
 .fs-guide code { background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; font-size: 12px; user-select: all; }
 .fs-form .text-input { width: 100%; box-sizing: border-box; }
+
+/* ── v88：整理原文 ── */
+.vt-tidy-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 12px;
+  padding: 8px 10px; border-radius: 10px; background: var(--accent-soft); }
+.vt-tidy-msg { font-size: 12.5px; color: var(--text-dim); }
+.vt-tidy-msg.ok { color: #2f8a4c; }
+body.dark .vt-tidy-msg.ok { color: #5cc07c; }
+.vt-tidy-auto { display: flex; align-items: center; gap: 6px; margin: 8px 0 0 2px; font-size: 13px;
+  color: var(--text-dim); cursor: pointer; user-select: none; width: fit-content; }
+.vt-tidy-auto input { width: 15px; height: 15px; accent-color: var(--accent); }
+
+/* ── v89：嗅探「提取选中」旁边的提示 ── */
+.cw-inline-msg { font-size: 12.5px; color: var(--text-dim); margin-left: 4px; max-width: 520px; line-height: 1.4; }
+.cw-inline-msg.ok { color: #2f8a4c; }
+.cw-inline-msg.warn { color: #c2410c; }
+.cw-inline-msg.busy { color: var(--accent); }
+body.dark .cw-inline-msg.ok { color: #5cc07c; }
+body.dark .cw-inline-msg.warn { color: #f0956a; }
+
+/* ── v89：长按头像拖动合并博主 ── */
+.vn-ctile.vn-press { transform: scale(.95); transition: transform .35s ease; }
+.vn-ctile.vn-drag-src { opacity: .3; }
+.vn-ctile.vn-drop-over { outline: 2.5px dashed var(--accent); outline-offset: 4px; border-radius: 14px;
+  background: var(--accent-soft); transform: scale(1.08); transition: transform .12s ease; }
+.vn-drag-ghost { position: fixed !important; z-index: 10001; pointer-events: none; margin: 0 !important;
+  transform: scale(.9) rotate(-4deg); transform-origin: 100% 100%; opacity: .92; border-radius: 14px;
+  background: var(--bg-elev, #fff); box-shadow: 0 12px 30px rgba(0, 0, 0, .28); }
+.vn-drag-ghost .vn-clink { display: none !important; }
+.vn-drag-hint { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 10002;
+  max-width: 80vw; padding: 9px 16px; border-radius: 999px; background: rgba(28, 28, 28, .9); color: #fff;
+  font-size: 13px; pointer-events: none; box-shadow: 0 6px 20px rgba(0, 0, 0, .25); }
+body.vn-dragging, body.vn-dragging * { user-select: none !important; cursor: grabbing !important; }
+.vn-merge-alt { background: transparent !important; color: var(--text) !important; border: 1px solid var(--line-strong) !important; }

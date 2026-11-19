@@ -1114,19 +1114,26 @@ def get_findings():
     return f
 
 
-def get_finding_meta(creator_id=None, vid=None, url=""):
-    """按 creator_id+vid 或 url 找回一条待办的附加信息（text/platform/uploader/title）。
-    供 X 推文「直接存笔记」时取回推文全文用。找不到返回 {}。"""
-    store = _load()
+def get_finding_meta(creator_id=None, vid=None, url="", store=None):
+    """按 creator_id+vid 或 url 找回一条待办的附加信息（text/platform/uploader/title/title_zh）。
+    供 X 推文「直接存笔记」时取回推文全文用。找不到返回 {}。
+    v89：store 可以传进来（一次提取很多条时只读一次文件）；多返回中文标题 title_zh。"""
+    if not isinstance(store, dict):
+        store = _load()
     url = (url or "").strip()
+    zh_map = store.get("title_zh_map") or {}
+
+    def _meta(f):
+        t = f.get("title") or ""
+        return {"text": f.get("text") or "", "platform": f.get("platform") or "",
+                "uploader": f.get("uploader") or "", "title": t,
+                "title_zh": f.get("title_zh") or (zh_map.get(t) if isinstance(zh_map, dict) else "") or ""}
     for f in store.get("findings", []):
         if vid is not None and f.get("vid") == vid and (
                 creator_id is None or f.get("creator_id") == creator_id):
-            return {"text": f.get("text") or "", "platform": f.get("platform") or "",
-                    "uploader": f.get("uploader") or "", "title": f.get("title") or ""}
+            return _meta(f)
         if url and (f.get("url") or "").strip() == url:
-            return {"text": f.get("text") or "", "platform": f.get("platform") or "",
-                    "uploader": f.get("uploader") or "", "title": f.get("title") or ""}
+            return _meta(f)
     return {}
 
 

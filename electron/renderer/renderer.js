@@ -3390,6 +3390,7 @@ function mountVideoResult(data, target) {
 
   // 容器内查询（不用 getElementById），这样同一个视图可以在多处复用而不冲突
   const $ = (sel) => resultEl.querySelector(sel);
+  if (data._noteName) { try { _vtTidyBar(resultEl, data); } catch (e) {} }   // v88：「完整原文」上方的「整理原文」按钮
 
   // ---- 页面内二级标签：展示 + 编辑 ----
   let curTags = Array.isArray(data.tags) ? data.tags.slice() : [];
@@ -7802,6 +7803,22 @@ function _cwRenderScanLog(scan) {
   box.innerHTML = html;
 }
 
+// v89：「扫出来的新视频」的勾选单独记着——列表每 1.5 秒（扫描时）或换头像时会整个重画，
+// 以前一重画勾选就全没了，再点「提取选中」就是「先勾选要提取的视频」，看着像没反应
+var _cwFindSel = new Set();
+function _cwFindKey(f) {
+  return String(f.creator_id == null ? "" : f.creator_id) + "|" + String(f.vid == null ? "" : f.vid) + "|" + (f.url || "");
+}
+function _cwFindSelSync() {
+  const list = Array.isArray(_cwFindings) ? _cwFindings : [];
+  const keys = new Set(list.map(_cwFindKey));
+  _cwFindSel.forEach((k) => { if (!keys.has(k)) _cwFindSel.delete(k); });
+  const sa = document.getElementById("cwSelAll");
+  if (sa) sa.checked = list.length > 0 && _cwFindSel.size === list.length;
+  const b = document.getElementById("cwExtractBtn");
+  if (b && !b.disabled) b.textContent = _cwFindSel.size ? "提取选中（" + _cwFindSel.size + "）" : "提取选中";
+}
+
 function renderFindings(list) {
   const box = document.getElementById("cwFindings");
   const cnt = document.getElementById("cwFindCount");
@@ -7809,7 +7826,8 @@ function renderFindings(list) {
   if (!box) return;
   if (!list.length) {
     box.innerHTML = '<div class="cw-empty">暂无新视频。点左边某个博主「查看视频」，或点「批量扫描」。</div>';
-    const sa = document.getElementById("cwSelAll"); if (sa) sa.checked = false;
+    _cwFindSel.clear();
+    _cwFindSelSync();
     return;
   }
   box.innerHTML = list.map((f, i) => {
@@ -7819,7 +7837,7 @@ function renderFindings(list) {
     const zhText = (f.title_zh && f.title_zh !== f.title) ? ("🌐 " + escapeHtml(f.title_zh)) : "";
     return '' +
       '<div class="cw-video">' +
-        '<input type="checkbox" class="cw-fcb" data-i="' + i + '" />' +
+        '<input type="checkbox" class="cw-fcb" data-i="' + i + '"' + (_cwFindSel.has(_cwFindKey(f)) ? " checked" : "") + ' />' +
         '<div class="cw-v-main">' +
           '<div class="cw-v-title"><span class="cw-new-badge">新</span>' + ic + " " + escapeHtml(title) + "</div>" +
           '<div class="cw-v-zh">' + zhText + "</div>" +
@@ -7830,12 +7848,12 @@ function renderFindings(list) {
   }).join("");
   box.querySelectorAll(".cw-fcb").forEach((cb) => {
     cb.addEventListener("change", () => {
-      const all = box.querySelectorAll(".cw-fcb");
-      const checked = box.querySelectorAll(".cw-fcb:checked");
-      const sa = document.getElementById("cwSelAll");
-      if (sa) sa.checked = all.length > 0 && checked.length === all.length;
+      const f = _cwFindings[parseInt(cb.dataset.i, 10)];
+      if (f) { if (cb.checked) _cwFindSel.add(_cwFindKey(f)); else _cwFindSel.delete(_cwFindKey(f)); }
+      _cwFindSelSync();
     });
   });
+  _cwFindSelSync();
   _cwTranslateFindings();   // 把英文标题翻成中文，填进预留的占位
 }
 
@@ -7882,12 +7900,9 @@ async function _cwTranslateFindings() {
 }
 
 function _cwSelectedItems() {
-  const box = document.getElementById("cwFindings");
-  if (!box) return [];
   const out = [];
-  box.querySelectorAll(".cw-fcb:checked").forEach((cb) => {
-    const f = _cwFindings[parseInt(cb.dataset.i, 10)];
-    if (f) out.push({ creator_id: f.creator_id, vid: f.vid, url: f.url });
+  (Array.isArray(_cwFindings) ? _cwFindings : []).forEach((f) => {
+    if (_cwFindSel.has(_cwFindKey(f))) out.push({ creator_id: f.creator_id, vid: f.vid, url: f.url });
   });
   return out;
 }
@@ -8285,22 +8300,56 @@ function _cwClearSelVideos() {
 }
 
 // 提取入口（单条 / 批量 / 本次新增 共用）
-async function _cwExtract(items) {
-  if (!items || !items.length) { _cwSetStatus("先勾选要提取的视频"); return; }
+// v89：提示写在按钮旁边（以前只写在页面最上面的「扫描进度」里，往下翻着的时候看不到，像是没反应）
+function _cwInlineMsg(btn, msg, cls) {
+  if (!btn || !btn.parentNode) return;
+  const row = btn.parentNode;
+  let el = row.querySelector(":scope > .cw-inline-msg");
+  if (!el) {
+    el = document.createElement("span");
+    row.insertBefore(el, row.querySelector(":scope > .sn-spacer") || null);
+  }
+  el.className = "cw-inline-msg" + (cls ? " " + cls : "");
+  el.textContent = msg || "";
+  clearTimeout(el._t);
+  if (msg && cls !== "busy") el._t = setTimeout(() => { if (el.textContent === msg) el.textContent = ""; }, cls === "warn" ? 10000 : 20000);
+}
+
+// 视频页当前选的识别质量（精准 / 超精准…），嗅探里提取的视频也照这个来（以前固定用「均衡」）
+function _cwLevel() {
+  const el = document.getElementById("videoLevel");
+  let v = el && el.value ? el.value : "";
+  if (!v) { try { v = localStorage.getItem("videoLevelPick") || ""; } catch (_) {} }
+  return v;
+}
+
+async function _cwExtract(items, btn, fromFindings) {
+  const say = (msg, cls) => { _cwSetStatus(msg); _cwInlineMsg(btn, msg, cls); };
+  if (!items || !items.length) { say("先勾选要提取的视频（点每条左边的小方框，或打开「全选」）", "warn"); return; }
   const s = _cwSafeSettings();
+  const oldText = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "提取中…"; }
+  say("正在提交 " + items.length + " 条…", "busy");
   try {
     const r = await fetch(BACKEND + "/creator/extract", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items, use_local: s.use_local, model: s.model, mode: "auto" }),
+      body: JSON.stringify({ items, use_local: s.use_local, model: s.model, mode: "auto", level: _cwLevel() }),
     });
     const d = await r.json();
-    if (!d.ok) { _cwSetStatus(d.message || "提取失败"); return; }
+    if (!d.ok) { say(d.message || "提取失败", "warn"); return; }
     // 后端会跳过「已提取过」的；带上跳过提示，并把成功提取的标记到本地缓存
-    if (d.message) _cwSetStatus("✓ " + d.message + "，去「视频」页看进度");
-    else _cwSetStatus("✓ 已把 " + (d.queued || items.length) + " 个视频加入提取队列，去「视频」页看进度");
+    const goSee = d.queued ? "，去「视频」页看进度" : (d.x_saved ? "，在「视频」页的笔记里能看到" : "");
+    if (d.message) say("✓ " + d.message + goSee, "ok");
+    else say("✓ 已把 " + (d.queued || items.length) + " 个视频加入提取队列，去「视频」页看进度", "ok");
     _markItemsExtractedLocal(items);
+    if (fromFindings) items.forEach((it) => _cwFindSel.delete(_cwFindKey(it)));
     loadCreatorFindings();
-  } catch (e) { _cwSetStatus("提取出错：" + e.message); }
+  } catch (e) { say("提取出错：" + e.message, "warn"); }
+  finally {
+    if (btn) { btn.disabled = false; btn.textContent = oldText; }
+    if (fromFindings) _cwFindSelSync();
+    else if (typeof updateExtractVLabel === "function") { try { updateExtractVLabel(); } catch (_) {} }
+  }
 }
 
 // 把刚送队列的视频，在本地几份列表里就地标成「已提取」，界面立刻更新，不必等重新拉取
@@ -8943,12 +8992,15 @@ document.getElementById("cwCfgSave")?.addEventListener("click", async () => {
 });
 
 document.getElementById("cwSelAll")?.addEventListener("change", (e) => {
+  const on = e.target.checked;
+  _cwFindSel = new Set(on ? (Array.isArray(_cwFindings) ? _cwFindings : []).map(_cwFindKey) : []);
   const box = document.getElementById("cwFindings");
-  if (!box) return;
-  box.querySelectorAll(".cw-fcb").forEach((cb) => { cb.checked = e.target.checked; });
+  if (box) box.querySelectorAll(".cw-fcb").forEach((cb) => { cb.checked = on; });
+  _cwFindSelSync();
 });
 
-document.getElementById("cwExtractBtn")?.addEventListener("click", () => _cwExtract(_cwSelectedItems()));
+document.getElementById("cwExtractBtn")?.addEventListener("click", (e) =>
+  _cwExtract(_cwSelectedItems(), e.currentTarget, true));
 
 document.getElementById("cwDismissBtn")?.addEventListener("click", async () => {
   const items = _cwSelectedItems();
@@ -8984,7 +9036,7 @@ document.getElementById("cwSelAllV")?.addEventListener("click", _cwSelectAllVide
 document.getElementById("cwClearSelV")?.addEventListener("click", _cwClearSelVideos);
 document.getElementById("cwPick7")?.addEventListener("click", () => _cwPickByDays(7));
 document.getElementById("cwPick30")?.addEventListener("click", () => _cwPickByDays(30));
-document.getElementById("cwExtractV")?.addEventListener("click", () => _cwExtract(_cwVideoSelected()));
+document.getElementById("cwExtractV")?.addEventListener("click", (e) => _cwExtract(_cwVideoSelected(), e.currentTarget));
 // 改动4：分页控制——翻页只重渲染当前页 + 翻当前页，不重新 fetch
 document.getElementById("cwPagePrev")?.addEventListener("click", () => _cwGotoPage(_cwPage - 1));
 document.getElementById("cwPageNext")?.addEventListener("click", () => _cwGotoPage(_cwPage + 1));
@@ -10328,6 +10380,7 @@ function vnCreatorTile(g, sortKey) {
   link.addEventListener("click", (e) => { e.stopPropagation(); vnBindProfile(g.key); });
   t.appendChild(link);
   t.addEventListener("click", () => vnIconGo({ kind: g.kind, name: g.name }));
+  try { vnTileDrag(t, g); } catch (_) {}            // v89：长按拖到别的头像上 = 合并博主
   return t;
 }
 
@@ -10722,7 +10775,8 @@ function vnRenderIconView(list, notes, folders, byFolder, ungrouped) {
     const tip = document.createElement("div");
     tip.className = "vn-auto-tip";
     tip.textContent = "圆角方形是你建的文件夹，圆形是按作者自动分的组。点头像进去看笔记。个别没找到主页的，" +
-      "鼠标移到头像上点 🔗 粘贴主页链接（抖音 / B站 / YouTube…），或者点进去上传一张头像。";
+      "鼠标移到头像上点 🔗 粘贴主页链接（抖音 / B站 / YouTube…），或者点进去上传一张头像。" +
+      "大小号：按住一个头像不放，拖到另一个头像上松开，就合并成一个博主（笔记放到一起）；拖到文件夹上就放进文件夹。";
     wbody.appendChild(tip);
     const grid = document.createElement("div");
     grid.className = "vn-cgrid";
@@ -11840,3 +11894,239 @@ function _phSyncDefaults() {
     _phPoll();
   }, 4000);
 })();
+
+
+// ════════════════════ v88：整理原文（AI 加标点、按意思分段）════════════════════
+// ① 「开始提取」卡片里一个开关：提取完自动整理（默认开，存在后端，手机 / 飞书发来的也照这个办）
+// ② 打开一条笔记，「完整原文」上方一个按钮：给以前提取的笔记补整理
+function _vtTidyBar(resultEl, data) {
+  const box = resultEl.querySelector("#vTranscript");
+  if (!box || box.querySelector(".vt-tidy-bar")) return;
+  const bar = document.createElement("div");
+  bar.className = "vt-tidy-bar";
+  bar.innerHTML = '<button class="vbtn" type="button">✨ 整理原文</button>' +
+    '<span class="vt-tidy-msg">让 AI 加标点、按意思分段（只加标点和换行，不删改内容）</span>';
+  box.insertBefore(bar, box.firstChild);
+  const btn = bar.querySelector("button"), msg = bar.querySelector(".vt-tidy-msg");
+  const render = (t) => {
+    Array.from(box.children).forEach((c) => { if (c !== bar) c.remove(); });
+    const div = document.createElement("div");
+    div.innerHTML = renderMarkdown(paragraphizeCN(t || "（无文字稿）"));
+    box.appendChild(div);
+  };
+  let timer = null;
+  const poll = async () => {
+    try {
+      const r = await fetch(BACKEND + "/video_note_tidy_status?name=" + encodeURIComponent(data._noteName));
+      const st = await r.json();
+      msg.textContent = st.msg || "";
+      if (st.running) { timer = setTimeout(poll, 2000); return; }
+      btn.disabled = false; btn.textContent = "✨ 整理原文";
+      msg.className = "vt-tidy-msg " + (st.ok ? "ok" : "");
+      if (st.ok && st.transcript) { data.transcript = st.transcript; render(st.transcript); }
+    } catch (e) { btn.disabled = false; btn.textContent = "✨ 整理原文"; msg.textContent = "后端没连上"; }
+  };
+  btn.addEventListener("click", async () => {
+    btn.disabled = true; btn.textContent = "整理中…"; msg.className = "vt-tidy-msg"; msg.textContent = "准备整理…";
+    try {
+      const r = await fetch(BACKEND + "/video_note_tidy", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: data._noteName }) });
+      const d = await r.json();
+      if (!d.ok) { btn.disabled = false; btn.textContent = "✨ 整理原文"; msg.textContent = d.error || "没成功"; return; }
+      clearTimeout(timer); timer = setTimeout(poll, 1500);
+    } catch (e) { btn.disabled = false; btn.textContent = "✨ 整理原文"; msg.textContent = "后端没连上"; }
+  });
+}
+
+(function _vtTidyAutoToggle() {
+  const anchor = document.querySelector("#view-video .video-creator-row");
+  if (!anchor || document.getElementById("videoTidyAuto")) return;
+  const row = document.createElement("label");
+  row.className = "vt-tidy-auto";
+  row.title = "语音识别出来的文字没标点、不分段；开着这个，提取完会让 AI 加标点、按意思分段（只加标点和换行，不删改内容）。手机 / 飞书发来的也一样";
+  row.innerHTML = '<input type="checkbox" id="videoTidyAuto" checked> ✨ 提取完自动整理原文（AI 加标点、按意思分段）';
+  anchor.parentNode.insertBefore(row, anchor.nextSibling);
+  const cb = row.querySelector("input");
+  setTimeout(async () => {
+    try { const r = await fetch(BACKEND + "/transcript_tidy/config"); cb.checked = !!(await r.json()).auto; } catch (e) {}
+  }, 3000);
+  cb.addEventListener("change", () => {
+    fetch(BACKEND + "/transcript_tidy/config", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ auto: cb.checked }) }).catch(() => {});
+  });
+})();
+
+
+// ════════════════════ v89：长按头像拖动 → 合并博主（大小号）════════════════════
+// 按住一个圆形头像约 0.4 秒，头像会「浮起来」跟着鼠标走：
+//   · 拖到另一个圆形头像上松开 → 两个合成一个博主（选用哪个名字），笔记都放到一起；
+//     以后小号的新视频也自动归进来；合并后在博主资料卡上随时可以撤销（v64 那套）；
+//   · 拖到圆角方形的文件夹上松开 → 把他的笔记都放进这个文件夹（作者名不变）；
+//   · 拖到空白处松开 / 按 Esc → 取消。
+var _vnDragEndAt = 0;
+window.addEventListener("click", (e) => {            // 拖完松手那一下不要当成「点开头像」
+  if (Date.now() - _vnDragEndAt < 450) { e.stopPropagation(); e.preventDefault(); }
+}, true);
+
+function vnTileDrag(t, g) {
+  if (!g || g.kind !== "author" || g.name === "未填作者") return;   // 文件夹、未填作者只能当「放上去的目标」
+  t.addEventListener("dragstart", (e) => e.preventDefault());       // 别让浏览器拖头像图片
+  t.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 || e.target.closest(".vn-clink, button, a, input")) return;
+    const sx = e.clientX, sy = e.clientY;
+    let lx = sx, ly = sy;
+    t.classList.add("vn-press");
+    const off = () => {
+      clearTimeout(timer);
+      t.classList.remove("vn-press");
+      window.removeEventListener("pointermove", mv);
+      window.removeEventListener("pointerup", off);
+      window.removeEventListener("pointercancel", off);
+    };
+    const mv = (ev) => {
+      lx = ev.clientX; ly = ev.clientY;
+      if (Math.hypot(lx - sx, ly - sy) > 8) off();                    // 按住时挪动了 → 不算长按
+    };
+    const timer = setTimeout(() => { off(); vnDragStart(t, g, lx, ly); }, 400);
+    window.addEventListener("pointermove", mv);
+    window.addEventListener("pointerup", off);
+    window.addEventListener("pointercancel", off);
+  });
+}
+
+function vnScrollParent(el) {
+  for (let p = el && el.parentElement; p; p = p.parentElement) {
+    const oy = getComputedStyle(p).overflowY;
+    if ((oy === "auto" || oy === "scroll") && p.scrollHeight > p.clientHeight + 4) return p;
+  }
+  return document.scrollingElement || document.documentElement;
+}
+
+function vnDragStart(t, g, x, y) {
+  const r = t.getBoundingClientRect();
+  const ghost = t.cloneNode(true);
+  ghost.classList.add("vn-drag-ghost");
+  ghost.classList.remove("vn-press");
+  ghost.style.width = r.width + "px";
+  // 浮起的头像放在鼠标左上方，别挡住下面要放上去的那个头像（它会高亮）
+  const place = (px, py) => { ghost.style.left = (px - r.width * 0.95) + "px"; ghost.style.top = (py - r.height * 0.95) + "px"; };
+  place(x, y);
+  document.body.appendChild(ghost);
+  const hint = document.createElement("div");
+  hint.className = "vn-drag-hint";
+  const idle = "拖到另一个头像上松开 = 合并成一个博主；拖到文件夹上 = 放进文件夹；空白处松开或按 Esc 取消";
+  hint.textContent = idle;
+  document.body.appendChild(hint);
+  t.classList.add("vn-drag-src");
+  document.body.classList.add("vn-dragging");
+  const sc = vnScrollParent(t);
+  let over = null, vy = 0, lastY = y;
+  const scrollTimer = setInterval(() => { if (vy) sc.scrollTop += vy; }, 16);   // 拖到上下边缘自动滚
+  const pick = (px, py) => {
+    const el = document.elementFromPoint(px, py);
+    let tgt = el && el.closest(".vn-ctile");
+    if (tgt && (tgt === t || !tgt._g || tgt._g.name === "未填作者" || tgt._g.name === g.name)) tgt = null;
+    if (over && over !== tgt) over.classList.remove("vn-drop-over");
+    over = tgt;
+    if (over) {
+      over.classList.add("vn-drop-over");
+      hint.textContent = over._g.kind === "folder"
+        ? "松开：把「" + g.name + "」的 " + g.items.length + " 条笔记放进文件夹「" + over._g.name + "」"
+        : "松开：把「" + g.name + "」和「" + over._g.name + "」合并成一个博主";
+    } else hint.textContent = idle;
+  };
+  const mv = (e) => {
+    place(e.clientX, e.clientY);
+    lastY = e.clientY;
+    const b = sc === document.scrollingElement || sc === document.documentElement
+      ? { top: 0, bottom: window.innerHeight } : sc.getBoundingClientRect();
+    vy = lastY < b.top + 60 ? -14 : lastY > b.bottom - 60 ? 14 : 0;
+    pick(e.clientX, e.clientY);
+  };
+  const finish = (ok) => {
+    clearInterval(scrollTimer);
+    window.removeEventListener("pointermove", mv);
+    window.removeEventListener("pointerup", up);
+    window.removeEventListener("pointercancel", cancel);
+    window.removeEventListener("keydown", esc, true);
+    ghost.remove(); hint.remove();
+    t.classList.remove("vn-drag-src");
+    document.body.classList.remove("vn-dragging");
+    _vnDragEndAt = Date.now();
+    const dst = over && over._g;
+    if (over) over.classList.remove("vn-drop-over");
+    if (ok && dst) vnDropOn(g, dst);
+  };
+  const up = () => finish(true);
+  const cancel = () => finish(false);
+  const esc = (e) => { if (e.key === "Escape") { e.preventDefault(); finish(false); over = null; } };
+  window.addEventListener("pointermove", mv);
+  window.addEventListener("pointerup", up);
+  window.addEventListener("pointercancel", cancel);
+  window.addEventListener("keydown", esc, true);
+}
+
+// 合并成哪个名字：默认用「放上去的那个」（一般是大号）的名字
+function vnAskMergeName(a, b) {
+  return new Promise((resolve) => {
+    const old = document.getElementById("vnMergeAsk");
+    if (old) old.remove();
+    const wrap = document.createElement("div");
+    wrap.id = "vnMergeAsk"; wrap.className = "vn-merge-mask";
+    const box = document.createElement("div");
+    box.className = "vn-merge-box";
+    box.innerHTML = '<div class="vn-merge-title">合并博主</div><div class="vn-merge-desc"></div>' +
+      '<div class="vn-merge-lab">合并后用哪个名字？</div>' +
+      '<div class="vn-merge-picks"><button type="button" class="send-btn" data-k="b"></button>' +
+      '<button type="button" class="send-btn vn-merge-alt" data-k="a"></button></div>' +
+      '<div class="vn-merge-row"><span class="vn-merge-note"></span><button type="button" class="vn-merge-cancel">取消</button></div>';
+    box.querySelector(".vn-merge-desc").textContent = "把「" + a.name + "」（" + a.items.length + " 条笔记）和「" + b.name +
+      "」（" + b.items.length + " 条笔记）合成一个博主：笔记都放到一起看，以后这两个号的新视频也会自动归到一起。" +
+      "合并后在博主资料卡上随时可以撤销。";
+    box.querySelector('[data-k="b"]').textContent = "用「" + b.name + "」";
+    box.querySelector('[data-k="a"]').textContent = "用「" + a.name + "」";
+    const done = (v) => { try { wrap.remove(); } catch (_) {} document.removeEventListener("keydown", key, true); resolve(v); };
+    const key = (e) => { if (e.key === "Escape") { e.preventDefault(); done(null); } };
+    box.querySelector('[data-k="b"]').addEventListener("click", () => done({ src: a.name, dst: b.name }));
+    box.querySelector('[data-k="a"]').addEventListener("click", () => done({ src: b.name, dst: a.name }));
+    box.querySelector(".vn-merge-cancel").addEventListener("click", () => done(null));
+    wrap.addEventListener("click", (e) => { if (e.target === wrap) done(null); });
+    document.addEventListener("keydown", key, true);
+    wrap.appendChild(box);
+    document.body.appendChild(wrap);
+  });
+}
+
+async function vnDropOn(src, dst) {
+  if (dst.kind === "folder") {
+    const notes = (src.items || []).map((n) => n.name).filter(Boolean);
+    if (!notes.length) return;
+    if (!confirm("把「" + src.name + "」的 " + notes.length + " 条笔记放进文件夹「" + dst.name + "」？\n\n" +
+        "只是放进文件夹，作者名不变；以后在「列表」里可以再移出来。")) return;
+    setVideoStatus("正在把「" + src.name + "」的笔记放进「" + dst.name + "」…");
+    let ok = 0;
+    for (const nm of notes) {
+      const d = await vnFolderOp({ op: "move", note: nm, name: dst.name });
+      if (d && d.ok) ok++;
+    }
+    setVideoStatus("✓ 已把 " + ok + " 条笔记放进文件夹「" + dst.name + "」", ok === notes.length ? "" : "warn");
+    loadVideoNotes();
+    return;
+  }
+  const r = await vnAskMergeName(src, dst);
+  if (!r) return;
+  setVideoStatus("正在合并「" + r.src + "」→「" + r.dst + "」…");
+  try {
+    const d = await (await fetch(BACKEND + "/creator_merge", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ src: r.src, dst: r.dst }) })).json();
+    if (!d.ok) { setVideoStatus("没合并成：" + (d.message || "未知原因"), "warn"); return; }
+    _vnTidyMsgs = _vnTidyMsgs.concat([(d.message || "合并好了") + "（点进「" + r.dst + "」，资料卡上可以撤销）"]).slice(-6);
+    setVideoStatus("✓ " + (d.message || "合并好了"));
+    await vnLoadProfiles();
+    loadVideoNotes();
+  } catch (e) {
+    setVideoStatus("合并出错：" + e.message, "warn");
+  }
+}
