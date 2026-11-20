@@ -742,3 +742,28 @@ body.dark .vn-kind.k-gh { background: #e6e6e3; color: #1f1e1a; }
 .vi-next { display: flex; align-items: center; gap: 10px; margin: 4px 2px 18px; font-size: 12.5px; color: var(--text-dim); }
 .vi-process-intro { margin: 2px 2px 14px; max-width: 70ch; font-size: 13px; line-height: 1.7; color: var(--text-dim); }
 .vi-process-bars { display: flex; flex-direction: column; gap: 10px; margin-bottom: 8px; }
+
+/* ════════════════════ v117：工具卡片 ════════════════════ */
+#view-video .vi-main { display: flex; align-items: flex-start; gap: 10px; }
+#view-video .vi-main textarea.vi-input { flex: 1 1 auto; width: auto; min-width: 0; }
+#view-video .vi-main #videoGoBtn { flex: none; margin-left: 0; height: 38px; padding: 0 20px; }
+#view-video .vi-sources { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 10px 0 2px; }
+.vi-sources-label { font-size: 12.5px; color: var(--text-dim); margin-right: 2px; }
+#view-video .vi-sources .ph-open-btn {
+  display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: 8px;
+  border: 1px solid var(--line-strong); background: transparent; color: var(--text); font: 500 12px var(--sans);
+}
+#view-video .vi-sources .ph-open-btn:hover { border-color: var(--accent); color: var(--accent); }
+#view-video .vi-sec { margin-top: 12px; border: 0.5px solid var(--border, var(--line)); border-radius: 8px; overflow: hidden; }
+.vi-sec-head { display: flex; align-items: center; gap: 6px; padding: 7px 10px; cursor: pointer; font-size: 13px; color: var(--text-dim); }
+.vi-sec-head:hover { color: var(--text); }
+.vi-sec-sum { margin-left: 8px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.vi-sec-body { display: flex; flex-direction: column; gap: 10px; padding: 12px 12px 10px; border-top: 0.5px solid var(--border, var(--line)); }
+.vi-sec-body[hidden] { display: none; }
+.vi-sec-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.vi-sec-label { font-size: 12.5px; color: var(--text-dim); min-width: 4em; }
+#view-video .vi-sec-row select { width: auto; min-width: 150px; }
+#view-video .vi-sec .video-creator-row { margin: 0; }
+#view-video .vi-sec .vt-tidy-auto { margin: 0; }
+/* 「搜索推荐」「维护工具」和「视频设置」一样的间距 */
+#view-video .v-card-extract > .vfind, #view-video .v-card-extract > .video-tools { margin-top: 10px !important; }
