@@ -1932,7 +1932,14 @@ function viSelSync(scroll) {
   const r = rows.find((x) => x.offsetParent);
   if (scroll && r) r.scrollIntoView({ block: "nearest" });
 }
-setInterval(() => { if (_vnReaderName && !document.querySelector("#viProcess .vn-sel")) viSelSync(); }, 1500);
+setInterval(() => {
+  if (_vnReaderName && !document.querySelector("#viProcess .vn-sel")) viSelSync();
+  if (!_vnReaderName && _viLastName && !document.querySelector("#view-video .vn-last")) {   // 清单重画后接着标
+    const r = Array.from(document.querySelectorAll("#view-video .video-pane [data-name]")).find((x) => x.dataset.name === _viLastName);
+    if (r) r.classList.add("vn-last");
+  }
+}, 1500);
+let _viLastName = "";
 
 // ── v126：加工页两个标签：未加工 / 已加工 ──
 function viPtab() { try { return localStorage.getItem("viPtab") === "done" ? "done" : "todo"; } catch (e) { return "todo"; } }
@@ -4107,6 +4114,8 @@ function mountVideoResult(data, target) {
         '<button class="vd" data-d="brief">简洁</button>' +
       '</span>' +
       '<span class="vspacer"></span>' +
+      ((data._noteName && !_unAnalyzed) ? '<button class="vbtn vbtn-redo" data-reanalyze="' + escapeHtml(data._noteName) +
+        '" title="把这条放回「未加工」，让 AI 重新写一遍">重新加工</button>' : "") +
       '<button class="vbtn vbtn-speak" id="vSpeakBtn">🔊 朗读</button>' +
       '<button class="vbtn" id="vCopyBtn">复制本页</button>' +
       '<button class="vbtn" id="vExportBtn">导出 Markdown</button>' +
@@ -5349,7 +5358,14 @@ function vnCleanAnalysis(md) {
 // 加工结果只写了开头就断了（缺了「核心观点」以后的部分）：提示一下，给个「重新加工」
 function vnIncompleteNotice(data) {
   const t = (data && data.analysis) || "";
-  if (!/一句话概括/.test(t)) return "";
+  if (!t.trim() || /这条只提取了原文|（无分析）/.test(t)) return "";
+  if (!/一句话概括/.test(t)) {   // v129：只回了几句话、没有一个小标题
+    if (t.length < 600 && !/^#{1,4}\s/m.test(t)) {
+      return '<div class="vn-incomplete">这篇的加工结果只有几句话，AI 没真正写笔记。<button type="button" class="ghost-btn small" data-reanalyze="' +
+        escapeHtml(data._noteName || "") + '">重新加工</button></div>';
+    }
+    return "";
+  }
   const has = (w) => new RegExp("^#{1,4}[^\\n]*" + w, "m").test(t);
   const miss = [];
   if (!has("核心观点")) miss.push("核心观点");
@@ -13144,8 +13160,11 @@ function vnReaderClose() {
   const restore = () => {
     if (back && back.el && !wasSplit) back.el.scrollTop = back.top;
     // 列表在这期间刷新过、那条挪了位置：按名字找到它，不在眼前就滚过去；闪一下
-    const list = document.getElementById("videoNotesList");
+    const list = document.querySelector("#view-video .video-pane");      // v129：加工页的清单也在这里面
     const row = list && name ? Array.from(list.querySelectorAll("[data-name]")).find((x) => x.dataset.name === name && x.offsetParent) : null;
+    _viLastName = name;
+    document.querySelectorAll("#view-video .vn-last").forEach((x) => x.classList.remove("vn-last"));
+    if (row) row.classList.add("vn-last");                                  // 刚看的这条一直标着
     if (row) {
       const r = row.getBoundingClientRect();
       if (r.bottom < 60 || r.top > window.innerHeight - 40) row.scrollIntoView({ block: "center" });
