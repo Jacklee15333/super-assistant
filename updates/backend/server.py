@@ -1357,6 +1357,9 @@ def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None
             return _bold_point_titles(out)
         raise RuntimeError("空回复")
     except Exception as e:
+        # v121：AI 镜像网站打不开 → 直接算失败，不换卡重试（换卡也打不开）
+        if "AI 镜像网站打不开" in str(e):
+            return "（分析出错：%s）" % str(e)[:200]
         # v62：是你点了「停止」才中断的 → 不再换卡重试
         try:
             import web_model as _wm
@@ -2564,6 +2567,33 @@ def _pool_ready_for_batch():
     return True, ""
 
 
+# v121：哪条 AI 分析失败了、为什么（加工页的清单里标出来）；分析成功就去掉。存在 video_notes/_an_fail.json
+_AN_FAIL = {"data": None}
+
+
+def _an_fail_all():
+    if _AN_FAIL["data"] is None:
+        try:
+            _AN_FAIL["data"] = json.loads((_cx_video_dir() / "_an_fail.json").read_text(encoding="utf-8"))
+        except Exception:
+            _AN_FAIL["data"] = {}
+    return _AN_FAIL["data"]
+
+
+def _an_fail_set(name, why):
+    d = _an_fail_all()
+    if why:
+        d[name] = why[:200]
+    elif name in d:
+        del d[name]
+    else:
+        return
+    try:
+        (_cx_video_dir() / "_an_fail.json").write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
+
+
 def _note_batch_worker(names, use_local, model):
     """一条一条补分析。挂机友好：
     · 连续 2 条失败不再永久暂停，而是等 3 / 5 / 10 / 20 / 30 分钟后自动接着跑，接着跑之前先测 AI 池能不能连上；
@@ -2632,6 +2662,15 @@ def _note_batch_worker(names, use_local, model):
                 _note_batch["streak"] = _note_batch.get("streak", 0) + 1
                 _note_batch["errors"] = ([x for x in _note_batch["errors"] if x.get("name") != name]
                                          + [{"name": name, "error": err[:160]}])[-20:]
+                if "AI 镜像网站打不开" in err:
+                    # v121：网站打不开，后面的也分析不了：整批停下，等你看过再重新开始
+                    _note_batch["done"] += 1
+                    _note_batch["fail"] += 1
+                    _note_batch["paused"] = ""
+                    _note_batch["stopped_why"] = err[:200]
+                    _note_batch["stop"] = True
+                    _clog("视频", "⛔ 批量补分析停了：%s" % err[:120])
+                    break
                 if tries[name] < _BATCH_MAX_TRIES:
                     fl = _note_batch.setdefault("failed_names", [])
                     if name not in fl:
@@ -3406,6 +3445,14 @@ def _note_analyze_worker_inner(name, use_local, model):
             _note_an_state["ok"] = ok
             _note_an_state["error"] = "" if ok else (err or "补分析未成功")
             _note_an_state["done_id"] += 1
+            _stopped_by_you = bool(_note_an_state.get("stop_req"))
+        try:   # v121：标注分析失败（你点停止的不算）
+            if ok:
+                _an_fail_set(name, "")
+            elif not _stopped_by_you:
+                _an_fail_set(name, (err or "补分析未成功").replace("（分析出错：", "").rstrip("）"))
+        except Exception:
+            pass
 
 
 def _normalize_video_url(url):
@@ -6648,7 +6695,7 @@ class Handler(BaseHTTPRequestHandler):
                         kind = s[3:].strip()[:20]
                         break
                 items.append({"name": p.name, "title": title, "author": author, "ts": _ts, "kind": kind,
-                              "analyzed": analyzed,
+                              "analyzed": analyzed, "an_fail": _an_fail_all().get(p.name, "") if not analyzed else "",
                               "folder": mapping.get(p.name, "")})
             # 顺手清理：分组表里指向已删除笔记的残留条目
             stale = [k for k in mapping if k not in existing]

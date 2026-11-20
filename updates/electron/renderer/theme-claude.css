@@ -830,3 +830,11 @@ body.dark .vn-kind.k-gh { background: #e6e6e3; color: #1f1e1a; }
 .vi-an-status.warn { color: #b0571e; background: rgba(200,110,30,.10); }
 .vi-an-live { margin-top: 10px; }
 .vi-an-live:empty { display: none; }
+
+/* v121：加工页处理进度的「停止」、清单里的「分析失败」 */
+.vi-an-row { display: flex; align-items: flex-start; gap: 10px; }
+.vi-an-row .vi-an-status { flex: 1; min-width: 0; }
+.vi-an-stop { flex: none; margin-top: 3px; color: #c0392b; border-color: rgba(192,57,43,.45); }
+.vi-an-stop:hover { background: rgba(192,57,43,.08); }
+.vi-an-stop[hidden] { display: none; }
+.vn-un-fail { padding: 1px 7px; border-radius: 6px; font-size: 11.5px; color: #c0392b; background: rgba(192,57,43,.10); cursor: help; }

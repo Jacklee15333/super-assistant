@@ -400,7 +400,10 @@
             <!-- v120：加工的处理进度（单条 / 批量 AI 分析）和 AI 实时画面都在这里 -->
             <div class="v-card vi-an-card" id="viAnCard">
               <div class="v-card-head"><span class="v-card-title">⏳ 处理进度</span></div>
-              <div id="viAnStatus" class="vi-an-status">现在没有在分析的内容。点下面「批量 AI 分析」，或者单条的「AI 分析」开始。</div>
+              <div class="vi-an-row">
+                <div id="viAnStatus" class="vi-an-status">现在没有在分析的内容。点下面「批量 AI 分析」，或者单条的「AI 分析」开始。</div>
+                <button type="button" class="ghost-btn small vi-an-stop" id="viAnStop" hidden>停止</button>
+              </div>
               <div id="viAnLive" class="vi-an-live"></div>
             </div>
             <div class="vi-process-bars" id="viProcessBars"></div>
