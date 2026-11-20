@@ -256,7 +256,8 @@ function navSync(view, sub) {
   document.querySelectorAll(".sidebar .nav-item").forEach((b) => b.classList.remove("active"));
   const vis = hit
     ? document.querySelector('.sidebar .nav-item[data-nav-group="' + (NAV_GROUPS[hit.g].parkedIn || hit.g) + '"]')
-    : Array.from(document.querySelectorAll('.sidebar .nav-item[data-view="' + view + '"]')).find((b) => !b.closest(".nav-legacy"));
+    : Array.from(document.querySelectorAll('.sidebar .nav-item[data-view="' + view + '"]')).find((b) => !b.closest(".nav-legacy") &&
+        (view !== "video" || (b.dataset.videoMode || "work") === (document.getElementById("view-video")?.dataset.mode || "work")));
   if (vis) vis.classList.add("active");
   document.body.classList.toggle("on-chat", view === "chat");
   if (hit && hit.tab) { try { localStorage.setItem("cx.navTab." + hit.g, hit.tab.key); } catch (e) {} }
@@ -312,7 +313,7 @@ document.querySelectorAll(".nav-item").forEach((btn) => {
     document.getElementById("view-" + btn.dataset.view).classList.add("active");
     if (btn.dataset.view === "memory") { loadMemoryTabs(); }
     if (btn.dataset.view === "dashboard") loadDashboard();
-    if (btn.dataset.view === "video") { loadVideoNotes(); pollVideoProgress(); }
+    if (btn.dataset.view === "video") { setVideoMode(btn.dataset.videoMode || "work"); loadVideoNotes(); pollVideoProgress(); }
     if (btn.dataset.view === "datadb") { if (typeof loadDataDb === "function") loadDataDb(); }
     if (btn.dataset.view === "library") loadLibrary();
     if (btn.dataset.view === "lumi") { loadLumi(); }
@@ -346,6 +347,44 @@ document.getElementById("snTabs")?.addEventListener("click", () => {
   setTimeout(() => {
     if (document.getElementById("view-sniff")?.classList.contains("active")) navSync("sniff");
   }, 0);
+});
+
+// ── v115：「加工」和「笔记」是同一页的两种样子 ──
+// 加工：放进来、处理进度、提取失败、批量 AI 分析；笔记：只看加工好的（最新提取、博主、文件夹）。
+function setVideoMode(mode) {
+  const v = document.getElementById("view-video");
+  if (!v) return;
+  mode = mode === "notes" ? "notes" : "work";
+  if (v.dataset.mode && v.dataset.mode !== mode && typeof vnReaderIsOpen === "function" && vnReaderIsOpen()) {
+    try { vnReaderClose(); } catch (e) {}
+  }
+  v.dataset.mode = mode;
+  v.classList.toggle("vmode-notes", mode === "notes");
+  v.classList.toggle("vmode-work", mode === "work");
+  const t = document.getElementById("videoPageTitle");
+  if (t) t.textContent = mode === "notes" ? "笔记" : "加工";
+}
+setVideoMode("work");
+// 笔记列表里画出来的「提取失败」「批量 AI 分析」两条，搬到加工页
+(function () {
+  const list = document.getElementById("videoNotesList"), dest = document.getElementById("viWorkExtras");
+  if (!list || !dest) return;
+  new MutationObserver(() => {
+    ["vnFailBar", "vnBatchBar"].forEach((id) => {
+      const el = list.querySelector(":scope > #" + id);
+      if (!el) return;
+      const old = dest.querySelector(":scope > #" + id);
+      if (old) old.remove();
+      dest.appendChild(el);
+    });
+    const f = dest.querySelector(":scope > #vnFailBar");
+    if (f && f !== dest.firstElementChild) dest.insertBefore(f, dest.firstElementChild);
+  }).observe(list, { childList: true });
+})();
+document.addEventListener("click", (e) => {
+  const g = e.target.closest && e.target.closest("[data-video-goto]");
+  if (!g) return;
+  document.querySelector('.sidebar .nav-item[data-view="video"][data-video-mode="' + g.dataset.videoGoto + '"]')?.click();
 });
 
 // 打开「设置 → 配置」里的某个文件（待开发、通知页上的按钮用）
@@ -3930,6 +3969,7 @@ async function loadVideoNotes() {
     const folders = data.folders || [];
     if (data.tidy && data.tidy.length) _vnTidyMsgs = _vnTidyMsgs.concat(data.tidy).slice(-6);   // v64
     list.innerHTML = "";
+    { const _vx = document.getElementById("viWorkExtras"); if (_vx) _vx.innerHTML = ""; }   // v115：搬到加工页的那两条也一起重画
 
     // 顶部小工具条：新建文件夹（把同一作者/同一主题的笔记归到一起）
     const bar = document.createElement("div");

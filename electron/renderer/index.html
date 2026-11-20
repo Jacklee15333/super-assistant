@@ -143,6 +143,7 @@
       <nav class="nav">
         <button class="nav-item nav-item-chat active" data-view="chat" title="回到当前对话"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 0 1 3 11.5 8.5 8.5 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z"/></svg><span>对话</span></button>
         <button class="nav-item" data-view="video" title="什么都能放进来：视频、文章、GitHub 项目、一段文字、文件"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 13.5h4.8l1.6 2.8h4.2l1.6-2.8h4.8"/><path d="M5.8 5h12.4l2.3 8.5v4.6a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2v-4.6z"/><path d="M12 3.5v6m-2.6-2.4L12 9.7l2.6-2.6"/></svg><span>加工</span></button>
+        <button class="nav-item" data-view="video" data-video-mode="notes" title="加工好的东西：最新提取、博主、文件夹"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5h11a1.5 1.5 0 0 1 1.5 1.5v14a1.5 1.5 0 0 1-1.5 1.5h-11z"/><path d="M6.5 3.5v17M5 7.5h3M5 12h3M5 16.5h3M10.5 8h5M10.5 11.5h5"/></svg><span>笔记</span></button>
         <button class="nav-item" data-nav-group="sniff"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.5M7.8 16.2a6 6 0 0 1 0-8.5M19.1 4.9a10 10 0 0 1 0 14.2M4.9 19.1a10 10 0 0 1 0-14.2"/></svg><span>嗅探</span></button>
         <button class="nav-item" data-nav-group="data"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13"/><path d="M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8"/></svg><span>资料库</span></button>
         <button class="nav-item" data-nav-group="lab" title="暂时用不上、还没想好怎么用的功能"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6"/><path d="M10 3v6.2l-5.3 8.9A1.9 1.9 0 0 0 6.3 21h11.4a1.9 1.9 0 0 0 1.6-2.9L14 9.2V3"/><path d="M7.2 15h9.6"/></svg><span>待开发</span></button>
@@ -295,7 +296,7 @@
       <!-- 视频内容提取视图 -->
       <section class="view view-video" id="view-video">
         <header class="topbar">
-          <span style="display:flex;align-items:center">加工
+          <span style="display:flex;align-items:center"><span id="videoPageTitle">加工</span>
             <button id="videoInfoBtn" class="info-btn" title="使用说明">ⓘ</button>
           </span>
         </header>
@@ -377,6 +378,10 @@
             <div id="videoTasks" class="video-tasks"></div>
             <div id="videoResult" class="dash-content video-result"></div>
           </div>
+
+          <!-- v115：提取失败、批量 AI 分析也是「加工」的事，从笔记列表里挪到这里（渲染还在笔记列表里做，渲染完搬过来） -->
+          <div class="vi-work-extras" id="viWorkExtras"></div>
+          <div class="vi-to-notes">加工好的东西都在「笔记」里。<button type="button" class="ghost-btn small" data-video-goto="notes">打开笔记</button></div>
 
           <!-- ③ 已存笔记：历史记录 -->
           <div class="v-card v-card-saved">
