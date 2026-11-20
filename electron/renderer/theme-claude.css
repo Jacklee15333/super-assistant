@@ -702,3 +702,8 @@ body.dark .vn-kind.k-gh { background: #e6e6e3; color: #1f1e1a; }
 #view-video .video-input-row { flex-wrap: wrap; row-gap: 8px; }
 #view-video textarea.vi-input { flex: 1 1 100%; width: 100%; }
 #view-video #videoGoBtn { margin-left: auto; }
+
+/* v113：没有聊过的对话时「最近对话」整块不显示 */
+.convo-section[hidden] { display: none !important; }
+/* 「最近对话」不显示时，终端 / 设置仍贴在最底下 */
+.sidebar-foot { margin-top: auto; }
