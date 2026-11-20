@@ -5579,14 +5579,24 @@ function vnCleanAnalysis(md) {
   let s = String(md || "")
     .replace(/^\s*#{0,6}\s*ChatGPT\s*说[:：]?\s*$\n?/gm, "")
     .replace(/!\[[^\]]*\]\(https?:\/\/www\.google\.com\/s2\/favicons[^)]*\)\s*/g, "")
+    // v133：按钮上的字（「重置清单 复制清单」「复制代码」）、「思考了 58s」这类整行小字
+    .replace(/^[ \t]*(?:#{1,6}[ \t]*)?(?:ChatGPT[ \t]*(?:说|said)[ \t]*[:：]?|你说[ \t]*[:：]?|最新一条回复|(?:已)?思考了?[ \t]*\d[\dms秒分钟 \t]*|思考用时.{0,12}|Thought for .{0,24}|重置清单(?:[ \t]*复制清单)?|复制清单|复制代码|显示更多|显示全部|Copy code)[ \t]*$\n?/gim, "")
     .trim();
-  // v131：第一个小标题前面零零碎碎的几个字（网页按钮上的字，比如「写作」）去掉
+  // v131：第一个小标题前面零零碎碎的几个字去掉；v133：AI 动手前的开场白（「我会按你指定的结构整理…」）、
+  //       思考过程的小标题（「核查了文本脉络」）也去掉。「中文标题」和「以下笔记依据文字稿整理…」这类说明留着
+  const junk = (ln) => {
+    const t = ln.trim();
+    if (!t || /中文标题/.test(t)) return false;
+    if (t.length <= 6) return true;
+    if (!/以下/.test(t) && /^(?:好的|好|收到|明白|可以|当然)?[，,。！!\s]*我(?:会|将|先|来|这就|马上|现在|准备)/.test(t)) return true;
+    return t.length <= 16 && /^[\u4e00-\u9fa5]{1,6}了[\u4e00-\u9fa5A-Za-z0-9 ]{1,12}$/.test(t);
+  };
   const i = s.search(/^#{1,4}\s/m);
   if (i > 0) {
-    const head = s.slice(0, i).split("\n").filter((ln) => ln.trim() && !(ln.trim().length <= 6 && !/中文标题/.test(ln)));
+    const head = s.slice(0, i).split("\n").filter((ln) => ln.trim() && !junk(ln));
     s = (head.length ? head.join("\n") + "\n\n" : "") + s.slice(i);
   }
-  return s;
+  return s.replace(/\n{3,}/g, "\n\n");
 }
 // 加工结果只写了开头就断了（缺了「核心观点」以后的部分）：提示一下，给个「重新加工」
 function vnIncompleteNotice(data) {
