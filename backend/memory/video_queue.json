@@ -1,39 +1,17 @@
 {
   "current": {
-    "url": "https://www.youtube.com/watch?v=zJnlhQtHEEQ",
+    "url": "https://www.douyin.com/video/7706560989050703104",
     "level": "ultra",
     "use_local": true,
     "model": "qwen3:14b",
     "screenshot": false,
     "link": false,
     "mode": "auto",
-    "id": "vj1795137217.2783406-0",
-    "title": "潛力新星：曾敬驊、李沐、游宇潼、ØZI 首度合體！｜ELLE 11月封面人物 Cover Star",
+    "id": "vj1795137217.4267004-0",
+    "title": "抖音视频 …703104",
     "fail_count": 1
   },
   "pending": [
-    {
-      "url": "https://www.douyin.com/video/7660888653740166415",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137217.417138-0",
-      "title": "抖音视频 …166415"
-    },
-    {
-      "url": "https://www.douyin.com/video/7706560989050703104",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137217.4267004-0",
-      "title": "抖音视频 …703104"
-    },
     {
       "url": "https://www.douyin.com/video/7706141219650325802",
       "level": "ultra",

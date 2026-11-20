@@ -3,6 +3,8 @@
 //   · 今日观测：8 个每天扫一遍的源 + 8 个每周精读的源，可打勾（打开网站会自动打勾），每天一个思考问题
 //   · 全部信息源：100 个源，按「一手信息 / 数据信号 / 研究分析 / 新闻讨论」四层金字塔筛选，
 //     也能按分类、中英文、更新频率、收藏筛选；每个源可以一键「加入嗅探」，让小助定时盯它的更新
+//     v108：「批量加入嗅探」——勾选多个（或全选当前显示的）一次加进去；嗅探清单不再限制数量；
+//           显示「网页抓取增强（Scrapling）」的安装状态
 //   · 方法：怎么把每天的阅读变成判断趋势的能力
 // 自己挂导航事件，不改 renderer.js（renderer.js 的通用切换逻辑负责显示 #view-trendwatch）。
 // 「加入嗅探」复用后端已有接口：GET /sniff/sources、POST /sniff/source/add（类别「趋势瞭望台」）。
@@ -158,7 +160,6 @@
   ];
 
   var SNIFF_CATEGORY = "趋势瞭望台";
-  var SNIFF_MAX = 200;          // 和 backend/sniffer.py 的 MAX_SOURCES 一致
   var VIEWS = ["today", "all", "method"];
 
   // ---------------- 工具 ----------------
@@ -217,6 +218,8 @@
   if (VIEWS.indexOf(tab) < 0) tab = "today";
   var st = { q: "", lang: "all", freq: "all", layer: null, cat: null, fav: false };
   var sniff = { online: null, urls: new Set(), count: 0, busy: {} };
+  var sel = { on: false, urls: new Set() };      // v108：批量选择
+  var sc = { st: null, timer: null };            // v108：Scrapling 状态
 
   var STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/></svg>';
   function glyph(fb) { return '<span class="tw-fg ' + fb + '" role="img" aria-label="' + FREQ_NAME[fb] + '" title="' + FREQ_NAME[fb] + '"></span>'; }
@@ -276,6 +279,8 @@
                   '<button type="button" class="tw-btn" id="twAddDaily">把今日观测的8个加入嗅探</button>' +
                   '<button type="button" class="tw-btn ghost" data-go="sniff">去嗅探看看</button>' +
                 "</div>" +
+                '<div class="tw-sc" id="twSc" hidden><p class="tw-sniffstat" id="twScText"></p>' +
+                  '<button type="button" class="tw-btn ghost" id="twScInstall" hidden>现在安装</button></div>' +
               "</div>" +
               '<div class="tw-card">' +
                 '<h3 class="tw-h">四个节奏</h3>' +
@@ -310,8 +315,17 @@
           '<div class="tw-legend" aria-label="更新频率图例">' +
             "<span>" + glyph("d") + "每天更新</span><span>" + glyph("w") + "每周更新</span><span>" + glyph("m") + "每月更新</span><span>" + glyph("x") + "每季、每年、不定期或按需查</span>" +
           "</div>" +
-          '<div class="tw-status"><span id="twCount"></span><span class="right"><span id="twSniffCount"></span><button type="button" class="tw-link" id="twClear" hidden>清除筛选</button></span></div>' +
+          '<div class="tw-status"><span id="twCount"></span><span class="right"><span id="twSniffCount"></span><button type="button" class="tw-link" id="twClear" hidden>清除筛选</button>' +
+            '<button type="button" class="tw-btn ghost tw-batch-btn" id="twBatch">批量加入嗅探</button></span></div>' +
           '<div id="twList"></div>' +
+          '<div class="tw-batchbar" id="twBatchBar" hidden>' +
+            '<span class="tw-selcount" id="twSelCount">已选 0 个</span>' +
+            '<button type="button" class="tw-link" data-sel="shown">全选当前显示的</button>' +
+            '<button type="button" class="tw-link" data-sel="none">清空</button>' +
+            '<span class="sp"></span>' +
+            '<button type="button" class="tw-btn" id="twSelAdd" disabled>加入嗅探</button>' +
+            '<button type="button" class="tw-btn ghost" id="twSelDone">完成</button>' +
+          "</div>" +
           '<p class="tw-note">整理于2026年11月。个别网站可能改版或更换地址，打不开时搜一下名称即可。英文网站可以用浏览器自带的翻译；标“付费”的大多有免费部分；部分海外网站在国内的访问情况会变化，可以先用同类中文源替代。</p>' +
         "</div>" +
 
@@ -369,7 +383,7 @@
       "</div>" +
       '<div class="tw-card">' +
         '<h3 class="tw-h">在小助里怎么用</h3>' +
-        "<p>常看的网站点「加入嗅探」，小助会抓取、对比更新，把新内容提炼出来。到「嗅探」的「网站新动态」里点「快速嗅探」看变化，想要成文报告点「深度嗅探」，也可以打开「自动嗅探」让它定时跑。嗅探清单最多200个网站。每个网站都要抓取、有变化时还要让模型提炼，网站越多一轮跑得越久；暂时不想看的类别，可以在嗅探页把整个类别关掉。</p>" +
+        "<p>常看的网站点「加入嗅探」，小助会抓取、对比更新，把新内容提炼出来。到「嗅探」的「网站新动态」里点「快速嗅探」看变化，想要成文报告点「深度嗅探」，也可以打开「自动嗅探」让它定时跑。嗅探清单不限数量，在「全部信息源」里点「批量加入嗅探」可以一次勾选很多个。小助会同时打开几个网站，再一个个对比、有变化时让模型提炼；网站越多一轮跑得越久，暂时不想看的类别，可以在嗅探页把整个类别关掉。普通方式打不开、被拦，或者只抓到空壳（靠 JavaScript 加载的网页）时，会自动用 Scrapling 换真浏览器再抓一次，并记住这个网站该怎么抓。</p>" +
         "<p>这100个不需要每天都看。先从“今日观测”的8个和“本周精读”的8个开始，坚持四周，再按“有没有给我带来新判断”决定留下还是替换。收藏常用的源，用“只看收藏”就能得到自己的精简清单。很多优质中文内容在微信公众号里，可以挑5到10个与你行业相关的号固定阅读。</p>" +
       "</div>" +
     "</div>";
@@ -436,9 +450,18 @@
     if (sniff.busy[s.url]) return '<button type="button" class="tw-sniff" disabled>加入中…</button>';
     return '<button type="button" class="tw-sniff" data-sniff="' + esc(s.url) + '" title="让小助抓取这个网站、对比更新，有新内容就提炼出来">加入嗅探</button>';
   }
+  function pickHTML(s) {
+    if (!sel.on) return "";
+    var inSniff = sniff.urls.has(normUrl(s.url));
+    var on = inSniff || sel.urls.has(s.url);
+    return '<label class="tw-ckbox tw-pick" title="' + (inSniff ? "已经在嗅探清单里" : "选中后点下面的「加入嗅探」") + '">' +
+      '<input type="checkbox" data-pick="' + esc(s.url) + '"' + (on ? " checked" : "") + (inSniff ? " disabled" : "") +
+      ' aria-label="选择 ' + esc(s.name) + '"><span aria-hidden="true"></span></label>';
+  }
   function row(s) {
     var f = favs.has(s.url);
-    return '<div class="tw-src">' + glyph(s.fb) +
+    var picked = sel.on && sel.urls.has(s.url);
+    return '<div class="tw-src' + (sel.on ? " selmode" : "") + (picked ? " picked" : "") + '" data-u="' + esc(s.url) + '">' + pickHTML(s) + glyph(s.fb) +
       '<div class="tw-src-main"><div class="tw-src-top"><a href="' + esc(s.url) + '" target="_blank" rel="noopener noreferrer">' + esc(s.name) + "</a>" +
       (s.paid ? '<span class="tw-badge">' + PAID[s.paid] + "</span>" : "") +
       '<span class="tw-lang">' + (s.lang === "zh" ? "中文" : "英文") + "</span></div>" +
@@ -472,7 +495,8 @@
     CATS.forEach(function (c) {
       var items = shown.filter(function (s) { return s.cat === c[0]; });
       if (!items.length) return;
-      html += '<section class="tw-card tw-grp"><div class="tw-grp-h"><h3 class="tw-h">' + c[1] + "</h3><p>" + c[2] + '</p><span class="n">' + items.length + " 个</span></div>" +
+      html += '<section class="tw-card tw-grp"><div class="tw-grp-h"><h3 class="tw-h">' + c[1] + "</h3><p>" + c[2] + '</p><span class="n">' + items.length + " 个</span>" +
+        (sel.on ? '<button type="button" class="tw-link" data-pickgrp="' + c[0] + '">全选这组</button>' : "") + "</div>" +
         '<div class="tw-rows">' + items.map(row).join("") + "</div></section>";
     });
     if (!html) {
@@ -481,13 +505,57 @@
     }
     $("twList").innerHTML = html;
     renderSniffStat();
+    renderSel();
+  }
+
+  // ---------------- v108：批量选择 ----------------
+  function selectable(s) { return !sniff.urls.has(normUrl(s.url)); }
+  function renderSel() {
+    var bar = $("twBatchBar"), btn = $("twBatch");
+    if (!bar) return;
+    bar.hidden = !sel.on;
+    if (btn) btn.hidden = sel.on;
+    // 已经在嗅探里的不算选中
+    sel.urls.forEach(function (u) { if (!BY_URL[u] || !selectable(BY_URL[u])) sel.urls.delete(u); });
+    var n = sel.urls.size;
+    $("twSelCount").textContent = "已选 " + n + " 个";
+    var add = $("twSelAdd");
+    add.disabled = n === 0 || !!sniff.bulk || sniff.online === false;
+    add.textContent = sniff.bulk ? "正在加入…" : "加入嗅探（" + n + "）";
+  }
+  function setSelMode(on) {
+    sel.on = on;
+    if (!on) sel.urls.clear();
+    renderAll();
+  }
+  function pick(url, on) {
+    var s = BY_URL[url];
+    if (!s || !selectable(s)) return;
+    if (on) sel.urls.add(url); else sel.urls.delete(url);
+    Array.prototype.forEach.call(root.querySelectorAll('.tw-src[data-u]'), function (el) {
+      if (el.getAttribute("data-u") !== url) return;
+      el.classList.toggle("picked", on);
+      var cb = el.querySelector("input[data-pick]"); if (cb) cb.checked = on;
+    });
+    renderSel();
+  }
+  function pickMany(list) {
+    list.filter(selectable).forEach(function (s) { sel.urls.add(s.url); });
+    renderAll();
+  }
+  function addSelected() {
+    var list = SRC.filter(function (s) { return sel.urls.has(s.url) && selectable(s); });
+    if (!list.length) return;
+    addMany(list).then(function (res) {
+      if (res.ok) { sel.urls.clear(); sel.on = false; renderAll(); }
+    });
   }
 
   // ---------------- 嗅探联动 ----------------
   function renderSniffStat() {
     var txt = sniff.online === false
       ? "没连上小助后台，暂时不能加入嗅探"
-      : sniff.online ? "嗅探清单里已有 " + sniff.count + " / " + SNIFF_MAX + " 个网站" : "";
+      : sniff.online ? "嗅探清单里已有 " + sniff.count + " 个网站" : "";
     var a = $("twSniffStat"), b = $("twSniffCount");
     if (a) a.textContent = txt;
     if (b) b.textContent = txt;
@@ -504,6 +572,7 @@
       if (!url || el.getAttribute("data-u") === url) el.innerHTML = sniffSlotHTML(s || BY_URL[el.getAttribute("data-u")]);
     });
     renderSniffStat();
+    if (sel.on && !url) renderAll();
   }
   function refreshSniff() {
     return fetch(backend() + "/sniff/sources")
@@ -545,20 +614,89 @@
   function addDailyToSniff() {
     var todo = DAILY.filter(function (s) { return !sniff.urls.has(normUrl(s.url)); });
     if (!todo.length || sniff.bulk) return;
-    sniff.bulk = true; renderSniffStat();
-    var added = 0, failMsg = "";
-    var chain = Promise.resolve();
-    todo.forEach(function (s) {
-      chain = chain.then(function () {
-        if (failMsg) return;
-        return addOne(s).then(function (res) { if (res.ok && !res.existed) added += 1; if (!res.ok) failMsg = res.message; });
+    addMany(todo);
+  }
+
+  // 一次把很多个加进嗅探：后台有 /sniff/source/add_many 就一次请求，没有（老版本）就一个个加
+  function addMany(list) {
+    if (!list.length || sniff.bulk) return Promise.resolve({ ok: false });
+    sniff.bulk = true; renderSniffStat(); renderSel();
+    function finish(added, existed, failMsg) {
+      sniff.bulk = false;
+      updateSniffSlots(); renderSel();
+      var tail = "到「嗅探」的「网站新动态」里点「快速嗅探」，或打开「自动嗅探」。";
+      if (failMsg) toast((added ? "已加入 " + added + " 个，" : "") + "有的没加进去：" + failMsg, true);
+      else toast("已加入 " + added + " 个网站到嗅探（类别「" + SNIFF_CATEGORY + "」）" + (existed ? "，另有 " + existed + " 个本来就在" : "") + "。" + tail);
+      return { ok: !failMsg || added > 0, added: added };
+    }
+    return fetch(backend() + "/sniff/source/add_many", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category: SNIFF_CATEGORY, items: list.map(function (s) { return { title: s.name, url: s.url, category: SNIFF_CATEGORY }; }) })
+    })
+      .then(function (r) { if (!r.ok) throw new Error("old"); return r.json(); })
+      .then(function (d) {
+        if (!d || !d.ok || !Array.isArray(d.added_urls)) throw new Error("old");
+        sniff.online = true;
+        d.added_urls.concat(d.existed || []).forEach(function (u) { sniff.urls.add(normUrl(u)); });
+        if (typeof d.total === "number") sniff.count = d.total; else sniff.count += d.added_urls.length;
+        var bad = (d.invalid || []).map(function (x) { return x.message; })[0] || "";
+        return finish(d.added_urls.length, (d.existed || []).length, bad);
+      })
+      .catch(function () {
+        // 老后台：一个个加
+        var added = 0, existed = 0, failMsg = "";
+        var chain = Promise.resolve();
+        list.forEach(function (s) {
+          chain = chain.then(function () {
+            if (failMsg) return;
+            return addOne(s).then(function (res) {
+              if (res.ok && !res.existed) added += 1; else if (res.ok) existed += 1;
+              if (!res.ok) failMsg = res.message;
+            });
+          });
+        });
+        return chain.then(function () { return finish(added, existed, failMsg); });
       });
-    });
-    chain.then(function () {
-      sniff.bulk = false; renderSniffStat();
-      if (failMsg) toast((added ? "已加入 " + added + " 个，" : "") + "后面的没加进去：" + failMsg, true);
-      else toast("已加入 " + added + " 个网站到嗅探（类别「" + SNIFF_CATEGORY + "」）。到「嗅探」的「网站新动态」里点「快速嗅探」，或打开「自动嗅探」。");
-    });
+  }
+
+  // ---------------- v108：网页抓取增强（Scrapling）状态 ----------------
+  function renderScrapling() {
+    var box = $("twSc"), txt = $("twScText"), btn = $("twScInstall");
+    if (!box) return;
+    var d = sc.st;
+    if (!d) { box.hidden = true; return; }
+    box.hidden = false;
+    btn.hidden = true;
+    if (d.ready) {
+      txt.textContent = "网页抓取增强（Scrapling）已就绪：普通方式打不开、被拦，或只抓到空壳的网站，嗅探时会自动换真浏览器再抓。";
+    } else if (d.installing) {
+      txt.textContent = "网页抓取增强（Scrapling）正在后台安装：" + (d.msg || "请稍等") + "装好前嗅探照常用原来的方式。";
+    } else if (d.error) {
+      txt.textContent = "网页抓取增强（Scrapling）没装上：" + d.error;
+      btn.textContent = "重试安装"; btn.hidden = !d.python_ok;
+    } else {
+      txt.textContent = "网页抓取增强（Scrapling）还没装：装好后，打不开或动态加载的网站，嗅探时会自动换真浏览器再抓（约 200MB，只需一次）。";
+      btn.textContent = "现在安装"; btn.hidden = !d.python_ok;
+    }
+  }
+  function refreshScrapling() {
+    return fetch(backend() + "/scrapling/status")
+      .then(function (r) { if (!r.ok) throw new Error("old"); return r.json(); })
+      .then(function (d) { sc.st = d; })
+      .catch(function () { sc.st = null; })
+      .then(function () {
+        renderScrapling();
+        clearTimeout(sc.timer);
+        if (sc.st && sc.st.installing && root.classList.contains("active")) sc.timer = setTimeout(refreshScrapling, 5000);
+      });
+  }
+  function installScrapling() {
+    var btn = $("twScInstall"); if (btn) btn.disabled = true;
+    fetch(backend() + "/scrapling/install", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d && !d.ok && d.message) toast(d.message, true); })
+      .catch(function () { toast("没连上小助后台，稍后再试", true); })
+      .then(function () { if (btn) btn.disabled = false; refreshScrapling(); });
   }
 
   var toastTimer = null;
@@ -632,6 +770,26 @@
         return;
       }
       if ((b = t.closest("button[data-sniff]"))) { addToSniff(b.getAttribute("data-sniff")); return; }
+      if (t.closest("#twBatch")) { setSelMode(true); return; }
+      if (t.closest("#twSelDone")) { setSelMode(false); return; }
+      if (t.closest("#twSelAdd")) { addSelected(); return; }
+      if (t.closest("#twScInstall")) { installScrapling(); return; }
+      if ((b = t.closest("button[data-sel]"))) {
+        if (b.getAttribute("data-sel") === "none") { sel.urls.clear(); renderAll(); }
+        else pickMany(SRC.filter(function (s) { return ok(s); }));
+        return;
+      }
+      if ((b = t.closest("button[data-pickgrp]"))) {
+        var g = b.getAttribute("data-pickgrp");
+        pickMany(SRC.filter(function (s) { return ok(s) && s.cat === g; }));
+        return;
+      }
+      // 批量模式下，点一行的空白处也能勾选/取消
+      if (sel.on && (b = t.closest(".tw-src.selmode")) && !t.closest("a,button,input,label")) {
+        var su = b.getAttribute("data-u");
+        if (BY_URL[su] && selectable(BY_URL[su])) pick(su, !sel.urls.has(su));
+        return;
+      }
       if ((b = t.closest("button[data-layer]"))) { var k = b.getAttribute("data-layer"); st.layer = st.layer === k ? null : k; renderAll(); return; }
       if ((b = t.closest("button[data-cat]"))) { st.cat = b.getAttribute("data-cat") || null; renderAll(); return; }
       if ((b = t.closest(".tw-seg button"))) {
@@ -662,6 +820,7 @@
     root.addEventListener("change", function (e) {
       var t = e.target;
       if (t && t.matches && t.matches('input[type="checkbox"][data-kind]')) setDone(t.getAttribute("data-kind"), t.getAttribute("data-url"), t.checked);
+      if (t && t.matches && t.matches('input[type="checkbox"][data-pick]')) pick(t.getAttribute("data-pick"), t.checked);
     });
     root.addEventListener("input", function (e) {
       if (e.target && e.target.id === "twSearch") { st.q = e.target.value.trim(); renderAll(); }
@@ -677,6 +836,7 @@
     renderAll();
     showTab(tab);
     refreshSniff();
+    refreshScrapling();
   }
   window.loadTrendwatch = load;
 

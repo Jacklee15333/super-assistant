@@ -33,7 +33,7 @@ _DIR = Path(__file__).resolve().parent / "memory"
 _STORE = _DIR / "creator_watch.json"
 
 _LOCK = threading.RLock()
-_MAX_CREATORS = 50          # 最多盯多少个博主
+_MAX_CREATORS = 0           # v108：不再限制盯多少个博主（0 = 不限）
 _MAX_FINDINGS = 300         # 待办清单最多留多少条（超了丢最旧的）
 _DEFAULT_PER_SCAN = 15      # 每个博主每次最多取最近多少条
 
@@ -250,7 +250,7 @@ def add_creator(url, platform="auto", title=""):
     creators = store.get("creators", [])
     if any((c.get("url") or "").strip() == url for c in creators):
         return {"ok": False, "message": "这个主页已经在清单里了"}
-    if len(creators) >= _MAX_CREATORS:
+    if _MAX_CREATORS and len(creators) >= _MAX_CREATORS:
         return {"ok": False, "message": f"最多盯 {_MAX_CREATORS} 个博主"}
     detected = ""
     if not title:

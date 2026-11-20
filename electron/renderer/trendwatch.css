@@ -173,6 +173,22 @@ body.dark .view-trendwatch{ --tw-warn:#e0a24a; --tw-ok:#6cc08b; }
 .view-trendwatch .tw-tpl{margin:8px 0;background:var(--tw-track);border-radius:10px;padding:12px 14px}
 .view-trendwatch .tw-tpl pre{margin:0 0 10px;white-space:pre-wrap;font-family:var(--sans);font-size:var(--fz-base,13px);line-height:1.75;color:var(--text)}
 
+/* ===== v108：批量加入嗅探 ===== */
+.view-trendwatch .tw-batch-btn{padding:4px 11px;font-size:var(--fz-sec,12px)}
+.view-trendwatch .tw-pick{margin-top:.3em}
+.view-trendwatch .tw-ckbox input:disabled + span{opacity:.45}
+.view-trendwatch .tw-src.selmode{cursor:pointer;padding-left:6px;padding-right:6px;margin:0 -6px;border-radius:8px}
+.view-trendwatch .tw-src.selmode:hover{background:var(--tw-hover)}
+.view-trendwatch .tw-src.picked,.view-trendwatch .tw-src.picked:hover{background:var(--tw-soft)}
+.view-trendwatch .tw-grp-h .tw-link{margin-left:6px}
+.view-trendwatch .tw-batchbar{position:sticky;bottom:12px;z-index:5;display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--bg-elev);border:1px solid var(--line-strong,var(--line));border-radius:12px;padding:10px 14px;box-shadow:var(--shadow-pop);margin-top:12px}
+.view-trendwatch .tw-batchbar .sp{flex:1}
+.view-trendwatch .tw-selcount{font-size:var(--fz-base,13px);font-weight:700;color:var(--text)}
+/* Scrapling 状态 */
+.view-trendwatch .tw-sc{margin-top:12px;padding-top:10px;border-top:1px dashed var(--line)}
+.view-trendwatch .tw-sc .tw-sniffstat{margin-top:0}
+.view-trendwatch .tw-sc .tw-btn{margin-top:8px}
+
 /* 底部提示条 */
 .view-trendwatch .tw-toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);max-width:min(560px,90vw);background:var(--text);color:var(--bg);font-size:var(--fz-base,13px);line-height:1.6;padding:9px 16px;border-radius:10px;box-shadow:var(--shadow-pop);z-index:50}
 .view-trendwatch .tw-toast.bad{background:#b3412e;color:#fff}

@@ -9,6 +9,9 @@ sniffer.py — AI 嗅探（情报雷达）
 复用 competitor_watch 的「抓页面→快照对比→只处理变化」思路，复用 web_tools 抓取。
 可手动「立即嗅探」，也可挂到心跳上自动跑（界面开关）。
 
+v108：清单不再限制数量；可以一次加入多个网站；普通方式打不开、被拦、或只抓到空壳（动态网页）时，
+自动用 Scrapling（scrapling_fetch.py）补救，哪种方式管用会记住；同时打开多个网站，一轮跑得更快。
+
 数据都存本地：
   memory/sniff_sources.json   要嗅探的网站清单 [{id,title,url,enabled}]
   memory/sniff_feed.json      嗅探到的内容时间线 [{...}]
@@ -38,8 +41,8 @@ SOURCES_PATH = MEMORY_DIR / "sniff_sources.json"
 FEED_PATH = MEMORY_DIR / "sniff_feed.json"
 CONFIG_PATH = MEMORY_DIR / "sniff_config.json"
 
-MAX_FEED = 400       # 时间线最多留这么多条（v107：盯的站多了，留得也多一点）
-MAX_SOURCES = 200    # 最多盯这么多站（v107 从 50 提到 200：趋势瞭望台有 100 个源，再留出自己加的余地）
+MAX_FEED = 1000      # 时间线最多留这么多条（v108：清单不限数量了，历史多留一些）
+PREF_PATH = MEMORY_DIR / "sniff_fetch_pref.json"   # 每个网站用哪种方式抓得到（v108）
 
 # 默认内置的 AI 资讯源（首次运行写入；用户可增删）
 _DEFAULT_SOURCES = [
@@ -56,7 +59,9 @@ _DEFAULT_SOURCES = [
 
 # ---------------- 配置 ----------------
 def get_config():
-    cfg = {"auto": False, "every": 6, "engine": "follow"}  # engine: follow/web/claude
+    cfg = {"auto": False, "every": 6, "engine": "follow",   # engine: follow/web/claude
+           "workers": 4,          # v108：同时打开几个网站
+           "scrapling": True}     # v108：打不开/空壳时用 Scrapling 补救
     try:
         if CONFIG_PATH.exists():
             cfg.update(json.loads(CONFIG_PATH.read_text(encoding="utf-8")))
@@ -69,6 +74,11 @@ def get_config():
     cfg["auto"] = bool(cfg.get("auto", False))
     if cfg.get("engine") not in ("follow", "web", "claude"):
         cfg["engine"] = "follow"
+    try:
+        cfg["workers"] = max(1, min(int(cfg.get("workers", 4)), 8))
+    except Exception:
+        cfg["workers"] = 4
+    cfg["scrapling"] = bool(cfg.get("scrapling", True))
     return cfg
 
 
@@ -101,7 +111,18 @@ def should_run_now(beat_count):
 
 # ---------------- 源清单 ----------------
 def _new_id():
-    return hashlib.md5((str(time.time()) + str(id(object()))).encode()).hexdigest()[:8]
+    import uuid
+    return uuid.uuid4().hex[:8]
+
+
+def _norm_url(u):
+    """比较网址用：去掉 www、结尾斜杠，不分大小写（https://a.com/ 和 https://www.a.com 算同一个）。"""
+    try:
+        from urllib.parse import urlparse
+        x = urlparse((u or "").strip())
+        return ((x.hostname or "").lower().replace("www.", "", 1) + x.path.rstrip("/")).lower()
+    except Exception:
+        return (u or "").strip().lower()
 
 
 def ensure_seeded():
@@ -121,6 +142,16 @@ def _load_sources():
                 for s in data:
                     if not s.get("category"):
                         s["category"] = "AI动态"
+                # v108：修复重复的 id——老版本一口气生成 id 会撞车（默认那几个网站常常同一个 id），
+                # 结果删一个会把同 id 的全删掉、开关一个会全跟着变。发现就换成新 id 并保存。
+                seen, fixed = set(), False
+                for s in data:
+                    if not s.get("id") or s["id"] in seen:
+                        s["id"] = _new_id()
+                        fixed = True
+                    seen.add(s["id"])
+                if fixed:
+                    _save_sources(data)
                 return data
     except Exception:
         pass
@@ -129,7 +160,7 @@ def _load_sources():
 
 def _save_sources(srcs):
     try:
-        SOURCES_PATH.write_text(json.dumps(srcs[:MAX_SOURCES], ensure_ascii=False, indent=2),
+        SOURCES_PATH.write_text(json.dumps(srcs, ensure_ascii=False, indent=2),
                                 encoding="utf-8")
     except Exception:
         pass
@@ -164,14 +195,44 @@ def add_source(title, url, category="AI动态"):
     if not title:
         title = re.sub(r"^https?://", "", url).split("/")[0]
     srcs = _load_sources()
-    if any(s.get("url") == url for s in srcs):
+    key = _norm_url(url)
+    if any(_norm_url(s.get("url")) == key for s in srcs):
         return {"ok": False, "message": "这个网址已经在清单里了"}
-    if len(srcs) >= MAX_SOURCES:
-        return {"ok": False, "message": f"最多盯 {MAX_SOURCES} 个站"}
     srcs.append({"id": _new_id(), "title": title, "url": url,
                  "enabled": True, "category": category})
     _save_sources(srcs)
     return {"ok": True}
+
+
+def add_sources(items, category="AI动态"):
+    """一次加入多个网站（v108，趋势瞭望台「批量加入嗅探」用）。items: [{title, url, category?}]。
+    已经在清单里的跳过，网址不对的跳过并说明原因；只读写一次文件。"""
+    default_cat = (category or "").strip() or "AI动态"
+    srcs = _load_sources()
+    have = set(_norm_url(s.get("url")) for s in srcs)
+    added, existed, invalid = [], [], []
+    for it in (items or []):
+        if not isinstance(it, dict):
+            continue
+        url = (it.get("url") or "").strip()
+        title = (it.get("title") or "").strip()
+        cat = (it.get("category") or "").strip() or default_cat
+        if not url.startswith(("http://", "https://")):
+            invalid.append({"url": url, "message": "网址要以 http:// 或 https:// 开头"})
+            continue
+        key = _norm_url(url)
+        if key in have:
+            existed.append(url)
+            continue
+        if not title:
+            title = re.sub(r"^https?://", "", url).split("/")[0]
+        srcs.append({"id": _new_id(), "title": title, "url": url, "enabled": True, "category": cat})
+        have.add(key)
+        added.append(url)
+    if added:
+        _save_sources(srcs)
+    return {"ok": True, "added": len(added), "added_urls": added, "existed": existed,
+            "invalid": invalid, "total": len(srcs)}
 
 
 def set_category(sid, category):
@@ -383,8 +444,8 @@ def _humanize_err(e, url=None):
     return s[:70]
 
 
-def _fetch_smart(url):
-    """更聪明的抓取：配了代理就优先走代理（境外站多数需要），失败再直连兜底；
+def _fetch_classic(url):
+    """原来的抓取方式（v107 及以前叫 _fetch_smart）：配了代理就优先走代理（境外站多数需要），失败再直连兜底；
     没配代理就直连。给慢/不稳的站点一次重试机会。返回 (page, via, err)。"""
     # 代理按网址自动决定：境外站一律走代理（不再直连兜底——国内直连境外站只会失败，
     # 还会把真正的错误盖掉，比如 OpenAI 对国内 IP 直接回 403）；国内站一律直连。
@@ -423,26 +484,154 @@ def _fetch_smart(url):
     return None, None, last_err
 
 
+# ---------------- v108：Scrapling 补救 ----------------
+_CHALLENGE_MARKS = ("just a moment", "checking your browser", "enable javascript and cookies",
+                    "please enable javascript", "verify you are human", "verifying you are human",
+                    "attention required", "access denied", "请开启javascript", "请启用javascript",
+                    "需要启用javascript", "安全验证", "人机验证")
+_pref_lock = None
+
+
+def _page_text(page):
+    return _normalize(W._extract_text(page or ""))
+
+
+def _looks_thin(text):
+    """只抓到空壳：正文太少（多半是靠 JS 动态加载的网页），或者是「请验证你是人」之类的拦截页。"""
+    if len(text) < 300:
+        return True
+    if len(text) < 2500:
+        low = text.lower().replace(" ", "")
+        return any(m.replace(" ", "") in low for m in _CHALLENGE_MARKS)
+    return False
+
+
+def _pref_all():
+    try:
+        return json.loads(PREF_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _pref_get(url):
+    return (_pref_all().get(_norm_url(url)) or {}).get("mode")
+
+
+def _pref_set(url, mode):
+    """记住这个网站用哪种方式抓得到（fast / browser）；mode=None 表示原来的方式就行，删掉记录。"""
+    global _pref_lock
+    import threading
+    if _pref_lock is None:
+        _pref_lock = threading.Lock()
+    with _pref_lock:
+        d = _pref_all()
+        k = _norm_url(url)
+        if mode:
+            d[k] = {"mode": mode, "at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M")}
+        elif k in d:
+            d.pop(k, None)
+        else:
+            return
+        try:
+            PREF_PATH.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+
+def _scrapling_ok():
+    try:
+        if not get_config().get("scrapling", True):
+            return False
+        import scrapling_fetch as SF
+        return SF.available()
+    except Exception:
+        return False
+
+
+def _fetch_scrapling(url, mode):
+    try:
+        import scrapling_fetch as SF
+        try:
+            proxy = W.proxy_for(url) or None
+        except Exception:
+            proxy = None
+        html = SF.fetch(url, mode=mode, proxy=proxy)
+        return html, "scrapling-" + mode, None
+    except Exception as e:
+        return None, None, e
+
+
+def _via_note(via):
+    via = via or ""
+    if via.startswith("scrapling-browser"):
+        return "（经 Scrapling 真浏览器）"
+    if via.startswith("scrapling"):
+        return "（经 Scrapling）"
+    if via == "proxy":
+        return "（经代理）"
+    return ""
+
+
+def _fetch_smart(url):
+    """v108：先用原来的方式抓；打不开、被拦、或只抓到空壳（动态网页）时，用 Scrapling 补救——
+    先「快速」（真浏览器指纹＋真实请求头），再「浏览器」（用 Chrome 真正打开、自动过 Cloudflare）。
+    哪种方式管用会记住，下次直接用（省掉原来方式的等待）。返回 (page, via, err)。"""
+    use_sc = _scrapling_ok()
+    pref = _pref_get(url) if use_sc else None
+    if pref in ("fast", "browser"):
+        page, via, err = _fetch_scrapling(url, pref)
+        if page is not None and not _looks_thin(_page_text(page)):
+            return page, via, None
+    page, via, err = _fetch_classic(url)
+    if page is None and err is not None and ("404" in str(err) or "401" in str(err)):
+        return None, None, err            # 页面不存在 / 要登录：换什么方式都没用
+    if page is not None and (not use_sc or not _looks_thin(_page_text(page))):
+        if pref:
+            _pref_set(url, None)          # 原来的方式又能用了
+        return page, via, None
+    if use_sc:
+        tries = ["fast", "browser"] if page is None else ["browser"]
+        tries = [m for m in tries if m != pref]   # 刚才已经试过的不重复
+        base_len = len(_page_text(page)) if page is not None else 0
+        for mode in tries:
+            p2, via2, err2 = _fetch_scrapling(url, mode)
+            if p2 is None:
+                continue
+            t2 = _page_text(p2)
+            if not _looks_thin(t2) or len(t2) > max(base_len * 1.5, base_len + 200):
+                _pref_set(url, mode)
+                return p2, via2, None
+    if page is not None:
+        return page, via, None            # 只有空壳也交回去，后面会报「抓不到正文」
+    return None, None, err
+
+
 # 个别站点主页面重/不稳时的备用地址
 _ALT_URLS = {
     "huggingface.co/blog": ["https://huggingface.co/blog/feed.xml", "https://hf-mirror.com/blog"],
 }
 
 
-def _scan_one(client, model, src, report):
+def _scan_one(client, model, src, report, prefetched=None):
     """抓取+对比+提炼单个源。report(status, detail) 实时回报进度。返回 (items, log)。
     status: fetching/failed/empty/first/unchanged/nodiff/extracting/found/nonew
+    prefetched：v108 先并行抓好的 (正文, via, err)；没有就自己抓。
     """
     title = src.get("title") or src.get("url")
     url = src.get("url")
 
-    report("fetching", "正在打开链接…")
-    page, via, err = _fetch_smart(url)
-    if err is not None:
-        report("failed", "打不开：" + _humanize_err(err, url))
-        return [], f"[{title}] 抓取失败：{err}"
-    text = _normalize(W._extract_text(page))
-    via_note = "（经代理）" if via == "proxy" else ""
+    if prefetched is None:
+        report("fetching", "正在打开链接…")
+        page, via, err = _fetch_smart(url)
+        if err is not None:
+            report("failed", "打不开：" + _humanize_err(err, url))
+            return [], f"[{title}] 抓取失败：{err}"
+        text = _normalize(W._extract_text(page))
+    else:
+        text, via, err = prefetched
+        if err is not None:
+            return [], f"[{title}] 抓取失败：{err}"      # 抓取阶段已经报过「打不开」
+    via_note = _via_note(via)
 
     nchar = len(text)
     if not text:
@@ -625,6 +814,48 @@ def generate_sniff_report(use_local=False, model="web", verbose=False,
     return report
 
 
+def _prefetch_all(sources):
+    """v108：同时打开多个网站（默认 4 个，配置 workers），返回每个源的 (正文, via, err)。
+    进度：打开中=fetching，打开失败=failed，打开了等着对比=queued。"""
+    n = len(sources)
+    out = [None] * n
+    if not n:
+        return out
+    workers = max(1, min(get_config().get("workers", 4), n))
+    lk = _threading.Lock()
+    done = [0]
+
+    def rep(i, status, detail):
+        try:
+            _run_state["progress"][i]["status"] = status
+            _run_state["progress"][i]["detail"] = detail
+        except Exception:
+            pass
+
+    def job(i):
+        url = sources[i].get("url")
+        rep(i, "fetching", "正在打开链接…")
+        try:
+            page, via, err = _fetch_smart(url)
+        except Exception as e:
+            page, via, err = None, None, e
+        if page is None or err is not None:
+            err = err or RuntimeError("打不开")
+            out[i] = (None, via, err)
+            rep(i, "failed", "打不开：" + _humanize_err(err, url))
+        else:
+            out[i] = (_normalize(W._extract_text(page)), via, None)
+            rep(i, "queued", "已打开" + _via_note(via) + "，等着对比…")
+        with lk:
+            done[0] += 1
+            _run_state["stage"] = f"正在打开网站（{done[0]}/{n}，同时开 {workers} 个）"
+
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        list(ex.map(job, range(n)))
+    return out
+
+
 def run_sniff(use_local=True, model="qwen2.5", verbose=False):
     """嗅探所有启用的源。返回 (新增条目列表, 日志文本)。新增高/中重要度的会推送。
     过程中实时写 _run_state['progress']，前端轮询 /sniff/feed 拿到。"""
@@ -664,7 +895,10 @@ def run_sniff(use_local=True, model="qwen2.5", verbose=False):
     seen = set(it.get("key") for it in feed)
     new_items, logs = [], []
 
-    for idx, src in enumerate(sources[:MAX_SOURCES]):
+    # v108：先同时打开多个网站（抓取最花时间），再一个个对比、提炼（模型一次只跑一个）
+    prefetched = _prefetch_all(sources)
+
+    for idx, src in enumerate(sources):
         if verbose:
             print(f"  嗅探：{src.get('title')}")
 
@@ -675,8 +909,8 @@ def run_sniff(use_local=True, model="qwen2.5", verbose=False):
             except Exception:
                 pass
 
-        _run_state["stage"] = f"正在嗅探（{idx + 1}/{len(sources)}）：{src.get('title')}"
-        items, msg = _scan_one(client, model, src, report)
+        _run_state["stage"] = f"正在对比提炼（{idx + 1}/{len(sources)}）：{src.get('title')}"
+        items, msg = _scan_one(client, model, src, report, prefetched=prefetched[idx])
         logs.append(msg)
         added_here = 0
         for it in items:

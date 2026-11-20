@@ -89,6 +89,7 @@ _LOG_QUIET_PATHS = {
     "/creator/list", "/creator/findings", "/creator/videos_cached",
     "/creator/x_cookie_status",
     "/logs", "/ai_live", "/ai_live_shot", "/version", "/gpu_status", "/creator_profiles", "/creator_avatar",
+    "/scrapling/status", "/sniff/sources",
 }
 
 # 给少数关键路径配一句「人话」描述，让日志一眼能看懂用户在干嘛。
@@ -4222,6 +4223,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(source_discover.status())
             except Exception as e:
                 return self._send({"running": False, "error": str(e), "results": []})
+        if path == "/scrapling/status":
+            # v108：网页抓取增强（Scrapling）装好了没有
+            try:
+                import scrapling_fetch
+                return self._send(scrapling_fetch.status())
+            except Exception as e:
+                return self._send({"ready": False, "installing": False, "error": str(e)}, 200)
         if path == "/sniff/sources":
             try:
                 import sniffer
@@ -4966,6 +4974,22 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 import source_discover
                 return self._send(source_discover.start(body.get("keyword", ""), body.get("n", 15)))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/sniff/source/add_many":
+            # v108：一次加入多个网站（趋势瞭望台「批量加入嗅探」）
+            try:
+                import sniffer
+                return self._send(sniffer.add_sources(body.get("items") or [],
+                                                      category=body.get("category", "AI动态")))
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path == "/scrapling/install":
+            try:
+                import scrapling_fetch
+                return self._send(scrapling_fetch.start_install())
             except Exception as e:
                 return self._send({"ok": False, "message": str(e)}, 200)
 
@@ -7124,6 +7148,12 @@ def main():
         gpu_accel.prepare_async()
     except Exception as e:
         print("[gpu] 准备显卡加速失败：%s" % e)
+    # v108：嗅探的网页抓取增强（Scrapling）——没装就在后台装到独立环境，不影响软件自己的依赖
+    try:
+        import scrapling_fetch
+        scrapling_fetch.prepare_async()
+    except Exception as e:
+        print("[scrapling] 准备抓取增强失败：%s" % e)
     # 启动时恢复上次没跑完的视频任务，自动接着处理
     try:
         _restore_video_queue()
