@@ -1,160 +1,17 @@
 {
   "current": {
-    "url": "https://www.douyin.com/video/7705724498523348840",
+    "url": "https://www.douyin.com/video/7697512496642737743",
     "level": "ultra",
     "use_local": true,
     "model": "qwen3:14b",
     "screenshot": false,
     "link": false,
     "mode": "auto",
-    "id": "vj1795137217.9904454-0",
-    "title": "抖音视频 …348840",
+    "id": "vj1795137218.9321313-0",
+    "title": "抖音视频 …737743",
     "fail_count": 1
   },
   "pending": [
-    {
-      "url": "https://www.douyin.com/video/7705283434479404642",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137218.0579586-0",
-      "title": "抖音视频 …404642"
-    },
-    {
-      "url": "https://www.douyin.com/video/7704544069301885795",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137218.0681686-0",
-      "title": "抖音视频 …885795"
-    },
-    {
-      "url": "https://www.douyin.com/video/7703445536606791906",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137218.0763743-0",
-      "title": "抖音视频 …791906"
-    },
-    {
-      "url": "https://www.douyin.com/video/7702404897715247592",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137218.0846403-0",
-      "title": "抖音视频 …247592"
-    },
-    {
-      "url": "https://www.douyin.com/video/7701306542700934056",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137218.1061563-0",
-      "title": "抖音视频 …934056"
-    },
-    {
-      "url": "https://www.douyin.com/video/7700934444384156239",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137218.116271-0",
-      "title": "抖音视频 …156239"
-    },
-    {
-      "url": "https://www.douyin.com/video/7700475514297748706",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137218.125467-0",
-      "title": "抖音视频 …748706"
-    },
-    {
-      "url": "https://www.douyin.com/video/7699796876128879266",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137218.16094-0",
-      "title": "抖音视频 …879266"
-    },
-    {
-      "url": "https://www.douyin.com/video/7699348472445133184",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137218.192506-0",
-      "title": "抖音视频 …133184"
-    },
-    {
-      "url": "https://www.douyin.com/video/7699089356762498447",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137218.2256186-0",
-      "title": "抖音视频 …498447"
-    },
-    {
-      "url": "https://www.douyin.com/video/7698671364484093583",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137218.249705-0",
-      "title": "抖音视频 …093583"
-    },
-    {
-      "url": "https://www.douyin.com/video/7697893824912310991",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137218.3440182-0",
-      "title": "抖音视频 …310991"
-    },
-    {
-      "url": "https://www.douyin.com/video/7697512496642737743",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137218.9321313-0",
-      "title": "抖音视频 …737743"
-    },
     {
       "url": "https://www.douyin.com/video/7696410998035333519",
       "level": "ultra",
