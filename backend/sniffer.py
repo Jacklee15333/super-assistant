@@ -38,8 +38,8 @@ SOURCES_PATH = MEMORY_DIR / "sniff_sources.json"
 FEED_PATH = MEMORY_DIR / "sniff_feed.json"
 CONFIG_PATH = MEMORY_DIR / "sniff_config.json"
 
-MAX_FEED = 200       # 时间线最多留这么多条
-MAX_SOURCES = 50     # 最多盯这么多站（按关键词找信息源后，清单会变长）
+MAX_FEED = 400       # 时间线最多留这么多条（v107：盯的站多了，留得也多一点）
+MAX_SOURCES = 200    # 最多盯这么多站（v107 从 50 提到 200：趋势瞭望台有 100 个源，再留出自己加的余地）
 
 # 默认内置的 AI 资讯源（首次运行写入；用户可增删）
 _DEFAULT_SOURCES = [
