@@ -1352,8 +1352,11 @@ def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None
         client = core.make_client_for(s_model, s_use_local, on_progress=on_progress)
         resp = client.chat.completions.create(
             model=s_model, messages=[{"role": "user", "content": prompt}], **_web_kw)
-        out = (resp.choices[0].message.content or "").strip()
+        out = _clean_web_reply(resp.choices[0].message.content or "")
         if out:
+            _miss = _analysis_missing(out)
+            if _miss:      # v127：只写了开头（比如只到「背景与主题」）就断了 → 不收，换一张卡重来
+                raise RuntimeError("AI 回复没写完（缺了：%s）" % "、".join(_miss))
             return _bold_point_titles(out)
         raise RuntimeError("空回复")
     except Exception as e:
@@ -1376,12 +1379,38 @@ def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None
             resp = client.chat.completions.create(
                 model="web", messages=[{"role": "user", "content": prompt}],
                 **dict(core.VIDEO_ANALYSIS_WEB_OPTS, saveImages=True))
-            out = (resp.choices[0].message.content or "").strip()
+            out = _clean_web_reply(resp.choices[0].message.content or "")
             if out:
+                _miss = _analysis_missing(out)
+                if _miss:
+                    raise RuntimeError("AI 回复又没写完（缺了：%s）" % "、".join(_miss))
                 return _bold_point_titles(out)
             raise RuntimeError("空回复")
         except Exception as e2:
             return f"（分析出错：AI 池两次都没成功（{e2}）。请稍后在这条笔记上点「AI 分析」重试）"
+
+
+def _clean_web_reply(text):
+    """v127：网页 AI 回复里抓进来的杂字：「ChatGPT 说：」这一行、引用来源的小图标。"""
+    t = (text or "").strip()
+    t = re.sub(r"(?m)^\s*#{0,6}\s*ChatGPT\s*说[:：]?\s*$\n?", "", t)
+    t = re.sub(r"!\[[^\]]*\]\(https?://www\.google\.com/s2/favicons[^)]*\)\s*", "", t)
+    return t.strip()
+
+
+def _analysis_missing(text):
+    """v127：按「一句话概括 / 背景与主题 / 核心观点 / … / 我的点评」这套结构写的分析，
+    要是只写到前面一两块就断了，返回缺了哪几块；结构不是这套的不管（返回 []）。"""
+    t = text or ""
+    if "一句话概括" not in t:
+        return []
+    def has(word):
+        return re.search(r"(?m)^#{1,4}\s*[^\n]*" + word, t) is not None
+    later = ["关键事实", "金句", "值得记住", "我的点评"]
+    miss = [w for w in ["核心观点"] if not has(w)]
+    if not any(has(w) for w in later):
+        miss += ["关键事实与数据", "金句摘录", "值得记住的点", "我的点评"]
+    return miss
 
 
 def _cx_adopt_web_images(analysis, note_stem):
