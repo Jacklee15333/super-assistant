@@ -767,3 +767,39 @@ body.dark .vn-kind.k-gh { background: #e6e6e3; color: #1f1e1a; }
 #view-video .vi-sec .vt-tidy-auto { margin: 0; }
 /* 「搜索推荐」「维护工具」和「视频设置」一样的间距 */
 #view-video .v-card-extract > .vfind, #view-video .v-card-extract > .video-tools { margin-top: 10px !important; }
+
+/* ════════════════════ v118：一个框做所有事 ════════════════════ */
+#view-video .vi-main .vi-input-wrap { position: relative; flex: 1 1 auto; min-width: 0; }
+#view-video .vi-input-wrap textarea.vi-input { width: 100%; min-height: 62px; padding-right: 42px; }
+.vi-attach {
+  position: absolute; right: 8px; bottom: 8px; width: 28px; height: 28px; border-radius: 7px;
+  border: none; background: transparent; cursor: pointer; font-size: 15px; filter: grayscale(1); opacity: .6;
+}
+.vi-attach:hover { background: var(--bg-hover); opacity: 1; }
+.vi-attach-menu {
+  position: absolute; right: 8px; bottom: 40px; z-index: 30; display: flex; flex-direction: column; min-width: 140px;
+  padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-elev); box-shadow: var(--shadow-pop);
+}
+.vi-attach-menu[hidden] { display: none; }
+.vi-attach-item {
+  padding: 7px 10px; border: none; border-radius: 7px; background: transparent; text-align: left;
+  font: 13px var(--sans); color: var(--text); cursor: pointer;
+}
+.vi-attach-item:hover { background: var(--bg-hover); }
+.v-card-extract.vi-drag { outline: 2px dashed var(--accent); outline-offset: -6px; }
+.vi-kind-alt {
+  flex: none; margin-left: 4px; padding: 1px 8px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--line-strong); background: transparent; color: var(--text-dim); font: 12px var(--sans);
+}
+.vi-kind-alt:hover { color: var(--accent); border-color: var(--accent); }
+#view-video .vi-phone-row { display: flex; margin: 8px 0 2px; }
+#view-video .vi-phone-row:empty { display: none; }
+#view-video .vi-phone-row .ph-open-btn {
+  display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: 8px;
+  border: 1px solid var(--line-strong); background: transparent; color: var(--text); font: 500 12px var(--sans);
+}
+#view-video .vi-phone-row .ph-open-btn:hover { border-color: var(--accent); color: var(--accent); }
+/* 搜索推荐：输入就在上面的大框里，这里只显示进度和结果；没在搜时整块不显示 */
+#view-video #vFind:has(> .vfind-body[hidden]) { display: none; }
+#view-video #vFind .cw-find-tip, #view-video #vFind .vfind-row, #view-video #vFind .vfind-sub { display: none; }
+#view-video .vi-sec .video-tools { margin-top: 2px !important; }

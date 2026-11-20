@@ -98,11 +98,94 @@ def local_path(text):
     return ""
 
 
+MEDIA_EXTS = {".mp4", ".mkv", ".mov", ".avi", ".flv", ".wmv", ".webm", ".m4v", ".ts", ".mts", ".3gp", ".mpg",
+              ".mpeg", ".mp3", ".m4a", ".wav", ".aac", ".ogg", ".opus", ".flac", ".wma", ".amr"}
+
+
+def _clean_path(line):
+    return (line or "").strip().strip('"').strip("'").strip()
+
+
+def paths_in(text):
+    """v118：放进来的每一行都是电脑上存在的文件 / 文件夹 → 返回这些路径；不是 → []。"""
+    lines = [_clean_path(x) for x in (text or "").splitlines() if x.strip()]
+    if not lines or len(lines) > 200:
+        return []
+    out = []
+    for p in lines:
+        if not (re.match(r"^[A-Za-z]:[\\/]", p) or p.startswith("\\\\") or p.startswith("/")):
+            return []
+        try:
+            if not os.path.exists(p):
+                return []
+        except Exception:
+            return []
+        out.append(p)
+    return out
+
+
+def _supported(path):
+    if os.path.splitext(path)[1].lower() in MEDIA_EXTS:
+        return True
+    try:
+        import doc_import
+        return bool(doc_import.is_doc_path(path))
+    except Exception:
+        return False
+
+
+def scan_paths(paths, max_files=500, max_depth=4):
+    """v118：把拖进来 / 粘进来的文件和文件夹展开成能提取的文件清单（文件夹往下找 4 层，最多 500 个）。"""
+    files, dirs = [], []
+    def walk(d, depth):
+        if depth > max_depth or len(files) >= max_files:
+            return
+        try:
+            ents = sorted(os.listdir(d))
+        except Exception:
+            return
+        for n in ents:
+            if n.startswith(".") or len(files) >= max_files:
+                continue
+            f = os.path.join(d, n)
+            if os.path.isdir(f):
+                walk(f, depth + 1)
+            elif _supported(f):
+                files.append(f)
+    for p in paths or []:
+        p = _clean_path(p)
+        if not p:
+            continue
+        if os.path.isdir(p):
+            dirs.append(p)
+            walk(p, 0)
+        elif os.path.isfile(p) and _supported(p) and len(files) < max_files:
+            files.append(p)
+    name = os.path.basename(dirs[0].rstrip("\\/")) if len(dirs) == 1 and len(paths or []) == 1 else ""
+    return {"files": files, "name": name, "count": len(files), "dirs": len(dirs)}
+
+
+_SEARCH = re.compile(r"^\s*(?:搜索|搜|查找|找)\s*[:：\s]\s*(\S.*)$", re.S)
+
+
+def search_query(text):
+    """v118：「搜：AI 芯片」「找：跨境电商」这样开头的 → 返回要搜的领域；不是 → 空串。"""
+    m = _SEARCH.match(text or "")
+    if not m or "\n" in m.group(1).strip() or len(m.group(1).strip()) > 60:
+        return ""
+    return m.group(1).strip()
+
+
 def classify(text):
-    """'file' | 'github' | 'article' | 'video' | 'text' | ''（空的）"""
+    """'paths' | 'file' | 'search' | 'github' | 'article' | 'video' | 'text' | ''（空的）"""
     t = (text or "").strip()
     if not t:
         return ""
+    ps = paths_in(t)
+    if ps:
+        return "file" if (len(ps) == 1 and os.path.isfile(ps[0])) else "paths"
+    if search_query(t):
+        return "search"
     if local_path(t):
         return "file"
     if github_repo(t):
@@ -122,6 +205,8 @@ _DESC = {
     "github": ("GitHub 项目", "读项目信息和 README，整理出安装方法，放进「%s」文件夹；之后可以一键让小助帮你装" % GH_FOLDER),
     "text": ("一段文字", "直接存成一条笔记，放进「%s」文件夹；需要时再点「AI 分析」" % TEXT_FOLDER),
     "file": ("本地文件", "音视频提取文字稿；PDF、Word、Excel 等文档读出全文"),
+    "paths": ("文件 / 文件夹", "找出里面所有音视频和文档（包括子文件夹），逐个提取"),
+    "search": ("搜索推荐", "让 AI 联网找这个领域最值得关注的博主和网站，挑好了一键加进嗅探"),
 }
 
 
@@ -130,7 +215,10 @@ def describe(text):
     if not k:
         return {"kind": ""}
     label, hint = _DESC[k]
-    return {"kind": k, "label": label, "hint": hint}
+    out = {"kind": k, "label": label, "hint": hint}
+    if k == "search":
+        out["query"] = search_query(text)
+    return out
 
 
 def text_title(text):

@@ -4494,6 +4494,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_web_model_test(body)
         if path == "/heartbeat":
             return self._handle_heartbeat(body)
+        if path == "/intake_scan":                    # v118：拖进来 / 粘进来的文件和文件夹 → 能提取的文件清单
+            try:
+                import intake as _ik
+                return self._send(_ik.scan_paths(body.get("paths") or []))
+            except Exception as e:
+                return self._send({"files": [], "error": str(e)[:200]})
         if path == "/intake_kind":                    # v112：加工——认一认放进来的是什么
             try:
                 import intake as _ik
@@ -6402,8 +6408,10 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 import intake as _ik
                 _intake = _ik.classify(url)
+                if _intake in ("search", "paths"):     # v118：这两种前端自己处理；万一直接发到这里，就当一段文字存
+                    _intake = "text"
                 if _intake == "file":
-                    local_path, url = _ik.local_path(url), ""
+                    local_path, url = (_ik.local_path(url) or (_ik.paths_in(url) or [""])[0]), ""
             except Exception:
                 _intake = ""
         level = body.get("level", "balanced")
