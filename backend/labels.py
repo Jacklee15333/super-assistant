@@ -13,6 +13,7 @@
 """
 from __future__ import annotations
 
+import collections
 import json
 import os
 import re
@@ -46,7 +47,7 @@ TAXONOMY = [
         ("求职", "找工作、面试、简历、校招"), ("工作方法", "做事方法、汇报、开会"),
         ("带团队", "管理者成长、新经理、团队管理"), ("职业发展", "升职加薪、职业规划、转行"),
         ("职场关系", "和领导同事相处、职场冲突")]),
-    ("自媒体", "做内容、做账号", [
+    ("内容创作", "讲怎么做内容、做账号的（作者是自媒体博主不算，按文章讲的事分）", [
         ("短视频", "选题、脚本、拍摄、剪辑"), ("账号运营", "涨粉、流量、平台规则和算法"),
         ("写作文案", "写作、文案、表达技巧"), ("个人IP", "个人品牌、人设"),
         ("内容变现", "广告、带货、知识付费"), ("直播", "直播技巧、直播运营")]),
@@ -84,7 +85,7 @@ TAXONOMY = [
 ]
 DEFAULT_CATS = [(n, d) for n, d, _s in TAXONOMY]          # 大类（作者领域只用大类）
 # v132 的一级分类 → v134 的大类（以前贴好的标签照样认）
-OLD2NEW = {"商业创业": "商业", "财经投资": "财经", "个人成长": "成长", "内容创作": "自媒体", "时事社会": "社会",
+OLD2NEW = {"商业创业": "商业", "财经投资": "财经", "个人成长": "成长", "自媒体": "内容创作", "时事社会": "社会",
            "历史人文": "人文", "心理情感": "心理", "教育学习": "教育", "生活娱乐": "生活"}
 # 模型偶尔不按名字写：常见说法 → 大类
 _ALIAS = dict(OLD2NEW, **{
@@ -93,7 +94,7 @@ _ALIAS = dict(OLD2NEW, **{
     "创业": "商业", "营销": "商业", "经营": "商业", "副业": "商业", "电商": "商业",
     "金融": "财经", "投资": "财经", "理财": "财经", "经济": "财经",
     "个人成长": "成长", "认知": "成长", "自我提升": "成长", "效率": "成长", "思维": "成长",
-    "内容创作": "自媒体", "短视频": "自媒体", "创作": "自媒体", "写作": "自媒体",
+    "自媒体": "内容创作", "短视频": "内容创作", "创作": "内容创作", "写作": "内容创作",
     "时事": "社会", "新闻": "社会", "国际": "社会", "政治": "社会",
     "历史": "人文", "哲学": "人文", "文化": "人文",
     "心理学": "心理", "情感": "心理", "婚恋": "心理", "两性": "心理",
@@ -323,7 +324,7 @@ _SUB_ALIAS = {
     "财经": {"经济": "宏观经济", "投资": "投资交易", "交易": "投资交易", "理财": "财富认知", "财富": "财富认知",
            "金融": "金融常识", "楼市": "房产"},
     "职场": {"面试": "求职", "管理": "带团队", "团队管理": "带团队", "升职": "职业发展", "职业规划": "职业发展"},
-    "自媒体": {"拍摄": "短视频", "剪辑": "短视频", "运营": "账号运营", "涨粉": "账号运营", "写作": "写作文案", "文案": "写作文案",
+    "内容创作": {"拍摄": "短视频", "剪辑": "短视频", "运营": "账号运营", "涨粉": "账号运营", "写作": "写作文案", "文案": "写作文案",
             "IP": "个人IP", "个人品牌": "个人IP", "变现": "内容变现"},
     "科技": {"汽车": "汽车出行", "新能源": "汽车出行", "火箭": "航天", "卫星": "航天", "手机": "手机数码", "数码": "手机数码",
            "芯片": "芯片硬件", "科普": "科学科普", "科学": "科学科普"},
@@ -401,7 +402,7 @@ def public_authors():
     out = {}
     for k, v in author_labels().items():
         if isinstance(v, dict) and v.get("dom"):
-            out[k] = {x: v.get(x, "") for x in ("dom", "dir", "why", "src", "by")}
+            out[k] = {x: v.get(x, "") for x in ("dom", "sub", "dir", "why", "src", "by")}
             out[k]["dom"] = OLD2NEW.get(out[k]["dom"], out[k]["dom"])      # v132 的分类名 → 现在的大类名
     return out
 
@@ -455,7 +456,7 @@ def _fill_sub(name, sub, kw=None):
     return True
 
 
-def set_author(key, dom, by="you", **extra):
+def set_author(key, dom, by="you", sub="", **extra):
     """给作者定领域。by="ai" 时不覆盖你手动定的。dom 为空 = 清掉。"""
     key = (key or "").strip()
     if not key:
@@ -471,6 +472,8 @@ def set_author(key, dom, by="you", **extra):
             d.pop(key, None)
         else:
             e = {"dom": dom, "by": by, "at": int(time.time())}
+            if sub and by == "you":
+                e["sub"] = _clean_cat(sub)
             if by == "ai":
                 for k in ("dir", "why", "src"):
                     if extra.get(k):
@@ -479,6 +482,8 @@ def set_author(key, dom, by="you", **extra):
         _write(_author_file(), d)
     if dom and by == "you":
         add_cat(dom)
+        if sub:
+            add_sub(dom, sub)
     return True
 
 
@@ -598,7 +603,8 @@ def _note_prompt(batch):
             "要求：\n"
             "① 每篇只输出一行，格式：编号. 大类/子类｜关键词1、关键词2\n"
             "② 子类必须是那个大类下面的；子类都不合适就写「大类/其它」；整张表都不合适才写「%s」\n"
-            "③ 按这篇讲的内容分，不按作者分：和 AI 相关的都放 AI（哪怕是 AI 公司的新闻）；律师用法律视角评热点放「法律/热点评法」；"
+            "③ 按这篇讲的内容分，不按作者分：作者是自媒体博主，不代表这篇就是「内容创作」——只有讲怎么做内容、做账号的才放那里；"
+            "和 AI 相关的都放 AI（哪怕是 AI 公司的新闻）；律师用法律视角评热点放「法律/热点评法」；"
             "转发的推文按推文讲的事分；影视剧情解读放「生活/影视娱乐」\n"
             "④ 标了「大类已定」的，大类照写，只在那个大类里选子类\n"
             "⑤ 关键词 2～6 个字，说清楚这篇具体讲什么；不要写作者名、账号名、平台活动名（比如“抖音精选”“抖来学法”）\n"
@@ -825,6 +831,32 @@ _want = {"full": False, "notes": [], "authors": []}
 _NOTE_BATCH = {"local": 12, "pool": 40}
 _HOME_OFF_AFTER = 5            # 连着这么多位作者的主页都读不到 → 这一轮后面的只用库里的笔记判断
 _NET_PAUSE = 3                 # 读完一位作者的主页，歇几秒再读下一位（免得被平台风控）
+AUTHOR_FROM_NOTES = 5          # v135：库里分好类的文章有这么多篇的作者，领域直接按这些文章算（界面上算），不用读主页
+
+
+def _flag_file():
+    return _mem() / "label_job.json"
+
+
+def _flag(on):
+    """v136：你点了「自动贴标签」还没贴完就关了软件 → 下次开软件接着贴。"""
+    try:
+        p = _flag_file()
+        if on:
+            p.write_text(json.dumps({"at": int(time.time())}), encoding="utf-8")
+        elif p.exists():
+            p.unlink()
+    except Exception:
+        pass
+
+
+def resume_on_start():
+    try:
+        if _flag_file().exists():
+            _log("接着上次没贴完的标签")
+            start(full=True)
+    except Exception:
+        pass
 
 
 def job_state():
@@ -861,11 +893,15 @@ def start(full=True, notes=None, authors=None, auto=False):
         if _job["running"]:
             if not auto:
                 _job["auto"] = False           # 你点的：接着跑，界面上显示进度
+                if full:
+                    _flag(True)
             return True
         _job.update({"running": True, "stop": False, "auto": bool(auto), "phase": "", "mode": "",
                      "n_total": 0, "n_done": 0, "n_ok": 0, "n_fail": 0,
                      "a_total": 0, "a_done": 0, "a_ok": 0, "a_fail": 0, "a_local": 0, "a_cur": "", "a_stage": "",
                      "started": time.time(), "finished": 0, "summary": "", "err": ""})
+    if full and not auto:
+        _flag(True)
     threading.Thread(target=_run, daemon=True, name="labels").start()
     return True
 
@@ -1033,9 +1069,12 @@ def _run():
                     by_author.setdefault(n["author"], []).append(n)
             alab = author_labels()
             now = time.time()
+            lab2 = note_labels()
+            nlab = collections.Counter(n["author"] for n in notes
+                                       if n["author"] and n["analyzed"] and (lab2.get(n["name"]) or {}).get("cat"))
             cand = []
             if full:
-                cand = [a for a in by_author if not (alab.get(a) or {}).get("dom")]
+                cand = [a for a in by_author if not (alab.get(a) or {}).get("dom") and nlab[a] < AUTHOR_FROM_NOTES]
             for a in q_auth:
                 if a in by_author and a not in cand:
                     cand.append(a)
@@ -1043,7 +1082,8 @@ def _run():
                 a = n["author"]
                 if n["name"] in qs and a and a not in cand:
                     e = alab.get(a) or {}
-                    if not e.get("dom") and not (e.get("tried_at") and now - e["tried_at"] < 86400):
+                    if (not e.get("dom") and not (e.get("tried_at") and now - e["tried_at"] < 86400)
+                            and nlab[a] < AUTHOR_FROM_NOTES):
                         cand.append(a)
             cand.sort(key=lambda a: -len(by_author.get(a) or []))   # 笔记多的作者先判断
             if cand:
@@ -1080,5 +1120,6 @@ def _run():
                 s = "都贴好了，没有要贴的" if not (j["n_fail"] or j["a_fail"]) else "这次没贴上"
             j.update({"running": False, "stop": False, "phase": "", "a_cur": "", "a_stage": "",
                       "finished": time.time(), "summary": s})
+        _flag(False)                           # 贴完 / 你点了停止 / 出错停下：都不用再接着贴
         if not _job["auto"]:
             _log(s or ("没贴完：" + _job["err"]))

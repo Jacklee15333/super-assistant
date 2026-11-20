@@ -2675,15 +2675,18 @@ def _an_fail_set(name, why):
         pass
 
 
-def _note_batch_worker(names, use_local, model):
+def _note_batch_worker(names, use_local, model, tries0=None):
     """一条一条补分析。挂机友好：
     · 连续 2 条失败不再永久暂停，而是等 3 / 5 / 10 / 20 / 30 分钟后自动接着跑，接着跑之前先测 AI 池能不能连上；
     · 每条最多试 4 次；整批跑完后，把失败的再补一遍；
     · 跑的过程中新加进来的笔记（视频队列里分析失败的）也会接着补。"""
     import time as _time
-    tries = {}
+    tries = dict(tries0 or {})
     pending = list(names)
     backoff_i = 0
+
+    def _persist(cur=None):            # v136：断点续传——每一步都记下还剩哪些（正在做的那条排最前）
+        _batch_save(([cur] if cur else []) + [x for x in pending if x != cur], use_local, model, tries)
     try:
         while not _note_batch["stop"]:
             extra = _note_batch.get("extra") or []
@@ -2693,6 +2696,7 @@ def _note_batch_worker(names, use_local, model):
                     if nm not in pending:
                         pending.append(nm)
                         _note_batch["total"] += 1
+                _persist()
             if not pending:
                 # 第一遍跑完：失败但还没试满的，再补一遍
                 again = [n for n in _note_batch.get("failed_names", [])
@@ -2722,6 +2726,7 @@ def _note_batch_worker(names, use_local, model):
                 break
             _note_batch["current"] = name
             tries[name] = tries.get(name, 0) + 1
+            _persist(name)
             _note_analyze_worker(name, use_local, model)     # 同步跑完这一条
             with _note_an_lock:
                 ok = bool(_note_an_state.get("ok"))
@@ -2788,6 +2793,7 @@ def _note_batch_worker(names, use_local, model):
                     if tries[name] < _BATCH_MAX_TRIES and name in fl:
                         fl.remove(name)
                         pending.insert(0, name)
+            _persist()
             _time.sleep(1)
     finally:
         # 没试满就被停掉的，计成失败，方便看
@@ -2799,9 +2805,91 @@ def _note_batch_worker(names, use_local, model):
         _note_batch["current"] = ""
         _note_batch["waiting"] = ""
         _note_batch["finished"] = _time.time()
+        try:     # v136：做完了、或你点了停止 → 不用再接着做；网站打不开这类原因停下的留着，下次开软件接着做
+            if _note_batch.get("user_stop") or not _note_batch.get("stop"):
+                _batch_clear()
+        except Exception:
+            pass
         _clog("视频", "📦 批量补分析结束：完成 %d / %d（成功 %d，失败 %d）%s" % (
             _note_batch["done"], _note_batch["total"], _note_batch["ok"], _note_batch["fail"],
             "，已手动停止" if _note_batch["stop"] else ""))
+
+
+# ════════════════ v136：批量加工断点续传 ════════════════
+# 关软件时批量加工还在跑：下次打开软件，过几秒接着做剩下的（进度接着上次的数）。
+# 断点存在 video_notes/_batch.json；做完了、或你点了「停止」就删掉。
+def _batch_file():
+    return _cx_video_dir() / "_batch.json"
+
+
+def _batch_save(names, use_local, model, tries):
+    try:
+        st = {"names": list(names), "use_local": bool(use_local), "model": model or "",
+              "total": _note_batch.get("total", 0), "done": _note_batch.get("done", 0),
+              "ok": _note_batch.get("ok", 0), "fail": _note_batch.get("fail", 0),
+              "round": _note_batch.get("round", 1), "tries": dict(tries or {}),
+              "failed_names": list(_note_batch.get("failed_names") or []),
+              "started": _note_batch.get("started", 0), "saved_at": _time_now()}
+        p = _batch_file()
+        tmp = p.with_name(p.name + ".tmp")
+        tmp.write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
+        os.replace(str(tmp), str(p))
+    except Exception as e:
+        _clog("视频", "记批量加工的断点没成功：%s" % e)
+
+
+def _batch_clear():
+    try:
+        p = _batch_file()
+        if p.exists():
+            p.unlink()
+    except Exception:
+        pass
+
+
+def _vn_still_todo(name):
+    """这条笔记还在、而且还没加工（和清单的认法一样）。"""
+    try:
+        p = _cx_video_dir() / name
+        if not name or "/" in name or "\\" in name or not p.exists():
+            return False
+        with open(p, encoding="utf-8", errors="replace") as f:
+            lines = f.read(20000).split("\n")
+        if any(l.strip().lstrip("-").strip().startswith(("状态：未分析", "状态:未分析")) for l in _vn_head(lines)):
+            return True
+        return any("（分析出错" in ln for ln in lines[:120])
+    except Exception:
+        return False
+
+
+def _note_batch_resume():
+    """开软件时：上次批量加工没做完（关软件时还在跑）→ 接着做剩下的。"""
+    try:
+        st = json.loads(_batch_file().read_text(encoding="utf-8"))
+    except Exception:
+        return
+    if _note_batch["running"]:
+        return
+    names = []
+    for n in st.get("names") or []:
+        if n not in names and _vn_still_todo(n):
+            names.append(n)
+    failed = [n for n in (st.get("failed_names") or []) if n not in names and _vn_still_todo(n)]
+    if not names and not failed:
+        _batch_clear()
+        return
+    gone = set(n for n in (st.get("names") or []) if n and n not in names and n not in failed)   # 关软件那一刻正好做完的
+    done = int(st.get("done") or 0) + len(gone)
+    total = max(int(st.get("total") or 0), done + len(names) + len(failed))
+    _note_batch.update({"running": True, "total": total, "done": done,
+                        "ok": int(st.get("ok") or 0) + sum(1 for n in gone if (_cx_video_dir() / n).exists()),
+                        "fail": int(st.get("fail") or 0), "ok_names": [], "current": "", "stop": False,
+                        "user_stop": False, "resumed": True, "errors": [], "started": st.get("started") or _time_now(),
+                        "finished": 0, "streak": 0, "paused": "", "waiting": "", "resume_at": 0, "extra": [],
+                        "failed_names": failed, "round": int(st.get("round") or 1)})
+    _clog("视频", "▶ 接着上次没做完的批量加工：还剩 %d 条（上次做到 %d / %d）" % (len(names) + len(failed), done, total))
+    _threading.Thread(target=_note_batch_worker, args=(names, st.get("use_local", True), st.get("model") or "qwen2.5"),
+                      kwargs={"tries0": st.get("tries") or {}}, daemon=True, name="note-batch").start()
 
 
 def _note_batch_enqueue(names, use_local=True, model="qwen2.5", why=""):
@@ -2820,7 +2908,7 @@ def _note_batch_enqueue(names, use_local=True, model="qwen2.5", why=""):
     _note_batch.update({"running": True, "total": len(names), "done": 0, "ok": 0, "fail": 0, "ok_names": [],
                         "current": "", "stop": False, "errors": [], "started": _time_now(), "finished": 0,
                         "streak": 0, "paused": "", "waiting": "", "resume_at": 0, "extra": [],
-                        "failed_names": [], "round": 1})
+                        "failed_names": [], "round": 1, "user_stop": False, "resumed": False})
     _clog("视频", "📦 %s：开始批量补分析 %d 条（每条换一张新的 AI 卡）" % (why or "补分析", len(names)))
     _threading.Thread(target=_note_batch_worker, args=(names, use_local, model),
                       daemon=True, name="note-batch").start()
@@ -4746,7 +4834,7 @@ class Handler(BaseHTTPRequestHandler):
             if kind == "note":
                 _lb.set_note(key, cat, sub=(body.get("sub") or "").strip(), by="you")    # v134：大类 + 子类
             else:
-                _lb.set_author(key, cat, by="you")
+                _lb.set_author(key, cat, sub=(body.get("sub") or "").strip(), by="you")    # v135：作者也能定子类
             return self._send({"ok": True, "cats": _lb.cats(), "tree": _lb.tree()})
         if path == "/video_note_reset":               # v128：重新加工：先把这条放回「未加工」
             name = (body.get("name") or "").strip()
@@ -7110,6 +7198,7 @@ class Handler(BaseHTTPRequestHandler):
         后台一条接一条跑；每条都是一个新任务，AI 池会换一张新卡、开新对话（不串上一条的内容）。"""
         if body.get("stop"):
             _note_batch["stop"] = True
+            _note_batch["user_stop"] = True        # v136：你点的停止 → 下次开软件不接着做
             # v62：正在等 AI 回复的这一条也马上放下（以前要等它答完或超时才停，看起来像点了没反应）
             try:
                 with _note_an_lock:
@@ -7487,6 +7576,23 @@ def main():
         return
     print(f"[backend] running at http://{HOST}:{PORT} (local only)")
     print("[backend] close this window or press Ctrl+C to stop.")
+
+    # v136：上次关软件时批量加工 / 自动贴标签还没做完 → 过几秒接着做
+    def _resume_unfinished():
+        import time as _t_rs
+        _t_rs.sleep(5)
+        try:
+            _note_batch_resume()
+        except Exception as e:
+            _clog("视频", "接着做上次的批量加工出错：%s" % e)
+        try:
+            _lb_mod().resume_on_start()
+        except Exception as e:
+            _clog("贴标签", "接着贴上次的标签出错：%s" % e)
+    try:
+        _threading.Thread(target=_resume_unfinished, daemon=True, name="resume-unfinished").start()
+    except Exception:
+        pass
     # v54：后台检测 NVIDIA 显卡、准备 GPU 运行库（缺了自动装），语音转文字走显卡
     try:
         import gpu_accel
