@@ -1824,6 +1824,9 @@ async function viDetectKind() {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
     const d = await r.json();
     if (seq !== _viKindSeq) return;   // 又改过了，以最新的为准
+    if (d && d.kind === "text" && viChatActive() && text.length <= 200 && text.indexOf("\n") < 0) {   // v122：正在聊，就当接着聊
+      d.kind = "chat"; d.label = "聊天"; d.hint = "接着上面的聊天，按回车发出";
+    }
     if (!d || !d.kind) { out.hidden = true; return; }
     out.innerHTML = '<span class="vi-kind-tag k-' + escapeHtml(d.kind) + '">' + escapeHtml(d.label) + "</span>" +
       '<span class="vi-kind-hint">' + escapeHtml(d.hint || "") + "</span>" +
@@ -1898,8 +1901,8 @@ document.getElementById("viAnStop")?.addEventListener("click", async (e) => {
       await stopNoteAnalyze(_noteAnRunning);
     } else {
       await fetch(BACKEND + "/video_note_analyze_batch", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "stop" }) });
-      setAnStatus("⏹ 已让批量分析停下（做完手上这一步就停）。", "ok", 10000);
+        body: JSON.stringify({ stop: true }) });
+      setAnStatus("⏹ 已让批量分析停下。", "ok", 10000);
     }
   } catch (err) {}
   setTimeout(() => { btn.disabled = false; btn.textContent = "停止"; viAnStopSync(); }, 2500);
@@ -1907,15 +1910,92 @@ document.getElementById("viAnStop")?.addEventListener("click", async (e) => {
 
 // ── v120：一个框里打的是聊天 → 发到对话里（不存笔记）──
 let _viForceNote = false;
-function viSendToChat(text) {
-  if (typeof startNewChat === "function") startNewChat();
-  else document.querySelector('.nav-item[data-view="chat"]')?.click();
-  const box = document.getElementById("input");
-  if (!box) return;
-  box.value = text;
-  try { autoGrow(); } catch (e) {}
-  setTimeout(() => document.getElementById("sendBtn")?.click(), 60);
+// v122：不跳到对话页：就在提取框下面聊，用本地模型；聊到提取 / 加工的事，AI 会调用这两个工具
+let _viChat = [], _viChatBusy = false, _viChatAt = 0, _viChatModelName = "";
+function viChatActive() { return _viChat.length > 0 && Date.now() - _viChatAt < 15 * 60 * 1000; }
+async function viChatModel() {
+  if (_viChatModelName) return _viChatModelName;
+  let m = "";
+  try {
+    const tm = (await (await fetch(BACKEND + "/task_models")).json()).task_models || {};
+    for (const k of ["quick_chat", "local_action"]) if (tm[k] && tm[k].use_local && tm[k].model) { m = tm[k].model; break; }
+  } catch (e) {}
+  if (!m) { const s = settings(); if (s.use_local && s.model) m = s.model; }
+  _viChatModelName = m || "qwen3:14b";
+  return _viChatModelName;
 }
+function viChatAdd(role, text, cls) {
+  const box = document.getElementById("viChatMsgs");
+  const wrap = document.getElementById("viChat");
+  if (!box || !wrap) return null;
+  wrap.hidden = false;
+  const el = document.createElement("div");
+  el.className = "vi-chat-msg " + role + (cls ? " " + cls : "");
+  if (role === "assistant" && typeof renderMarkdown === "function") el.innerHTML = renderMarkdown(text);
+  else el.textContent = text;
+  box.appendChild(el);
+  box.scrollTop = box.scrollHeight;
+  return el;
+}
+async function viSendToChat(text) {
+  if (!text || _viChatBusy) return;
+  _viChatBusy = true; _viChatAt = Date.now();
+  viChatAdd("user", text);
+  _viChat.push({ role: "user", content: text });
+  const model = await viChatModel();
+  const mEl = document.getElementById("viChatModel");
+  if (mEl) mEl.textContent = "本地模型 · " + model;
+  const think = viChatAdd("assistant", "正在思考…", "thinking");
+  const chatId = "vichat" + Date.now();
+  let stop = false;
+  (async () => {   // 实时进度：在想什么、用了哪个工具
+    while (!stop) {
+      try {
+        const snap = await (await fetch(BACKEND + "/chat_progress?id=" + encodeURIComponent(chatId))).json();
+        const st = (snap.steps || []).slice(-1)[0];
+        const t = typeof st === "string" ? st : (st && (st.text || st.msg || st.label)) || "";
+        if (t && think && !stop) think.textContent = t;
+        if (snap.done) break;
+      } catch (e) {}
+      await new Promise((r) => setTimeout(r, 700));
+    }
+  })();
+  try {
+    const d = await (await fetch(BACKEND + "/chat", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: _viChat, chat_id: chatId, use_local: true, model, smart_routing: false,
+                             auto_approve_tools: [] }) })).json();
+    stop = true; think && think.remove();
+    if (d.messages) _viChat = d.messages;
+    (d.tool_calls || []).forEach((tc) => {
+      const lab = { extract_content: "交给了「提取」", process_notes: "交给了「加工」", list_extracted: "看了已提取的内容" }[tc.name] || ("用了工具：" + tc.name);
+      viChatAdd("assistant", "· " + lab, "tool");
+    });
+    if (d.pending) {
+      viChatAdd("assistant", "这一步要动电脑上的东西，需要你确认。请点「到对话页接着聊」，在那里确认。", "tool");
+    } else {
+      viChatAdd("assistant", d.reply || "（没有回复）");
+    }
+    if ((d.tool_calls || []).some((tc) => tc.name === "extract_content")) { try { pollVideoProgress(); loadVideoNotes(); } catch (e) {} }
+  } catch (e) {
+    stop = true; think && think.remove();
+    viChatAdd("assistant", "连不上后端：" + e.message, "tool");
+  } finally {
+    _viChatBusy = false; _viChatAt = Date.now();
+  }
+}
+document.getElementById("viChatClear")?.addEventListener("click", () => {
+  _viChat = []; const b = document.getElementById("viChatMsgs"); if (b) b.innerHTML = "";
+  const w = document.getElementById("viChat"); if (w) w.hidden = true;
+});
+document.getElementById("viChatMore")?.addEventListener("click", () => {
+  if (!_viChat.length) return;
+  if (typeof startNewChat === "function") startNewChat();
+  messages = _viChat.filter((m) => m.role !== "system").slice();
+  messages.forEach((m) => { if ((m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim()) addBubble(m.role, m.content); });
+  try { saveCurrentConversation(); } catch (e) {}
+  document.getElementById("viChatClear")?.click();
+});
 document.addEventListener("click", (e) => {
   const t = e.target.closest && e.target.closest("[data-vi-chat], [data-vi-note]");
   if (!t) return;
@@ -2115,6 +2195,7 @@ async function runVideoExtract() {
       await viImportPaths(url.split(/\r?\n/).map((x) => x.trim()).filter(Boolean));
       return;
     }
+    if (kd && kd.kind === "text" && viChatActive() && url.length <= 200 && url.indexOf("\n") < 0) kd.kind = "chat";
     if (kd && kd.kind === "chat" && !_viForceNote) {
       if (box0) { box0.value = ""; viOnInputChanged(); }
       viSendToChat(url);
