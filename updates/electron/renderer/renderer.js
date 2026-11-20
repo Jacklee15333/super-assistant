@@ -258,6 +258,7 @@ function navSync(view, sub) {
     ? document.querySelector('.sidebar .nav-item[data-nav-group="' + hit.g + '"]')
     : Array.from(document.querySelectorAll('.sidebar .nav-item[data-view="' + view + '"]')).find((b) => !b.closest(".nav-legacy"));
   if (vis) vis.classList.add("active");
+  document.body.classList.toggle("on-chat", view === "chat");
   if (hit && hit.tab) { try { localStorage.setItem("cx.navTab." + hit.g, hit.tab.key); } catch (e) {} }
   pgMount(view, hit);
 }
@@ -971,6 +972,7 @@ function switchConversation(id) {
   sessionAllowedTools = new Set(c.allowedTools || []);   // 恢复该对话已授权的操作类别
   messagesEl.innerHTML = c.displayHtml || "";
   renderConvoList();
+  document.querySelector('.nav-item[data-view="chat"]')?.click();
 }
 
 function renderConvoList() {
@@ -1011,6 +1013,9 @@ function renderConvoList() {
 
     list.appendChild(item);
   });
+  if (!list.children.length) {
+    list.innerHTML = '<div class="convo-empty">聊过的对话会出现在这里</div>';
+  }
 }
 
 function renameConversation(id) {
@@ -1066,7 +1071,19 @@ function deleteConversation(id) {
   renderConvoList();
 }
 
-document.getElementById("newConvoBtn").addEventListener("click", newConversation);
+// v111：左栏不再有单独的「对话」入口（和「新对话」重复，仿 Claude 的侧栏）：
+// 点「新对话」= 开一个新对话并进对话页；当前已经是空白对话就直接用它。
+function startNewChat() {
+  const cur = conversations.find((x) => x.id === activeConvoId);
+  const curEmpty = cur && !cur.fixedTitle && (!messages || messages.length === 0);
+  if (!curEmpty) {
+    saveCurrentConversation();
+    newConversation();
+  }
+  document.querySelector('.nav-item[data-view="chat"]')?.click();
+  try { inputEl.focus(); } catch (e) {}
+}
+document.getElementById("newConvoBtn").addEventListener("click", startNewChat);
 
 // ---------- 结束对话（弹框：清空并保存 / 结束并记住 / 取消）----------
 function openEndDialog() {
