@@ -143,9 +143,9 @@
       <nav class="nav">
         <button class="nav-item nav-item-chat active" data-view="chat" title="回到当前对话"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 0 1 3 11.5 8.5 8.5 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z"/></svg><span>对话</span></button>
         <div class="nav-group" data-group="gather">
-          <button type="button" class="nav-group-label" aria-expanded="true" title="视频转笔记、盯博主和网站的更新，收来的资料都在资料库"><span>收集与整理</span><svg class="nav-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+          <button type="button" class="nav-group-label" aria-expanded="true" title="放进来的东西都在「加工」里处理；嗅探盯着博主和网站的更新；处理好的都在资料库"><span>收集与整理</span><svg class="nav-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
           <div class="nav-group-items">
-            <button class="nav-item" data-view="video"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="13.5" height="12" rx="2.5"/><path d="m21.5 8.5-5.5 3.5 5.5 3.5z"/></svg><span>视频</span></button>
+            <button class="nav-item" data-view="video" title="什么都能放进来：视频、文章、GitHub 项目、一段文字、文件"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 13.5h4.8l1.6 2.8h4.2l1.6-2.8h4.8"/><path d="M5.8 5h12.4l2.3 8.5v4.6a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2v-4.6z"/><path d="M12 3.5v6m-2.6-2.4L12 9.7l2.6-2.6"/></svg><span>加工</span></button>
             <button class="nav-item" data-nav-group="sniff"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.5M7.8 16.2a6 6 0 0 1 0-8.5M19.1 4.9a10 10 0 0 1 0 14.2M4.9 19.1a10 10 0 0 1 0-14.2"/></svg><span>嗅探</span></button>
             <button class="nav-item" data-nav-group="data"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13"/><path d="M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8"/></svg><span>资料库</span></button>
           </div>
@@ -308,14 +308,14 @@
       <!-- 视频内容提取视图 -->
       <section class="view view-video" id="view-video">
         <header class="topbar">
-          <span style="display:flex;align-items:center">视频内容提取
+          <span style="display:flex;align-items:center">加工
             <button id="videoInfoBtn" class="info-btn" title="使用说明">ⓘ</button>
           </span>
         </header>
         <div class="video-pane">
           <div class="video-intro" id="videoIntro" style="display:none">
             把视频的<b>分享文案整段粘进来就行</b>（抖音那种「标题…复制此链接打开Dou音…」一大段也可以，
-            它会自动从里面认出链接）。提取后会<b>自动保存</b>到下面的「已存的视频笔记」，以后随时点开看。
+            它会自动从里面认出链接）。提取后会<b>自动保存</b>到下面的「加工好的」，以后随时点开看。
             <b>第一次用需要装一次小工具</b>，并下载一次语音模型（存到 D 盘的 models and tools 文件夹，不占 C 盘）。
             <br>💡 复制视频链接后，屏幕光标右上方会弹出超能小助的小按钮，点一下会把链接填进来，再点「提取并分析」即可。
             可以连续点多个视频，会<b>自动排队</b>逐个处理。模型的下载位置和搬运，在「设置」里管理。
@@ -324,14 +324,14 @@
           <!-- ① 开始提取：所有「发起一个新任务」要填的东西都在这张卡片里 -->
           <div class="v-card v-card-extract">
             <div class="v-card-head">
-              <span class="v-card-title">🎬 开始提取</span>
+              <span class="v-card-title">放进来</span>
               <button type="button" class="v-info-btn" data-info="info-extract" title="说明">ⓘ</button>
             </div>
-            <div class="v-info-pop" id="info-extract">粘贴链接、选好质量和模式，点「提取并分析」。可以连续粘多个链接，会自动排队逐个处理，不用等当前这个跑完。</div>
+            <div class="v-info-pop" id="info-extract">什么都能放：视频或文章链接、GitHub 项目、一段文字，或者电脑里文件的完整路径。软件会认出是什么，用对应的办法处理、分好类。可以连续放好几个，会自动排队。</div>
 
             <div class="video-input-row">
-              <input type="text" id="videoUrl" class="text-input"
-                placeholder="粘贴视频 / 文章链接，或整段分享文案，如 https://v.douyin.com/xxxx/、公众号文章链接" />
+              <textarea id="videoUrl" class="text-input vi-input" rows="1"
+                placeholder="什么都能放：视频 / 文章链接、GitHub 项目、一段文字、文件路径（Enter 开始，Shift+Enter 换行）"></textarea>
               <select id="videoLevel" class="text-input" style="width:130px">
                 <option value="speed">快速（糙）</option>
                 <option value="balanced">均衡（推荐）</option>
@@ -339,9 +339,11 @@
               </select>
               <button id="videoLocalBtn" class="send-btn" title="从电脑里选文件导入：音频、视频会提取文字稿；PDF、Word、Excel、PPT、TXT、Markdown 等文档直接读出全文" style="background:var(--surface-2,#fff);color:var(--text,#222);border:0.5px solid var(--border,#3a3a3a)">📁 导入本地文件</button>
               <button id="videoFolderBtn" class="send-btn" title="选一个文件夹，自动找出里面所有音视频和文档（包括子文件夹），逐个导入；还可以顺手统一填作者、把笔记归进同名文件夹" style="background:var(--surface-2,#fff);color:var(--text,#222);border:0.5px solid var(--border,#3a3a3a)">📂 导入文件夹</button>
-              <button id="videoGoBtn" class="send-btn">提取并分析</button>
+              <button id="videoGoBtn" class="send-btn">开始加工</button>
             </div>
 
+            <!-- v112：认出放进来的是什么、会怎么处理 -->
+            <div id="viKind" class="vi-kind" hidden></div>
             <!-- v59：博主主页（选填）。不填也行：提取完会根据视频自动找博主主页，建「博主板块」（头像、昵称、粉丝数）。
                  原来的「高级选项」（插图 / 跳转原片 / 字幕模式 / 自动 AI 分析）已去掉，一律用默认：自动用字幕、提取完自动 AI 分析。 -->
             <div class="video-creator-row">
@@ -392,7 +394,7 @@
           <!-- ③ 已存笔记：历史记录 -->
           <div class="v-card v-card-saved">
             <div class="v-card-head">
-              <span class="v-card-title">📚 已存的视频笔记</span>
+              <span class="v-card-title">📚 加工好的</span>
               <button type="button" class="v-info-btn" data-info="info-saved" title="说明">ⓘ</button>
             </div>
             <div class="v-info-pop" id="info-saved">提取过的视频都自动存这里，随时点开看。</div>
