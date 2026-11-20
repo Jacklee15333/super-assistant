@@ -257,7 +257,7 @@ function navSync(view, sub) {
   const vis = hit
     ? document.querySelector('.sidebar .nav-item[data-nav-group="' + (NAV_GROUPS[hit.g].parkedIn || hit.g) + '"]')
     : Array.from(document.querySelectorAll('.sidebar .nav-item[data-view="' + view + '"]')).find((b) => !b.closest(".nav-legacy") &&
-        (view !== "video" || (b.dataset.videoMode || "work") === (document.getElementById("view-video")?.dataset.mode || "work")));
+        (view !== "video" || (b.dataset.videoMode || "extract") === (document.getElementById("view-video")?.dataset.mode || "extract")));
   if (vis) vis.classList.add("active");
   document.body.classList.toggle("on-chat", view === "chat");
   if (hit && hit.tab) { try { localStorage.setItem("cx.navTab." + hit.g, hit.tab.key); } catch (e) {} }
@@ -313,7 +313,7 @@ document.querySelectorAll(".nav-item").forEach((btn) => {
     document.getElementById("view-" + btn.dataset.view).classList.add("active");
     if (btn.dataset.view === "memory") { loadMemoryTabs(); }
     if (btn.dataset.view === "dashboard") loadDashboard();
-    if (btn.dataset.view === "video") { setVideoMode(btn.dataset.videoMode || "work"); loadVideoNotes(); pollVideoProgress(); }
+    if (btn.dataset.view === "video") { setVideoMode(btn.dataset.videoMode || "extract"); loadVideoNotes(); pollVideoProgress(); }
     if (btn.dataset.view === "datadb") { if (typeof loadDataDb === "function") loadDataDb(); }
     if (btn.dataset.view === "library") loadLibrary();
     if (btn.dataset.view === "lumi") { loadLumi(); }
@@ -349,36 +349,42 @@ document.getElementById("snTabs")?.addEventListener("click", () => {
   }, 0);
 });
 
-// ── v115：「加工」和「笔记」是同一页的两种样子 ──
-// 加工：放进来、处理进度、提取失败、批量 AI 分析；笔记：只看加工好的（最新提取、博主、文件夹）。
+// ── v116：提取 → 加工 → 笔记，是同一页的三种样子 ──
+// 提取：放进来、处理进度、提取失败、历史（提取出来的半成品）；加工：批量 AI 分析（总结、打标签分类）；
+// 笔记：分析好的成品（博主、文件夹）。几块内容还是在笔记列表里画，画完搬到各自的页。
+const VIDEO_MODE_TITLE = { extract: "提取", process: "加工", notes: "笔记" };
 function setVideoMode(mode) {
   const v = document.getElementById("view-video");
   if (!v) return;
-  mode = mode === "notes" ? "notes" : "work";
+  if (!VIDEO_MODE_TITLE[mode]) mode = "extract";
   if (v.dataset.mode && v.dataset.mode !== mode && typeof vnReaderIsOpen === "function" && vnReaderIsOpen()) {
     try { vnReaderClose(); } catch (e) {}
   }
   v.dataset.mode = mode;
-  v.classList.toggle("vmode-notes", mode === "notes");
-  v.classList.toggle("vmode-work", mode === "work");
+  Object.keys(VIDEO_MODE_TITLE).forEach((k) => v.classList.toggle("vmode-" + k, k === mode));
   const t = document.getElementById("videoPageTitle");
-  if (t) t.textContent = mode === "notes" ? "笔记" : "加工";
+  if (t) t.textContent = VIDEO_MODE_TITLE[mode];
+  if (mode === "process") {   // 加工页：批量 AI 分析默认展开
+    try { localStorage.setItem("vnBatchOpen", "1"); } catch (e) {}
+    const body = document.getElementById("vnBatchBody");
+    if (body && body.hidden) document.querySelector("#vnBatchBar .vn-batch-head")?.click();
+  }
 }
-setVideoMode("work");
-// 笔记列表里画出来的「提取失败」「批量 AI 分析」两条，搬到加工页
+setVideoMode("extract");
 (function () {
-  const list = document.getElementById("videoNotesList"), dest = document.getElementById("viWorkExtras");
-  if (!list || !dest) return;
+  const list = document.getElementById("videoNotesList");
+  if (!list) return;
+  const PLACE = [["vnFailBar", "viExtractExtras"], ["vnRecent", "viExtractExtras"], ["vnBatchBar", "viProcessBars"]];
   new MutationObserver(() => {
-    ["vnFailBar", "vnBatchBar"].forEach((id) => {
-      const el = list.querySelector(":scope > #" + id);
-      if (!el) return;
+    PLACE.forEach(([id, to]) => {
+      const el = list.querySelector(":scope > #" + id), dest = document.getElementById(to);
+      if (!el || !dest) return;
       const old = dest.querySelector(":scope > #" + id);
       if (old) old.remove();
       dest.appendChild(el);
     });
-    const f = dest.querySelector(":scope > #vnFailBar");
-    if (f && f !== dest.firstElementChild) dest.insertBefore(f, dest.firstElementChild);
+    const ex = document.getElementById("viExtractExtras"), f = ex && ex.querySelector(":scope > #vnFailBar");
+    if (f && f !== ex.firstElementChild) ex.insertBefore(f, ex.firstElementChild);   // 提取失败放在历史上面
   }).observe(list, { childList: true });
 })();
 document.addEventListener("click", (e) => {
@@ -1740,7 +1746,7 @@ document.getElementById("moveModelsBtn")?.addEventListener("click", async () => 
 });
 document.getElementById("videoGoBtn")?.addEventListener("click", runVideoExtract);
 document.getElementById("videoUrl")?.addEventListener("keydown", (e) => {
-  // v112：输入框能放多行文字了：Enter 开始加工，Shift+Enter 换行（输入法选字时的回车不算）
+  // v112：输入框能放多行文字了：Enter 开始提取，Shift+Enter 换行（输入法选字时的回车不算）
   if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); runVideoExtract(); }
 });
 
@@ -1885,14 +1891,14 @@ function setVideoStatus(text, kind, opts) {
   setVideoStatus._t = setTimeout(clear, kind === "warn" ? 60000 : 15000);
 }
 
-let _videoSubmitting = false;   // 防止「开始加工」被重复点 / 重复入队
+let _videoSubmitting = false;   // 防止「开始提取」被重复点 / 重复入队
 
-// 设置「开始加工」按钮的外观：idle / submitting / running
+// 设置「开始提取」按钮的外观：idle / submitting / running
 // running 时按钮不禁用，而是变成「＋ 加入队列」——这样有新链接能直接点它排队。
 function setVideoBtnState(state) {
   const btn = document.getElementById("videoGoBtn");
   if (!btn) return;
-  if (!btn.dataset.label) btn.dataset.label = btn.textContent || "开始加工";
+  if (!btn.dataset.label) btn.dataset.label = btn.textContent || "开始提取";
   if (state === "submitting") {
     btn.disabled = true; btn.classList.add("busy"); btn.classList.remove("queue");
     btn.textContent = "提交中…";
@@ -1968,7 +1974,7 @@ function promptQueueNewLink(url) {
 // startVideoFromFloat 接管去「视频」页提取。
 window.petFeed = function (item) {
   if (!item) return;
-  // v112：所有收进来的东西都先到「加工」：放进输入框、认出种类，你点「开始加工」
+  // v112：所有收进来的东西都先到「加工」：放进输入框、认出种类，你点「开始提取」
   try {
     document.querySelector('.nav-item[data-view="video"]').click();
     const vb = document.getElementById("videoUrl");
@@ -1976,7 +1982,7 @@ window.petFeed = function (item) {
       vb.value = String(item).trim();
       viOnInputChanged();
       vb.focus();
-      setVideoStatus("放进来了，确认一下点「开始加工」。", "ok", { holdMs: 6000 });
+      setVideoStatus("放进来了，确认一下点「开始提取」。", "ok", { holdMs: 6000 });
       return;
     }
   } catch (e) {}
@@ -2020,7 +2026,7 @@ window.startVideoFromFloat = function (url) {
   }
   // 醒目状态横幅：明确告诉用户链接已到、下一步该点哪
   const busy = _videoBusyNow();
-  const btnText = busy ? "＋ 加入队列" : "开始加工";
+  const btnText = busy ? "＋ 加入队列" : "开始提取";
   setVideoStatus("🔗 链接已填好！点右上方蓝色「" + btnText + "」按钮即可" +
     (busy ? "排队处理。" : "开始提取。"), "ok", { priority: true, holdMs: 6000 });
   // 按钮强脉冲（不依赖 styles.css，直接内联动画）
@@ -2721,7 +2727,7 @@ async function runVideoInstall() {
     const data = await resp.json();
     if (log) log.textContent = data.message || "";
     if (data.ok) {
-      setVideoStatus("依赖装好了，再点一次「开始加工」即可。", "ok");
+      setVideoStatus("依赖装好了，再点一次「开始提取」即可。", "ok");
       if (btn) btn.textContent = "已安装 ✓";
     } else if (btn) {
       btn.disabled = false; btn.textContent = "重试安装";
@@ -3496,8 +3502,8 @@ function mountVideoDone(res) {
   box.querySelector(".vdone-title").title = title;
   if (cr.status === "fail" && cr.message) box.querySelector(".vdone-who").title = cr.message + "（可以在图标视图里点博主头像手动绑定）";
   const go = document.createElement("button");
-  go.type = "button"; go.className = "vdone-go"; go.textContent = "去「最新提取」看 ›";
-  go.title = "在下面的「最新提取」里找到这一条（点标题就能看完整笔记）";
+  go.type = "button"; go.className = "vdone-go"; go.textContent = "去「历史」看 ›";
+  go.title = "在下面的「历史」里找到这一条（点标题就能看完整笔记）";
   go.addEventListener("click", () => vnRevealRecent(res.saved_as));
   if (res.unanalyzed && res.saved_as) {          // v66：默认只提取原文；需要时点这里分析
     const ab = vnAnButton(res.saved_as, "🤖 AI 分析", "vdone-go vdone-an", false);
@@ -3969,7 +3975,7 @@ async function loadVideoNotes() {
     const folders = data.folders || [];
     if (data.tidy && data.tidy.length) _vnTidyMsgs = _vnTidyMsgs.concat(data.tidy).slice(-6);   // v64
     list.innerHTML = "";
-    { const _vx = document.getElementById("viWorkExtras"); if (_vx) _vx.innerHTML = ""; }   // v115：搬到加工页的那两条也一起重画
+    ["viExtractExtras", "viProcessBars"].forEach((id) => { const x = document.getElementById(id); if (x) x.innerHTML = ""; });   // v116：搬到提取 / 加工页的几块也一起重画
 
     // 顶部小工具条：新建文件夹（把同一作者/同一主题的笔记归到一起）
     const bar = document.createElement("div");
@@ -4021,7 +4027,7 @@ async function loadVideoNotes() {
     // v57：图标视图（像电脑文件夹那样一格一格显示）
     if (vnViewMode() === "icon") {
       await vnLoadProfiles();
-      if (!_vnIconPath) { try { vnRenderRecent(list, notes, folders); } catch (e) { console.error(e); } }
+      try { vnRenderRecent(list, notes, folders); } catch (e) { console.error(e); }   // v116：「历史」在提取页，进了文件夹也要画
       vnRenderFailBar(list);           // v90：提取失败清单（没有就不显示）
       vnRenderBatchBar(list, notes);   // v59：和列表视图一样放在「最新提取」下面
       vnRenderIconView(list, notes, folders, byFolder, ungrouped);
@@ -10203,7 +10209,7 @@ function vnRenderRecent(list, notes, folders) {
   head.className = "video-note-item vn-group-head vn-recent-head";
   head.title = "按提取时间列出最近的视频笔记（点击展开 / 收起）";
   const caret = document.createElement("span"); caret.className = "vn-caret";
-  const nm = document.createElement("span"); nm.className = "vn-name"; nm.textContent = "最新提取";
+  const nm = document.createElement("span"); nm.className = "vn-name"; nm.textContent = "历史";
   const pin = document.createElement("span"); pin.className = "vn-recent-pin"; pin.textContent = "置顶";
   const cnt = document.createElement("span"); cnt.className = "vn-count";
   head.appendChild(caret); head.appendChild(nm); head.appendChild(pin); head.appendChild(cnt);
@@ -11936,7 +11942,7 @@ async function _phPoll() {
     if (_phSeq >= 0 && st.seq > _phSeq && st.recent && st.recent.length) {
       const x = st.recent[0];
       _phToast((x.src === "飞书" ? "💬 飞书发来：" : "📱 手机发来：") + (x.title || x.url).slice(0, 40) + (x.ok ? "（已加进队列）" : "（没加进去，点开看原因）"));
-      // v85：手机 / 飞书发来的任务，和在电脑上点「开始加工」一样：开始盯进度条，做完自动刷新「最新提取」
+      // v85：手机 / 飞书发来的任务，和在电脑上点「开始提取」一样：开始盯进度条，做完自动刷新「最新提取」
       if (x.ok) {
         try { if (typeof pollVideoProgress === "function") pollVideoProgress(); } catch (e) {}
         try { if (typeof setVideoStatus === "function")

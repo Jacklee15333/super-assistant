@@ -723,3 +723,22 @@ body.dark .vn-kind.k-gh { background: #e6e6e3; color: #1f1e1a; }
 .vi-work-extras { display: flex; flex-direction: column; gap: 10px; margin: 0 0 14px; }
 .vi-work-extras:empty { display: none; }
 .vi-to-notes { display: flex; align-items: center; gap: 10px; margin: 2px 2px 18px; font-size: 12.5px; color: var(--text-dim); }
+
+/* ════════════════════ v116：提取 → 加工 → 笔记 ════════════════════ */
+#view-video.vmode-extract .v-card-saved,
+#view-video.vmode-extract .vi-process { display: none !important; }
+#view-video.vmode-process .v-card-extract,
+#view-video.vmode-process .v-card-progress,
+#view-video.vmode-process .vi-extract-extras,
+#view-video.vmode-process .vi-to-process,
+#view-video.vmode-process .v-card-saved,
+#view-video.vmode-process #videoIntro { display: none !important; }
+#view-video.vmode-notes .vi-extract-extras,
+#view-video.vmode-notes .vi-to-process,
+#view-video.vmode-notes .vi-process { display: none !important; }
+.vi-extract-extras { display: flex; flex-direction: column; gap: 10px; margin: 0 0 12px; }
+.vi-extract-extras:empty { display: none; }
+.vi-extract-extras .vn-recent-pin { display: none; }      /* 「置顶」在提取页没意义 */
+.vi-next { display: flex; align-items: center; gap: 10px; margin: 4px 2px 18px; font-size: 12.5px; color: var(--text-dim); }
+.vi-process-intro { margin: 2px 2px 14px; max-width: 70ch; font-size: 13px; line-height: 1.7; color: var(--text-dim); }
+.vi-process-bars { display: flex; flex-direction: column; gap: 10px; margin-bottom: 8px; }
