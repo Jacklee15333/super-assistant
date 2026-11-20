@@ -4106,10 +4106,12 @@ function mountVideoResult(data, target) {
     head +              // v127：先标题、作者、标签，再是标签页
     tagRowHtml +
     '<div class="video-toolbar">' +
-      '<button class="vtab active" data-tab="analysis">加工结果</button>' +
-      '<button class="vtab" data-tab="mindmap">思维导图</button>' +
+      // v131：详细 · 简洁 · 原文 · 思维导图 四个标签平排（详细 / 简洁 就是加工结果的两种看法）
+      '<button class="vtab active" data-tab="analysis" data-d="full">详细</button>' +
+      '<button class="vtab" data-tab="analysis" data-d="brief">简洁</button>' +
       '<button class="vtab" data-tab="transcript">原文</button>' +
-      '<span class="vdetail" id="vDetailToggle">' +
+      '<button class="vtab" data-tab="mindmap">思维导图</button>' +
+      '<span class="vdetail" id="vDetailToggle" style="display:none">' +
         '<button class="vd active" data-d="full">详细</button>' +
         '<button class="vd" data-d="brief">简洁</button>' +
       '</span>' +
@@ -4184,11 +4186,12 @@ function mountVideoResult(data, target) {
     tabs.forEach((x) => x.classList.remove("active"));
     t.classList.add("active");
     const which = t.dataset.tab;
+    if (which === "analysis" && t.dataset.d && t.dataset.d !== detailMode) { detailMode = t.dataset.d; renderAnalysis(); }   // v131
     if (_collapsed) return;  // 折叠状态下只切换高亮，不展开正文
     $("#vAnalysis").style.display = which === "analysis" ? "" : "none";
     $("#vMindmap").style.display = which === "mindmap" ? "" : "none";
     $("#vTranscript").style.display = which === "transcript" ? "" : "none";
-    detailToggle.style.display = which === "analysis" ? "" : "none";  // 只在 AI 分析时显示开关
+    detailToggle.style.display = "none";  // v131：详细 / 简洁 已经是标签了
     if (which === "mindmap") ensureMindmap();  // 首次切到思维导图时再生成
   }));
 
@@ -5350,10 +5353,17 @@ function pollNoteAnalyze(name, reopen) {
 
 // ── v127：阅读页用到的两个小工具 ──
 function vnCleanAnalysis(md) {
-  return String(md || "")
+  let s = String(md || "")
     .replace(/^\s*#{0,6}\s*ChatGPT\s*说[:：]?\s*$\n?/gm, "")
     .replace(/!\[[^\]]*\]\(https?:\/\/www\.google\.com\/s2\/favicons[^)]*\)\s*/g, "")
     .trim();
+  // v131：第一个小标题前面零零碎碎的几个字（网页按钮上的字，比如「写作」）去掉
+  const i = s.search(/^#{1,4}\s/m);
+  if (i > 0) {
+    const head = s.slice(0, i).split("\n").filter((ln) => ln.trim() && !(ln.trim().length <= 6 && !/中文标题/.test(ln)));
+    s = (head.length ? head.join("\n") + "\n\n" : "") + s.slice(i);
+  }
+  return s;
 }
 // 加工结果只写了开头就断了（缺了「核心观点」以后的部分）：提示一下，给个「重新加工」
 function vnIncompleteNotice(data) {
