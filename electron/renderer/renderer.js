@@ -435,6 +435,8 @@ function viSecSum() {
       if (old) old.remove();
       dest.appendChild(el);
     });
+    const lv = document.querySelector("#viProcessBars #vnLive"), lslot = document.getElementById("viAnLive");   // v120
+    if (lv && lslot) { const o = lslot.querySelector(":scope > #vnLive"); if (o && o !== lv) o.remove(); lslot.appendChild(lv); }
     const ex = document.getElementById("viExtractExtras"), f = ex && ex.querySelector(":scope > #vnFailBar");
     if (f && f !== ex.firstElementChild) ex.insertBefore(f, ex.firstElementChild);   // 提取失败放在历史上面
   }).observe(list, { childList: true });
@@ -1827,7 +1829,9 @@ async function viDetectKind() {
       '<span class="vi-kind-hint">' + escapeHtml(d.hint || "") + "</span>" +
       // 一小段文字也可能是想搜某个领域：给个改成搜索推荐的按钮
       ((d.kind === "text" && text.length <= 30 && text.indexOf("\n") < 0)
-        ? '<button type="button" class="vi-kind-alt" data-vi-search="1">改成搜索推荐</button>' : "");
+        ? '<button type="button" class="vi-kind-alt" data-vi-search="1">改成搜索推荐</button>' +
+          '<button type="button" class="vi-kind-alt" data-vi-chat="1">发给小助聊</button>' : "") +
+      (d.kind === "chat" ? '<button type="button" class="vi-kind-alt" data-vi-note="1">改成存为笔记</button>' : "");
     out.hidden = false;
     if (creatorRow) creatorRow.style.display = (d.kind === "video") ? "" : "none";
   } catch (e) { out.hidden = true; }
@@ -1859,6 +1863,47 @@ async function viImportPaths(paths) {
     setVideoStatus("导入出错：" + (e && e.message ? e.message : e), "warn");
   }
 }
+// ── v120：加工页的处理进度 ──
+const VI_AN_IDLE = "现在没有在分析的内容。点下面「批量 AI 分析」，或者单条的「AI 分析」开始。";
+let _viAnIdleTimer = null;
+function setAnStatus(msg, kind, holdMs) {
+  const el = document.getElementById("viAnStatus");
+  if (!el) return;
+  el.textContent = msg;
+  el.className = "vi-an-status" + (kind ? " " + kind : " busy");
+  clearTimeout(_viAnIdleTimer);
+  if (holdMs) _viAnIdleTimer = setTimeout(() => {
+    if (!_noteAnRunning) { el.textContent = VI_AN_IDLE; el.className = "vi-an-status"; }
+  }, holdMs);
+}
+function viNoteTitle(name) {
+  const n = String(name || "");
+  const row = n && Array.from(document.querySelectorAll(".video-note-item")).find((x) => x.dataset.name === n);
+  const t = row && row.querySelector(".vn-name");
+  return (t && t.textContent.trim()) || n.replace(/\.md$/, "").replace(/^\d{8}-\d{6}-/, "");
+}
+// ── v120：一个框里打的是聊天 → 发到对话里（不存笔记）──
+let _viForceNote = false;
+function viSendToChat(text) {
+  if (typeof startNewChat === "function") startNewChat();
+  else document.querySelector('.nav-item[data-view="chat"]')?.click();
+  const box = document.getElementById("input");
+  if (!box) return;
+  box.value = text;
+  try { autoGrow(); } catch (e) {}
+  setTimeout(() => document.getElementById("sendBtn")?.click(), 60);
+}
+document.addEventListener("click", (e) => {
+  const t = e.target.closest && e.target.closest("[data-vi-chat], [data-vi-note]");
+  if (!t) return;
+  const box = document.getElementById("videoUrl");
+  const q = (box && box.value || "").trim();
+  if (!q) return;
+  if (t.dataset.viChat) { box.value = ""; viOnInputChanged(); viSendToChat(q); return; }
+  _viForceNote = true;   // 存成笔记：跳过「认出是聊天」那一步
+  runVideoExtract();
+});
+
 // 搜索推荐：用工具卡片里原来的那套搜索（结果显示在输入框下面）
 function viRunSearch(q) {
   const vf = document.getElementById("vFind");
@@ -2035,7 +2080,8 @@ async function runVideoExtract() {
   if (_videoSubmitting) return;   // 正在提交，忽略重复点击
   const url = (document.getElementById("videoUrl").value || "").trim();
   if (!url) { setVideoStatus("先放点东西进来：一段文字、链接、GitHub 项目、文件或文件夹都行。", "warn"); return; }
-  // v118：一个框做所有事：文件 / 文件夹 → 导入；「搜：领域」→ 搜索推荐；其它照常提取
+  // v118：一个框做所有事：文件 / 文件夹 → 导入；「搜：领域」→ 搜索推荐；聊天 → 对话（v120）；其它照常提取
+  if (_viForceNote) { _viForceNote = false; } else
   try {
     const kr = await fetch(BACKEND + "/intake_kind", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: url }) });
@@ -2044,6 +2090,11 @@ async function runVideoExtract() {
     if (kd && (kd.kind === "file" || kd.kind === "paths")) {
       if (box0) { box0.value = ""; viOnInputChanged(); }
       await viImportPaths(url.split(/\r?\n/).map((x) => x.trim()).filter(Boolean));
+      return;
+    }
+    if (kd && kd.kind === "chat" && !_viForceNote) {
+      if (box0) { box0.value = ""; viOnInputChanged(); }
+      viSendToChat(url);
       return;
     }
     if (kd && kd.kind === "search") {
@@ -4111,7 +4162,7 @@ async function loadVideoNotes() {
     const folders = data.folders || [];
     if (data.tidy && data.tidy.length) _vnTidyMsgs = _vnTidyMsgs.concat(data.tidy).slice(-6);   // v64
     list.innerHTML = "";
-    ["viExtractExtras", "viProcessBars"].forEach((id) => { const x = document.getElementById(id); if (x) x.innerHTML = ""; });   // v116：搬到提取 / 加工页的几块也一起重画
+    ["viExtractExtras", "viProcessBars", "viAnLive"].forEach((id) => { const x = document.getElementById(id); if (x) x.innerHTML = ""; });   // v116：搬到提取 / 加工页的几块也一起重画
 
     // 顶部小工具条：新建文件夹（把同一作者/同一主题的笔记归到一起）
     const bar = document.createElement("div");
@@ -4980,19 +5031,20 @@ async function startNoteAnalyze(name, opts) {
     });
     const d = await r.json();
     if (!d.ok) {
-      setVideoStatus("补分析没开始：" + (d.error || "未知原因"), "warn",
-                     { priority: true, holdMs: 6000 });
+      setAnStatus("没开始分析：" + (d.error || "未知原因"), "warn", 10000);
       vnAnState(name, "idle");
       loadVideoNotes();   // 把按钮的「已提交…」状态恢复回来
       return;
     }
     _noteAnRunning = name; _noteAnStopReq = false;
     vnAnState(name, "running", "已提交");
-    setVideoStatus("🤖 正在给这条笔记补做 AI 分析…（可能要一两分钟，完成后自动刷新）",
-                   "", { priority: true, holdMs: 3000 });
+    setAnStatus("🤖 正在分析《" + viNoteTitle(name) + "》…（可能要一两分钟，完成后自动刷新）");
+    if (document.getElementById("view-video")?.dataset.mode !== "process") {
+      setVideoStatus("🤖 已交给「加工」做 AI 分析，进度和实时画面在加工页。", "ok", { priority: true, holdMs: 5000 });
+    }
     pollNoteAnalyze(name, !!opts.reopen);
   } catch (e) {
-    setVideoStatus("补分析出错：" + e.message, "warn", { priority: true, holdMs: 6000 });
+    setAnStatus("分析出错：" + e.message, "warn", 10000);
   }
 }
 
@@ -5003,8 +5055,7 @@ function pollNoteAnalyze(name, reopen) {
       const r = await fetch(BACKEND + "/video_note_analyze_progress");
       const p = await r.json();
       if (p.running) {
-        setVideoStatus("🤖 补分析中：" + (p.stage || "处理中…") + "（卡住了可以点「分析中…」按钮停止）", "",
-                       { priority: true, holdMs: 1800 });
+        setAnStatus("🤖 正在分析《" + viNoteTitle(name) + "》：" + (p.stage || "处理中…") + "（卡住了可以点「分析中…」停止）");
         vnAnState(name, "running", p.stage || "");
         return;
       }
@@ -5013,21 +5064,19 @@ function pollNoteAnalyze(name, reopen) {
       _noteAnRunning = ""; _noteAnStopReq = false;
       vnAnState(name, p.ok ? "done" : (stopped ? "stopped" : "fail"));
       if (!p.ok && stopped) {
-        setVideoStatus("⏹ 已停止分析。原文还在，需要时再点「🤖 AI 分析」。", "ok", { priority: true, holdMs: 8000 });
+        setAnStatus("⏹ 已停止分析。原文还在，需要时再点「AI 分析」。", "ok", 10000);
         loadVideoNotes();
       } else if (p.ok) {
-        setVideoStatus("✅ 这条笔记的 AI 分析已补好并保存。", "ok",
-                       { priority: true, holdMs: 8000 });
+        setAnStatus("✅《" + viNoteTitle(name) + "》分析好了，成品在「笔记」里。", "ok", 12000);
         loadVideoNotes();
         if (reopen && name && vnReaderIsOpen() && _vnReaderName === name) openVideoNote(name);
       } else {
-        setVideoStatus("⚠ 补分析没成功：" + (p.error || "未知原因"), "warn",
-                       { priority: true, holdMs: 8000 });
+        setAnStatus("⚠《" + viNoteTitle(name) + "》没分析成功：" + (p.error || "未知原因"), "warn", 12000);
         loadVideoNotes();
       }
     } catch (e) {
       clearInterval(_noteAnPollTimer); _noteAnPollTimer = null;
-      setVideoStatus("补分析状态查询出错：" + e.message, "warn");
+      setAnStatus("分析进度查询出错：" + e.message, "warn", 10000);
     }
   }, 1500);
 }
@@ -10190,7 +10239,7 @@ async function vnLivePoll() {
   if (!box) { _vnLiveTimer = null; return; }          // 列表重画时会重新启动
   const viewOn = document.getElementById("view-video")?.classList.contains("active") && !document.hidden;
   if (!viewOn) { _vnLiveTimer = setTimeout(vnLivePoll, 3000); return; }
-  const open = vnLiveIsOpen() && vnBatchIsOpen();   // 批量那组折起来时不要截图
+  const open = vnLiveIsOpen() && document.getElementById("view-video")?.dataset.mode === "process";   // v120：在加工页才截图
   let d = null;
   try {
     d = await (await fetch(BACKEND + "/ai_live?watch=" + (open ? "1" : "0"), { cache: "no-store" })).json();
@@ -10200,17 +10249,20 @@ async function vnLivePoll() {
   }
   if (document.getElementById("vnLive") !== box) return;   // 期间列表重画了，新的那个会自己轮询
   const b = d.batch || {}, p = d.pool || {};
-  if (!b.running) {
+  const single = !b.running && !!_noteAnRunning;   // v120：单条 AI 分析也显示实时画面
+  if (!b.running && !single) {
     box.hidden = true;
     _vnLiveTimer = setTimeout(vnLivePoll, 4000);
     return;
   }
   box.hidden = false;
-  const name = (b.current || "").replace(/\.md$/, "");
-  const title = b.title || name;
+  const name = ((b.running ? b.current : _noteAnRunning) || "").replace(/\.md$/, "");
+  const title = b.running ? (b.title || name) : viNoteTitle(_noteAnRunning);
   const idx = Math.min(b.total || 0, (b.done || 0) + 1);
   const sum = box.querySelector("#vnLiveSum");
-  if (b.waiting) {
+  if (single) {
+    sum.textContent = "· 单条分析：" + title;
+  } else if (b.waiting) {
     sum.textContent = "· 暂停中，到时间会自动接着跑";
   } else if (title) {
     sum.textContent = "· 第 " + idx + " / " + b.total + " 篇：" + title;
@@ -10227,10 +10279,10 @@ async function vnLivePoll() {
       const t = document.createElement("a");
       t.className = "vn-live-art-title"; t.textContent = "《" + title + "》"; t.href = "#";
       t.title = "打开这篇笔记";
-      t.addEventListener("click", (e) => { e.preventDefault(); if (b.current) openVideoNote(b.current); });
+      t.addEventListener("click", (e) => { e.preventDefault(); const nm = b.running ? b.current : _noteAnRunning; if (nm) openVideoNote(nm); });
       const meta = document.createElement("span");
       meta.className = "vn-live-art-meta";
-      meta.textContent = "第 " + idx + " / " + b.total + " 篇" + (b.author ? " · 作者：" + b.author : "") +
+      meta.textContent = single ? "单条分析" : "第 " + idx + " / " + b.total + " 篇" + (b.author ? " · 作者：" + b.author : "") +
         (b.note_started ? " · 这篇已用时 " + _vnFmtDur(d.now - b.note_started) : "") +
         (b.round > 1 ? " · 第 " + b.round + " 遍（补之前没成功的）" : "");
       art.appendChild(t); art.appendChild(meta);

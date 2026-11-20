@@ -176,6 +176,22 @@ def search_query(text):
     return m.group(1).strip()
 
 
+_CHAT_START = re.compile(
+    r"^(你好|您好|hi\b|hello|hey|嗨|哈喽|在吗|在不在|早上好|上午好|中午好|下午好|晚上好|早安|晚安|谢谢|多谢|感谢|"
+    r"帮我|帮忙|请你|请帮|麻烦你|麻烦帮|给我|告诉我|你能|你会|你是|你觉得|能不能|能否|可不可以|可以帮|"
+    r"怎么|怎样|如何|为什么|为啥|什么是|啥是|有没有|是不是|小助)", re.I)
+
+
+def looks_chat(text):
+    """v120：一句打招呼、提问、请小助帮忙的话 → 当聊天（发到对话里），不存成笔记。"""
+    t = (text or "").strip()
+    if not t or "\n" in t or len(t) > 60:
+        return False
+    if _CHAT_START.match(t):
+        return True
+    return bool(re.search(r"[?？]$", t) or re.search(r"(吗|呢|么)[?？!！。.~～]*$", t))
+
+
 def classify(text):
     """'paths' | 'file' | 'search' | 'github' | 'article' | 'video' | 'text' | ''（空的）"""
     t = (text or "").strip()
@@ -196,6 +212,8 @@ def classify(text):
             return "article" if doc_import.article_url(t) else "video"
         except Exception:
             return "video"
+    if looks_chat(t):
+        return "chat"
     return "text" if len(t) >= 2 else ""
 
 
@@ -206,6 +224,7 @@ _DESC = {
     "text": ("一段文字", "直接存成一条笔记，放进「%s」文件夹；需要时再点「AI 分析」" % TEXT_FOLDER),
     "file": ("本地文件", "音视频提取文字稿；PDF、Word、Excel 等文档读出全文"),
     "paths": ("文件 / 文件夹", "找出里面所有音视频和文档（包括子文件夹），逐个提取"),
+    "chat": ("聊天", "按回车就发到「对话」里和小助聊（不存成笔记）"),
     "search": ("搜索推荐", "让 AI 联网找这个领域最值得关注的博主和网站，挑好了一键加进嗅探"),
 }
 

@@ -6408,7 +6408,7 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 import intake as _ik
                 _intake = _ik.classify(url)
-                if _intake in ("search", "paths"):     # v118：这两种前端自己处理；万一直接发到这里，就当一段文字存
+                if _intake in ("search", "paths", "chat"):     # v118/v120：这几种前端自己处理；万一直接发到这里，就当一段文字存
                     _intake = "text"
                 if _intake == "file":
                     local_path, url = (_ik.local_path(url) or (_ik.paths_in(url) or [""])[0]), ""
