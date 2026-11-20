@@ -1877,7 +1877,7 @@ async function viImportPaths(paths) {
 // ── v132：贴标签——上面一行按分类筛（文章分类 / 作者领域）；每条前面是分类，作者名后面小字是作者的领域；
 //    点分类可以手动改（也可以自己写一个新分类）；标签行右边「自动贴标签」，跑的时候显示进度 ──
 let _vnAllNotes = [], _viDoneShown = 50;
-let _lbCats = [], _lbAuthors = {}, _lbJob = null, _lbBusy = false, _lbLastPoll = 0, _lbLastRefresh = 0, _lbPopOpen = false;
+let _lbCats = [], _lbTree = [], _lbAuthors = {}, _lbJob = null, _lbBusy = false, _lbLastPoll = 0, _lbLastRefresh = 0, _lbPopOpen = false;
 function viDoneOpen() { try { return localStorage.getItem("viDoneOpen") !== "0"; } catch (e) { return true; } }
 function lbMode() { try { return localStorage.getItem("viLbMode") === "author" ? "author" : "note"; } catch (e) { return "note"; } }
 function lbFilterGet(m) { try { return localStorage.getItem("viLbF_" + m) || ""; } catch (e) { return ""; } }
@@ -1886,14 +1886,41 @@ function lbOf(n, m) {
   if (m === "author") { const a = n.author && _lbAuthors[n.author]; return (a && a.dom) || ""; }
   return n.cat || "";
 }
-function lbApply(cats, authors, notesMap) {
+function lbApply(cats, authors, notesMap, tree) {
   if (Array.isArray(cats) && cats.length) _lbCats = cats;
+  if (Array.isArray(tree) && tree.length) _lbTree = tree;                        // v134：两级分类（大类 → 子类）
   if (authors && typeof authors === "object") _lbAuthors = authors;
   if (notesMap && typeof notesMap === "object") (_vnAllNotes || []).forEach((n) => {
     const x = notesMap[n.name];
-    if (x && x.cat) { n.cat = x.cat; n.kw = x.kw || []; if (x.by === "you") n.cat_by = "you"; else delete n.cat_by; }
-    else { delete n.cat; delete n.kw; delete n.cat_by; }
+    if (x && x.cat) {
+      n.cat = x.cat; n.kw = x.kw || [];
+      if (x.sub) n.sub = x.sub; else delete n.sub;
+      if (x.by === "you") n.cat_by = "you"; else delete n.cat_by;
+    } else { delete n.cat; delete n.sub; delete n.kw; delete n.cat_by; }
   });
+}
+function lbSubsOf(big) { const t = (_lbTree || []).find((x) => x.name === big); return (t && t.subs) || []; }
+function lbSubGet(big) { try { return localStorage.getItem("viLbS_" + big) || ""; } catch (e) { return ""; } }
+function lbSubSet(big, v) { try { localStorage.setItem("viLbS_" + big, v || ""); } catch (e) {} }
+// v134：选了某个大类，下面再一行：这个大类里的子类（带条数）
+function lbSubBar(big, items, sf) {
+  const counts = {}; let nosub = 0;
+  items.forEach((n) => { if (n.sub) counts[n.sub] = (counts[n.sub] || 0) + 1; else nosub++; });
+  const order = lbSubsOf(big);
+  const bar = document.createElement("div"); bar.className = "vi-lb-bar vi-lb-subbar";
+  const chip = (val, label, n, cls) => {
+    const b = document.createElement("button"); b.type = "button";
+    b.className = "vi-lb-chip vi-lb-sub" + (val === sf ? " on" : "") + (cls ? " " + cls : "");
+    b.dataset.lbs = val; b.dataset.big = big;
+    b.appendChild(document.createTextNode(label));
+    const i = document.createElement("i"); i.textContent = n; b.appendChild(i);
+    return b;
+  };
+  bar.appendChild(chip("", big + " 全部", items.length));
+  Object.keys(counts).sort((x, y) => counts[y] - counts[x] || order.indexOf(x) - order.indexOf(y))
+    .forEach((k) => bar.appendChild(chip(k, k, counts[k])));
+  if (nosub && order.length) bar.appendChild(chip("__nosub", "未细分", nosub, "vi-lb-none"));
+  return bar;
 }
 function lbAuthorTip(a) {
   const x = _lbAuthors[a];
@@ -1943,9 +1970,16 @@ function viRenderDone() {
   let f = lbFilterGet(m);
   if (f && (f === "__none" ? !none : f === "__noau" ? !noAu : !counts[f])) f = "";   // 这一类已经没有了：回到「全部」
   const hit = (n) => (f === "__noau" ? !n.author : f === "__none" ? (!lbOf(n, m) && (m !== "author" || !!n.author)) : lbOf(n, m) === f);
-  const done = !f ? all : all.filter(hit);
+  let done = !f ? all : all.filter(hit);
   box.innerHTML = "";
   box.appendChild(lbBar(all.length, counts, none, m, f, noAu));
+  // v134：选了一个大类（文章分类）→ 下面一行按子类再筛
+  if (m === "note" && f && f !== "__none" && (lbSubsOf(f).length || done.some((n) => n.sub))) {
+    let sf = lbSubGet(f);
+    if (sf && (sf === "__nosub" ? !done.some((n) => !n.sub) : !done.some((n) => n.sub === sf))) sf = "";
+    box.appendChild(lbSubBar(f, done, sf));
+    if (sf) done = done.filter((n) => (sf === "__nosub" ? !n.sub : n.sub === sf));
+  }
   const rows = document.createElement("div"); rows.className = "vn-done-rows";
   done.slice(0, _viDoneShown).forEach((n, i) => {
     const r = document.createElement("div");
@@ -1958,10 +1992,11 @@ function viRenderDone() {
     const lab = lbOf(n, m);
     if (m === "note" || n.author) {
       const c = document.createElement("span");
-      c.className = "vn-cat" + (lab ? "" : " vn-cat-empty"); c.textContent = lab || "＋ 分类";
+      c.className = "vn-cat" + (lab ? "" : " vn-cat-empty");
+      c.textContent = lab ? (m === "note" && n.sub ? lab + " · " + n.sub : lab) : "＋ 分类";        // v134：大类 · 子类
       c.dataset.lbKind = m === "author" ? "author" : "note"; c.dataset.lbKey = m === "author" ? n.author : (n.name || "");
       c.title = m === "author" ? lbAuthorTip(n.author)
-        : (lab ? "分类：" + lab + (n.cat_by === "you" ? "（你手动定的）" : "（AI 分的）") + "\n点一下可以改" : "还没分类，点一下手动分");
+        : (lab ? "分类：" + lab + (n.sub ? " › " + n.sub : "（还没分到子类）") + (n.cat_by === "you" ? "（你手动定的）" : "（AI 分的）") + "\n点一下可以改" : "还没分类，点一下手动分");
       slot.appendChild(c);
     }
     r.appendChild(slot);
@@ -2028,7 +2063,7 @@ function lbRenderActs() {
 async function lbRefresh() {
   try {
     const r = await fetch(BACKEND + "/labels/all"); const d = await r.json();
-    if (d && d.ok) { lbApply(d.cats, d.authors, d.notes); if (_lbPopOpen) lbRenderActs(); else viRenderDone(); }
+    if (d && d.ok) { lbApply(d.cats, d.authors, d.notes, d.tree); if (_lbPopOpen) lbRenderActs(); else viRenderDone(); }
   } catch (e) {}
 }
 async function lbPoll() {
@@ -2058,16 +2093,20 @@ async function lbJobAct(act) {
   } catch (e) { setVideoStatus("贴标签没启动：" + (e && e.message ? e.message : e), "warn"); }
   setTimeout(lbPoll, 400);
 }
-async function lbSave(kind, key, cat) {
+async function lbSave(kind, key, cat, sub) {
   lbPopClose();
   try {
-    const r = await fetch(BACKEND + "/labels/set", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, key, cat }) });
+    const r = await fetch(BACKEND + "/labels/set", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, key, cat, sub: sub || "" }) });
     const d = await r.json();
     if (!d || !d.ok) { setVideoStatus("没改成：" + ((d && d.error) || "后端没回话"), "warn"); return; }
     if (Array.isArray(d.cats)) _lbCats = d.cats;
+    if (Array.isArray(d.tree) && d.tree.length) _lbTree = d.tree;
     if (kind === "note") {
       const n = (_vnAllNotes || []).find((x) => x.name === key);
-      if (n) { if (cat) { n.cat = cat; n.cat_by = "you"; } else { delete n.cat; delete n.kw; delete n.cat_by; } }
+      if (n) {
+        if (cat) { n.cat = cat; if (sub) n.sub = sub; else delete n.sub; n.cat_by = "you"; }
+        else { delete n.cat; delete n.sub; delete n.kw; delete n.cat_by; }
+      }
     } else if (cat) _lbAuthors[key] = { dom: cat, by: "you" };
     else delete _lbAuthors[key];
     viRenderDone();
@@ -2085,8 +2124,8 @@ function lbPick(el) {
   lbPopClose();
   const kind = el.dataset.lbKind, key = el.dataset.lbKey;
   if (!kind || !key) return;
-  let cur = "";
-  if (kind === "note") { const n = (_vnAllNotes || []).find((x) => x.name === key); cur = (n && n.cat) || ""; }
+  let cur = "", curSub = "";
+  if (kind === "note") { const n = (_vnAllNotes || []).find((x) => x.name === key); cur = (n && n.cat) || ""; curSub = (n && n.sub) || ""; }
   else cur = (_lbAuthors[key] && _lbAuthors[key].dom) || "";
   const pop = document.createElement("div"); pop.className = "vi-lb-pop"; pop.id = "viLbPop";
   const h = document.createElement("div"); h.className = "vi-lb-pop-h";
@@ -2098,17 +2137,50 @@ function lbPick(el) {
     w.textContent = [ax.dir ? "方向：" + ax.dir : "", ax.why ? "理由：" + ax.why : "", ax.src ? "依据：" + ax.src : ""].filter(Boolean).join("\n");
     pop.appendChild(w);
   }
-  const grid = document.createElement("div"); grid.className = "vi-lb-pop-cats";
+  const grid = document.createElement("div"); grid.className = "vi-lb-pop-cats"; pop.appendChild(grid);
+  const subBox = document.createElement("div"); subBox.className = "vi-lb-pop-subs";   // v134：选了大类，下面是它的子类
+  if (kind === "note") pop.appendChild(subBox);
+  const row = document.createElement("div"); row.className = "vi-lb-pop-new";
+  const inp = document.createElement("input"); inp.type = "text"; inp.maxLength = 8;
+  const ok = document.createElement("button"); ok.type = "button"; ok.className = "ghost-btn small"; ok.textContent = "用这个";
+  let pick = cur;
+  const place = () => {
+    const rc = el.getBoundingClientRect(), pw = pop.offsetWidth, ph = pop.offsetHeight;
+    let x = rc.left, y = rc.bottom + 6;
+    if (x + pw > window.innerWidth - 8) x = window.innerWidth - pw - 8;
+    if (y + ph > window.innerHeight - 8) y = Math.max(8, rc.top - ph - 6);
+    pop.style.left = Math.max(8, x) + "px"; pop.style.top = y + "px";
+  };
+  const renderSubs = () => {
+    subBox.innerHTML = "";
+    const subs = kind === "note" ? lbSubsOf(pick) : [];
+    subBox.hidden = !subs.length;
+    inp.placeholder = subs.length ? "在「" + pick + "」里新加一个子类" : "都不合适？自己写一个";
+    if (!subs.length) return;
+    const t = document.createElement("div"); t.className = "vi-lb-pop-subh"; t.textContent = "「" + pick + "」里分到哪个子类"; subBox.appendChild(t);
+    const g = document.createElement("div"); g.className = "vi-lb-pop-cats";
+    subs.forEach((sn) => {
+      const b = document.createElement("button"); b.type = "button"; b.className = "vi-lb-chip" + (pick === cur && sn === curSub ? " on" : ""); b.textContent = sn;
+      b.addEventListener("click", () => lbSave("note", key, pick, sn));
+      g.appendChild(b);
+    });
+    subBox.appendChild(g);
+  };
   (_lbCats || []).forEach((c) => {
     const b = document.createElement("button"); b.type = "button"; b.className = "vi-lb-chip" + (c === cur ? " on" : ""); b.textContent = c;
-    b.addEventListener("click", () => lbSave(kind, key, c));
+    b.addEventListener("click", () => {
+      if (kind !== "note" || !lbSubsOf(c).length) { lbSave(kind, key, c, ""); return; }   // 作者只定大类；没有子类的大类直接定
+      pick = c;
+      grid.querySelectorAll(".vi-lb-chip").forEach((x) => x.classList.toggle("on", x.textContent === c));
+      renderSubs(); place();
+    });
     grid.appendChild(b);
   });
-  pop.appendChild(grid);
-  const row = document.createElement("div"); row.className = "vi-lb-pop-new";
-  const inp = document.createElement("input"); inp.type = "text"; inp.maxLength = 8; inp.placeholder = "都不合适？自己写一个";
-  const ok = document.createElement("button"); ok.type = "button"; ok.className = "ghost-btn small"; ok.textContent = "用这个";
-  const go = () => { const v = inp.value.trim(); if (v) lbSave(kind, key, v); };
+  const go = () => {
+    const v = inp.value.trim(); if (!v) return;
+    if (kind === "note" && pick && lbSubsOf(pick).length) lbSave("note", key, pick, v);        // 新子类
+    else lbSave(kind, key, v, "");
+  };
   ok.addEventListener("click", go);
   inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go(); } });
   row.appendChild(inp); row.appendChild(ok); pop.appendChild(row);
@@ -2117,17 +2189,16 @@ function lbPick(el) {
   redo.textContent = kind === "author" ? "让 AI 重新判断（会重新读主页）" : "让 AI 重新分类";
   redo.addEventListener("click", () => lbRedo(kind, key));
   foot.appendChild(redo); pop.appendChild(foot);
+  renderSubs();
   document.body.appendChild(pop);
-  const rc = el.getBoundingClientRect(), pw = pop.offsetWidth, ph = pop.offsetHeight;
-  let x = rc.left, y = rc.bottom + 6;
-  if (x + pw > window.innerWidth - 8) x = window.innerWidth - pw - 8;
-  if (y + ph > window.innerHeight - 8) y = Math.max(8, rc.top - ph - 6);
-  pop.style.left = Math.max(8, x) + "px"; pop.style.top = y + "px";
+  place();
   _lbPopOpen = true;
 }
 document.getElementById("viDone")?.addEventListener("click", (e) => {   // 先于每一行自己的「打开笔记」
   const t = e.target.closest && e.target.closest("[data-lb-kind]");
   if (t) { e.stopPropagation(); e.preventDefault(); lbPick(t); return; }
+  const sbn = e.target.closest && e.target.closest("[data-lbs]");          // v134：子类那一行
+  if (sbn) { e.stopPropagation(); lbSubSet(sbn.dataset.big, sbn.dataset.lbs); _viDoneShown = 50; viRenderDone(); return; }
   const fb = e.target.closest && e.target.closest("[data-lbf]");
   if (fb) { e.stopPropagation(); lbFilterSet(lbMode(), fb.dataset.lbf); _viDoneShown = 50; viRenderDone(); return; }
   const mb = e.target.closest && e.target.closest("[data-lbmode]");
@@ -4647,7 +4718,7 @@ async function loadVideoNotes() {
     const folders = data.folders || [];
     if (data.tidy && data.tidy.length) _vnTidyMsgs = _vnTidyMsgs.concat(data.tidy).slice(-6);   // v64
     list.innerHTML = "";
-    _vnAllNotes = notes; if (data.labels) lbApply(data.labels.cats, data.labels.authors);   // v132：分类、作者领域
+    _vnAllNotes = notes; if (data.labels) lbApply(data.labels.cats, data.labels.authors, null, data.labels.tree);   // v132：分类、作者领域；v134：两级
     setTimeout(viRenderDone, 0);   // v125：加工页的「已加工」
     ["viExtractExtras", "viProcessBars", "viAnLive"].forEach((id) => { const x = document.getElementById(id); if (x) x.innerHTML = ""; });   // v116：搬到提取 / 加工页的几块也一起重画
 

@@ -4084,7 +4084,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(st)
         if path == "/labels/all":                       # v132：所有标签（已加工清单刷新用）
             _lb = _lb_mod()
-            return self._send({"ok": True, "cats": _lb.cats(), "notes": _lb.note_labels(),
+            return self._send({"ok": True, "cats": _lb.cats(), "tree": _lb.tree(), "notes": _lb.note_labels(),
                                "authors": _lb.public_authors()})
         if path == "/video_note_analyze_batch":
             b = dict(_note_batch)
@@ -4744,10 +4744,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send({"ok": bool(ok), "job": _lb.job_state()})
             cat = (body.get("cat") or "").strip()
             if kind == "note":
-                _lb.set_note(key, cat, by="you")
+                _lb.set_note(key, cat, sub=(body.get("sub") or "").strip(), by="you")    # v134：大类 + 子类
             else:
                 _lb.set_author(key, cat, by="you")
-            return self._send({"ok": True, "cats": _lb.cats()})
+            return self._send({"ok": True, "cats": _lb.cats(), "tree": _lb.tree()})
         if path == "/video_note_reset":               # v128：重新加工：先把这条放回「未加工」
             name = (body.get("name") or "").strip()
             if not name or "/" in name or "\\" in name or ".." in name:
@@ -6949,11 +6949,13 @@ class Handler(BaseHTTPRequestHandler):
                     x = _nl.get(it["name"])
                     if x and x.get("cat"):
                         it["cat"] = x["cat"]
+                        if x.get("sub"):
+                            it["sub"] = x["sub"]                    # v134：子类
                         if x.get("kw"):
                             it["kw"] = x["kw"]
                         if x.get("by") == "you":
                             it["cat_by"] = "you"
-                lbs = {"cats": _lb.cats(), "authors": _lb.public_authors()}
+                lbs = {"cats": _lb.cats(), "tree": _lb.tree(), "authors": _lb.public_authors()}
             except Exception as _e:
                 _clog("贴标签", "读标签出错：%s" % _e)
             return self._send({"ok": True, "notes": items, "folders": folders, "tidy": tidy, "labels": lbs})
