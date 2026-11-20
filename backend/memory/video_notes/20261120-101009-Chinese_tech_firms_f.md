@@ -1,0 +1,40 @@
+# Chinese tech firms face a double hit as chip shipments stop and overseas cloud access disappears
+
+- 来源链接：https://the-decoder.com/chinese-tech-firms-face-a-double-hit-as-chip-shipments-stop-and-overseas-cloud-access-disappears/
+- 作者：Maximilian Schreiner
+- 提取时间：2026-11-20 10:10
+- 状态：未分析
+- 类型：网页文章
+- 发布时间：2026-11-19 17:02
+
+## 🤖 AI 分析
+
+（这条只提取了原文，还没做 AI 分析。需要的时候点「🤖 AI 分析」就行：提取完成那一行、笔记列表里这一条的右边、或者打开笔记后的按钮都可以。）
+
+---
+
+## 📝 完整文字稿
+
+According to the law firm Sidley Austin, the licensing requirement kicks in at an extremely low threshold equivalent to roughly 300 modern AI chips, while Chinese labs typically need several thousand processors. The Information reports that Beijing-based startup Moonshot AI canceled a $150 million contract with a Southeast Asian cloud provider in Indonesia in response and paused talks on additional deals.
+
+Moonshot had planned to rent a large cluster of Nvidia Blackwell Ultra B300 chips there starting next year to train its next language model, Kimi K4. Because of the heavy compute demand, the company had agreed to prepay about 50 percent instead of the industry-standard 15 percent. Access to Blackwell chips abroad was already critical for its predecessor model K3, which matched top US models in July and triggered a BIS investigation, The Information also reported.
+
+Bernstein analysts led by Qingyuan Lin are warning of rising training costs, and banks are pulling back too. According to Bloomberg, five lenders are considering dropping out of a $480 million loan for Singapore-based cloud provider Aolani, which was supposed to supply Nvidia chips in Malaysia for TikTok parent ByteDance.
+
+### TSMC and Samsung halt chip shipments to China
+
+Beyond cloud restrictions, the new US rules are also starting to cut physical supply chains. The Financial Times reports that contract manufacturers TSMC and Samsung stopped certain processor shipments to Chinese customers in recent days while they apply for Commerce Department licenses. The move hits Chinese tech firms at a time when they are already struggling with historically high memory chip prices and capacity bottlenecks at domestic foundries such as SMIC. Huawei recently told its customers to source their own memory for its new AI chip.
+
+The new BIS rules block a workaround through independent packaging and testing firms that Chinese chip designers had used to order high-performance processors without getting direct US approval. Samsung's affected customers include ByteDance and Baidu's AI data center unit Kunlun. Exemptions for non-AI chips have also been eliminated, so TSMC and Samsung now need licenses even for advanced smartphone processors from manufacturers including Xiaomi, Oppo, and Vivo. Industry insiders say that is likely to cause significant production delays.
+
+### Alibaba's covert network reached China's military research
+
+A New York Times investigation into the background of the espionage scandal involving Jensen Huang's former mistress Alice Huang shows why Washington tightened controls so aggressively. According to the Times, Alibaba acted as the secret primary customer and financier behind Alice Huang's Singapore-based firm Megaspeed, which bought more than $4 billion worth of Nvidia chips. Nvidia's sales team introduced Alibaba to Alice Huang in 2022.
+
+Through its subsidiary Speedmatrix, Megaspeed operated cutting-edge Nvidia chips on behalf of Alibaba in a data center in Johor built by Malaysian conglomerate YTL, in an analysis by security firm Infrawatch that is said to show this. Megaspeed reportedly sourced the servers from Aivres, a US subsidiary of state-linked Chinese firm Inspur, had them maintained by technicians from Shanghai, and routed data to China through fiber-optic and undersea cables via Singapore. Some chips were reportedly also smuggled physically.
+
+A contingency contract gives Alibaba direct access to all servers, chips, and intellectual property if Megaspeed breaches their agreement. YTL's stock price fell 20 percent amid the investigations.
+
+Alibaba also has a direct connection to Zhejiang Lab in Hangzhou, co-founded in 2017, which links civilian and military research. The lab is run by former Alibaba CTO Wang Jian, a longtime friend of Jensen Huang who also advises the People's Liberation Army's National Defense University, an institution on the US sanctions list.
+
+Researchers at the lab use Nvidia hardware to work on, among other things, AI-driven cyberattacks and automated vulnerability discovery, according to the New York Times. They also work with a Chinese air force academy on war-game simulations against foreign carrier strike groups. Through the state-owned firm Zhejiang Computility and suppliers tied to the business network of Alice Huang and her husband Kang Wei, Alibaba built data centers with export-controlled Nvidia processors for the lab, even though the company officially denies any military use of its services.

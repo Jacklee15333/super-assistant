@@ -1,1366 +1,9 @@
 [
   {
-    "id": "video-1795083337509",
-    "ts": "11-19 18:15:37",
+    "id": "video-1795140910027",
+    "ts": "11-20 10:15:10",
     "kind": "video",
-    "title": "网络骗局从夯到拉！个人看法嗷！ #笑嘻了 #从夯到拉 #反诈 #网恋 #流量",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "保存",
-      "博主主页"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "保存": 1,
-      "博主主页": 1
-    },
-    "steps": 6,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 44,
-    "note": "✅ 已完成《网络骗局从夯到拉！个人看法嗷！ #笑嘻了》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795083526360",
-    "ts": "11-19 18:18:46",
-    "kind": "video",
-    "title": "01_黄仁勋辞职与英伟达供应链_分析报告",
-    "tools": [
-      "读取文档",
-      "保存"
-    ],
-    "tool_count": {
-      "读取文档": 1,
-      "保存": 1
-    },
-    "steps": 2,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 0,
-    "note": "✅ 已完成《01_黄仁勋辞职与英伟达供应链_分析报告》，继续处理下一个（还剩 1 个）"
-  },
-  {
-    "id": "video-1795083526378",
-    "ts": "11-19 18:18:46",
-    "kind": "video",
-    "title": "02_美国1113停飞与AI暗战_核查报告_附Agent拆解",
-    "tools": [
-      "读取文档",
-      "保存"
-    ],
-    "tool_count": {
-      "读取文档": 1,
-      "保存": 1
-    },
-    "steps": 2,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 0,
-    "note": "✅ 已完成《02_美国1113停飞与AI暗战_核查报》，继续处理下一个（还剩 1 个）"
-  },
-  {
-    "id": "video-1795083526395",
-    "ts": "11-19 18:18:46",
-    "kind": "video",
-    "title": "03_百度世界2026_智能组织机会地图",
-    "tools": [
-      "读取文档",
-      "保存"
-    ],
-    "tool_count": {
-      "读取文档": 1,
-      "保存": 1
-    },
-    "steps": 2,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 0,
-    "note": "✅ 已完成《03_百度世界2026_智能组织机会地图》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795083526411",
-    "ts": "11-19 18:18:46",
-    "kind": "video",
-    "title": "04_金矿就在身边_方法论与落地方案",
-    "tools": [
-      "读取文档",
-      "保存"
-    ],
-    "tool_count": {
-      "读取文档": 1,
-      "保存": 1
-    },
-    "steps": 2,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 0,
-    "note": "✅ 已完成《04_金矿就在身边_方法论与落地方案》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795083724357",
-    "ts": "11-19 18:22:04",
-    "kind": "video",
-    "title": "职场最致命的错误，是摆不正自己的位置！ #于和伟 #职场干货 #抖音精选 #语言艺术 #人情世故",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "保存"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "保存": 1
-    },
-    "steps": 5,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 42,
-    "note": "✅ 已完成《职场最致命的错误，是摆不正自己的位置！ 》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795083906599",
-    "ts": "11-19 18:25:06",
-    "kind": "video",
-    "title": "你不想上班是对的，以后自由职业比打工更稳定\n#职场生存指南 #职场 #自由职业 #个人ip #自媒体",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "保存",
-      "博主主页"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "保存": 1,
-      "博主主页": 1
-    },
-    "steps": 6,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 35,
-    "note": "✅ 已完成《你不想上班是对的，以后自由职业比打工更稳》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795086003820",
-    "ts": "11-19 19:00:03",
-    "kind": "video",
-    "title": "大模型很强了，为什么还是赚不到钱？李彦宏：电机早就有了，到流水线出现才开始赚钱#和合共生",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "加载语音模型",
-      "语音转文字",
-      "保存",
-      "博主主页"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "保存": 1,
-      "博主主页": 1
-    },
-    "steps": 7,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 11,
-    "note": "✅ 已完成《大模型很强了，为什么还是赚不到钱？李彦宏》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795086321565",
-    "ts": "11-19 19:05:21",
-    "kind": "video",
-    "title": "大模型很强了，为什么还是赚不到钱？李彦宏：电机早就有了，到流水线出现才开始赚钱#和合共生",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "保存"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "保存": 1
-    },
-    "steps": 5,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 8,
-    "note": "✅ 已完成《大模型很强了，为什么还是赚不到钱？李彦宏》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795086825747",
-    "ts": "11-19 19:13:45",
-    "kind": "video",
-    "title": "大模型很强了，为什么还是赚不到钱？李彦宏：电机早就有了，到流水线出现才开始赚钱#和合共生",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "加载语音模型",
-      "语音转文字",
-      "保存"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "保存": 1
-    },
-    "steps": 6,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 14,
-    "note": "✅ 已完成《大模型很强了，为什么还是赚不到钱？李彦宏》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795086967703",
-    "ts": "11-19 19:16:07",
-    "kind": "video",
-    "title": "我这个战绩应该算吃的偏多了吧#自助餐",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "保存",
-      "博主主页"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "保存": 1,
-      "博主主页": 1
-    },
-    "steps": 6,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 21,
-    "note": "✅ 已完成《我这个战绩应该算吃的偏多了吧#自助餐》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795087074882",
-    "ts": "11-19 19:17:54",
-    "kind": "video",
-    "title": "出门在外，幸福者退让#幸福者退让原则 #天津话 #网约车",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "保存",
-      "博主主页"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "保存": 1,
-      "博主主页": 1
-    },
-    "steps": 6,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 79,
-    "note": "✅ 已完成《出门在外，幸福者退让#幸福者退让原则 #》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795087295341",
-    "ts": "11-19 19:21:35",
-    "kind": "video",
-    "title": "出门在外，幸福者退让#幸福者退让原则 #天津话 #网约车",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "保存"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "保存": 1
-    },
-    "steps": 5,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 28,
-    "note": "✅ 已完成《出门在外，幸福者退让#幸福者退让原则 #》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795087400958",
-    "ts": "11-19 19:23:20",
-    "kind": "video",
-    "title": "学术圈新瓜！AI生成的论文1cm有12个刻度！ 但学术期刊才是最大赢家！#抖音精选app知识充电站 #学术期刊 #论文造假 #AI论文 #科普新锐扶持计划 @抖音科普",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "保存",
-      "博主主页"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "保存": 1,
-      "博主主页": 1
-    },
-    "steps": 6,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 36,
-    "note": "✅ 已完成《学术圈新瓜！AI生成的论文1cm有12个》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795087760519",
-    "ts": "11-19 19:29:20",
-    "kind": "video",
-    "title": "学术圈新瓜！AI生成的论文1cm有12个刻度！ 但学术期刊才是最大赢家！#抖音精选app知识充电站 #学术期刊 #论文造假 #AI论文 #科普新锐扶持计划 @抖音科普",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "保存"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "保存": 1
-    },
-    "steps": 5,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 34,
-    "note": "✅ 已完成《学术圈新瓜！AI生成的论文1cm有12个》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795087988078",
-    "ts": "11-19 19:33:08",
-    "kind": "video",
-    "title": "视频提取：.com/mA26Up2S4Mk/ 复制此链接，打开Dou音搜索，直接观看视频！",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "加载语音模型"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "加载语音模型": 1
-    },
-    "steps": 4,
-    "error": "提取失败：An error happened while trying to locate the files on the Hub and we cannot find the appropriate snapshot folder for the specified revision on the local disk. Please check your internet connection and try again.",
-    "outcome": "stopped",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 9,
-    "note": "⚠ 这条没成功，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795087998070",
-    "ts": "11-19 19:33:18",
-    "kind": "video",
-    "title": "视频提取：.com/mA26Up2S4Mk/ 复制此链接，打开Dou音搜索，直接观看视频！",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "加载语音模型"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "加载语音模型": 1
-    },
-    "steps": 4,
-    "error": "提取失败：An error happened while trying to locate the files on the Hub and we cannot find the appropriate snapshot folder for the specified revision on the local disk. Please check your internet connection and try again.",
-    "outcome": "stopped",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 0,
-    "note": "⚠ 这条没成功，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795087998977",
-    "ts": "11-19 19:33:18",
-    "kind": "video",
-    "title": "视频提取：.com/mA26Up2S4Mk/ 复制此链接，打开Dou音搜索，直接观看视频！",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "加载语音模型"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "加载语音模型": 1
-    },
-    "steps": 4,
-    "error": "提取失败：An error happened while trying to locate the files on the Hub and we cannot find the appropriate snapshot folder for the specified revision on the local disk. Please check your internet connection and try again.",
-    "outcome": "stopped",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 0,
-    "note": "⚠ 这条没成功，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795088748573",
-    "ts": "11-19 19:45:48",
-    "kind": "video",
-    "title": "视频提取：https://v.douyin.com/uJtgeabzec0/",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "加载语音模型",
-      "语音转文字"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1
-    },
-    "steps": 5,
-    "error": "已取消",
-    "outcome": "stopped",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 164,
-    "note": "🛑 已按你的要求取消（队列已清空）"
-  },
-  {
-    "id": "video-1795088921917",
-    "ts": "11-19 19:48:41",
-    "kind": "video",
-    "title": "视频提取：https://v.douyin.com/rK10-k-1V4k/",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "加载语音模型"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "加载语音模型": 1
-    },
-    "steps": 4,
-    "error": "提取失败：An error happened while trying to locate the files on the Hub and we cannot find the appropriate snapshot folder for the specified revision on the local disk. Please check your internet connection and try again.",
-    "outcome": "stopped",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 9,
-    "note": "⚠ 这条没成功，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795088931881",
-    "ts": "11-19 19:48:51",
-    "kind": "video",
-    "title": "视频提取：https://v.douyin.com/rK10-k-1V4k/",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "加载语音模型"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "加载语音模型": 1
-    },
-    "steps": 4,
-    "error": "提取失败：An error happened while trying to locate the files on the Hub and we cannot find the appropriate snapshot folder for the specified revision on the local disk. Please check your internet connection and try again.",
-    "outcome": "stopped",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 0,
-    "note": "⚠ 这条没成功，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795088932604",
-    "ts": "11-19 19:48:52",
-    "kind": "video",
-    "title": "视频提取：https://v.douyin.com/rK10-k-1V4k/",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "加载语音模型"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "加载语音模型": 1
-    },
-    "steps": 4,
-    "error": "提取失败：An error happened while trying to locate the files on the Hub and we cannot find the appropriate snapshot folder for the specified revision on the local disk. Please check your internet connection and try again.",
-    "outcome": "stopped",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 0,
-    "note": "⚠ 这条没成功，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795089773305",
-    "ts": "11-19 20:02:53",
-    "kind": "video",
-    "title": "一辈子不出国，汇率如何洗劫你的钱包？ 别觉得汇率与你无关！#经济学 #金融常识 #认知提升 #财经 #抖音精选app征稿中",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "加载语音模型",
-      "语音转文字",
-      "检查漏识别",
-      "识别完成",
-      "保存"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "检查漏识别": 1,
-      "识别完成": 1,
-      "保存": 1
-    },
-    "steps": 8,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 222,
-    "note": "✅ 已完成《一辈子不出国，汇率如何洗劫你的钱包？ 别》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795090814745",
-    "ts": "11-19 20:20:14",
-    "kind": "video",
-    "title": "视频提取：.com/GphnYHufyow/ 复制此链接，打开Dou音搜索，直接观看视频！",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "下载语音模型"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "下载语音模型": 1
-    },
-    "steps": 4,
-    "error": "提取失败：large-v3 模型没下载下来（已下好的部分留着，下次接着下）——国内镜像：The read operation timed out；Hugging Face 官网（走代理）：下载中断了（2.45 GB / 2.88 GB），下次会接着下；国内镜像（走代理）：服务器返回 502 Bad Gateway",
-    "outcome": "stopped",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 176,
-    "note": "⚠ 这条没成功，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795090991229",
-    "ts": "11-19 20:23:11",
-    "kind": "video",
-    "title": "七年不敢重启的老服务器 legacy01，周五突然崩了 一台名叫 legacy01 的老服务器，稳稳跑了七年多，团队铁律：绝不重启。 某个周五它突然失联，订单、结账大面积瘫痪。诡异的是：库存网关还正常工作，但程序文件早就被删除。 层层排查，",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "下载语音模型",
-      "加载语音模型",
-      "语音转文字",
-      "识别完成",
-      "整理原文",
-      "保存",
-      "博主主页"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "下载语音模型": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "识别完成": 1,
-      "整理原文": 1,
-      "保存": 1,
-      "博主主页": 1
-    },
-    "steps": 10,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 370,
-    "note": "✅ 已完成《七年不敢重启的老服务器 legacy01》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795092727862",
-    "ts": "11-19 20:52:07",
-    "kind": "video",
-    "title": "黑龙江省肇东市：一步一步的深渊 #悬疑 #社会百态 #根据真实事件改编 #普法小剧场",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "加载语音模型",
-      "语音转文字",
-      "识别完成",
-      "整理原文",
-      "保存",
-      "博主主页"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "识别完成": 1,
-      "整理原文": 1,
-      "保存": 1,
-      "博主主页": 1
-    },
-    "steps": 9,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 270,
-    "note": "✅ 已完成《黑龙江省肇东市：一步一步的深渊 #悬疑 》，继续处理下一个（还剩 1 个）"
-  },
-  {
-    "id": "video-1795092998158",
-    "ts": "11-19 20:56:38",
-    "kind": "video",
-    "title": "传统互联网、传统电商面临的挑战确实是生死存亡!",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "获取标题",
-      "语音转文字",
-      "识别完成",
-      "保存"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "获取标题": 1,
-      "语音转文字": 1,
-      "识别完成": 1,
-      "保存": 1
-    },
-    "steps": 7,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 38,
-    "note": "✅ 已完成《传统互联网、传统电商面临的挑战确实是生死》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795093350244",
-    "ts": "11-19 21:02:30",
-    "kind": "video",
-    "title": "抓小放大的人永远得不到幸福 #家庭教育#夫妻日常#婚姻#情感#家庭",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "识别完成",
-      "保存",
-      "博主主页"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "识别完成": 1,
-      "保存": 1,
-      "博主主页": 1
-    },
-    "steps": 7,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 141,
-    "note": "✅ 已完成《抓小放大的人永远得不到幸福 #家庭教育#》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795093568854",
-    "ts": "11-19 21:06:08",
-    "kind": "video",
-    "title": "FC2 PPV 862588 【個人撮影】本気で感じる姿がとても可愛らしい、黒髪女子大生のあおいちゃんに中出し！【妄想動画】 (1)",
-    "tools": [
-      "读取文件",
-      "语音转文字",
-      "检查漏识别",
-      "识别完成",
-      "保存"
-    ],
-    "tool_count": {
-      "读取文件": 1,
-      "语音转文字": 1,
-      "检查漏识别": 1,
-      "识别完成": 1,
-      "保存": 1
-    },
-    "steps": 5,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 30,
-    "note": "✅ 已完成《FC2 PPV 862588 【個人撮影》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795094512646",
-    "ts": "11-19 21:21:52",
-    "kind": "video",
-    "title": "FC2 PPV 862588 【個人撮影】本気で感じる姿がとても可愛らしい、黒髪女子大生のあおいちゃんに中出し！【妄想動画】 (1)",
-    "tools": [
-      "读取文件",
-      "加载语音模型",
-      "语音转文字",
-      "检查漏识别",
-      "识别完成",
-      "保存"
-    ],
-    "tool_count": {
-      "读取文件": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "检查漏识别": 1,
-      "识别完成": 1,
-      "保存": 1
-    },
-    "steps": 6,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 24,
-    "note": "✅ 已完成《FC2 PPV 862588 【個人撮影》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795095393193",
-    "ts": "11-19 21:36:33",
-    "kind": "video",
-    "title": "FC2 PPV 862588 【個人撮影】本気で感じる姿がとても可愛らしい、黒髪女子大生のあおいちゃんに中出し！【妄想動画】 (1)",
-    "tools": [
-      "读取文件",
-      "下载语音模型",
-      "加载语音模型",
-      "语音转文字",
-      "检查漏识别",
-      "识别完成",
-      "保存"
-    ],
-    "tool_count": {
-      "读取文件": 1,
-      "下载语音模型": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "检查漏识别": 1,
-      "识别完成": 1,
-      "保存": 1
-    },
-    "steps": 7,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 125,
-    "note": "✅ 已完成《FC2 PPV 862588 【個人撮影》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795096287118",
-    "ts": "11-19 21:51:27",
-    "kind": "video",
-    "title": "视频提取：ても可愛らしい、黒髪女子大生のあおいちゃんに中出し！【妄想動画】 (1).mp4",
-    "tools": [
-      "读取文件",
-      "下载语音模型"
-    ],
-    "tool_count": {
-      "读取文件": 1,
-      "下载语音模型": 1
-    },
-    "steps": 2,
-    "error": "本地文件提取失败：转格式没成功：ValueError: numpy.dtype size changed, may indicate binary incompatibility. Expected 96 from C header, got 88 from PyObject",
-    "outcome": "stopped",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 222,
-    "note": "⚠ 这条没成功，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795096528493",
-    "ts": "11-19 21:55:28",
-    "kind": "video",
-    "title": "视频提取：ても可愛らしい、黒髪女子大生のあおいちゃんに中出し！【妄想動画】 (1).mp4",
-    "tools": [
-      "读取文件",
-      "下载语音模型"
-    ],
-    "tool_count": {
-      "读取文件": 1,
-      "下载语音模型": 1
-    },
-    "steps": 2,
-    "error": "本地文件提取失败：转格式没成功：ValueError: numpy.dtype size changed, may indicate binary incompatibility. Expected 96 from C header, got 88 from PyObject",
-    "outcome": "stopped",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 8,
-    "note": "⚠ 这条没成功，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795096813758",
-    "ts": "11-19 22:00:13",
-    "kind": "video",
-    "title": "FC2 PPV 862588 【個人撮影】本気で感じる姿がとても可愛らしい、黒髪女子大生のあおいちゃんに中出し！【妄想動画】 (1)",
-    "tools": [
-      "读取文件",
-      "下载语音模型",
-      "加载语音模型",
-      "语音转文字",
-      "检查漏识别",
-      "识别完成",
-      "保存"
-    ],
-    "tool_count": {
-      "读取文件": 1,
-      "下载语音模型": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "检查漏识别": 1,
-      "识别完成": 1,
-      "保存": 1
-    },
-    "steps": 7,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 220,
-    "note": "✅ 已完成《FC2 PPV 862588 【個人撮影》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795097213690",
-    "ts": "11-19 22:06:53",
-    "kind": "video",
-    "title": "FC2 PPV 862588 【個人撮影】本気で感じる姿がとても可愛らしい、黒髪女子大生のあおいちゃんに中出し！【妄想動画】 (1)",
-    "tools": [
-      "读取文件",
-      "加载语音模型",
-      "语音转文字",
-      "检查漏识别",
-      "识别完成",
-      "保存"
-    ],
-    "tool_count": {
-      "读取文件": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "检查漏识别": 1,
-      "识别完成": 1,
-      "保存": 1
-    },
-    "steps": 6,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 27,
-    "note": "✅ 已完成《FC2 PPV 862588 【個人撮影》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795098184034",
-    "ts": "11-19 22:23:04",
-    "kind": "video",
-    "title": "FC2 PPV 862588 【個人撮影】本気で感じる姿がとても可愛らしい、黒髪女子大生のあおいちゃんに中出し！【妄想動画】 (1)",
-    "tools": [
-      "读取文件",
-      "加载语音模型",
-      "语音转文字",
-      "检查漏听",
-      "检查漏识别",
-      "识别完成",
-      "保存"
-    ],
-    "tool_count": {
-      "读取文件": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "检查漏听": 1,
-      "检查漏识别": 1,
-      "识别完成": 1,
-      "保存": 1
-    },
-    "steps": 7,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 26,
-    "note": "✅ 已完成《FC2 PPV 862588 【個人撮影》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795098276121",
-    "ts": "11-19 22:24:36",
-    "kind": "video",
-    "title": "FC2 PPV 862588 【個人撮影】本気で感じる姿がとても可愛らしい、黒髪女子大生のあおいちゃんに中出し！【妄想動画】 (1)",
-    "tools": [
-      "读取文件",
-      "人声分离",
-      "语音转文字",
-      "检查漏识别",
-      "识别完成",
-      "保存"
-    ],
-    "tool_count": {
-      "读取文件": 1,
-      "人声分离": 1,
-      "语音转文字": 1,
-      "检查漏识别": 1,
-      "识别完成": 1,
-      "保存": 1
-    },
-    "steps": 6,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 454,
-    "note": "✅ 已完成《FC2 PPV 862588 【個人撮影》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795098835526",
-    "ts": "11-19 22:33:55",
-    "kind": "video",
-    "title": "FC2 PPV 862588 【個人撮影】本気で感じる姿がとても可愛らしい、黒髪女子大生のあおいちゃんに中出し！【妄想動画】 (1)",
-    "tools": [
-      "读取文件",
-      "语音转文字",
-      "检查漏听",
-      "检查漏识别",
-      "识别完成",
-      "保存"
-    ],
-    "tool_count": {
-      "读取文件": 1,
-      "语音转文字": 1,
-      "检查漏听": 1,
-      "检查漏识别": 1,
-      "识别完成": 1,
-      "保存": 1
-    },
-    "steps": 6,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 23,
-    "note": "✅ 已完成《FC2 PPV 862588 【個人撮影》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795099284210",
-    "ts": "11-19 22:41:24",
-    "kind": "video",
-    "title": "视频提取：ても可愛らしい、黒髪女子大生のあおいちゃんに中出し！【妄想動画】 (1).mp4",
-    "tools": [
-      "读取文件",
-      "加载语音模型",
-      "语音转文字"
-    ],
-    "tool_count": {
-      "读取文件": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1
-    },
-    "steps": 3,
-    "error": "",
-    "outcome": "",
-    "status": "running",
-    "tokens_est": 0,
-    "seconds": 0,
-    "_start": 1795099284.2106173
-  },
-  {
-    "id": "video-1795099458760",
-    "ts": "11-19 22:44:18",
-    "kind": "video",
-    "title": "视频提取：ても可愛らしい、黒髪女子大生のあおいちゃんに中出し！【妄想動画】 (1).mp4",
-    "tools": [
-      "读取文件",
-      "加载语音模型",
-      "语音转文字"
-    ],
-    "tool_count": {
-      "读取文件": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1
-    },
-    "steps": 3,
-    "error": "",
-    "outcome": "",
-    "status": "running",
-    "tokens_est": 0,
-    "seconds": 0,
-    "_start": 1795099458.7609048
-  },
-  {
-    "id": "video-1795099654774",
-    "ts": "11-19 22:47:34",
-    "kind": "video",
-    "title": "视频提取：ても可愛らしい、黒髪女子大生のあおいちゃんに中出し！【妄想動画】 (1).mp4",
-    "tools": [
-      "读取文件",
-      "加载语音模型",
-      "语音转文字"
-    ],
-    "tool_count": {
-      "读取文件": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1
-    },
-    "steps": 3,
-    "error": "",
-    "outcome": "",
-    "status": "running",
-    "tokens_est": 0,
-    "seconds": 0,
-    "_start": 1795099654.774258
-  },
-  {
-    "id": "video-1795099750434",
-    "ts": "11-19 22:49:10",
-    "kind": "video",
-    "title": "FC2 PPV 862588 【個人撮影】本気で感じる姿がとても可愛らしい、黒髪女子大生のあおいちゃんに中出し！【妄想動画】 (1)",
-    "tools": [
-      "读取文件",
-      "加载语音模型",
-      "语音转文字",
-      "加载语音模型",
-      "语音转文字",
-      "检查漏听",
-      "检查漏识别",
-      "识别完成",
-      "保存"
-    ],
-    "tool_count": {
-      "读取文件": 1,
-      "加载语音模型": 2,
-      "语音转文字": 2,
-      "检查漏听": 1,
-      "检查漏识别": 1,
-      "识别完成": 1,
-      "保存": 1
-    },
-    "steps": 9,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 86,
-    "note": "✅ 已完成《FC2 PPV 862588 【個人撮影》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795100333524",
-    "ts": "11-19 22:58:53",
-    "kind": "video",
-    "title": "FC2 PPV 862588 【個人撮影】本気で感じる姿がとても可愛らしい、黒髪女子大生のあおいちゃんに中出し！【妄想動画】 (1)",
-    "tools": [
-      "读取文件",
-      "加载语音模型",
-      "语音转文字",
-      "检查漏听",
-      "检查漏识别",
-      "识别完成",
-      "保存"
-    ],
-    "tool_count": {
-      "读取文件": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "检查漏听": 1,
-      "检查漏识别": 1,
-      "识别完成": 1,
-      "保存": 1
-    },
-    "steps": 7,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 30,
-    "note": "✅ 已完成《FC2 PPV 862588 【個人撮影》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795100559552",
-    "ts": "11-19 23:02:39",
-    "kind": "video",
-    "title": "FC2 PPV 862588 【個人撮影】本気で感じる姿がとても可愛らしい、黒髪女子大生のあおいちゃんに中出し！【妄想動画】 (1)",
-    "tools": [
-      "读取文件",
-      "加载语音模型",
-      "语音转文字",
-      "检查漏识别",
-      "识别完成",
-      "保存"
-    ],
-    "tool_count": {
-      "读取文件": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "检查漏识别": 1,
-      "识别完成": 1,
-      "保存": 1
-    },
-    "steps": 6,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 39,
-    "note": "✅ 已完成《FC2 PPV 862588 【個人撮影》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795100816536",
-    "ts": "11-19 23:06:56",
-    "kind": "video",
-    "title": "FC2 PPV 862588 【個人撮影】本気で感じる姿がとても可愛らしい、黒髪女子大生のあおいちゃんに中出し！【妄想動画】 (1)",
-    "tools": [
-      "读取文件",
-      "人声分离",
-      "语音转文字",
-      "检查漏识别",
-      "识别完成",
-      "保存"
-    ],
-    "tool_count": {
-      "读取文件": 1,
-      "人声分离": 1,
-      "语音转文字": 1,
-      "检查漏识别": 1,
-      "识别完成": 1,
-      "保存": 1
-    },
-    "steps": 6,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 22,
-    "note": "✅ 已完成《FC2 PPV 862588 【個人撮影》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795129937030",
-    "ts": "11-20 07:12:17",
-    "kind": "video",
-    "title": "Vibe知识大赏 | “深度思考”，AI 脑子里到底干了啥？ 让 AI 从“凭感觉瞎蒙”练出“推理肌肉记忆”的，全靠这套分组试错算法。12分钟手搓动画，带你看懂 GRPO 机制，建议先藏后看. #vibe知识大赏 #抖音精选app知识充电站",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "加载语音模型",
-      "语音转文字",
-      "识别完成",
-      "保存",
-      "博主主页"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "识别完成": 1,
-      "保存": 1,
-      "博主主页": 1
-    },
-    "steps": 8,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 89,
-    "note": "✅ 已完成《Vibe知识大赏 | “深度思考”，AI》，继续处理下一个（还剩 1 个）"
-  },
-  {
-    "id": "video-1795130026674",
-    "ts": "11-20 07:13:46",
-    "kind": "video",
-    "title": "立场问题＞对错问题。只有先明确立场，才能以此立场去判断对错！#剪映 #厨师",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "识别完成",
-      "保存",
-      "博主主页"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "识别完成": 1,
-      "保存": 1,
-      "博主主页": 1
-    },
-    "steps": 7,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 11,
-    "note": "✅ 已完成《立场问题＞对错问题。只有先明确立场，才能》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795130101103",
-    "ts": "11-20 07:15:01",
-    "kind": "video",
-    "title": "立场问题＞对错问题。只有先明确立场，才能以此立场去判断对错！#剪映 #厨师",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "识别完成",
-      "保存"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "识别完成": 1,
-      "保存": 1
-    },
-    "steps": 6,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 12,
-    "note": "✅ 已完成《立场问题＞对错问题。只有先明确立场，才能》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795130140991",
-    "ts": "11-20 07:15:40",
-    "kind": "video",
-    "title": "立场问题＞对错问题。只有先明确立场，才能以此立场去判断对错！#剪映 #厨师",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "识别完成",
-      "保存"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "识别完成": 1,
-      "保存": 1
-    },
-    "steps": 6,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 13,
-    "note": "✅ 已完成《立场问题＞对错问题。只有先明确立场，才能》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795130275720",
-    "ts": "11-20 07:17:55",
-    "kind": "video",
-    "title": "【开源自荐】✨用AI找AI商机：一个能分析100+行业、自动生成创业方案的开源工具 · Issue #7395 · ruanyf/weekly",
+    "title": "Google gives Gemini the ability to use your Mac for you | TechCrunch",
     "tools": [
       "读取网页",
       "保存"
@@ -1375,6 +18,1197 @@
     "status": "done",
     "tokens_est": 0,
     "seconds": 0,
-    "note": "✅ 已完成《【开源自荐】✨用AI找AI商机：一个能分》，队列已清空，等待新任务"
+    "note": "✅ 已完成《Google gives Gemini 》，继续处理下一个（还剩 124 个）"
+  },
+  {
+    "id": "video-1795140910676",
+    "ts": "11-20 10:15:10",
+    "kind": "video",
+    "title": "Meta’s AI agent Muse is mixing up conversations and could be exposing private data, report says | TechCrunch",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "✅ 已完成《Meta’s AI agent Muse》，继续处理下一个（还剩 123 个）"
+  },
+  {
+    "id": "video-1795140911302",
+    "ts": "11-20 10:15:11",
+    "kind": "video",
+    "title": "Former Alibaba exec's Everful raises $48.5M to connect retailers with Chinese factories | TechCrunch",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "✅ 已完成《Former Alibaba exec'》，继续处理下一个（还剩 122 个）"
+  },
+  {
+    "id": "video-1795140912064",
+    "ts": "11-20 10:15:12",
+    "kind": "video",
+    "title": "Anthropic hits Nasdaq exchanges at $111, 33% above IPO price | TechCrunch",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "✅ 已完成《Anthropic hits Nasda》，继续处理下一个（还剩 121 个）"
+  },
+  {
+    "id": "video-1795140912737",
+    "ts": "11-20 10:15:12",
+    "kind": "video",
+    "title": "At Nasdaq opening bell, Anthropic CEO recommits to pacing AI development | TechCrunch",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "✅ 已完成《At Nasdaq opening be》，继续处理下一个（还剩 120 个）"
+  },
+  {
+    "id": "video-1795140913424",
+    "ts": "11-20 10:15:13",
+    "kind": "video",
+    "title": "Sam Altman罕见发声：我不担心Anthropic先上市，市场上不缺投资者",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "✅ 已完成《Sam Altman罕见发声：我不担心A》，继续处理下一个（还剩 119 个）"
+  },
+  {
+    "id": "video-1795140914172",
+    "ts": "11-20 10:15:14",
+    "kind": "video",
+    "title": "模型刚接进业务，CEO又要换新：红帽如何接住企业AI落地难题？",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 1,
+    "note": "✅ 已完成《模型刚接进业务，CEO又要换新：红帽如何》，继续处理下一个（还剩 118 个）"
+  },
+  {
+    "id": "video-1795140915496",
+    "ts": "11-20 10:15:15",
+    "kind": "video",
+    "title": "杀入Agent主场之后：两年内部分替代自回归，扩散智能的底气从何而来？| 专访",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "✅ 已完成《杀入Agent主场之后：两年内部分替代自》，继续处理下一个（还剩 117 个）"
+  },
+  {
+    "id": "video-1795140916328",
+    "ts": "11-20 10:15:16",
+    "kind": "video",
+    "title": "Agent 实干派：从人人可用到全栈工程进化 | InfoQ 小编探班_腾讯_凌敏_InfoQ精选视频",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 8,
+    "note": "✅ 已完成《Agent 实干派：从人人可用到全栈工程》，继续处理下一个（还剩 116 个）"
+  },
+  {
+    "id": "video-1795140925342",
+    "ts": "11-20 10:15:25",
+    "kind": "video",
+    "title": "价值为先，金融智能体应用实践 | TF技术前线188期报名",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 1,
+    "note": "✅ 已完成《价值为先，金融智能体应用实践 | TF技》，继续处理下一个（还剩 115 个）"
+  },
+  {
+    "id": "video-1795140926878",
+    "ts": "11-20 10:15:26",
+    "kind": "video",
+    "title": "快与真：范式首批国产算力训练的Phai系列模型，究竟有什么不同",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 1,
+    "note": "✅ 已完成《快与真：范式首批国产算力训练的Phai系》，继续处理下一个（还剩 114 个）"
+  },
+  {
+    "id": "video-1795140928522",
+    "ts": "11-20 10:15:28",
+    "kind": "video",
+    "title": "街道办 AI 智能化白皮书_AI&大模型_InfoQ_InfoQ精选电子书",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 5,
+    "note": "✅ 已完成《街道办 AI 智能化白皮书_AI&大模型》，继续处理下一个（还剩 113 个）"
+  },
+  {
+    "id": "video-1795140934242",
+    "ts": "11-20 10:15:34",
+    "kind": "video",
+    "title": "腾讯混元 Hy4 flash 上线首日登顶 OpenRouter，2 毛钱就能跑完一个任务！",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "✅ 已完成《腾讯混元 Hy4 flash 上线首日登》，继续处理下一个（还剩 112 个）"
+  },
+  {
+    "id": "video-1795140934953",
+    "ts": "11-20 10:15:34",
+    "kind": "video",
+    "title": "Creativity is a team sport | Walter Isaacson & Kent Walker",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "保存",
+      "博主主页"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "保存": 1,
+      "博主主页": 1
+    },
+    "steps": 4,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 17,
+    "note": "✅ 已完成《Creativity is a team》，继续处理下一个（还剩 111 个）"
+  },
+  {
+    "id": "video-1795140952144",
+    "ts": "11-20 10:15:52",
+    "kind": "video",
+    "title": "Gemini and the path to AGI with Koray Kavukcuoglu",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "保存",
+      "博主主页"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "保存": 1,
+      "博主主页": 1
+    },
+    "steps": 4,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 14,
+    "note": "✅ 已完成《Gemini and the path 》，继续处理下一个（还剩 110 个）"
+  },
+  {
+    "id": "video-1795140966333",
+    "ts": "11-20 10:16:06",
+    "kind": "video",
+    "title": "普通人也可以做 IP 厕所女王杨三三一开始只能在家里的厕所直播。\n只有初中学历却要做 IP，也做得有声有色。真正有用的知识是极少的，你不需要知道那么多知识，你只需要把它们用出来。 \n#自媒体 #直播卖货 #IP #月入过万 #姜胡说",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "识别完成",
+      "保存"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "识别完成": 1,
+      "保存": 1
+    },
+    "steps": 6,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 302,
+    "note": "✅ 已完成《普通人也可以做 IP 厕所女王杨三三一开》，继续处理下一个（还剩 109 个）"
+  },
+  {
+    "id": "video-1795141268863",
+    "ts": "11-20 10:21:08",
+    "kind": "video",
+    "title": "AI漫剧，能怎样参与博主IP塑造 观众记住一个人，有时是从喜欢一个角色开始的。\n这期老师聊 AI 漫剧与个人 IP：角色、剧情和人设，怎样建立情感联系。\n从配角塑造到生活化题材，再到团队制作与真人出演的限制，把思路展开讲清楚。\n视频中的合作",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "识别完成",
+      "保存"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "识别完成": 1,
+      "保存": 1
+    },
+    "steps": 6,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 68,
+    "note": "✅ 已完成《AI漫剧，能怎样参与博主IP塑造 观众记》，继续处理下一个（还剩 108 个）"
+  },
+  {
+    "id": "video-1795141337400",
+    "ts": "11-20 10:22:17",
+    "kind": "video",
+    "title": "AI猜对用途，就算读懂模型了吗 模型为什么会出现“表达流畅，答案却错了”的情况？ \n这期从洗车案例出发，梳理预训练、监督微调、强化学习，再解释普通蒸馏与思维链蒸馏的区别。老师随后讨论了人工标注、专业语料、算力成本，以及真实任务记录的价值和隐",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "检查漏识别",
+      "识别完成",
+      "保存"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "检查漏识别": 1,
+      "识别完成": 1,
+      "保存": 1
+    },
+    "steps": 7,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 81,
+    "note": "✅ 已完成《AI猜对用途，就算读懂模型了吗 模型为什》，继续处理下一个（还剩 107 个）"
+  },
+  {
+    "id": "video-1795141418874",
+    "ts": "11-20 10:23:38",
+    "kind": "video",
+    "title": "ICYMI: Transfer your history from other AI apps into Gemini.",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "✅ 已完成《ICYMI: Transfer your》，继续处理下一个（还剩 106 个）"
+  },
+  {
+    "id": "video-1795141419756",
+    "ts": "11-20 10:23:39",
+    "kind": "video",
+    "title": "How we’re putting one of quantum mechanics’ deepest features to the test at scale.",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "✅ 已完成《How we’re putting on》，继续处理下一个（还剩 105 个）"
+  },
+  {
+    "id": "video-1795141420707",
+    "ts": "11-20 10:23:40",
+    "kind": "video",
+    "title": "Introducing Tool Retrieval in the Gemini API",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "✅ 已完成《Introducing Tool Ret》，继续处理下一个（还剩 104 个）"
+  },
+  {
+    "id": "video-1795141421377",
+    "ts": "11-20 10:23:41",
+    "kind": "video",
+    "title": "Walter Isaacson on curiosity and creativity in the AI age.",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "✅ 已完成《Walter Isaacson on c》，继续处理下一个（还剩 103 个）"
+  },
+  {
+    "id": "video-1795141422034",
+    "ts": "11-20 10:23:42",
+    "kind": "video",
+    "title": "A smarter way to track and buy clean energy",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "✅ 已完成《A smarter way to tra》，继续处理下一个（还剩 102 个）"
+  },
+  {
+    "id": "video-1795141422704",
+    "ts": "11-20 10:23:42",
+    "kind": "video",
+    "title": "Small businesses, big results: How teams scale with AI",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "✅ 已完成《Small businesses, bi》，继续处理下一个（还剩 101 个）"
+  },
+  {
+    "id": "video-1795141423538",
+    "ts": "11-20 10:23:43",
+    "kind": "video",
+    "title": "Build strategic A/B tests to grow your ad performance.",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "✅ 已完成《Build strategic A/B 》，继续处理下一个（还剩 100 个）"
+  },
+  {
+    "id": "video-1795141424212",
+    "ts": "11-20 10:23:44",
+    "kind": "video",
+    "title": "Genie 4 is now available on the Gemini API.",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 1,
+    "note": "✅ 已完成《Genie 4 is now avail》，继续处理下一个（还剩 99 个）"
+  },
+  {
+    "id": "video-1795141425232",
+    "ts": "11-20 10:23:45",
+    "kind": "video",
+    "title": "Let Gemini tackle repetitive chores on your Mac",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "✅ 已完成《Let Gemini tackle re》，继续处理下一个（还剩 98 个）"
+  },
+  {
+    "id": "video-1795141426198",
+    "ts": "11-20 10:23:46",
+    "kind": "video",
+    "title": "See some of the work from Google Flow and Flow Music Sessions artists",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "✅ 已完成《See some of the work》，继续处理下一个（还剩 97 个）"
+  },
+  {
+    "id": "video-1795141426898",
+    "ts": "11-20 10:23:46",
+    "kind": "video",
+    "title": "Building the right way: Lessons from 20 years in The Dalles",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "✅ 已完成《Building the right w》，继续处理下一个（还剩 96 个）"
+  },
+  {
+    "id": "video-1795141428031",
+    "ts": "11-20 10:23:48",
+    "kind": "video",
+    "title": "We’re partnering with Blue Origin on our first heavy-lift Project Suncatcher launch.",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "✅ 已完成《We’re partnering wit》，继续处理下一个（还剩 95 个）"
+  },
+  {
+    "id": "video-1795141428769",
+    "ts": "11-20 10:23:48",
+    "kind": "video",
+    "title": "Google’s water stewardship commitments for local communities",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "✅ 已完成《Google’s water stewa》，继续处理下一个（还剩 94 个）"
+  },
+  {
+    "id": "video-1795141429465",
+    "ts": "11-20 10:23:49",
+    "kind": "video",
+    "title": "影视飓风、Manus、影石、OPPO……极客公园创新大会 2027 嘉宾阵容更新！",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "✅ 已完成《影视飓风、Manus、影石、OPPO……》，继续处理下一个（还剩 93 个）"
+  },
+  {
+    "id": "video-1795141429689",
+    "ts": "11-20 10:23:49",
+    "kind": "video",
+    "title": "GTA6刷屏！零AI纯手搓的3A大作玩一个少一个了",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "✅ 已完成《GTA6刷屏！零AI纯手搓的3A大作玩一》，继续处理下一个（还剩 92 个）"
+  },
+  {
+    "id": "video-1795141430236",
+    "ts": "11-20 10:23:50",
+    "kind": "video",
+    "title": "SenseNova U1 Pro获Design Arena双榜中国第一、全球第六",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "✅ 已完成《SenseNova U1 Pro获Des》，继续处理下一个（还剩 91 个）"
+  },
+  {
+    "id": "video-1795141430342",
+    "ts": "11-20 10:23:50",
+    "kind": "video",
+    "title": "好清晰！最新国产AI画的8K图，放这么大大大大也不糊！",
+    "tools": [
+      "读取网页",
+      "保存"
+    ],
+    "tool_count": {
+      "读取网页": 1,
+      "保存": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 0,
+    "note": "✅ 已完成《好清晰！最新国产AI画的8K图，放这么大》，继续处理下一个（还剩 90 个）"
+  },
+  {
+    "id": "video-1795141430503",
+    "ts": "11-20 10:23:50",
+    "kind": "video",
+    "title": "Jacob Coxon vs. Robin Hanson: Should We Slow Down AI?",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "检查漏识别",
+      "识别完成",
+      "保存"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "检查漏识别": 1,
+      "识别完成": 1,
+      "保存": 1
+    },
+    "steps": 7,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 532,
+    "note": "✅ 已完成《Jacob Coxon vs. Robi》，继续处理下一个（还剩 90 个）"
+  },
+  {
+    "id": "video-1795141963021",
+    "ts": "11-20 10:32:43",
+    "kind": "video",
+    "title": "Why the AI Kids Hate Astra 6.2",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "检查漏识别",
+      "识别完成",
+      "保存"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "检查漏识别": 1,
+      "识别完成": 1,
+      "保存": 1
+    },
+    "steps": 7,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 204,
+    "note": "✅ 已完成《Why the AI Kids Hate》，继续处理下一个（还剩 89 个）"
+  },
+  {
+    "id": "video-1795142167138",
+    "ts": "11-20 10:36:07",
+    "kind": "video",
+    "title": "补充Omega 3，为什么磷虾油更好 #珍膝磷虾油 #秋日不乏味",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "识别完成",
+      "保存"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "识别完成": 1,
+      "保存": 1
+    },
+    "steps": 6,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 25,
+    "note": "✅ 已完成《补充Omega 3，为什么磷虾油更好 #》，继续处理下一个（还剩 88 个）"
+  },
+  {
+    "id": "video-1795142193131",
+    "ts": "11-20 10:36:33",
+    "kind": "video",
+    "title": "哪家少爷想要英伟达了？#抖来学法 #胡律师看法 #黄仁勋 #英伟达 #契约精神",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "识别完成",
+      "保存"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "识别完成": 1,
+      "保存": 1
+    },
+    "steps": 6,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 64,
+    "note": "✅ 已完成《哪家少爷想要英伟达了？#抖来学法 #胡律》，继续处理下一个（还剩 87 个）"
+  },
+  {
+    "id": "video-1795142257558",
+    "ts": "11-20 10:37:37",
+    "kind": "video",
+    "title": "用经济学思维，看懂996工作制是奋斗还是剥削？ 996不为人知的经济账 #经济学 #认知提升  #个人成长 #职场 #抖音精选app征稿中",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "检查漏识别",
+      "识别完成",
+      "保存"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "检查漏识别": 1,
+      "识别完成": 1,
+      "保存": 1
+    },
+    "steps": 7,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 87,
+    "note": "✅ 已完成《用经济学思维，看懂996工作制是奋斗还是》，继续处理下一个（还剩 86 个）"
+  },
+  {
+    "id": "video-1795142345412",
+    "ts": "11-20 10:39:05",
+    "kind": "video",
+    "title": "一辈子不出国，汇率如何洗劫你的钱包？ 别觉得汇率与你无关！#经济学 #金融常识 #认知提升 #财经 #抖音精选app征稿中",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "检查漏识别",
+      "识别完成",
+      "保存"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "检查漏识别": 1,
+      "识别完成": 1,
+      "保存": 1
+    },
+    "steps": 7,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 117,
+    "note": "✅ 已完成《一辈子不出国，汇率如何洗劫你的钱包？ 别》，继续处理下一个（还剩 85 个）"
+  },
+  {
+    "id": "video-1795142463212",
+    "ts": "11-20 10:41:03",
+    "kind": "video",
+    "title": "一件小事重启人生 36岁，外企7年半，福利好、假期稳。 \n老铁却选择了辞职。 \n很多人替他惋惜。 \n其实他算得很明白：看到50多岁老同事的样子，就看到了自己十几年后的天花板。 \n再不走，40岁就真走不动了。 \n这就是典型的“肖申克的陷阱”。",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "识别完成",
+      "保存"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "识别完成": 1,
+      "保存": 1
+    },
+    "steps": 6,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 109,
+    "note": "✅ 已完成《一件小事重启人生 36岁，外企7年半，福》，继续处理下一个（还剩 84 个）"
+  },
+  {
+    "id": "video-1795142572802",
+    "ts": "11-20 10:42:52",
+    "kind": "video",
+    "title": "AI为什么答得像懂了却还是错的？ AI回答得很工整，为什么还是可能答错？ 这条视频从“去洗车该走路还是开车”的例子，讲清预训练、监督微调和强化学习的区别。 再聊蒸馏：模型学习的不只是答案，也可能包括审题、检查和纠错的过程。 老师还展开分析了",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "识别完成",
+      "保存"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "识别完成": 1,
+      "保存": 1
+    },
+    "steps": 6,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 159,
+    "note": "✅ 已完成《AI为什么答得像懂了却还是错的？ AI回》，继续处理下一个（还剩 83 个）"
+  },
+  {
+    "id": "video-1795142732106",
+    "ts": "11-20 10:45:32",
+    "kind": "video",
+    "title": "Ramp’s Bet on the 100x Employee",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "检查漏识别",
+      "识别完成",
+      "保存"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "检查漏识别": 1,
+      "识别完成": 1,
+      "保存": 1
+    },
+    "steps": 7,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 552,
+    "note": "✅ 已完成《Ramp’s Bet on the 10》，继续处理下一个（还剩 82 个）"
+  },
+  {
+    "id": "video-1795143285010",
+    "ts": "11-20 10:54:45",
+    "kind": "video",
+    "title": "How Business AI Use is Changing",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "检查漏识别",
+      "识别完成",
+      "保存"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "检查漏识别": 1,
+      "识别完成": 1,
+      "保存": 1
+    },
+    "steps": 7,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 267,
+    "note": "✅ 已完成《How Business AI Use 》，继续处理下一个（还剩 81 个）"
+  },
+  {
+    "id": "video-1795143552761",
+    "ts": "11-20 10:59:12",
+    "kind": "video",
+    "title": "沟通其实不解决什么问题二 #沟通技巧 #人生感悟",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "识别完成",
+      "保存"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "识别完成": 1,
+      "保存": 1
+    },
+    "steps": 6,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 68,
+    "note": "✅ 已完成《沟通其实不解决什么问题二 #沟通技巧 #》，继续处理下一个（还剩 81 个）"
+  },
+  {
+    "id": "video-1795143621412",
+    "ts": "11-20 11:00:21",
+    "kind": "video",
+    "title": "沟通其实不解决什么矛盾 #沟通技巧 #人生感悟",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "识别完成",
+      "保存"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "识别完成": 1,
+      "保存": 1
+    },
+    "steps": 6,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 56,
+    "note": "✅ 已完成《沟通其实不解决什么矛盾 #沟通技巧 #人》，继续处理下一个（还剩 80 个）"
+  },
+  {
+    "id": "video-1795143677555",
+    "ts": "11-20 11:01:17",
+    "kind": "video",
+    "title": "法务部强大的车企，消费者千万不能买#抖来学法 #胡律师看法 #新能源汽车 #独立思考 #特斯拉",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "识别完成",
+      "保存"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "识别完成": 1,
+      "保存": 1
+    },
+    "steps": 6,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 84,
+    "note": "✅ 已完成《法务部强大的车企，消费者千万不能买#抖来》，继续处理下一个（还剩 79 个）"
+  },
+  {
+    "id": "video-1795143762330",
+    "ts": "11-20 11:02:42",
+    "kind": "video",
+    "title": "Andrej Karpathy: The Future of AI Is a Graph",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "检查漏识别",
+      "识别完成",
+      "保存",
+      "博主主页"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "检查漏识别": 1,
+      "识别完成": 1,
+      "保存": 1,
+      "博主主页": 1
+    },
+    "steps": 8,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 475,
+    "note": "✅ 已完成《Andrej Karpathy: The》，继续处理下一个（还剩 78 个）"
+  },
+  {
+    "id": "video-1795144237566",
+    "ts": "11-20 11:10:37",
+    "kind": "video",
+    "title": "视频提取：ps://www.youtube.com/watch?v=kzDSafe-OXE",
+    "tools": [
+      "解析链接",
+      "获取字幕"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1
+    },
+    "steps": 2,
+    "error": "",
+    "outcome": "",
+    "status": "running",
+    "tokens_est": 0,
+    "seconds": 0,
+    "_start": 1795144237.5662103
   }
 ]
