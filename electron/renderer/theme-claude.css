@@ -668,3 +668,12 @@ button .cx-ico, .send-btn .cx-ico { opacity: 1; }
 /* 分身页的主按钮跟全软件一样用主色 */
 #view-agents .ag-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 #view-agents .ag-btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+/* ════════════════════ v111：去掉和「新对话」重复的「对话」入口（仿 Claude 侧栏）════════════════════ */
+/* 展开时：点「新对话」或下面的历史对话进对话页；折叠成图标时没有对话列表，留一个图标回到当前对话 */
+.nav-item-chat { display: none; }
+.app.sb-collapsed .nav-item-chat { display: flex; }
+/* 不在对话页时，历史对话不显示选中底色 */
+body:not(.on-chat) .convo-item.active { background: transparent; }
+body:not(.on-chat) .convo-item.active:hover { background: var(--bg-hover); }
+.convo-empty { padding: 4px 10px; font-size: 12.5px; color: var(--text-dim); }
