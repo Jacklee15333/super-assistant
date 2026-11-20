@@ -352,7 +352,7 @@ document.getElementById("snTabs")?.addEventListener("click", () => {
 // ── v116：提取 → 加工 → 笔记，是同一页的三种样子 ──
 // 提取：放进来、处理进度、提取失败、历史（提取出来的半成品）；加工：批量 AI 分析（总结、打标签分类）；
 // 笔记：分析好的成品（博主、文件夹）。几块内容还是在笔记列表里画，画完搬到各自的页。
-const VIDEO_MODE_TITLE = { extract: "", process: "加工", notes: "笔记" };   // v117：提取页顶上不写标题
+const VIDEO_MODE_TITLE = { extract: "", process: "", notes: "笔记" };   // v117/v123：提取、加工页顶上不写标题
 function setVideoMode(mode) {
   const v = document.getElementById("view-video");
   if (!v) return;
@@ -435,6 +435,11 @@ function viSecSum() {
       if (old) old.remove();
       dest.appendChild(el);
     });
+    const acts = document.querySelector("#viProcessBars #vnBatchHActs"), unHead = document.querySelector("#viProcessBars #vnUnList .vn-un-head");
+    if (acts && unHead && acts.parentNode !== unHead) {   // v123：「批量加工」（跑的时候是「停止」）放在「未加工」右边
+      unHead.appendChild(acts);
+      acts.addEventListener("click", (e) => e.stopPropagation());   // 点按钮别顺带把清单收起来
+    }
     const lv = document.querySelector("#viProcessBars #vnLive"), lslot = document.getElementById("viAnLive");   // v120
     if (lv && lslot) { const o = lslot.querySelector(":scope > #vnLive"); if (o && o !== lv) o.remove(); lslot.appendChild(lv); }
     const ex = document.getElementById("viExtractExtras"), f = ex && ex.querySelector(":scope > #vnFailBar");
@@ -1867,12 +1872,15 @@ async function viImportPaths(paths) {
   }
 }
 // ── v120：加工页的处理进度 ──
-const VI_AN_IDLE = "现在没有在分析的内容。点下面「批量 AI 分析」，或者单条的「AI 分析」开始。";
+const VI_AN_IDLE = "现在没有在加工的内容。";
 let _viAnIdleTimer = null;
 let _viBatchRunning = false;
 function viAnStopSync() {
   const b = document.getElementById("viAnStop");
   if (b) b.hidden = !(_noteAnRunning || _viBatchRunning);
+  // v123：处理进度只在有任务、或者刚出结果（还在显示）的时候出现
+  const card = document.getElementById("viAnCard"), st = document.getElementById("viAnStatus");
+  if (card) card.hidden = !(_noteAnRunning || _viBatchRunning || (st && st.dataset.hold === "1"));
 }
 function setAnStatus(msg, kind, holdMs) {
   const el = document.getElementById("viAnStatus");
@@ -1881,10 +1889,12 @@ function setAnStatus(msg, kind, holdMs) {
   if (/AI 镜像网站打不开/.test(msg)) msg += "　可以在「设置 → 模型 → 网页模型」里点「保存 & 测试」，看网站能不能打开。";
   el.textContent = msg;
   el.className = "vi-an-status" + (kind ? " " + kind : " busy");
+  el.dataset.hold = "1";
+  viAnStopSync();
   clearTimeout(_viAnIdleTimer);
-  if (holdMs) _viAnIdleTimer = setTimeout(() => {
-    if (!_noteAnRunning) { el.textContent = VI_AN_IDLE; el.className = "vi-an-status"; }
-  }, holdMs);
+  _viAnIdleTimer = setTimeout(() => {      // 结果显示一会儿；没在跑了就收起来
+    if (!_noteAnRunning && !_viBatchRunning) { el.textContent = VI_AN_IDLE; el.className = "vi-an-status"; el.dataset.hold = ""; viAnStopSync(); }
+  }, holdMs || 15000);
 }
 function viNoteTitle(name) {
   const n = String(name || "");
@@ -4510,7 +4520,7 @@ function vnRenderBatchBar(list, notes) {
   const acts = document.createElement("span"); acts.className = "vn-batch-hacts"; acts.id = "vnBatchHActs";
   if (todo.length) {
     const b = document.createElement("button");
-    b.className = "send-btn vn-batch-btn"; b.textContent = "批量 AI 分析";
+    b.className = "send-btn vn-batch-btn"; b.textContent = "批量加工";
     b.title = "按列表顺序一条一条分析；每条都会在 AI 池换一张新的 AI 卡、开新对话";
     b.addEventListener("click", (e) => { e.stopPropagation(); vnStartBatch(todo); });
     acts.appendChild(b);
@@ -4560,10 +4570,10 @@ function vnBuildUnList(todo) {
   head.title = "点击展开 / 收起";
   const caret = document.createElement("span"); caret.className = "vn-caret";
   const ttl = document.createElement("span"); ttl.className = "vn-un-title";
-  ttl.textContent = todo.length ? "还没分析的笔记（" + todo.length + " 条）" : "所有笔记都分析过了";
+  ttl.textContent = todo.length ? "未加工（" + todo.length + " 条）" : "全部加工好了";
   _vnUnTitle = ttl;
   const tip = document.createElement("span"); tip.className = "vn-un-tip";
-  tip.textContent = todo.length ? "按批量分析的顺序排列，点一条就能打开看原文" : "";
+  tip.textContent = todo.length ? "按批量加工的顺序排列，点一条打开看原文" : "";
   head.appendChild(caret); head.appendChild(ttl); head.appendChild(tip);
   box.appendChild(head);
   const rows = document.createElement("div"); rows.className = "vn-un-rows";
@@ -4635,7 +4645,7 @@ function vnUnDrop(names) {
   if (left.length === _vnUnTodo.length) return;
   _vnUnTodo = left;
   if (_vnUnTitle && document.body.contains(_vnUnTitle)) {
-    _vnUnTitle.textContent = left.length ? "还没分析的笔记（" + left.length + " 条）" : "所有笔记都分析过了";
+    _vnUnTitle.textContent = left.length ? "未加工（" + left.length + " 条）" : "全部加工好了";
   }
   const bar = document.getElementById("vnBatchBar");
   if (bar) bar.dataset.todo = String(left.length);
@@ -4782,10 +4792,10 @@ async function vnPollBatch() {
       (d.resume_in ? "（还有 " + Math.floor(d.resume_in / 60) + " 分 " + (d.resume_in % 60) + " 秒）" : "") +
       "。不用管它，到时间会先测一下 AI 池能不能连上，再自动接着跑。</div>" : "") +
     (d.paused && !d.running ? '<div class="vn-batch-errs">⏸ ' + escapeHtml(d.paused) +
-      "。处理好后再点一次「批量 AI 分析」，会接着补没分析的。</div>" : "") +
+      "。处理好后再点一次「批量加工」，会接着补没加工的。</div>" : "") +
     (d.errors && d.errors.length && !d.running
       ? '<div class="vn-batch-errs">没成功的：' + d.errors.map((x) => escapeHtml(x.name.replace(/\.md$/, ""))).join("、") +
-        "（可以稍后再点一次批量分析，只会补没成功的）</div>" : "");
+        "（可以稍后再点一次「批量加工」，只会补没成功的）</div>" : "");
   if (d.running) {
     // 「停止」「现在就继续」挪到了标题行（折叠时也能点），见 vnBatchHead
     if (!_vnBatchTimer) _vnBatchTimer = setInterval(vnPollBatch, 2500);
