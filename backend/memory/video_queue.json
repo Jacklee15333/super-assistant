@@ -1,28 +1,17 @@
 {
   "current": {
-    "url": "https://www.youtube.com/watch?v=X8Nfe1smEYI",
+    "url": "https://www.douyin.com/video/7706820166516100379",
     "level": "ultra",
     "use_local": true,
     "model": "qwen3:14b",
     "screenshot": false,
     "link": false,
     "mode": "auto",
-    "id": "vj1795137215.4171128-0",
-    "title": "5 Questions Shaping AI This Week",
+    "id": "vj1795137215.4652946-0",
+    "title": "抖音视频 …100379",
     "fail_count": 1
   },
   "pending": [
-    {
-      "url": "https://www.douyin.com/video/7706820166516100379",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137215.4652946-0",
-      "title": "抖音视频 …100379"
-    },
     {
       "url": "https://www.douyin.com/video/7706774395712318947",
       "level": "ultra",

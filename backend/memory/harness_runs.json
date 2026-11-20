@@ -1,26 +1,5 @@
 [
   {
-    "id": "video-1795140914172",
-    "ts": "11-20 10:15:14",
-    "kind": "video",
-    "title": "模型刚接进业务，CEO又要换新：红帽如何接住企业AI落地难题？",
-    "tools": [
-      "读取网页",
-      "保存"
-    ],
-    "tool_count": {
-      "读取网页": 1,
-      "保存": 1
-    },
-    "steps": 2,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 1,
-    "note": "✅ 已完成《模型刚接进业务，CEO又要换新：红帽如何》，继续处理下一个（还剩 118 个）"
-  },
-  {
     "id": "video-1795140915496",
     "ts": "11-20 10:15:15",
     "kind": "video",
@@ -1254,25 +1233,54 @@
     "id": "video-1795144701751",
     "ts": "11-20 11:18:21",
     "kind": "video",
-    "title": "视频提取：ps://www.youtube.com/watch?v=X8Nfe1smEYI",
+    "title": "5 Questions Shaping AI This Week",
     "tools": [
       "解析链接",
       "获取字幕",
       "下载音频",
-      "语音转文字"
+      "语音转文字",
+      "检查漏识别",
+      "识别完成",
+      "保存"
     ],
     "tool_count": {
       "解析链接": 1,
       "获取字幕": 1,
       "下载音频": 1,
-      "语音转文字": 1
+      "语音转文字": 1,
+      "检查漏识别": 1,
+      "识别完成": 1,
+      "保存": 1
     },
-    "steps": 4,
+    "steps": 7,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 279,
+    "note": "✅ 已完成《5 Questions Shaping 》，继续处理下一个（还剩 73 个）"
+  },
+  {
+    "id": "video-1795144981092",
+    "ts": "11-20 11:23:01",
+    "kind": "video",
+    "title": "视频提取：www.douyin.com/video/7706820166516100379",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1
+    },
+    "steps": 3,
     "error": "",
     "outcome": "",
     "status": "running",
     "tokens_est": 0,
     "seconds": 0,
-    "_start": 1795144701.7514367
+    "_start": 1795144981.0929294
   }
 ]
