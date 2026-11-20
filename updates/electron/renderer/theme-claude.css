@@ -707,3 +707,5 @@ body.dark .vn-kind.k-gh { background: #e6e6e3; color: #1f1e1a; }
 .convo-section[hidden] { display: none !important; }
 /* 「最近对话」不显示时，终端 / 设置仍贴在最底下 */
 .sidebar-foot { margin-top: auto; }
+/* v114：左边入口直接平铺（不分组），和「新对话」之间留一点空 */
+.sidebar .nav { margin-top: 8px; }
