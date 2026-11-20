@@ -4577,6 +4577,23 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_web_model_test(body)
         if path == "/heartbeat":
             return self._handle_heartbeat(body)
+        if path == "/video_note_reset":               # v128：重新加工：先把这条放回「未加工」
+            name = (body.get("name") or "").strip()
+            if not name or "/" in name or "\\" in name or ".." in name:
+                return self._send({"ok": False, "error": "非法文件名"})
+            p = self._video_dir() / name
+            if not p.exists():
+                return self._send({"ok": False, "error": "找不到这条笔记"})
+            try:
+                lines = p.read_text(encoding="utf-8", errors="replace").split("\n")
+                if not any(l.strip().lstrip("-").strip().startswith(("状态：未分析", "状态:未分析")) for l in lines[1:10]):
+                    idx = next((i for i, l in enumerate(lines[1:12], 1) if l.strip().startswith("-")), min(2, len(lines)))
+                    lines.insert(idx, "- 状态：未分析")
+                    p.write_text("\n".join(lines), encoding="utf-8")
+                _clog("视频", "↩ 放回未加工，重新加工：%s" % name[:40])
+                return self._send({"ok": True})
+            except Exception as e:
+                return self._send({"ok": False, "error": str(e)[:200]})
         if path == "/intake_scan":                    # v118：拖进来 / 粘进来的文件和文件夹 → 能提取的文件清单
             try:
                 import intake as _ik

@@ -1922,6 +1922,18 @@ function viRenderDone() {
     box.appendChild(more);
   }
 }
+// ── v128：分栏时，左边清单里选中正在看的那一条 ──
+function viSelSync(scroll) {
+  document.querySelectorAll("#view-video .vn-sel").forEach((x) => x.classList.remove("vn-sel"));
+  const v = document.getElementById("view-video");
+  if (!_vnReaderName || !v || !v.classList.contains("vn-split")) return;
+  const rows = Array.from(document.querySelectorAll("#viProcess .vn-un-row")).filter((x) => x.dataset.name === _vnReaderName);
+  rows.forEach((x) => x.classList.add("vn-sel"));
+  const r = rows.find((x) => x.offsetParent);
+  if (scroll && r) r.scrollIntoView({ block: "nearest" });
+}
+setInterval(() => { if (_vnReaderName && !document.querySelector("#viProcess .vn-sel")) viSelSync(); }, 1500);
+
 // ── v126：加工页两个标签：未加工 / 已加工 ──
 function viPtab() { try { return localStorage.getItem("viPtab") === "done" ? "done" : "todo"; } catch (e) { return "todo"; } }
 function viPtabSync() {
@@ -5350,8 +5362,20 @@ function vnIncompleteNotice(data) {
 document.addEventListener("click", (e) => {
   const b = e.target.closest && e.target.closest("[data-reanalyze]");
   if (!b || !b.dataset.reanalyze) return;
-  b.disabled = true; b.textContent = "已交给加工…";
-  startNoteAnalyze(b.dataset.reanalyze, { reopen: true });
+  const name = b.dataset.reanalyze;
+  b.disabled = true; b.textContent = "放回未加工…";
+  (async () => {
+    try {
+      const d = await (await fetch(BACKEND + "/video_note_reset", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }) })).json();
+      if (!d.ok) { b.disabled = false; b.textContent = "重新加工（" + (d.error || "没成功") + "）"; return; }
+    } catch (err) { b.disabled = false; b.textContent = "重新加工"; return; }
+    try { localStorage.setItem("viPtab", "todo"); } catch (err) {}
+    vnReaderClose();
+    document.querySelector('.sidebar .nav-item[data-view="video"][data-video-mode="process"]')?.click();
+    _viLiveOpen = true;                       // 在「未加工」里看着它加工
+    startNoteAnalyze(name, {});
+  })();
 });
 
 // 把存档的 markdown 拆回 标题/作者/链接/标签/分析/原文，喂给标签页视图
@@ -13089,10 +13113,13 @@ function vnReaderShow(name) {
     // 进度卡里如果正摆着一篇笔记（老版本打开的），先收起来，免得两篇的按钮 id 撞在一起
     const vr = document.getElementById("videoResult");
     if (vr && vr.querySelector("[id]")) { vr._vnStash = document.createDocumentFragment(); while (vr.firstChild) vr._vnStash.appendChild(vr.firstChild); }
-    if (pane) pane.style.display = "none";
+    const _vv = document.getElementById("view-video");
+    if (_vv && _vv.dataset.mode === "process") _vv.classList.add("vn-split");   // v128：左右分栏
+    else if (pane) pane.style.display = "none";
     rd.hidden = false;
   }
   _vnReaderName = name;
+  setTimeout(() => viSelSync(true), 0);
   vnReaderSetTitle((name || "").replace(/\.md$/, "").replace(/^\d{8}-\d{6}-/, ""));
   return rd.querySelector(".vn-reader-content");
 }
@@ -13108,10 +13135,14 @@ function vnReaderClose() {
   if (vr && vr._vnStash) { if (!vr.firstChild) vr.appendChild(vr._vnStash); vr._vnStash = null; }
   const pane = document.querySelector("#view-video .video-pane");
   if (pane) pane.style.display = "";
+  const _vv = document.getElementById("view-video");
+  const wasSplit = !!(_vv && _vv.classList.contains("vn-split"));
+  if (_vv) _vv.classList.remove("vn-split");
+  viSelSync();
   const back = _vnReaderBack;
   _vnReaderBack = null;
   const restore = () => {
-    if (back && back.el) back.el.scrollTop = back.top;
+    if (back && back.el && !wasSplit) back.el.scrollTop = back.top;
     // 列表在这期间刷新过、那条挪了位置：按名字找到它，不在眼前就滚过去；闪一下
     const list = document.getElementById("videoNotesList");
     const row = list && name ? Array.from(list.querySelectorAll("[data-name]")).find((x) => x.dataset.name === name && x.offsetParent) : null;
