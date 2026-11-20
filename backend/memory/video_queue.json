@@ -1,72 +1,17 @@
 {
   "current": {
-    "url": "https://www.douyin.com/video/7706820166516100379",
+    "url": "https://www.youtube.com/watch?v=Z-UIoabBtjQ",
     "level": "ultra",
     "use_local": true,
     "model": "qwen3:14b",
     "screenshot": false,
     "link": false,
     "mode": "auto",
-    "id": "vj1795137215.4652946-0",
-    "title": "抖音视频 …100379",
-    "fail_count": 2
+    "id": "vj1795137217.2422836-0",
+    "title": "曾敬驊、李沐逛PEDRO挑七夕禮物！「默契版」快問快答2選1 男神自爆：OOO",
+    "fail_count": 1
   },
   "pending": [
-    {
-      "url": "https://www.douyin.com/video/7706774395712318947",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137215.5204895-0",
-      "title": "抖音视频 …318947"
-    },
-    {
-      "url": "https://www.douyin.com/video/7706571847436963110",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137215.5779257-0",
-      "title": "抖音视频 …963110"
-    },
-    {
-      "url": "https://www.douyin.com/video/7706893875721276672",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137217.1976337-0",
-      "title": "抖音视频 …276672"
-    },
-    {
-      "url": "https://www.youtube.com/watch?v=7YEHs2SMaVQ",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137217.2076402-0",
-      "title": "Andrej Karpathy: \"99% Use AI & LLMs Wrong\" (Here’s How He Does It)"
-    },
-    {
-      "url": "https://www.youtube.com/watch?v=Z-UIoabBtjQ",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137217.2422836-0",
-      "title": "曾敬驊、李沐逛PEDRO挑七夕禮物！「默契版」快問快答2選1 男神自爆：OOO"
-    },
     {
       "url": "https://www.youtube.com/watch?v=zJnlhQtHEEQ",
       "level": "ultra",
@@ -859,6 +804,24 @@
       "notify": null,
       "id": "vj1795144377.6053493-0",
       "title": "抖音视频 …449894"
+    },
+    {
+      "url": "https://v.douyin.com/-nN29Y8k3Sk/",
+      "level": "ultra",
+      "lang": "zh",
+      "vocal": false,
+      "use_local": true,
+      "model": "qwen3:14b",
+      "screenshot": false,
+      "link": false,
+      "mode": "auto",
+      "analyze": false,
+      "author": "",
+      "note_folder": "",
+      "creator_url": "",
+      "notify": null,
+      "id": "vj1795146341.566258-0",
+      "title": "抖音视频 …631972"
     }
   ]
 }
