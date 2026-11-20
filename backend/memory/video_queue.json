@@ -1,160 +1,17 @@
 {
   "current": {
-    "url": "https://www.douyin.com/video/7706560989050703104",
+    "url": "https://www.douyin.com/video/7677124792910204212",
     "level": "ultra",
     "use_local": true,
     "model": "qwen3:14b",
     "screenshot": false,
     "link": false,
     "mode": "auto",
-    "id": "vj1795137217.4267004-0",
-    "title": "抖音视频 …703104",
+    "id": "vj1795137217.585157-0",
+    "title": "抖音视频 …204212",
     "fail_count": 1
   },
   "pending": [
-    {
-      "url": "https://www.douyin.com/video/7706141219650325802",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137217.4356313-0",
-      "title": "抖音视频 …325802"
-    },
-    {
-      "url": "https://www.douyin.com/video/7705806259840378742",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137217.4437118-0",
-      "title": "抖音视频 …378742"
-    },
-    {
-      "url": "https://www.douyin.com/video/7705458365140454696",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137217.4572368-0",
-      "title": "抖音视频 …454696"
-    },
-    {
-      "url": "https://www.douyin.com/video/7705086634689121576",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137217.468447-0",
-      "title": "抖音视频 …121576"
-    },
-    {
-      "url": "https://www.douyin.com/video/7704696783976336649",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137217.479197-0",
-      "title": "抖音视频 …336649"
-    },
-    {
-      "url": "https://www.douyin.com/video/7704329432734911778",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137217.5076177-0",
-      "title": "抖音视频 …911778"
-    },
-    {
-      "url": "https://www.douyin.com/video/7703950481470541099",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137217.520619-0",
-      "title": "抖音视频 …541099"
-    },
-    {
-      "url": "https://www.douyin.com/video/7703588613866474767",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137217.5293732-0",
-      "title": "抖音视频 …474767"
-    },
-    {
-      "url": "https://www.douyin.com/video/7703224549961108763",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137217.5429895-0",
-      "title": "抖音视频 …108763"
-    },
-    {
-      "url": "https://www.douyin.com/video/7702802684784430372",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137217.5573437-0",
-      "title": "抖音视频 …430372"
-    },
-    {
-      "url": "https://www.douyin.com/video/7702401445701668150",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137217.5665383-0",
-      "title": "抖音视频 …668150"
-    },
-    {
-      "url": "https://www.youtube.com/watch?v=FEG-TNQ3sLs",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137217.5758862-0",
-      "title": "謝欣穎 李沐瞎拚有節制　曾敬驊拍完戲有慾望 身邊有很多女生"
-    },
-    {
-      "url": "https://www.douyin.com/video/7677124792910204212",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137217.585157-0",
-      "title": "抖音视频 …204212"
-    },
     {
       "url": "https://www.douyin.com/video/7705763817384332570",
       "level": "ultra",

@@ -14,42 +14,42 @@
     "category": "AI动态"
   },
   {
-    "id": "073aab7d",
+    "id": "1dcb00ea",
     "title": "Google DeepMind 博客",
     "url": "https://deepmind.google/discover/blog/",
     "enabled": true,
     "category": "AI动态"
   },
   {
-    "id": "073aab7d",
+    "id": "f8cfeb0c",
     "title": "Hugging Face 博客",
     "url": "https://huggingface.co/blog",
     "enabled": true,
     "category": "AI动态"
   },
   {
-    "id": "073aab7d",
+    "id": "bf4c261f",
     "title": "Qwen 博客",
     "url": "https://qwenlm.github.io/blog/",
     "enabled": true,
     "category": "AI动态"
   },
   {
-    "id": "073aab7d",
+    "id": "f2035690",
     "title": "Meta AI 博客",
     "url": "https://ai.meta.com/blog/",
     "enabled": true,
     "category": "AI动态"
   },
   {
-    "id": "073aab7d",
+    "id": "48c3c010",
     "title": "Hacker News",
     "url": "https://news.ycombinator.com/",
     "enabled": true,
     "category": "AI动态"
   },
   {
-    "id": "073aab7d",
+    "id": "a34a845d",
     "title": "arXiv cs.AI 最新",
     "url": "https://arxiv.org/list/cs.AI/recent",
     "enabled": true,
@@ -346,6 +346,349 @@
     "id": "673428a2",
     "title": "Financial Times",
     "url": "https://www.ft.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "b036f1d5",
+    "title": "Hugging Face Papers",
+    "url": "https://huggingface.co/papers",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "9882d992",
+    "title": "GitHub Trending",
+    "url": "https://github.com/trending",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "ef548a74",
+    "title": "Stratechery",
+    "url": "https://stratechery.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "0cea1949",
+    "title": "Benedict Evans",
+    "url": "https://www.ben-evans.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "9a1dd00c",
+    "title": "Exponential View",
+    "url": "https://www.exponentialview.co",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "54b8196e",
+    "title": "One Useful Thing",
+    "url": "https://www.oneusefulthing.org",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "5f82da1d",
+    "title": "Import AI",
+    "url": "https://jack-clark.net",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "7a0177ff",
+    "title": "The Batch",
+    "url": "https://www.deeplearning.ai/the-batch/",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "739e2888",
+    "title": "Latent Space",
+    "url": "https://www.latent.space",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "4b8825db",
+    "title": "Interconnects",
+    "url": "https://www.interconnects.ai",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "35996b5a",
+    "title": "Simon Willison’s Weblog",
+    "url": "https://simonwillison.net",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "b7a7b394",
+    "title": "SemiAnalysis",
+    "url": "https://semianalysis.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "d92cdeaa",
+    "title": "ChinaTalk",
+    "url": "https://www.chinatalk.media",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "b5076268",
+    "title": "Gary Marcus",
+    "url": "https://garymarcus.substack.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "09c5aba6",
+    "title": "NVIDIA 博客",
+    "url": "https://blogs.nvidia.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "5780bcf8",
+    "title": "DeepSeek",
+    "url": "https://www.deepseek.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "3747cd06",
+    "title": "百度智能云",
+    "url": "https://cloud.baidu.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "1f33b9cc",
+    "title": "阿里云",
+    "url": "https://www.aliyun.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "cd9fd358",
+    "title": "魔搭社区",
+    "url": "https://www.modelscope.cn",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "ae4a7ab3",
+    "title": "Artificial Analysis",
+    "url": "https://artificialanalysis.ai",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "9ef233da",
+    "title": "OpenRouter 排行",
+    "url": "https://openrouter.ai/rankings",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "b9dc73ba",
+    "title": "斯坦福 AI Index",
+    "url": "https://hai.stanford.edu/ai-index",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "c25b0e7c",
+    "title": "麦肯锡洞见",
+    "url": "https://www.mckinsey.com/featured-insights",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "9294a2d8",
+    "title": "MIT Sloan Management Review",
+    "url": "https://sloanreview.mit.edu",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "741ab06b",
+    "title": "NBER 工作论文",
+    "url": "https://www.nber.org/papers",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "0caf6eac",
+    "title": "Epoch AI",
+    "url": "https://epoch.ai",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "8ee86760",
+    "title": "METR",
+    "url": "https://metr.org",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "07b03df8",
+    "title": "国际货币基金组织",
+    "url": "https://www.imf.org",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "dc0c2e03",
+    "title": "世界经济论坛",
+    "url": "https://www.weforum.org",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "1d59c1de",
+    "title": "国际能源署",
+    "url": "https://www.iea.org",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "6cc8aea2",
+    "title": "Microsoft WorkLab",
+    "url": "https://www.microsoft.com/en-us/worklab",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "3d30da65",
+    "title": "CSET",
+    "url": "https://cset.georgetown.edu",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "7ee1f638",
+    "title": "Our World in Data",
+    "url": "https://ourworldindata.org",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "1aaaba10",
+    "title": "Y Combinator 公司库",
+    "url": "https://www.ycombinator.com/companies",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "7e754354",
+    "title": "a16z",
+    "url": "https://a16z.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "94f723bd",
+    "title": "Crunchbase News",
+    "url": "https://news.crunchbase.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "92efba3b",
+    "title": "CB Insights",
+    "url": "https://www.cbinsights.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "570a033b",
+    "title": "Product Hunt",
+    "url": "https://www.producthunt.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "378d2da8",
+    "title": "IT桔子",
+    "url": "https://www.itjuzi.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "d4439810",
+    "title": "Indie Hackers",
+    "url": "https://www.indiehackers.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "77b10229",
+    "title": "Google Trends",
+    "url": "https://trends.google.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "fbd4a3d2",
+    "title": "百度指数",
+    "url": "https://index.baidu.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "40dbe59a",
+    "title": "Indeed Hiring Lab",
+    "url": "https://www.hiringlab.org",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "5931e4c0",
+    "title": "即刻",
+    "url": "https://okjike.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "5ec1b1c0",
+    "title": "小宇宙",
+    "url": "https://www.xiaoyuzhoufm.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "9867996c",
+    "title": "Metaculus",
+    "url": "https://www.metaculus.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "fb0e599f",
+    "title": "Good Judgment Open",
+    "url": "https://www.gjopen.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "9f87b3d7",
+    "title": "RSSHub",
+    "url": "https://docs.rsshub.app",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "eaac6f15",
+    "title": "Farnam Street",
+    "url": "https://fs.blog",
     "enabled": true,
     "category": "趋势瞭望台"
   }
