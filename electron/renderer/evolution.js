@@ -23,8 +23,11 @@
     const p = $("lumiPageEvolution");
     if (p) p.style.display = "none";
   }
-  function showEvoPage() {
-    KNOWN_PAGES.forEach((id) => { const e = $(id); if (e) e.style.display = "none"; });
+  function showEvoPage(withProfile) {
+    KNOWN_PAGES.forEach((id) => {
+      if (withProfile && id === "lumiPageProfile") return;   // v110：和画像一起显示
+      const e = $(id); if (e) e.style.display = "none";
+    });
     const p = $("lumiPageEvolution");
     if (p) p.style.display = "";
     // 顶栏按钮显隐由 renderer.js 的 setLumiTopbarButtons 统一管理
@@ -491,30 +494,24 @@
     runEvolve();
   };
 
-  // ---------- 子菜单显隐（处理第 4 项 evolution）----------
+  // ---------- 子菜单显隐 ----------
+  // v110：人格演化并进了「懂你 → 画像」：画像下面接着显示（立即演化 + 时间线）；
+  // 点「人格」（别处的链接）也是去画像页，并滚到演化这一节。
   function wire() {
-    // 子菜单各项：点 evolution 显示本页并加载；点其它项隐藏本页
     document.querySelectorAll('#lumiSubNav .nav-subitem').forEach((b) => {
       b.addEventListener("click", () => {
-        if (b.dataset.lumi === "evolution") {
-          showEvoPage();
+        const w = b.dataset.lumi;
+        if (w === "profile" || w === "evolution") {
+          showEvoPage(true);
           loadEvolution();
+          if (w === "evolution") {
+            const p = $("lumiPageEvolution");
+            if (p && p.scrollIntoView) setTimeout(() => p.scrollIntoView({ block: "start" }), 80);
+          }
         } else {
           hideEvoPage();
         }
       });
-    });
-    // 点主导航「懂你」：若上次停在演化页，回到「你的画像」默认页
-    const lnav = document.querySelector('.nav-item[data-view="lumi"]');
-    if (lnav) lnav.addEventListener("click", () => {
-      const evoItem = document.querySelector('#lumiSubNav .nav-subitem[data-lumi="evolution"]');
-      hideEvoPage();
-      if (evoItem && evoItem.classList.contains("active")) {
-        document.querySelectorAll('#lumiSubNav .nav-subitem').forEach((x) =>
-          x.classList.toggle("active", x.dataset.lumi === "profile"));
-        const pp = $("lumiPageProfile");
-        if (pp) pp.style.display = "";
-      }
     });
   }
 

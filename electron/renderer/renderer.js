@@ -177,8 +177,133 @@ async function maybeGreetOnce() {
 }
 
 // ---------- 视图切换 ----------
+// v110：左栏只放常用入口。同类的几页合成一组（页面顶部用标签切换），不常用的收进「待开发」。
+// 每一页原来的入口（.nav-item[data-view=...]）都还在左栏里，只是藏起来了：别处代码 .click() 它来跳页，
+// 照旧切页；切完由 navSync() 把左栏高亮落到对应的组上，并在页面顶部画出组名和标签。
+const NAV_GROUPS = {
+  sniff: { title: "嗅探", tabs: [
+    { key: "creators", label: "博主新视频", view: "sniff", sn: "creators" },
+    { key: "web", label: "网站新动态", view: "sniff", sn: "web" },
+    { key: "trend", label: "信息源推荐", view: "trendwatch" },
+  ] },
+  data: { title: "资料库", tabs: [
+    { key: "list", label: "列表", view: "datadb" },
+    { key: "cloud", label: "云图", view: "knowledge" },
+  ] },
+  you: { title: "懂你", tabs: [
+    { key: "profile", label: "画像", view: "lumi", sub: "profile" },
+    { key: "insight", label: "洞察", view: "lumi", sub: "insight" },
+    { key: "memory", label: "记忆", view: "memory" },
+  ] },
+  crew: { title: "分身与技能", tabs: [
+    { key: "agents", label: "分身", view: "agents" },
+    { key: "skills", label: "技能", view: "skills" },
+  ] },
+  // 待开发：没有标签；从这里打开的页面，左上角有「待开发 /」可以点回来
+  lab: { title: "待开发", home: "lab", parked: ["loop", "harness", "pet", "study", "dashboard", "library"] },
+};
+
+// 这一页属于哪一组、哪个标签（不属于任何组就返回 null，比如对话、视频、设置）
+function navFind(view, sub) {
+  for (const g of Object.keys(NAV_GROUPS)) {
+    const G = NAV_GROUPS[g];
+    if (G.tabs) {
+      const cands = G.tabs.filter((t) => t.view === view);
+      if (!cands.length) continue;
+      if (view === "sniff") {
+        const cur = (document.querySelector("#snTabs .sn-tab.active") || {}).dataset?.sntab || "creators";
+        return { g, tab: cands.find((t) => t.sn === cur) || cands[0] };
+      }
+      if (view === "lumi") {
+        const want = sub === "insight" ? "insight" : "profile";   // 人格演化并进了画像
+        return { g, tab: cands.find((t) => t.sub === want) || cands[0] };
+      }
+      return { g, tab: cands[0] };
+    }
+    if (view === G.home || (G.parked || []).includes(view)) return { g, tab: null };
+  }
+  return null;
+}
+
+// 跳到某一页（点它原来的入口，各页自己的加载逻辑照常跑）
+function navGo(view, sub) {
+  const b = document.querySelector('.nav-item[data-view="' + view + '"]' + (sub ? '[data-lumi-sub="' + sub + '"]' : ""));
+  if (b) b.click();
+}
+
+// 打开一组：指定了标签就去那个标签，否则回到上次看的标签
+function navOpenGroup(g, key) {
+  const G = NAV_GROUPS[g];
+  if (!G) return;
+  if (!G.tabs) { navGo(G.home); return; }
+  let t = key ? G.tabs.find((x) => x.key === key) : null;
+  if (!t) {
+    let saved = null;
+    try { saved = localStorage.getItem("cx.navTab." + g); } catch (e) {}
+    t = G.tabs.find((x) => x.key === saved) || G.tabs[0];
+  }
+  navGo(t.view, t.sub);
+  if (t.sn) {
+    const b = document.querySelector('#snTabs .sn-tab[data-sntab="' + t.sn + '"]');
+    if (b && !b.classList.contains("active")) b.click();
+    navSync("sniff");
+  }
+}
+
+// 左栏高亮 + 记住这一组上次看的标签 + 画页面顶部的组名和标签
+function navSync(view, sub) {
+  const hit = navFind(view, sub);
+  document.querySelectorAll(".sidebar .nav-item").forEach((b) => b.classList.remove("active"));
+  const vis = hit
+    ? document.querySelector('.sidebar .nav-item[data-nav-group="' + hit.g + '"]')
+    : Array.from(document.querySelectorAll('.sidebar .nav-item[data-view="' + view + '"]')).find((b) => !b.closest(".nav-legacy"));
+  if (vis) vis.classList.add("active");
+  if (hit && hit.tab) { try { localStorage.setItem("cx.navTab." + hit.g, hit.tab.key); } catch (e) {} }
+  pgMount(view, hit);
+}
+
+function pgMount(view, hit) {
+  if (!hit) return;
+  const G = NAV_GROUPS[hit.g];
+  const sec = document.getElementById("view-" + view);
+  if (!sec || (!G.tabs && view === G.home)) return;
+  let hdr = sec.querySelector(":scope > header.topbar");
+  if (!hdr) {   // 分身、知识云图这几页原来没有顶栏：补一条
+    hdr = document.createElement("header");
+    hdr.className = "topbar pg-made";
+    sec.insertBefore(hdr, sec.firstChild);
+    sec.classList.add("pg-has-top");
+  }
+  let head = hdr.querySelector(":scope > .pg-head");
+  if (!head) {
+    head = document.createElement("div");
+    head.className = "pg-head";
+    hdr.insertBefore(head, hdr.firstChild);
+  }
+  if (G.tabs) {
+    hdr.classList.add("pg-has-head");
+    head.innerHTML = '<span class="pg-title">' + G.title + '</span><span class="pg-tabs" role="tablist">' +
+      G.tabs.map((t) => {
+        const on = t.key === hit.tab.key;
+        return '<button type="button" role="tab" class="pg-tab' + (on ? " active" : "") + '" aria-selected="' + on +
+          '" data-pg-group="' + hit.g + '" data-pg-tab="' + t.key + '">' + t.label + "</button>";
+      }).join("") + "</span>";
+  } else {
+    hdr.classList.add("pg-has-back");
+    head.innerHTML = '<button type="button" class="pg-back" title="回到待开发">待开发</button><span class="pg-sep">/</span>';
+  }
+}
+
+document.addEventListener("click", (e) => {
+  const t = e.target.closest && e.target.closest(".pg-tab, .pg-back");
+  if (!t) return;
+  if (t.classList.contains("pg-back")) navOpenGroup("lab");
+  else navOpenGroup(t.dataset.pgGroup, t.dataset.pgTab);
+});
+
 document.querySelectorAll(".nav-item").forEach((btn) => {
   btn.addEventListener("click", () => {
+    if (btn.dataset.navGroup) { navOpenGroup(btn.dataset.navGroup); return; }
     document.querySelectorAll(".nav-item").forEach((b) => b.classList.remove("active"));
     document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
     btn.classList.add("active");
@@ -210,7 +335,42 @@ document.querySelectorAll(".nav-item").forEach((btn) => {
         const el = document.getElementById(id); if (el) el.style.display = "none";
       });
     }
+    navSync(btn.dataset.view, btn.dataset.lumiSub || "");
   });
+});
+
+// 嗅探页里切「博主新视频 / 网站新动态」时，顶部标签跟着变
+document.getElementById("snTabs")?.addEventListener("click", () => {
+  setTimeout(() => {
+    if (document.getElementById("view-sniff")?.classList.contains("active")) navSync("sniff");
+  }, 0);
+});
+
+// 打开「设置 → 配置」里的某个文件（待开发、通知页上的按钮用）
+function openConfigFile(name) {
+  navGo("settings");
+  if (MEMORY_FILES_CFG.includes(name)) _cfgCurrentFile = name;
+  document.querySelector('#settingsTabs .settings-tab-btn[data-tab="tab-config"]')?.click();
+}
+
+// 待开发页：打开某页 / 去改配置 / 展开收起
+document.addEventListener("click", (e) => {
+  const sc = e.target.closest && e.target.closest("#lumiScanInline");
+  if (sc) {   // 扫描环境时把结果那一栏展开，免得扫完看不见
+    const row = sc.closest(".lab-row");
+    const bd = row && row.querySelector(".lab-body");
+    if (bd && bd.hidden) { bd.hidden = false; const tg = row.querySelector("[data-lab-toggle]"); if (tg) tg.textContent = "收起"; }
+    return;
+  }
+  const o = e.target.closest && e.target.closest("[data-lab-open], [data-open-cfg], [data-lab-toggle]");
+  if (!o) return;
+  if (o.dataset.labOpen) { navGo(o.dataset.labOpen); return; }
+  if (o.dataset.openCfg) { openConfigFile(o.dataset.openCfg); return; }
+  const bd = o.closest(".lab-row") && o.closest(".lab-row").querySelector(".lab-body");
+  if (!bd) return;
+  bd.hidden = !bd.hidden;
+  o.textContent = bd.hidden ? "展开" : "收起";
+  if (!bd.hidden && typeof loadLumi === "function") loadLumi();
 });
 
 // ---------- 聊天 ----------
@@ -1035,7 +1195,7 @@ document.getElementById("watchBtn").addEventListener("click", async () => {
     prog.done();
     addSystemNote("竞品检查出错：" + e.message);
   } finally {
-    btn.textContent = "🔍 检查竞品变化";
+    btn.textContent = "立即检查";
     btn.disabled = false;
   }
 });
@@ -1063,7 +1223,7 @@ function showBriefingConfirm(keywords) {
   box.className = "task-confirm";
   const kw = keywords.length
     ? keywords.map((k) => `<span class="task-kw">${escapeHtml(k)}</span>`).join("")
-    : '<span class="task-empty">（还没设关键词，去“记忆 → watchlist.md”里加，一行一个）</span>';
+    : '<span class="task-empty">（还没设关键词，点下面「去调整关键词」加，一行一个）</span>';
   box.innerHTML = `
     <div class="task-head">📊 生成情报简报 · 开始前确认</div>
     <div class="task-body">
@@ -1084,9 +1244,7 @@ function showBriefingConfirm(keywords) {
   box.querySelector("#briefCancel").onclick = () => box.remove();
   box.querySelector("#briefEdit").onclick = () => {
     box.remove();
-    document.querySelector('.nav-item[data-view="memory"]').click();
-    currentMemoryFile = "watchlist.md";
-    setTimeout(() => loadMemoryTabs(), 100);
+    openConfigFile("watchlist.md");
   };
   box.querySelector("#briefGo").onclick = () => {
     box.remove();
@@ -1127,7 +1285,7 @@ async function runBriefing() {
     prog.done();
     addSystemNote("情报简报出错：" + e.message);
   } finally {
-    btn.textContent = "📊 生成情报简报";
+    btn.textContent = "生成一份简报";
     btn.disabled = false;
   }
 }
@@ -1155,7 +1313,7 @@ document.getElementById("heartbeatBtn").addEventListener("click", async () => {
   } catch (e) {
     addSystemNote("💓 心跳出错：" + e.message);
   } finally {
-    btn.textContent = "💓 触发一次心跳";
+    btn.textContent = "现在触发一次";
   }
 });
 
@@ -1354,7 +1512,7 @@ const MEMORY_META = {
                     desc: "记录你的情况和偏好，它会参考这些来更懂你。" },
   "MEMORY.md":    { label: "🧠 长期记忆", type: "text", group: "memory",
                     desc: "它从历次对话里提炼的要点，跨对话还记得你。" },
-  "heartbeat.md": { label: "💓 心跳待办", type: "text", group: "memory",
+  "heartbeat.md": { label: "💓 心跳待办", type: "text", group: "config",
                     desc: "心跳醒来时会看这里有没有要做的事。" },
   "watchlist.md": { label: "📊 情报关键词", type: "list", group: "config",
                     itemLabel: "关键词", placeholder: "如：预制菜 行业趋势",
@@ -1391,14 +1549,14 @@ const MEMORY_META = {
                       { key: "verification_token", label: "Verification Token",
                         help: "事件订阅页面" },
                     ] },
-  "telegram.md":  { label: "✈️ Telegram", type: "config", group: "config",
+  "telegram.md":  { label: "✈️ Telegram", type: "config", group: "form",   // 在「设置 → 通知」里填
                     desc: "海外可用。找 @BotFather 拿 token，@userinfobot 拿你的 chat id。",
                     fields: [
                       { key: "token", label: "Bot Token", help: "找 @BotFather 用 /newbot 获取" },
                       { key: "allowed_chat_id", label: "你的 Chat ID",
                         help: "找 @userinfobot 获取，只服务你一人" },
                     ] },
-  "proxy.md":     { label: "🌐 联网与代理", type: "config", group: "config",
+  "proxy.md":     { label: "🌐 联网与代理", type: "config", group: "form",   // 在「设置 → 联网与代理」里填
                     desc: "国内直接搜 Bing；要搜国外源（DuckDuckGo/Google）需填代理。不填只搜国内。",
                     fields: [
                       { key: "proxy", label: "代理地址",
@@ -4954,7 +5112,7 @@ function renderDashboard(d) {
     h += `<div class="dash-content">${renderMarkdown(d.latest_briefing.content)}</div>`;
   } else {
     h += '<div class="dash-empty">还没有简报。去左侧点「📊 生成情报简报」，' +
-         '记得先在记忆里的 watchlist.md 配好关键词。</div>';
+         '记得先在「设置 → 配置」的情报关键词里 配好关键词。</div>';
   }
   h += "</div>";
 
@@ -4970,7 +5128,7 @@ function renderDashboard(d) {
     });
     h += "</div>";
   } else {
-    h += '<div class="dash-empty">还没有监控目标。去记忆里的 competitors.md ' +
+    h += '<div class="dash-empty">还没有监控目标。去「设置 → 配置」的竞品网址里 ' +
          '加竞品网址。</div>';
   }
   h += "</div>";
@@ -6544,7 +6702,7 @@ async function loadLumi() {
     const profEl = document.getElementById("lumiProfile");
     if (profEl) profEl.innerHTML = (d.profile || "").trim()
       ? renderProfileRich(d.profile)
-      : '<div class="lumi-empty">还没演化。去左边「🌱 人格演化」点「立即演化一次」，小助会从你的对话里总结出你的说话风格、关注点和偏好。</div>';
+      : '<div class="lumi-empty">还没生成。点下面「人格演化」里的「立即演化一次」，小助会从你的对话里总结出你的说话风格、关注点和偏好。</div>';
     const relEl = document.getElementById("lumiRelations");
     if (relEl) relEl.innerHTML = (d.relationships || "").trim()
       ? renderRelationsRich(d.relationships)
@@ -6649,7 +6807,7 @@ document.addEventListener("click", (e) => {
 function setLumiTopbarButtons(which) {
   const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? "" : "none"; };
   // 你的画像（含关系/环境）→ 扫描环境；洞察 → 立即分析；人格演化 → 无（页内自带按钮）
-  show("lumiScanBtn", which === "profile");
+  show("lumiScanBtn", false);   // v110：环境画像挪到了「待开发」，扫描按钮跟着过去了
   show("crwRunBtn", which === "insight");
   show("lumiRefreshBtn", true);
 }
@@ -6657,6 +6815,8 @@ function setLumiTopbarButtons(which) {
 // 懂你子菜单：切换各子页。关系/环境已并入「你的画像」，不再是独立页。
 // renderer 只直接管 profile 页；洞察/演化由各自模块（crawler.js/evolution.js）补充显隐。
 function switchLumiSub(which) {
+  const sub = which;
+  if (which === "evolution") which = "profile";   // v110：人格演化并进了画像页（画像下面接着显示）
   const map = { profile: "lumiPageProfile" };
   Object.entries(map).forEach(([k, id]) => {
     const pg = document.getElementById(id);
@@ -6668,19 +6828,17 @@ function switchLumiSub(which) {
     if (pp) pp.style.display = "none";
   }
   document.querySelectorAll("#lumiSubNav .nav-subitem").forEach((b) =>
-    b.classList.toggle("active", b.dataset.lumi === which));
+    b.classList.toggle("active", b.dataset.lumi === sub));
   setLumiTopbarButtons(which);
 }
 document.querySelectorAll("#lumiSubNav .nav-subitem").forEach((b) => {
   b.addEventListener("click", () => {
     // 点（隐藏的）子菜单时：切到懂你视图，并高亮对应的那个一级懂你项（画像/洞察/人格）
-    document.querySelectorAll(".nav-item").forEach((x) => x.classList.remove("active"));
-    const flat = document.querySelector('.nav-item[data-lumi-sub="' + b.dataset.lumi + '"]');
-    if (flat) flat.classList.add("active");
     document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
     document.getElementById("view-lumi")?.classList.add("active");
     switchLumiSub(b.dataset.lumi);
     loadLumi();
+    navSync("lumi", b.dataset.lumi);
   });
 });
 
