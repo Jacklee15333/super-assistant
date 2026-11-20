@@ -3200,5 +3200,50 @@
     "key": "Matthias Bastian",
     "auto_fail_at": 1795173440,
     "error": "自动找主页没成功：试了 2 条视频都没找到。第一条：读不到这条视频的作者信息（\u001b[0;31mERROR:\u001b[0m Unsupported URL: https://the-decoder.com/ai-industry-growth-re）"
+  },
+  "Russell Brandom": {
+    "key": "Russell Brandom",
+    "auto_fail_at": 1795174955,
+    "error": "自动找主页没成功：读不到这条视频的作者信息（\u001b[0;31mERROR:\u001b[0m Unsupported URL: https://techcrunch.com/2026/11/19/anthropic-h）"
+  },
+  "Aisha Malik": {
+    "key": "Aisha Malik",
+    "auto_fail_at": 1795174966,
+    "error": "自动找主页没成功：读不到这条视频的作者信息（\u001b[0;31mERROR:\u001b[0m Unsupported URL: https://techcrunch.com/2026/11/19/metas-ai-ag）"
+  },
+  "Kate Park": {
+    "key": "Kate Park",
+    "auto_fail_at": 1795174974,
+    "error": "自动找主页没成功：读不到这条视频的作者信息（\u001b[0;31mERROR:\u001b[0m Unsupported URL: https://techcrunch.com/2026/11/19/former-alib）"
+  },
+  "Tim Fernholz": {
+    "key": "Tim Fernholz",
+    "auto_fail_at": 1795174981,
+    "error": "自动找主页没成功：读不到这条视频的作者信息（\u001b[0;31mERROR:\u001b[0m Unsupported URL: https://techcrunch.com/2026/11/19/anthropics-）"
+  },
+  "Amanda Silberling": {
+    "key": "Amanda Silberling",
+    "auto_fail_at": 1795174988,
+    "error": "自动找主页没成功：读不到这条视频的作者信息（\u001b[0;31mERROR:\u001b[0m Unsupported URL: https://techcrunch.com/2026/11/19/nvidia-ceo-）"
+  },
+  "Dominic-Madori Davis": {
+    "key": "Dominic-Madori Davis",
+    "auto_fail_at": 1795175014,
+    "error": "自动找主页没成功：读不到这条视频的作者信息（\u001b[0;31mERROR:\u001b[0m Unsupported URL: https://techcrunch.com/2026/11/19/these-tech-）"
+  },
+  "Connie Loizos": {
+    "key": "Connie Loizos",
+    "auto_fail_at": 1795175021,
+    "error": "自动找主页没成功：读不到这条视频的作者信息（\u001b[0;31mERROR:\u001b[0m Unsupported URL: https://techcrunch.com/2026/11/19/anthropic-r）"
+  },
+  "Julie Bort": {
+    "key": "Julie Bort",
+    "auto_fail_at": 1795175027,
+    "error": "自动找主页没成功：读不到这条视频的作者信息（\u001b[0;31mERROR:\u001b[0m Unsupported URL: https://techcrunch.com/2026/11/19/anthropics-）"
+  },
+  "Jonathan Kemper": {
+    "key": "Jonathan Kemper",
+    "auto_fail_at": 1795175088,
+    "error": "自动找主页没成功：读不到这条视频的作者信息（\u001b[0;31mERROR:\u001b[0m Unsupported URL: https://the-decoder.com/ocr-models-now-digiti）"
   }
 }

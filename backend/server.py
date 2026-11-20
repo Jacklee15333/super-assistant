@@ -1402,18 +1402,40 @@ def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None
             return f"（分析出错：AI 池两次都没成功（{e2}）。请稍后在这条笔记上点「AI 分析」重试）"
 
 
+# v133：整行都是网页小字（按钮上的字、读屏标签、思考用时）
+_WEB_UI_LINE_RE = re.compile(
+    r"(?im)^[ \t]*(?:#{1,6}[ \t]*)?(?:ChatGPT[ \t]*(?:说|said)[ \t]*[:：]?|你说[ \t]*[:：]?|最新一条回复|"
+    r"(?:已)?思考了?[ \t]*\d[\dms秒分钟 \t]*|思考用时.{0,12}|Thought for .{0,24}|"
+    r"重置清单(?:[ \t]*复制清单)?|复制清单|复制代码|显示更多|显示全部|Copy code)[ \t]*$\n?")
+
+
+def _pre_heading_junk(s):
+    """v133：第一个小标题前面、不是笔记内容的一行：零碎的几个字（网页按钮上的「写入」）、
+    AI 动手前的开场白（「我会按你指定的结构整理…」）、思考过程的小标题（「核查了文本脉络」）。
+    「中文标题：」和「以下笔记依据文字稿整理，已校正…」这类说明照常留着。"""
+    s = (s or "").strip()
+    if not s or "中文标题" in s:
+        return False
+    if len(s) <= 6:
+        return True
+    if "以下" not in s and re.match(r"^(?:好的|好|收到|明白|可以|当然)?[，,。！!\s]*我(?:会|将|先|来|这就|马上|现在|准备)", s):
+        return True
+    return len(s) <= 16 and re.match(r"^[\u4e00-\u9fa5]{1,6}了[\u4e00-\u9fa5A-Za-z0-9 ]{1,12}$", s) is not None
+
+
 def _clean_web_reply(text):
-    """v127：网页 AI 回复里抓进来的杂字：「ChatGPT 说：」这一行、引用来源的小图标。"""
+    """v127：网页 AI 回复里抓进来的杂字：「ChatGPT 说：」这一行、引用来源的小图标。
+    v133：按钮上的字（「重置清单 复制清单」「复制代码」）、「思考了 58s」整行去掉；
+          第一个小标题前面的开场白、思考过程的小标题去掉（见 _pre_heading_junk）。"""
     t = (text or "").strip()
     t = re.sub(r"(?m)^\s*#{0,6}\s*ChatGPT\s*说[:：]?\s*$\n?", "", t)
     t = re.sub(r"!\[[^\]]*\]\(https?://www\.google\.com/s2/favicons[^)]*\)\s*", "", t)
-    # v131：第一个小标题前面零碎的几个字（网页按钮上的字，比如「写作」）去掉；「中文标题：」那行留着
+    t = _WEB_UI_LINE_RE.sub("", t)
     m = re.search(r"(?m)^#{1,4}\s", t)
     if m and m.start() > 0:
-        head = [ln for ln in t[:m.start()].split("\n")
-                if ln.strip() and not (len(ln.strip()) <= 6 and "中文标题" not in ln)]
+        head = [ln for ln in t[:m.start()].split("\n") if ln.strip() and not _pre_heading_junk(ln)]
         t = ("\n".join(head) + "\n\n" if head else "") + t[m.start():]
-    return t.strip()
+    return re.sub(r"\n{3,}", "\n\n", t).strip()
 
 
 def _analysis_missing(text):

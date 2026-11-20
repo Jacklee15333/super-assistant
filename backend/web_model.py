@@ -536,6 +536,21 @@ _UI_CMDS = queue.Queue()          # 「显示/隐藏浏览器」这类命令，�
 OFFSCREEN_X = -12000              # 隐藏＝把窗口挪到屏幕外（不能最小化：最小化后 Chrome 会暂停页面）
 
 
+# v133：网页上不是回复内容的小字（按钮上的字、读屏用的隐藏标签、思考用时）。整行就是这些时去掉。
+_UI_LINE_RE = re.compile(
+    r"^\s*(?:#{1,6}\s*)?(?:ChatGPT\s*(?:说|said)\s*[:：]?|你说\s*[:：]?|You said:?|最新一条回复|"
+    r"(?:已)?思考了?\s*\d[\dms秒分钟\s]*|思考用时.{0,12}|Thought for .{0,24}|"
+    r"重置清单(?:\s*复制清单)?|复制清单|复制代码|显示更多|显示全部|Copy code)\s*$", re.I)
+
+
+def _clean_reply_text(text):
+    """v133：回复里整行是网页小字的（「ChatGPT 说：」「思考了 58s」「重置清单 复制清单」「复制代码」）去掉。"""
+    if not text:
+        return text or ""
+    lines = [ln for ln in str(text).split("\n") if not _UI_LINE_RE.match(ln)]
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+
+
 def _live_set(**kw):
     with _LIVE_LOCK:
         _LIVE.update(kw)
@@ -2258,6 +2273,7 @@ class _WebWorker:
         # 只有和刚才确认过的回复是同一条时才用 Markdown 版（之前只比长度，旧的长消息会顶替掉正确回复）
         if md and len(md) >= max(40, int(len(reply or "") * 0.6)) and self._same_reply(md, reply):
             reply = md
+        reply = _clean_reply_text(reply)          # v133：「ChatGPT 说：」「思考了 58s」「重置清单 复制清单」这类整行小字
         if imgs:
             prog("保存回复里的 %d 张图片…" % len(imgs))
             reply = self._save_reply_images(reply, imgs)
@@ -2614,19 +2630,22 @@ class _WebWorker:
         t = re.sub(r"\s+", "", text or "")[:60]
         return bool(t) and t not in re.sub(r"\s+", "", prompt_text or "")
 
-    def _dump_reply_diag(self, prompt_text, chosen):
-        """v69：一直只看到提问回显时，存一份页面结构（不含正文，只有标签、类名、字数），方便找原因。"""
+    def _dump_reply_diag(self, prompt_text, chosen, why="一直只抓到提问回显"):
+        """v69：一直只看到提问回显时，存一份页面结构（不含正文，只有标签、类名、字数），方便找原因。
+        v133：也在「停止键一直亮着、回复还很短」时存；看得更深（回复区在第 30 层以下），并记下 data-* 属性。"""
         try:
             outline = self._safe(lambda: self._page.evaluate(r"""() => {
                 const out = []; let n = 0;
                 const walk = (el, d) => {
-                    if (n > 1500 || d > 30) return;
+                    if (n > 3000 || d > 60) return;
                     const txt = (el.innerText || '').trim();
                     if (!txt) return;
                     const own = [...el.childNodes].filter(x => x.nodeType === 3).map(x => x.textContent).join('').trim();
                     out.push({d, t: el.tagName.toLowerCase(), c: String(el.className && el.className.baseVal !== undefined ? el.className.baseVal : (el.className || '')).slice(0, 80),
                               r: el.getAttribute('data-message-author-role') || el.getAttribute('data-testid') || el.getAttribute('role') || '',
-                              n: txt.length, s: own.slice(0, 16), w: Math.round(el.getBoundingClientRect().width)});
+                              n: txt.length, s: own.slice(0, 16), w: Math.round(el.getBoundingClientRect().width),
+                              a: [...el.attributes].filter(x => x.name.startsWith('data-') && x.name !== 'data-cx-img').slice(0, 4)
+                                   .map(x => x.name.slice(5) + (x.value && x.value.length <= 24 ? '=' + x.value : '')).join(' ')});
                     n++;
                     for (const c of el.children) walk(c, d + 1);
                 };
@@ -2636,7 +2655,7 @@ class _WebWorker:
             d = MEMORY_DIR / "web_model_diag"
             d.mkdir(parents=True, exist_ok=True)
             fn = d / ("%s-reply.json" % time.strftime("%Y%m%d-%H%M%S"))
-            fn.write_text(json.dumps({"why": "一直只抓到提问回显", "url": self._safe(lambda: self._page.url, ""),
+            fn.write_text(json.dumps({"why": why, "url": self._safe(lambda: self._page.url, ""),
                                       "prompt_head": (prompt_text or "")[:60], "prompt_tail": (prompt_text or "")[-40:],
                                       "chosen_head": (chosen or "")[:120], "chosen_len": len(chosen or ""),
                                       "outline": outline}, ensure_ascii=False), encoding="utf-8")
@@ -2668,6 +2687,9 @@ class _WebWorker:
         accept_stable = [m for m in (opts.get("acceptStableMarkers") or [])
                          if isinstance(m, str) and m]
         think_noout_fatal_ms = opts.get("thinkNoOutputMs") or 300000
+        # v133：回复还很短、停止键还亮着时最多等多久（思考强度拉满时，开场白之后常要想一两分钟）
+        LONG_THINK_MS = opts.get("longThinkMs") or 300000
+        long_noted, long_dumped = False, False
         # ★短回复模式：调用方明确这是个简短的确定性回复（如"起标题"），
         #   答完判定以「发送按钮恢复可发送」为准，按钮一稳定恢复就算完，不强求长时间空闲。
         short_reply = bool(opts.get("shortReply"))
@@ -2868,7 +2890,7 @@ class _WebWorker:
                 self._log("✓ AI 开始产生本轮回复（%d 字）" % len(current))
                 prog("接收回复中…")
             think_since = 0
-            _live_set(reply=current, reply_at=time.time())
+            _live_set(reply=_clean_reply_text(current), reply_at=time.time())   # v133：实时画面里不显示网页小字
 
             if current != last_text:
                 stable = 0
@@ -2913,11 +2935,26 @@ class _WebWorker:
                     #   文本已经「持续稳定」足够久（默认 12 秒零增长），就判定 AI 答完，
                     #   不再 100% 依赖那个脆弱的按钮信号。短回复模式阈值更短（8 秒）。
                     escape_ms = 8000 if short_reply else 12000
+                    # v133：回复还很短（多半只是开场白「我会按你指定的结构整理…」），停止键却还亮着 / 页面显示还在思考
+                    #       → AI 还在干活。以前这里 12 秒就把开场白当答案交了，加工就判「回来的不是笔记」、换卡重来。
+                    #       现在只认发送键恢复（这个网站上一直认得准）；真等了 5 分钟还这样，才接受现有内容。
+                    busy = ((probe or {}).get("genState") == "generating") or res.get("reason") == "AI 仍在思考"
+                    long_wait = (not short_reply) and busy and len(_clean_reply_text(current)) < 250
+                    if long_wait:
+                        escape_ms = max(escape_ms, LONG_THINK_MS)
+                        if not long_noted:
+                            long_noted = True
+                            self._log("回复还很短（%d 字），停止键还亮着：AI 多半还在思考，接着等发送键恢复（最多 %d 分钟）"
+                                      % (len(current), LONG_THINK_MS // 60000))
+                            prog("AI 还在思考…")
                     if held_ms > escape_ms:
                         self._log("内容已持续稳定 %d 字 / %.0f 秒，按钮态未翻转，"
                                   "按『文本稳定』判定答完" % (len(current), held_ms / 1000))
+                        if long_wait and not long_dumped:
+                            long_dumped = True
+                            self._dump_reply_diag(prompt_text, current, why="停止键一直亮着，回复还很短")
                         return current
-                    if held_ms > hold_cap_ms:
+                    if held_ms > hold_cap_ms and not long_wait:
                         self._log("⚠ 防误判等待达上限，接受现有 %d 字返回" % len(current))
                         return current
                     last_change = time.time()
@@ -3619,13 +3656,25 @@ _GRAB_MARKDOWN_JS = r"""(anchorText) => {
         for(const r of rows.slice(1)) md += '| ' + r.join(' | ') + ' |\n';
         return md + '\n';
     };
+    // v133：按钮上的字（复制、重置清单、思考了 58s…）不是正文
+    const UI_BTN = /^(?:复制|复制代码|复制清单|重置清单|编辑|重试|分享|显示更多|显示全部|收起|展开|下载|Copy|Copy code|Edit|Retry|Share|Show more|Show less|Expand|Collapse|Download|(?:已)?思考了?\s*\d.*|已思考.*|思考用时.*|Thought for.*)$/i;
     const walk = (node) => {
         let out='';
         for(const child of node.childNodes){
             if(child.nodeType===3){ out += child.textContent; continue; }
             if(child.nodeType!==1) continue;
             const el=child, tag=el.tagName.toLowerCase();
-            if(tag==='script'||tag==='style') continue;
+            if(tag==='script'||tag==='style'||tag==='svg'||tag==='input'||tag==='select'||tag==='textarea') continue;
+            if(/(^|\s)sr-only(\s|$)/.test(clsOf(el)+'')) continue;             // v133：读屏用的隐藏字（「ChatGPT 说：」）
+            if(tag==='button' || el.getAttribute('role')==='button'){
+                const ims=[...el.querySelectorAll('img[data-cx-img]')];           // 生成的图片有时包在按钮里：图照常要
+                if(ims.length){
+                    for(const im of ims) out += '\n!['+((im.getAttribute('alt')||'示意图').trim().replace(/[\[\]]/g,'')||'示意图')+'](cx-webimg:'+im.getAttribute('data-cx-img')+')\n';
+                    continue;
+                }
+                const bt=(el.innerText||el.textContent||'').replace(/\s+/g,' ').trim();
+                if(!bt || UI_BTN.test(bt)) continue;                               // 正文里可点的人名、地名照常当正文
+            }
             if(isCite(el)) continue;
             if(tag==='table'){ out += tableToMd(el); continue; }                   // ★表格整体转 Markdown
             if(/^(thead|tbody|tfoot|tr|td|th|colgroup|col)$/.test(tag)) continue;  // 已由 table 处理，跳过防重复
