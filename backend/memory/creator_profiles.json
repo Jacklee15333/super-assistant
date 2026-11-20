@@ -1510,23 +1510,6 @@
     "avatar_src": "https://p3-pc.douyinpic.com/aweme/100x100/aweme-avatar/mosaic-legacy_319130002cf0c082b09ac.jpeg?from=327834062",
     "avatar_file": "ff8eb070551e289a.jpg"
   },
-  "ixuzhaomeng": {
-    "key": "ixuzhaomeng",
-    "url": "https://www.douyin.com/user/MS4wLjABAAAABFqXYObbJKtCOUDaIJ2ii6z-tPmsdkjGnP7mJFlzzEQ42jQPfgyyLT9KugK4Upri",
-    "platform": "douyin",
-    "updated": 1794986123,
-    "auto": true,
-    "source_video": "https://v.douyin.com/LSKoeQwCAVA/",
-    "found_via": "浏览器",
-    "home": "https://www.douyin.com/user/MS4wLjABAAAABFqXYObbJKtCOUDaIJ2ii6z-tPmsdkjGnP7mJFlzzEQ42jQPfgyyLT9KugK4Upri",
-    "name": "徐兆猛",
-    "uid": "MS4wLjABAAAABFqXYObbJKtCOUDaIJ2ii6z-tPmsdkjGnP7mJFlzzEQ42jQPfgyyLT9KugK4Upri",
-    "followers": 45522,
-    "signature": "📍“中年辍班”，All in AI。\n🛠️钳工➔工控➔机器人➔金融➔AI\n🎙️每月 2 场内部直播，详见：xuzhaomeng点ai/club\n📲小程序：造遇\n🍶不能富贵，非因宿命只缘懒；难成大器，既贪诗酒又恋花。",
-    "handle": "ixuzhaomeng",
-    "avatar_src": "https://p3-pc.douyinpic.com/aweme/100x100/aweme-avatar/tos-cn-avt-0015_3269c58a14b93f186c49483914219a07.jpeg?from=327834062",
-    "avatar_file": "5b037ed0d368256d.jpg"
-  },
   "mzq960511": {
     "key": "mzq960511",
     "url": "https://www.douyin.com/user/MS4wLjABAAAAAQsCUrKMO6zPeLYfjA5ZS6eI4yFr3aLYETPaVPHizwU",
@@ -3245,5 +3228,22 @@
     "key": "Jonathan Kemper",
     "auto_fail_at": 1795175088,
     "error": "自动找主页没成功：读不到这条视频的作者信息（\u001b[0;31mERROR:\u001b[0m Unsupported URL: https://the-decoder.com/ocr-models-now-digiti）"
+  },
+  "徐兆猛": {
+    "key": "徐兆猛",
+    "url": "https://www.douyin.com/user/MS4wLjABAAAABFqXYObbJKtCOUDaIJ2ii6z-tPmsdkjGnP7mJFlzzEQ42jQPfgyyLT9KugK4Upri",
+    "platform": "douyin",
+    "updated": 1795182687,
+    "auto": true,
+    "source_video": "https://www.douyin.com/video/7700858636687510803",
+    "found_via": "缓存",
+    "home": "https://www.douyin.com/user/MS4wLjABAAAABFqXYObbJKtCOUDaIJ2ii6z-tPmsdkjGnP7mJFlzzEQ42jQPfgyyLT9KugK4Upri",
+    "name": "徐兆猛",
+    "uid": "MS4wLjABAAAABFqXYObbJKtCOUDaIJ2ii6z-tPmsdkjGnP7mJFlzzEQ42jQPfgyyLT9KugK4Upri",
+    "followers": 45667,
+    "signature": "📍“中年辍班”，All in AI。\n🛠️钳工➔工控➔机器人➔金融➔AI\n🎙️每月 2 场内部直播，详见：xuzhaomeng点ai/club\n📲小程序：造遇\n🍶不能富贵，非因宿命只缘懒；难成大器，既贪诗酒又恋花。",
+    "handle": "ixuzhaomeng",
+    "avatar_src": "https://p3-pc.douyinpic.com/aweme/100x100/aweme-avatar/tos-cn-avt-0015_3269c58a14b93f186c49483914219a07.jpeg?from=327834062",
+    "avatar_file": "3e6f25d3378f621a.jpg"
   }
 }
