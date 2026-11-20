@@ -1866,9 +1866,16 @@ async function viImportPaths(paths) {
 // ── v120：加工页的处理进度 ──
 const VI_AN_IDLE = "现在没有在分析的内容。点下面「批量 AI 分析」，或者单条的「AI 分析」开始。";
 let _viAnIdleTimer = null;
+let _viBatchRunning = false;
+function viAnStopSync() {
+  const b = document.getElementById("viAnStop");
+  if (b) b.hidden = !(_noteAnRunning || _viBatchRunning);
+}
 function setAnStatus(msg, kind, holdMs) {
   const el = document.getElementById("viAnStatus");
+  viAnStopSync();
   if (!el) return;
+  if (/AI 镜像网站打不开/.test(msg)) msg += "　可以在「设置 → 模型 → 网页模型」里点「保存 & 测试」，看网站能不能打开。";
   el.textContent = msg;
   el.className = "vi-an-status" + (kind ? " " + kind : " busy");
   clearTimeout(_viAnIdleTimer);
@@ -1882,6 +1889,22 @@ function viNoteTitle(name) {
   const t = row && row.querySelector(".vn-name");
   return (t && t.textContent.trim()) || n.replace(/\.md$/, "").replace(/^\d{8}-\d{6}-/, "");
 }
+// v121：加工页的「停止」：单条分析就停这一条；批量在跑就停批量
+document.getElementById("viAnStop")?.addEventListener("click", async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true; btn.textContent = "停止中…";
+  try {
+    if (_noteAnRunning) {
+      await stopNoteAnalyze(_noteAnRunning);
+    } else {
+      await fetch(BACKEND + "/video_note_analyze_batch", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "stop" }) });
+      setAnStatus("⏹ 已让批量分析停下（做完手上这一步就停）。", "ok", 10000);
+    }
+  } catch (err) {}
+  setTimeout(() => { btn.disabled = false; btn.textContent = "停止"; viAnStopSync(); }, 2500);
+});
+
 // ── v120：一个框里打的是聊天 → 发到对话里（不存笔记）──
 let _viForceNote = false;
 function viSendToChat(text) {
@@ -4511,6 +4534,9 @@ function vnUnRow(n, idx) {
     r.appendChild(au);
   }
   const st = document.createElement("span"); st.className = "vn-un-state";
+  if (n.an_fail) {   // v121：上次 AI 分析没成功：标出来，鼠标停上去看原因
+    st.textContent = "分析失败"; st.classList.add("vn-un-fail"); st.title = "上次没分析成功：" + n.an_fail;
+  }
   r.appendChild(st);
   const an = vnAnButton(n.name, "🤖 AI 分析", "vn-analyze vn-un-an", false);
   an.title = "只分析这一条（批量在跑的时候不能单独点）";
@@ -10250,6 +10276,9 @@ async function vnLivePoll() {
   if (document.getElementById("vnLive") !== box) return;   // 期间列表重画了，新的那个会自己轮询
   const b = d.batch || {}, p = d.pool || {};
   const single = !b.running && !!_noteAnRunning;   // v120：单条 AI 分析也显示实时画面
+  _viBatchRunning = !!b.running; viAnStopSync();   // v121：有分析在跑才显示「停止」
+  if (b.running && !_noteAnRunning) setAnStatus("🤖 批量分析中：第 " + Math.min(b.total || 0, (b.done || 0) + 1) + " / " + (b.total || 0) + " 篇" +
+    (b.title ? "《" + b.title + "》" : "") + (p.stage ? "：" + p.stage : ""));
   if (!b.running && !single) {
     box.hidden = true;
     _vnLiveTimer = setTimeout(vnLivePoll, 4000);

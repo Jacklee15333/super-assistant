@@ -248,6 +248,27 @@ def _check_cancel():
         raise _Cancelled(_CANCEL_WHY[0] or "已取消")
 
 
+# v121：AI 镜像网站打不开（浏览器报错页 / 网站 5xx / 一直进不到能提问的页面）→ 这条直接算失败，不干等、也不换卡重试
+class SiteDown(_Cancelled):
+    pass
+
+
+_READY_LIMIT = 120        # 从「打开网页」到能提问，最多等这么久（秒）
+_SITE_ERR_JS = r"""() => {
+  const u = location.href || '';
+  if (u.startsWith('chrome-error://')) return '浏览器显示「无法访问此网站」';
+  const t = (document.title || '').trim();
+  if (/^(500|502|503|504|520|521|522|523|524)\b|bad gateway|service unavailable|gateway time-?out|internal server error/i.test(t))
+    return '网站报错：' + t.slice(0, 60);
+  const b = ((document.body && document.body.innerText) || '').slice(0, 3000);
+  if (b.length < 1500 && /无法访问此网站|This site can.t be reached|ERR_(CONNECTION|NAME_NOT_RESOLVED|TIMED_OUT|PROXY|TUNNEL|SSL|CERT|ADDRESS|EMPTY_RESPONSE)|502 Bad Gateway|503 Service|504 Gateway/i.test(b)) {
+    const m = b.match(/ERR_[A-Z_]+/);
+    return '浏览器报错' + (m ? '：' + m[0] : '');
+  }
+  return '';
+}"""
+
+
 # v62：输入框里是不是还躺着这段提示词（= 没发出去）。只看可编辑的框，不看已经发出去的提问气泡。
 _COMPOSER_HAS_JS = r"""(head) => {
     const norm = (s) => (s || '').replace(/\s+/g, '');
@@ -1453,6 +1474,25 @@ class _WebWorker:
         self._park_mouse()
         return True
 
+    def _ready_check(self):
+        """v121：就位阶段的检查：点了停止就停；网站报错页 / 等太久 → 算 AI 镜像网站打不开。"""
+        _check_cancel()
+        bad = ""
+        try:
+            if self._page and not self._page.is_closed():
+                bad = self._page.evaluate(_SITE_ERR_JS) or ""
+        except Exception:
+            bad = ""
+        if bad:
+            self._ready_deadline = 0
+            self._log("⛔ AI 镜像网站打不开：%s" % bad)
+            raise SiteDown("AI 镜像网站打不开（%s）" % bad)
+        dl = getattr(self, "_ready_deadline", 0)
+        if dl and time.time() > dl:
+            self._ready_deadline = 0
+            self._log("⛔ AI 镜像网站打不开：等了 %d 秒还没进到能提问的页面" % _READY_LIMIT)
+            raise SiteDown("AI 镜像网站打不开（等了 %d 秒还没进到能提问的页面）" % _READY_LIMIT)
+
     def _wait_chat_page_ready(self, timeout_sec=25):
         self._log("等聊天页就绪...")
         carlist_url = self._carlist_url
@@ -1460,6 +1500,7 @@ class _WebWorker:
         last_log = 0
         while time.time() - start < timeout_sec:
             time.sleep(2)
+            self._ready_check()          # v121
             try:
                 info = self._page.evaluate("""(carlistUrl) => {
                     const url = window.location.href;
@@ -1506,7 +1547,18 @@ class _WebWorker:
                 self._safe(lambda: on_progress(msg))
         prog("打开网页 / 就位中…")
         _CANCEL_EVT.clear()               # v62：上一条残留的「停止」信号不作数
-        self._ensure_started()
+        self._ready_deadline = time.time() + _READY_LIMIT     # v121：就位最多等这么久
+        try:
+            self._ensure_started()
+        except _Cancelled:
+            raise
+        except Exception as e:
+            m = str(e)
+            if any(k in m for k in ("ERR_", "net::", "打开登录页失败", "Timeout", "timeout")):
+                self._ready_deadline = 0
+                raise SiteDown("AI 镜像网站打不开（%s）" % m.split("\n")[0][:120])
+            raise
+        self._ready_check()
 
         # ★ 2026-06 新增：forceNewCard —— 主动换一张新卡再问。
         #   用于 agent 工具循环里碰到「轴卡」（死活不肯输出工具块、一直用文字推辞）时，
@@ -1542,6 +1594,8 @@ class _WebWorker:
             self._select_best_model()
             self._best_epoch = self._chat_epoch
 
+        self._ready_check()
+        self._ready_deadline = 0          # v121：就位完成，下面等回复有自己的看门狗
         disable_switch = bool(opts.get("disableCardSwitch"))
         max_attempts = 1 if disable_switch else 2
         last_err = None
