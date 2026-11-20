@@ -320,19 +320,22 @@
 
             <!-- v117：工具卡片重新排：① 放东西 + 开始提取 ② 认出来是什么 ③ 别的放法 ④ 视频设置（收起） -->
             <div class="vi-main">
-              <textarea id="videoUrl" class="text-input vi-input" rows="1"
-                placeholder="什么都能放：视频 / 文章链接、GitHub 项目、一段文字、文件路径（Enter 开始提取，Shift+Enter 换行）"></textarea>
+              <div class="vi-input-wrap">
+                <textarea id="videoUrl" class="text-input vi-input" rows="2"
+                placeholder="什么都能放：一段文字、链接、GitHub 项目、本地文件或文件夹（拖进来、粘贴路径，或点右下角的📎）。想找值得关注的博主和网站，就写「搜：领域」。Enter 开始，Shift+Enter 换行"></textarea>
+                <button type="button" class="vi-attach" id="viAttachBtn" title="选电脑里的文件或文件夹">📎</button>
+                <div class="vi-attach-menu" id="viAttachMenu" hidden>
+                  <button id="videoLocalBtn" class="vi-attach-item" title="从电脑里选文件导入：音频、视频会提取文字稿；PDF、Word、Excel、PPT、TXT、Markdown 等文档直接读出全文">选文件…</button>
+                  <button id="videoFolderBtn" class="vi-attach-item" title="选一个文件夹，自动找出里面所有音视频和文档（包括子文件夹），逐个导入；还可以顺手统一填作者、把笔记归进同名文件夹">选文件夹…</button>
+                </div>
+              </div>
               <button id="videoGoBtn" class="send-btn">开始提取</button>
             </div>
             <div id="viKind" class="vi-kind" hidden></div>
-            <div class="vi-sources">
-              <span class="vi-sources-label">也可以</span>
-              <button id="videoLocalBtn" class="ghost-btn small" title="从电脑里选文件导入：音频、视频会提取文字稿；PDF、Word、Excel、PPT、TXT、Markdown 等文档直接读出全文">导入本地文件</button>
-              <button id="videoFolderBtn" class="ghost-btn small" title="选一个文件夹，自动找出里面所有音视频和文档（包括子文件夹），逐个导入；还可以顺手统一填作者、把笔记归进同名文件夹">导入文件夹</button>
-            </div>
+            <div class="vi-phone-row"></div>
             <div class="vi-sec" id="viVideoSec">
-              <div class="vi-sec-head" role="button" tabindex="0" title="只对视频、音频有用：识别质量、说的是什么话、博主主页、整理原文、分离人声">
-                <span class="vi-sec-caret">▸</span><span>视频设置</span><span class="vi-sec-sum" id="viVideoSum"></span>
+              <div class="vi-sec-head" role="button" tabindex="0" title="视频识别（质量、语言、博主主页、整理原文、分离人声）和维护工具（依赖安装、抖音自检、诊断）">
+                <span class="vi-sec-caret">▸</span><span>设置</span><span class="vi-sec-sum" id="viVideoSum"></span>
               </div>
               <div class="vi-sec-body" hidden>
                 <div class="vi-sec-row"><span class="vi-sec-label">识别质量</span><select id="videoLevel" class="text-input">
@@ -345,6 +348,26 @@
               <input type="text" id="videoCreatorUrl" class="text-input"
                 placeholder="选填：博主主页链接（抖音 / B站 / YouTube…）。不填也行，软件会根据视频自动找" />
             </div>
+            <div class="video-tools" style="margin-top:2px;border:0.5px solid var(--border,#3a3a3a);border-radius:8px;overflow:hidden">
+                  <div id="videoToolsHead" class="video-tools-head" role="button" tabindex="0"
+                       style="display:flex;align-items:center;gap:6px;padding:7px 10px;cursor:pointer;font-size:13px;color:var(--text-dim,#9aa)">
+                    <span id="videoToolsCaret">▸</span>
+                    <span>🛠 维护工具</span>
+                    <span style="color:var(--text-dim,#9aa);font-weight:400">（依赖安装 · 抖音自检 · 诊断）</span>
+                    <span id="videoDepBadge" class="vdep-badge" hidden></span>
+                  </div>
+                  <div id="videoToolsBody" style="display:none;padding:10px;border-top:0.5px solid var(--border,#3a3a3a)">
+                    <div id="videoDepStatus" class="vdep-status"></div>
+                    <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px">
+                      <button id="videoDepBtn" class="send-btn" style="font-size:13px;padding:6px 12px">🔧 安装/更新依赖</button>
+                      <button id="videoHealthBtn" class="send-btn" style="font-size:13px;padding:6px 12px">🩺 检测抖音是否正常</button>
+                      <button id="videoDiagCopyBtn2" class="send-btn" style="font-size:13px;padding:6px 12px">📋 复制诊断信息</button>
+                    </div>
+                    <div class="video-mode-tip" style="margin-top:6px">软件会自己查这几个依赖有没有新版：有新版时「更新依赖」按钮才亮起来，已是最新时按钮是灰的。抖音提取一直失败时，先更新一下往往就好了。</div>
+                    <div class="video-install-log" id="videoDepLog" style="margin-top:6px"></div>
+                    <div id="videoHealthBanner" class="video-health-banner" style="display:none;margin-top:8px;padding:8px 10px;border-radius:8px;font-size:13px;line-height:1.5"></div>
+                  </div>
+                </div>
               </div>
             </div>
             <div id="videoSubHint" class="video-sub-hint" style="display:none"></div>
@@ -353,26 +376,6 @@
             <div id="videoNotice" class="video-notice" style="display:none;margin-top:8px;padding:7px 10px;border-radius:8px;font-size:13px;line-height:1.5"></div>
 
             <!-- 维护工具：默认收起，点标题行展开/收起 -->
-            <div class="video-tools" style="margin-top:10px;border:0.5px solid var(--border,#3a3a3a);border-radius:8px;overflow:hidden">
-              <div id="videoToolsHead" class="video-tools-head" role="button" tabindex="0"
-                   style="display:flex;align-items:center;gap:6px;padding:7px 10px;cursor:pointer;font-size:13px;color:var(--text-dim,#9aa)">
-                <span id="videoToolsCaret">▸</span>
-                <span>🛠 维护工具</span>
-                <span style="color:var(--text-dim,#9aa);font-weight:400">（依赖安装 · 抖音自检 · 诊断）</span>
-                <span id="videoDepBadge" class="vdep-badge" hidden></span>
-              </div>
-              <div id="videoToolsBody" style="display:none;padding:10px;border-top:0.5px solid var(--border,#3a3a3a)">
-                <div id="videoDepStatus" class="vdep-status"></div>
-                <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px">
-                  <button id="videoDepBtn" class="send-btn" style="font-size:13px;padding:6px 12px">🔧 安装/更新依赖</button>
-                  <button id="videoHealthBtn" class="send-btn" style="font-size:13px;padding:6px 12px">🩺 检测抖音是否正常</button>
-                  <button id="videoDiagCopyBtn2" class="send-btn" style="font-size:13px;padding:6px 12px">📋 复制诊断信息</button>
-                </div>
-                <div class="video-mode-tip" style="margin-top:6px">软件会自己查这几个依赖有没有新版：有新版时「更新依赖」按钮才亮起来，已是最新时按钮是灰的。抖音提取一直失败时，先更新一下往往就好了。</div>
-                <div class="video-install-log" id="videoDepLog" style="margin-top:6px"></div>
-                <div id="videoHealthBanner" class="video-health-banner" style="display:none;margin-top:8px;padding:8px 10px;border-radius:8px;font-size:13px;line-height:1.5"></div>
-              </div>
-            </div>
           </div>
 
           <!-- ② 处理进度：任务跑起来后的状态、队列与结果。没有任务时整张卡片自动收起。 -->

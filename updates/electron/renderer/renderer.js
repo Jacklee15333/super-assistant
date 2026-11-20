@@ -378,6 +378,8 @@ function viSecSum() {
   if (!sum) return;
   const txt = (id) => { const s = document.getElementById(id); return s && s.selectedOptions && s.selectedOptions[0] ? s.selectedOptions[0].textContent.trim() : ""; };
   const parts = [txt("videoLevel"), txt("videoLang")].filter(Boolean);
+  const dep = document.getElementById("videoDepBadge");   // v118：维护工具也在「设置」里：有新版 / 缺组件时标题行就能看到
+  if (dep && !dep.hidden && dep.textContent.trim()) parts.push(dep.textContent.trim());
   if (document.getElementById("videoTidyAuto")?.checked) parts.push("整理原文");
   if (document.getElementById("videoVocal")?.checked) parts.push("分离人声");
   if ((document.getElementById("videoCreatorUrl")?.value || "").trim()) parts.push("填了博主主页");
@@ -397,6 +399,12 @@ function viSecSum() {
   sec.addEventListener("change", viSecSum);
   sec.addEventListener("input", viSecSum);
   [300, 1500, 4000].forEach((ms) => setTimeout(viSecSum, ms));   // 语言、整理原文这几项是后加进来的
+  const dep = document.getElementById("videoDepBadge");
+  if (dep) new MutationObserver(viSecSum).observe(dep, { childList: true, characterData: true, subtree: true, attributes: true });
+  // 缺组件提醒里的「打开维护工具」：先把「设置」展开
+  document.addEventListener("click", (e) => {
+    if (e.target.closest && e.target.closest("#videoNoticeOpen") && body.hidden) apply(true);
+  }, true);
 })();
 (function () {
   const list = document.getElementById("videoNotesList");
@@ -1799,7 +1807,10 @@ async function viDetectKind() {
     if (seq !== _viKindSeq) return;   // 又改过了，以最新的为准
     if (!d || !d.kind) { out.hidden = true; return; }
     out.innerHTML = '<span class="vi-kind-tag k-' + escapeHtml(d.kind) + '">' + escapeHtml(d.label) + "</span>" +
-      '<span class="vi-kind-hint">' + escapeHtml(d.hint || "") + "</span>";
+      '<span class="vi-kind-hint">' + escapeHtml(d.hint || "") + "</span>" +
+      // 一小段文字也可能是想搜某个领域：给个改成搜索推荐的按钮
+      ((d.kind === "text" && text.length <= 30 && text.indexOf("\n") < 0)
+        ? '<button type="button" class="vi-kind-alt" data-vi-search="1">改成搜索推荐</button>' : "");
     out.hidden = false;
     if (creatorRow) creatorRow.style.display = (d.kind === "video") ? "" : "none";
   } catch (e) { out.hidden = true; }
@@ -1810,6 +1821,71 @@ function viOnInputChanged() {
   _viKindTimer = setTimeout(viDetectKind, 250);
 }
 document.getElementById("videoUrl")?.addEventListener("input", viOnInputChanged);
+
+// ── v118：拖进来 / 粘进来的文件和文件夹：找出能提取的文件 → 导入设置 → 逐个入队 ──
+async function viImportPaths(paths) {
+  try {
+    const r = await fetch(BACKEND + "/intake_scan", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paths }) });
+    const d = await r.json();
+    if (!d || !d.files || !d.files.length) {
+      setVideoStatus("里面没找到能提取的文件（音视频、PDF、Word、Excel、TXT…，子文件夹也找过了）。", "warn");
+      return;
+    }
+    const o = await askImportOptions({ count: d.files.length, source: d.name || "", targetFolder: "" });
+    if (!o) return;
+    if (o.noteFolder) vnSetFolderOpen(o.noteFolder, true);
+    for (const p of d.files) await startLocalVideoJob(p, o.author, o.noteFolder, o);
+    setVideoStatus("已提交 " + d.files.length + " 个文件进队列，将逐个提取" +
+      (o.noteFolder ? "，完成的会归进「" + o.noteFolder + "」" : "") + "。", "ok", { priority: true, holdMs: 6000 });
+  } catch (e) {
+    setVideoStatus("导入出错：" + (e && e.message ? e.message : e), "warn");
+  }
+}
+// 搜索推荐：用工具卡片里原来的那套搜索（结果显示在输入框下面）
+function viRunSearch(q) {
+  const vf = document.getElementById("vFind");
+  if (!vf || !q) { setVideoStatus("搜索推荐还没准备好，过几秒再试。", "warn"); return; }
+  const body = vf.querySelector(".vfind-body"), kw = vf.querySelector(".cwf-kw");
+  if (body && body.hidden) vf.querySelector(".vfind-head")?.click();
+  if (kw) kw.value = q;
+  vf.querySelector(".cwf-btn")?.click();
+  try { vf.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (e) {}
+}
+document.addEventListener("click", (e) => {
+  const t = e.target;
+  if (t.closest && t.closest("[data-vi-search]")) {
+    const box = document.getElementById("videoUrl");
+    const q = (box && box.value || "").trim();
+    if (box) { box.value = ""; viOnInputChanged(); }
+    viRunSearch(q);
+    return;
+  }
+  const menu = document.getElementById("viAttachMenu");
+  if (!menu) return;
+  if (t.closest && t.closest("#viAttachBtn")) { menu.hidden = !menu.hidden; return; }
+  if (t.closest && t.closest(".vi-attach-item")) { menu.hidden = true; return; }   // 选文件 / 选文件夹：按钮自己的处理照常跑
+  if (!menu.hidden && !(t.closest && t.closest("#viAttachMenu"))) menu.hidden = true;
+});
+// 拖进来：文件、文件夹（Electron 里能拿到完整路径）、链接或文字都行
+(function () {
+  const card = document.querySelector("#view-video .v-card-extract");
+  if (!card) return;
+  const on = (v) => card.classList.toggle("vi-drag", v);
+  card.addEventListener("dragover", (e) => { e.preventDefault(); on(true); });
+  card.addEventListener("dragleave", (e) => { if (!card.contains(e.relatedTarget)) on(false); });
+  card.addEventListener("drop", (e) => {
+    e.preventDefault(); on(false);
+    const dt = e.dataTransfer;
+    const paths = Array.from((dt && dt.files) || []).map((f) => {
+      try { return (window.crayfish && window.crayfish.pathForFile && window.crayfish.pathForFile(f)) || f.path || ""; } catch (_) { return f.path || ""; }
+    }).filter(Boolean);
+    if (paths.length) { viImportPaths(paths); return; }
+    const txt = (dt && (dt.getData("text/uri-list") || dt.getData("text/plain")) || "").trim();
+    const box = document.getElementById("videoUrl");
+    if (txt && box) { box.value = txt; viOnInputChanged(); box.focus(); }
+  });
+})();
 
 // GitHub 项目笔记：一键让小助帮你装（去对话页，把要说的话填好，你看过再发）
 function vnGhInstall(n) {
@@ -1941,7 +2017,24 @@ function setVideoBtnState(state) {
 async function runVideoExtract() {
   if (_videoSubmitting) return;   // 正在提交，忽略重复点击
   const url = (document.getElementById("videoUrl").value || "").trim();
-  if (!url) { setVideoStatus("先放点东西进来：视频或文章链接、GitHub 项目、一段文字都行。", "warn"); return; }
+  if (!url) { setVideoStatus("先放点东西进来：一段文字、链接、GitHub 项目、文件或文件夹都行。", "warn"); return; }
+  // v118：一个框做所有事：文件 / 文件夹 → 导入；「搜：领域」→ 搜索推荐；其它照常提取
+  try {
+    const kr = await fetch(BACKEND + "/intake_kind", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: url }) });
+    const kd = await kr.json();
+    const box0 = document.getElementById("videoUrl");
+    if (kd && (kd.kind === "file" || kd.kind === "paths")) {
+      if (box0) { box0.value = ""; viOnInputChanged(); }
+      await viImportPaths(url.split(/\r?\n/).map((x) => x.trim()).filter(Boolean));
+      return;
+    }
+    if (kd && kd.kind === "search") {
+      if (box0) { box0.value = ""; viOnInputChanged(); }
+      viRunSearch(kd.query || url);
+      return;
+    }
+  } catch (e) { /* 认不出来就照常提取 */ }
   // 若当前已有任务在跑：这次点击 = 把这个链接加入队列（后端自动排队尾）
   if (_videoBusyNow()) {
     _videoSubmitting = true;
@@ -11851,7 +11944,7 @@ function _cwfBind(root) {
 // 视频页的搜索面板：放在「开始提取」卡片里、「维护工具」上面，样子和「维护工具」一样能折叠
 function vFindBuild() {
   const card = document.querySelector(".v-card-extract");
-  const tools = card && card.querySelector(":scope > .video-tools");
+  const tools = card && (card.querySelector(":scope > .vi-phone-row") || card.querySelector(":scope > .video-tools"));   // v118：结果放在输入框下面
   if (!card || !tools || document.getElementById("vFind")) return null;
   const wrap = document.createElement("div");
   wrap.id = "vFind"; wrap.className = "vfind";
@@ -12175,7 +12268,7 @@ async function openPhoneInbox() {
 // 「开始提取」卡片标题栏右边加一个「📱 手机发链接」按钮（不改 index.html）
 function _phInjectButton() {
   if (document.getElementById("phOpenBtn")) return true;
-  const head = document.querySelector("#view-video .vi-sources") || document.querySelector("#view-video .v-card-extract > .v-card-head");   // v117：放在「也可以」那一行
+  const head = document.querySelector("#view-video .vi-phone-row") || document.querySelector("#view-video .v-card-extract > .v-card-head");   // v118：单独一行
   if (!head) return false;
   const b = document.createElement("button");
   b.type = "button";
