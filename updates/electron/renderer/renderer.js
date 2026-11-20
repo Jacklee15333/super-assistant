@@ -352,11 +352,11 @@ document.getElementById("snTabs")?.addEventListener("click", () => {
 // ── v116：提取 → 加工 → 笔记，是同一页的三种样子 ──
 // 提取：放进来、处理进度、提取失败、历史（提取出来的半成品）；加工：批量 AI 分析（总结、打标签分类）；
 // 笔记：分析好的成品（博主、文件夹）。几块内容还是在笔记列表里画，画完搬到各自的页。
-const VIDEO_MODE_TITLE = { extract: "提取", process: "加工", notes: "笔记" };
+const VIDEO_MODE_TITLE = { extract: "", process: "加工", notes: "笔记" };   // v117：提取页顶上不写标题
 function setVideoMode(mode) {
   const v = document.getElementById("view-video");
   if (!v) return;
-  if (!VIDEO_MODE_TITLE[mode]) mode = "extract";
+  if (!(mode in VIDEO_MODE_TITLE)) mode = "extract";
   if (v.dataset.mode && v.dataset.mode !== mode && typeof vnReaderIsOpen === "function" && vnReaderIsOpen()) {
     try { vnReaderClose(); } catch (e) {}
   }
@@ -371,6 +371,33 @@ function setVideoMode(mode) {
   }
 }
 setVideoMode("extract");
+
+// ── v117：工具卡片里的「视频设置」：收起时标题行写着现在选的是什么 ──
+function viSecSum() {
+  const sum = document.getElementById("viVideoSum");
+  if (!sum) return;
+  const txt = (id) => { const s = document.getElementById(id); return s && s.selectedOptions && s.selectedOptions[0] ? s.selectedOptions[0].textContent.trim() : ""; };
+  const parts = [txt("videoLevel"), txt("videoLang")].filter(Boolean);
+  if (document.getElementById("videoTidyAuto")?.checked) parts.push("整理原文");
+  if (document.getElementById("videoVocal")?.checked) parts.push("分离人声");
+  if ((document.getElementById("videoCreatorUrl")?.value || "").trim()) parts.push("填了博主主页");
+  sum.textContent = parts.join(" · ");
+}
+(function () {
+  const sec = document.getElementById("viVideoSec");
+  if (!sec) return;
+  const head = sec.querySelector(".vi-sec-head"), body = sec.querySelector(".vi-sec-body"), caret = sec.querySelector(".vi-sec-caret");
+  const apply = (open) => { body.hidden = !open; caret.textContent = open ? "▾" : "▸"; sec.classList.toggle("open", open); };
+  let open0 = false;
+  try { open0 = localStorage.getItem("viVideoSecOpen") === "1"; } catch (e) {}
+  apply(open0);
+  const toggle = () => { const o = body.hidden; apply(o); try { localStorage.setItem("viVideoSecOpen", o ? "1" : "0"); } catch (e) {} };
+  head.addEventListener("click", toggle);
+  head.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
+  sec.addEventListener("change", viSecSum);
+  sec.addEventListener("input", viSecSum);
+  [300, 1500, 4000].forEach((ms) => setTimeout(viSecSum, ms));   // 语言、整理原文这几项是后加进来的
+})();
 (function () {
   const list = document.getElementById("videoNotesList");
   if (!list) return;
@@ -3502,8 +3529,8 @@ function mountVideoDone(res) {
   box.querySelector(".vdone-title").title = title;
   if (cr.status === "fail" && cr.message) box.querySelector(".vdone-who").title = cr.message + "（可以在图标视图里点博主头像手动绑定）";
   const go = document.createElement("button");
-  go.type = "button"; go.className = "vdone-go"; go.textContent = "去「历史」看 ›";
-  go.title = "在下面的「历史」里找到这一条（点标题就能看完整笔记）";
+  go.type = "button"; go.className = "vdone-go"; go.textContent = "去「已提取」看 ›";
+  go.title = "在下面的「已提取」里找到这一条（点标题就能看完整笔记）";
   go.addEventListener("click", () => vnRevealRecent(res.saved_as));
   if (res.unanalyzed && res.saved_as) {          // v66：默认只提取原文；需要时点这里分析
     const ab = vnAnButton(res.saved_as, "🤖 AI 分析", "vdone-go vdone-an", false);
@@ -10209,7 +10236,7 @@ function vnRenderRecent(list, notes, folders) {
   head.className = "video-note-item vn-group-head vn-recent-head";
   head.title = "按提取时间列出最近的视频笔记（点击展开 / 收起）";
   const caret = document.createElement("span"); caret.className = "vn-caret";
-  const nm = document.createElement("span"); nm.className = "vn-name"; nm.textContent = "历史";
+  const nm = document.createElement("span"); nm.className = "vn-name"; nm.textContent = "已提取";
   const pin = document.createElement("span"); pin.className = "vn-recent-pin"; pin.textContent = "置顶";
   const cnt = document.createElement("span"); cnt.className = "vn-count";
   head.appendChild(caret); head.appendChild(nm); head.appendChild(pin); head.appendChild(cnt);
@@ -12148,7 +12175,7 @@ async function openPhoneInbox() {
 // 「开始提取」卡片标题栏右边加一个「📱 手机发链接」按钮（不改 index.html）
 function _phInjectButton() {
   if (document.getElementById("phOpenBtn")) return true;
-  const head = document.querySelector("#view-video .v-card-extract > .v-card-head");
+  const head = document.querySelector("#view-video .vi-sources") || document.querySelector("#view-video .v-card-extract > .v-card-head");   // v117：放在「也可以」那一行
   if (!head) return false;
   const b = document.createElement("button");
   b.type = "button";
