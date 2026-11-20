@@ -1812,7 +1812,8 @@
       "uploader": "The AI Daily Brief: Artificial Intelligence News",
       "text": "",
       "x": null,
-      "found_at": "2026-11-20 10:03"
+      "found_at": "2026-11-20 10:03",
+      "title_zh": "人工智能发展史十大关键日"
     },
     {
       "creator_id": "cw1795067507840640",
@@ -2852,7 +2853,8 @@
           "when": "20261120",
           "uploader": "The AI Daily Brief: Artificial Intelligence News",
           "when_human": "2026-11-20",
-          "days_ago": 0
+          "days_ago": 0,
+          "title_zh": "人工智能发展史十大关键日"
         },
         {
           "vid": "uSzew8QPRX0",
@@ -10320,7 +10322,8 @@
     "OCR models now digitize a million pages for under $130 as costs drop fivefold in 18 months": "OCR模型18个月成本降五分之一，百万页数字化仅需130美元",
     "Anthropic IPOs, GPT 6.2 Astra Arrives, But There’s a Bigger Story": "Anthropic上市、GPT 6.2 Astra发布，背后的更大故事",
     "The making of Anthropic": "Anthropic的诞生",
-    "What we make of this moment, will make this moment.": "我们对此刻的解读，将定义此刻的价值"
+    "What we make of this moment, will make this moment.": "我们对此刻的解读，将定义此刻的价值",
+    "The 10 Biggest Days in AI History": "人工智能发展史十大关键日"
   },
   "extracted": {
     "cw1782303553561476|P3KDebPTUrw": {

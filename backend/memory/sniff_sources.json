@@ -3,48 +3,350 @@
     "id": "4b54fb28",
     "title": "OpenAI 新闻",
     "url": "https://openai.com/news/",
-    "enabled": true
+    "enabled": true,
+    "category": "AI动态"
   },
   {
     "id": "073aab7d",
     "title": "Anthropic 新闻",
     "url": "https://www.anthropic.com/news",
-    "enabled": true
+    "enabled": true,
+    "category": "AI动态"
   },
   {
     "id": "073aab7d",
     "title": "Google DeepMind 博客",
     "url": "https://deepmind.google/discover/blog/",
-    "enabled": true
+    "enabled": true,
+    "category": "AI动态"
   },
   {
     "id": "073aab7d",
     "title": "Hugging Face 博客",
     "url": "https://huggingface.co/blog",
-    "enabled": true
+    "enabled": true,
+    "category": "AI动态"
   },
   {
     "id": "073aab7d",
     "title": "Qwen 博客",
     "url": "https://qwenlm.github.io/blog/",
-    "enabled": true
+    "enabled": true,
+    "category": "AI动态"
   },
   {
     "id": "073aab7d",
     "title": "Meta AI 博客",
     "url": "https://ai.meta.com/blog/",
-    "enabled": true
+    "enabled": true,
+    "category": "AI动态"
   },
   {
     "id": "073aab7d",
     "title": "Hacker News",
     "url": "https://news.ycombinator.com/",
-    "enabled": true
+    "enabled": true,
+    "category": "AI动态"
   },
   {
     "id": "073aab7d",
     "title": "arXiv cs.AI 最新",
     "url": "https://arxiv.org/list/cs.AI/recent",
-    "enabled": true
+    "enabled": true,
+    "category": "AI动态"
+  },
+  {
+    "id": "a4a344f0",
+    "title": "36氪",
+    "url": "https://36kr.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "116ed43a",
+    "title": "钛媒体",
+    "url": "https://www.tmtpost.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "5a214a5d",
+    "title": "量子位",
+    "url": "https://www.qbitai.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "cdca9887",
+    "title": "雷峰网",
+    "url": "https://www.leiphone.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "bc493762",
+    "title": "品玩",
+    "url": "https://www.pingwest.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "d4ee7b59",
+    "title": "少数派",
+    "url": "https://sspai.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "fd0ed30a",
+    "title": "虎嗅",
+    "url": "https://www.huxiu.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "58a2b775",
+    "title": "机器之心",
+    "url": "https://www.jiqizhixin.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "5fb4676b",
+    "title": "智东西",
+    "url": "https://zhidx.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "1cf6e590",
+    "title": "极客公园",
+    "url": "https://www.geekpark.net",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "e4ee81f7",
+    "title": "InfoQ中文",
+    "url": "https://www.infoq.cn",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "54db52e4",
+    "title": "爱集微",
+    "url": "https://www.laoyaoba.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "1fb8a40e",
+    "title": "华尔街见闻",
+    "url": "https://wallstreetcn.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "c0f0ecc2",
+    "title": "第一财经",
+    "url": "https://www.yicai.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "0eb800f4",
+    "title": "界面新闻",
+    "url": "https://www.jiemian.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "f451709f",
+    "title": "21世纪经济报道",
+    "url": "https://www.21jingji.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "0f073031",
+    "title": "澎湃新闻",
+    "url": "https://www.thepaper.cn",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "9485d06c",
+    "title": "财新",
+    "url": "https://www.caixin.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "9f5e1056",
+    "title": "财联社",
+    "url": "https://www.cls.cn",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "5af6a3e5",
+    "title": "中国政府网",
+    "url": "https://www.gov.cn",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "a06ede5c",
+    "title": "工业和信息化部",
+    "url": "https://www.miit.gov.cn",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "786a1860",
+    "title": "国家统计局",
+    "url": "https://www.stats.gov.cn",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "9025f372",
+    "title": "科技日报",
+    "url": "https://www.stdaily.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "bc637a9c",
+    "title": "国家发展改革委",
+    "url": "https://www.ndrc.gov.cn",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "fb6c3a0d",
+    "title": "国家网信办",
+    "url": "https://www.cac.gov.cn",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "adf7e33b",
+    "title": "国家能源局",
+    "url": "https://www.nea.gov.cn",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "9bf3bff4",
+    "title": "巨潮资讯网",
+    "url": "https://www.cninfo.com.cn",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "352570fd",
+    "title": "中国信通院",
+    "url": "https://www.caict.ac.cn",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "ab7cddf1",
+    "title": "阿里研究院",
+    "url": "https://www.aliresearch.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "9c9dbbc3",
+    "title": "QuestMobile",
+    "url": "https://www.questmobile.com.cn",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "0c1dbafb",
+    "title": "中国互联网络信息中心",
+    "url": "https://www.cnnic.net.cn",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "50f2e52a",
+    "title": "腾讯研究院",
+    "url": "https://www.tisi.org",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "fe535f79",
+    "title": "智源社区",
+    "url": "https://hub.baai.ac.cn",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "5efa2573",
+    "title": "艾瑞咨询",
+    "url": "https://www.iresearch.com.cn",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "232491bd",
+    "title": "发现报告",
+    "url": "https://www.fxbaogao.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "131d00ed",
+    "title": "MIT Technology Review",
+    "url": "https://www.technologyreview.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "f49bd8dd",
+    "title": "TechCrunch",
+    "url": "https://techcrunch.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "6dcd24d8",
+    "title": "The Information",
+    "url": "https://www.theinformation.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "c34ce243",
+    "title": "Bloomberg Technology",
+    "url": "https://www.bloomberg.com/technology",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "efcc7f78",
+    "title": "The Economist",
+    "url": "https://www.economist.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "fdf63eb2",
+    "title": "Rest of World",
+    "url": "https://restofworld.org",
+    "enabled": true,
+    "category": "趋势瞭望台"
+  },
+  {
+    "id": "673428a2",
+    "title": "Financial Times",
+    "url": "https://www.ft.com",
+    "enabled": true,
+    "category": "趋势瞭望台"
   }
 ]

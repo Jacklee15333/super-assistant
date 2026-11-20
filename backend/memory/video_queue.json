@@ -1,72 +1,17 @@
 {
   "current": {
-    "url": "https://www.youtube.com/watch?v=kzDSafe-OXE",
+    "url": "https://www.youtube.com/watch?v=X8Nfe1smEYI",
     "level": "ultra",
     "use_local": true,
     "model": "qwen3:14b",
     "screenshot": false,
     "link": false,
     "mode": "auto",
-    "id": "vj1795137215.0169666-0",
-    "title": "李沐+陳澤耀組末路CP　跟李心潔學「不要聽導演的」｜壹蘋新聞網",
+    "id": "vj1795137215.4171128-0",
+    "title": "5 Questions Shaping AI This Week",
     "fail_count": 1
   },
   "pending": [
-    {
-      "url": "https://www.youtube.com/watch?v=9pZ1WvuhLmk",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137215.049971-0",
-      "title": "新生代女演員　王渝萱　李沐　陳妤｜誰來演戲之圓桌對談 #鏡新聞"
-    },
-    {
-      "url": "https://www.youtube.com/watch?v=-XWxGohqouI",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137215.2327223-0",
-      "title": "李沐打給婁峻碩求救《COLORFUL》歌詞　小春.大淵被電到唉唉叫氣喊：不拍了 ｜ 器子"
-    },
-    {
-      "url": "https://www.youtube.com/watch?v=bx0x0UI_wjc",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137215.3019547-0",
-      "title": "2021.07.07 Eric周興哲直播-Part2(with李沐)"
-    },
-    {
-      "url": "https://www.youtube.com/watch?v=KKejqpChaus",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137215.3375309-0",
-      "title": "噓！星聞X器子／張孝全認不出楊謹華氣瘋李沐 薛仕凌把IU認成王淨惹暴笑"
-    },
-    {
-      "url": "https://www.youtube.com/watch?v=X8Nfe1smEYI",
-      "level": "ultra",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "id": "vj1795137215.4171128-0",
-      "title": "5 Questions Shaping AI This Week"
-    },
     {
       "url": "https://www.douyin.com/video/7706820166516100379",
       "level": "ultra",
@@ -907,6 +852,24 @@
       "notify": null,
       "id": "vj1795143592.569676-0",
       "title": "抖音视频 …955954"
+    },
+    {
+      "url": "https://v.douyin.com/Njc104oGSmw/",
+      "level": "ultra",
+      "lang": "zh",
+      "vocal": false,
+      "use_local": true,
+      "model": "qwen3:14b",
+      "screenshot": false,
+      "link": false,
+      "mode": "auto",
+      "analyze": false,
+      "author": "",
+      "note_folder": "",
+      "creator_url": "",
+      "notify": null,
+      "id": "vj1795144377.6053493-0",
+      "title": "抖音视频 …449894"
     }
   ]
 }
