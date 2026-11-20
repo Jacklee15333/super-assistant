@@ -4080,12 +4080,16 @@ function mountVideoResult(data, target) {
   // 页面内的二级标签行：显示当前标签 + 一个「管理标签」按钮（仅对已存档、知道文件名的视频可编辑）
   const canEditTags = !!(data._noteName && data._noteCat === "video");
   const tagRowHtml = '<div class="vtag-row" id="vTagRow"></div>';
+  data.analysis = vnCleanAnalysis(data.analysis);   // v127：去掉网页抓回来的杂字
+  const _unAnalyzed = !(data.analysis || "").trim() || /这条只提取了原文|（无分析）/.test(data.analysis || "");
   resultEl.innerHTML =
     doneBadge +
+    head +              // v127：先标题、作者、标签，再是标签页
+    tagRowHtml +
     '<div class="video-toolbar">' +
-      '<button class="vtab active" data-tab="analysis">🤖 AI 分析</button>' +
-      '<button class="vtab" data-tab="mindmap">🧠 思维导图</button>' +
-      '<button class="vtab" data-tab="transcript">📝 完整原文</button>' +
+      '<button class="vtab active" data-tab="analysis">加工结果</button>' +
+      '<button class="vtab" data-tab="mindmap">思维导图</button>' +
+      '<button class="vtab" data-tab="transcript">原文</button>' +
       '<span class="vdetail" id="vDetailToggle">' +
         '<button class="vd active" data-d="full">详细</button>' +
         '<button class="vd" data-d="brief">简洁</button>' +
@@ -4096,9 +4100,7 @@ function mountVideoResult(data, target) {
       '<button class="vbtn" id="vExportBtn">导出 Markdown</button>' +
       '<button class="vbtn" id="vCollapseBtn" title="折叠正文，方便看下面的内容">▾ 折叠</button>' +
     '</div>' +
-    head +
-    tagRowHtml +
-    '<div class="vtab-body" id="vAnalysis">' + renderMarkdown(data.analysis || "（无分析）") + '</div>' +
+    '<div class="vtab-body" id="vAnalysis">' + vnIncompleteNotice(data) + renderMarkdown(data.analysis || "（无分析）") + '</div>' +
     '<div class="vtab-body" id="vMindmap" style="display:none"></div>' +
     '<div class="vtab-body" id="vTranscript" style="display:none">' +
       renderMarkdown(paragraphizeCN(data.transcript || "（无文字稿）")) +
@@ -4146,7 +4148,7 @@ function mountVideoResult(data, target) {
     const md = detailMode === "brief"
       ? conciseMarkdown(data.analysis || "")
       : (data.analysis || "（无分析）");
-    $("#vAnalysis").innerHTML = renderMarkdown(md);
+    $("#vAnalysis").innerHTML = vnIncompleteNotice(data) + renderMarkdown(md);
   };
   detailToggle.querySelectorAll(".vd").forEach((b) => b.addEventListener("click", () => {
     detailMode = b.dataset.d;
@@ -5195,6 +5197,9 @@ async function openVideoNote(name) {
         pane.appendChild(b);
       }
     }
+    // v127：已加工的默认看「加工结果」；还没加工的默认看「原文」
+    const _ta = /-\s*状态[：:]\s*未分析/.test(data.content || "") ? "transcript" : "analysis";
+    resultEl.querySelector('.vtab[data-tab="' + _ta + '"]')?.click();
     const rd = document.getElementById("vnReader");
     if (rd) rd.scrollTop = 0;
   } catch (e) {
@@ -5321,6 +5326,33 @@ function pollNoteAnalyze(name, reopen) {
     }
   }, 1500);
 }
+
+// ── v127：阅读页用到的两个小工具 ──
+function vnCleanAnalysis(md) {
+  return String(md || "")
+    .replace(/^\s*#{0,6}\s*ChatGPT\s*说[:：]?\s*$\n?/gm, "")
+    .replace(/!\[[^\]]*\]\(https?:\/\/www\.google\.com\/s2\/favicons[^)]*\)\s*/g, "")
+    .trim();
+}
+// 加工结果只写了开头就断了（缺了「核心观点」以后的部分）：提示一下，给个「重新加工」
+function vnIncompleteNotice(data) {
+  const t = (data && data.analysis) || "";
+  if (!/一句话概括/.test(t)) return "";
+  const has = (w) => new RegExp("^#{1,4}[^\\n]*" + w, "m").test(t);
+  const miss = [];
+  if (!has("核心观点")) miss.push("核心观点");
+  if (!["关键事实", "金句", "值得记住", "我的点评"].some(has)) miss.push("关键事实、金句、行动建议、点评");
+  if (!miss.length) return "";
+  return '<div class="vn-incomplete">这篇的加工结果没写完（缺了：' + escapeHtml(miss.join("、")) +
+    '），所以比原文少很多。多半是 AI 写到一半断了。<button type="button" class="ghost-btn small" data-reanalyze="' +
+    escapeHtml(data._noteName || "") + '">重新加工</button></div>';
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest && e.target.closest("[data-reanalyze]");
+  if (!b || !b.dataset.reanalyze) return;
+  b.disabled = true; b.textContent = "已交给加工…";
+  startNoteAnalyze(b.dataset.reanalyze, { reopen: true });
+});
 
 // 把存档的 markdown 拆回 标题/作者/链接/标签/分析/原文，喂给标签页视图
 function parseVideoNote(md) {
