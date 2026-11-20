@@ -1,5 +1,23 @@
 [
   {
+    "time": "2026-11-20 18:40",
+    "ok": true,
+    "source": "auto",
+    "files": 1298,
+    "learned": 16,
+    "model": "web",
+    "summary": "ChatGPT 说：\n最近在关注什么\n\nAI Agent与人工智能商业化：重点关注GPT新模型、AI Agent、计算机"
+  },
+  {
+    "time": "2026-11-20 17:50",
+    "ok": true,
+    "source": "auto",
+    "files": 1295,
+    "learned": 102,
+    "model": "web",
+    "summary": "ChatGPT 说：\n最近在关注什么\n\nAI智能体与个人效率系统：重点关注GPT-6.1 Terra的跨应用执行能力、O"
+  },
+  {
     "time": "2026-11-20 11:04",
     "ok": true,
     "source": "auto",
@@ -430,23 +448,5 @@
     "learned": 20,
     "model": "web",
     "summary": "本轮没读到有效内容"
-  },
-  {
-    "time": "2026-07-08 10:53",
-    "ok": true,
-    "source": "auto",
-    "files": 678,
-    "learned": 24,
-    "model": "web",
-    "summary": "主人正在尝试用AI、内容输出和持续实践，把自己的知识、经验和解决问题能力转化为长期影响力与收入系统。"
-  },
-  {
-    "time": "2026-07-08 09:53",
-    "ok": true,
-    "source": "auto",
-    "files": 658,
-    "learned": 17,
-    "model": "web",
-    "summary": "主人是一个想用 AI、公开学习和内容输出，把自己的经验与能力做成产品、影响力和收入系统的人。"
   }
 ]

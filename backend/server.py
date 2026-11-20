@@ -1395,6 +1395,12 @@ def _clean_web_reply(text):
     t = (text or "").strip()
     t = re.sub(r"(?m)^\s*#{0,6}\s*ChatGPT\s*说[:：]?\s*$\n?", "", t)
     t = re.sub(r"!\[[^\]]*\]\(https?://www\.google\.com/s2/favicons[^)]*\)\s*", "", t)
+    # v131：第一个小标题前面零碎的几个字（网页按钮上的字，比如「写作」）去掉；「中文标题：」那行留着
+    m = re.search(r"(?m)^#{1,4}\s", t)
+    if m and m.start() > 0:
+        head = [ln for ln in t[:m.start()].split("\n")
+                if ln.strip() and not (len(ln.strip()) <= 6 and "中文标题" not in ln)]
+        t = ("\n".join(head) + "\n\n" if head else "") + t[m.start():]
     return t.strip()
 
 
