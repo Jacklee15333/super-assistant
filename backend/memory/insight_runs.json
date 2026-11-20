@@ -1,5 +1,14 @@
 [
   {
+    "time": "2026-11-20 08:16",
+    "ok": true,
+    "source": "auto",
+    "files": 958,
+    "learned": 38,
+    "model": "web",
+    "summary": "ChatGPT 说：\n最近在关注什么\n\nAI一人公司与个人商业化：密集关注低成本创业、真实盈利案例、MVP验证、首批付费"
+  },
+  {
     "time": "2026-11-19 18:05",
     "ok": false,
     "source": "auto",
@@ -437,15 +446,6 @@
     "source": "auto",
     "files": 631,
     "learned": 10,
-    "model": "web",
-    "summary": "本轮没读到有效内容"
-  },
-  {
-    "time": "2026-07-08 07:02",
-    "ok": false,
-    "source": "auto",
-    "files": 621,
-    "learned": 29,
     "model": "web",
     "summary": "本轮没读到有效内容"
   }
