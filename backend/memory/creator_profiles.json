@@ -1264,8 +1264,8 @@
   },
   "linyiLYi": {
     "key": "linyiLYi",
-    "auto_fail_at": 1794987240,
-    "error": "自动找主页没成功：抖音没找到作者：这条视频已经删了或设成私密了（页面上写着「视频不存在」）"
+    "auto_fail_at": 1795173637,
+    "error": "自动找主页没成功：试了 2 条视频都没找到。第一条：抖音没找到作者：这条视频已经删了或设成私密了（页面上写着「视频不存在」）"
   },
   "nanfengshuo137": {
     "key": "nanfengshuo137",
@@ -1945,7 +1945,16 @@
     "key": "NVIDIA",
     "avatar_file": "088472395b269710.jpg",
     "avatar_manual": true,
-    "updated": 1795064504
+    "updated": 1795172615,
+    "url": "https://x.com/nvidia",
+    "platform": "x",
+    "auto": true,
+    "source_video": "https://x.com/nvidia/status/2120605813047718264",
+    "home": "https://x.com/nvidia",
+    "name": "@nvidia",
+    "uid": "nvidia",
+    "handle": "nvidia",
+    "avatar_src": ""
   },
   "OpenAI": {
     "key": "OpenAI",
@@ -1967,7 +1976,16 @@
     "key": "Sam Altman",
     "avatar_file": "2379fc7b496957ff.jpg",
     "avatar_manual": true,
-    "updated": 1795064513
+    "updated": 1795172593,
+    "url": "https://x.com/sama",
+    "platform": "x",
+    "auto": true,
+    "source_video": "https://x.com/sama/status/2112652656602923366",
+    "home": "https://x.com/sama",
+    "name": "@sama",
+    "uid": "sama",
+    "handle": "sama",
+    "avatar_src": ""
   },
   "江白工作号": {
     "key": "江白工作号",
@@ -3140,5 +3158,47 @@
     "handle": "chenyao006",
     "avatar_src": "https://p3-pc.douyinpic.com/aweme/100x100/aweme-avatar/tos-cn-i-0813_e782310af73a4ced9338067e9dcb9aa9.jpeg?from=327834062",
     "avatar_file": "288d0c025a5c5f5a.jpg"
+  },
+  "小天fotos": {
+    "key": "小天fotos",
+    "url": "https://www.douyin.com/user/MS4wLjABAAAALt54qyyG0n4QKc9diYjo6lwt2XVg3O2p837R12Gwd2k",
+    "platform": "douyin",
+    "updated": 1795172558,
+    "auto": true,
+    "source_video": "https://www.douyin.com/video/7691275719845940523",
+    "found_via": "缓存",
+    "home": "https://www.douyin.com/user/MS4wLjABAAAALt54qyyG0n4QKc9diYjo6lwt2XVg3O2p837R12Gwd2k",
+    "name": "小天fotos",
+    "uid": "MS4wLjABAAAALt54qyyG0n4QKc9diYjo6lwt2XVg3O2p837R12Gwd2k",
+    "followers": 140768,
+    "signature": "输出一手实战型AI生产力方法论，不卖课，不收徒，不回私信,mcn勿扰",
+    "handle": "969304610",
+    "avatar_src": "https://p3-pc.douyinpic.com/aweme/100x100/aweme-avatar/tos-cn-i-0813c000-ce_oYItr35EAS9rAIsEICFoAnDDwfn3AEdmfZ7ARt.jpeg?from=327834062",
+    "avatar_file": "7e5b42971e78fd63.jpg"
+  },
+  "Maximilian Schreiner": {
+    "key": "Maximilian Schreiner",
+    "auto_fail_at": 1795173009,
+    "error": "自动找主页没成功：试了 3 条视频都没找到。第一条：读不到这条视频的作者信息（\u001b[0;31mERROR:\u001b[0m Unsupported URL: https://the-decoder.com/googles-latest-ai-mod）"
+  },
+  "Sarah Perez": {
+    "key": "Sarah Perez",
+    "auto_fail_at": 1795173060,
+    "error": "自动找主页没成功：试了 3 条视频都没找到。第一条：读不到这条视频的作者信息（\u001b[0;31mERROR:\u001b[0m Unsupported URL: https://techcrunch.com/2026/11/19/at-nasdaq-o）"
+  },
+  "Kirsten Korosec": {
+    "key": "Kirsten Korosec",
+    "auto_fail_at": 1795173414,
+    "error": "自动找主页没成功：试了 2 条视频都没找到。第一条：读不到这条视频的作者信息（\u001b[0;31mERROR:\u001b[0m Unsupported URL: https://techcrunch.com/2026/11/19/uber-tests-）"
+  },
+  "Lucas Ropek": {
+    "key": "Lucas Ropek",
+    "auto_fail_at": 1795173429,
+    "error": "自动找主页没成功：试了 2 条视频都没找到。第一条：读不到这条视频的作者信息（\u001b[0;31mERROR:\u001b[0m Unsupported URL: https://techcrunch.com/2026/11/19/metas-new-m）"
+  },
+  "Matthias Bastian": {
+    "key": "Matthias Bastian",
+    "auto_fail_at": 1795173440,
+    "error": "自动找主页没成功：试了 2 条视频都没找到。第一条：读不到这条视频的作者信息（\u001b[0;31mERROR:\u001b[0m Unsupported URL: https://the-decoder.com/ai-industry-growth-re）"
   }
 }

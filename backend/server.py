@@ -81,7 +81,7 @@ def _clog(tag, msg):
 # 一旦打印就会把控制台刷爆、淹没真正有用的操作日志，所以一律静音、不记。
 _LOG_QUIET_PATHS = {"/intake_kind", 
     "/ping", "/video_note_subs", "/x_note_rebuild_status", "/video_failed", "/video_note_tidy_status", "/phone_inbox/status", "/feishu_inbox/status", "/feishu_inbox/alive", "/feishu_inbox/incoming", "/video_progress", "/video_health", "/video_deps", "/video_notes", "/creator_profiles_batch", "/creator/avatars_status", "/creator/discover",
-    "/video_note_analyze_progress", "/sniff/feed", "/sniff/discover", "/video_note_analyze_batch",
+    "/video_note_analyze_progress", "/labels/job", "/labels/all", "/sniff/feed", "/sniff/discover", "/video_note_analyze_batch",
     "/chat_progress", "/heartbeat/status", "/lumi/status", "/lumi/evolve_status",
     "/web_model/state", "/web_model/config", "/loop/status", "/insight/status",
     "/insight/config", "/system_access", "/claude_config", "/harness/config",
@@ -215,6 +215,18 @@ def _cx_video_dir():
     return d
 
 
+def _vn_head(lines, limit=60):
+    """v132：笔记开头的元信息区（标题下面、第一个「## 」小标题之前）。
+    抖音简介带换行时标题有好几行，「- 作者 / 状态」会排到第 10 行以后；以前只看前几行，
+    没加工的会被当成已加工、作者也认不出来。"""
+    out = []
+    for ln in lines[1:limit]:
+        if ln.strip().startswith("## "):
+            break
+        out.append(ln)
+    return out
+
+
 def _cx_segments_dir():
     """「仅提取文字稿」笔记的时间戳分段侧车目录：video_notes/segments/。
     每条未分析笔记存一个 <笔记名>.json（含 segments/url/是否要跳转原片），
@@ -330,11 +342,11 @@ def _vn_note_index():
         except Exception:
             continue
         url = au = ""
-        for ln in lines[1:16]:
+        for ln in _vn_head(lines):
             t = ln.strip().lstrip("-").strip()
             if not url and t.startswith(("来源链接：", "来源链接:")):
                 url = t[5:].strip()
-        for ln in lines[1:8]:
+        for ln in _vn_head(lines):
             t = ln.strip().lstrip("-").strip()
             if t.startswith(("作者：", "作者:")):
                 cand = t[3:].strip()
@@ -583,7 +595,7 @@ def _vn_note_author(name):
             lines = f.read(2500).split("\n")
     except Exception:
         return ""
-    for ln in lines[1:8]:
+    for ln in _vn_head(lines):
         t = ln.strip().lstrip("-").strip()
         if t.startswith(("作者：", "作者:")):
             return t[3:].strip()[:40]
@@ -2418,6 +2430,8 @@ def _video_worker():
                     # 文字稿已存好，只是 AI 分析没成功：队列跑完后自动补
                     _video_failed_notes.append((fname, job.get("use_local", True), job.get("model", "qwen2.5")))
                     _clog("视频", "⚠ 《%s》文字稿已保存，但 AI 分析没成功，队列跑完后会自动补分析" % title[:20])
+                else:
+                    _lb_after_analyzed(fname)          # v132：提取时一起加工好的，也自动贴标签
                 # 让「提取完成」的结果卡 / 视频列表也直接显示中文标题（原标题另存一份备查）
                 res["title_original"] = title
                 res["title"] = display_title
@@ -2799,12 +2813,16 @@ def _parse_saved_note(text):
     lines = (text or "").split("\n")
     title = lines[0].lstrip("# ").strip() if lines else ""
     meta, tags = [], []
-    for ln in lines[1:15]:
+    started = False
+    for ln in _vn_head(lines):
         s = ln.strip()
         if not s:
             continue
+        if not started and not re.match(r"^-\s*\S{1,8}[：:]", s):
+            continue                      # v132：标题的后几行（抖音简介带换行），见 _saved_note_title_tail
         if not s.startswith("-"):
             break
+        started = True
         bare = s.lstrip("-").strip()
         if bare.startswith("状态：") or bare.startswith("状态:"):
             continue
@@ -2822,6 +2840,19 @@ def _parse_saved_note(text):
         if tstart >= 0:
             transcript = text[tstart:].strip()
     return title, meta, transcript, tags
+
+
+def _saved_note_title_tail(text):
+    """v132：标题有好几行时，第一行以外的那几行（加工后原样写回，不丢）。"""
+    tail = []
+    for ln in _vn_head((text or "").split("\n")):
+        s = ln.strip()
+        if re.match(r"^-\s*\S{1,8}[：:]", s):
+            break
+        tail.append(ln.rstrip())
+    while tail and not tail[-1].strip():
+        tail.pop()
+    return tail
 
 
 # ════════════════ v67：AI 池一次只做一件事（先来先做，排队时看得到前面在做什么） ════════════════
@@ -3233,6 +3264,77 @@ def _local_chat(prompt, model="", num_ctx=8192, timeout=600):
     raise RuntimeError("本地模型 %s 没回话：%s" % (model, str(last)[:150]))
 
 
+_LB_MODE = {"t": 0.0, "v": ""}
+
+
+def _lb_mode():
+    """v132：贴标签能用哪种 AI：local（本机有本地模型）/ pool（只能排队用 AI 池）。缓存 60 秒。"""
+    import time as _t
+    if _LB_MODE["t"] and _t.time() - _LB_MODE["t"] < 60:
+        return _LB_MODE["v"]
+    v = "pool"
+    try:
+        names = core.installed_local_models()
+        if not names:
+            import ollama_helper as _oh
+            if _oh.ollama_installed() and _oh.try_start():
+                try:
+                    core._LOCAL_MODELS["t"] = 0
+                except Exception:
+                    pass
+                names = core.installed_local_models()
+        if names:
+            v = "local"
+    except Exception:
+        pass
+    _LB_MODE.update(t=_t.time(), v=v)
+    return v
+
+
+def _lb_llm(prompt):
+    """v132：贴标签问 AI：本机有本地模型就用本地的（快、不占 AI 池）；没有再排队用 AI 池。
+    新加工好的自动贴（auto）只用本地模型，免得和批量加工抢 AI 池。"""
+    import labels as _lb
+    if _lb_mode() == "local":
+        try:
+            return _local_chat(prompt, num_ctx=8192, timeout=300)
+        except Exception as e:
+            if _lb.job_state().get("auto"):
+                raise
+            _clog("贴标签", "本地模型没回话（%s），这次改用 AI 池" % str(e)[:80])
+    t = _ai_gate.acquire("贴标签（文章分类、作者领域）", should_stop=_lb.stopping)
+    if t is None:
+        raise RuntimeError("已停止")
+    try:
+        client = core.make_client_for("web", False)
+        resp = client.chat.completions.create(model="web", messages=[{"role": "user", "content": prompt}])
+        return (resp.choices[0].message.content or "").strip()
+    finally:
+        _ai_gate.release(t)
+
+
+def _lb_mod():
+    import labels as _lb
+    if not getattr(_lb, "_configured", False):
+        _lb.configure(llm=_lb_llm, mode=_lb_mode, log=_clog)
+    return _lb
+
+
+def _lb_after_analyzed(name):
+    """v132：一条刚加工好：有本地模型就在后台给它分类，作者还没领域的也顺手判断（不耽误加工）。"""
+    def _go():
+        try:
+            import time as _t
+            _t.sleep(15)          # 等提取流水线把博主主页、作者名整理完，再读这条
+            _lb_mod().enqueue_notes([name])
+        except Exception as e:
+            _clog("贴标签", "自动贴标签没启动：%s" % str(e)[:80])
+    try:
+        _threading.Thread(target=_go, daemon=True).start()
+    except Exception:
+        pass
+
+
 def _tidy_llm(prompt, wait_pool=True):
     """整理原文用哪个 AI：本机装了 Ollama 模型就用本地的（快、不占 AI 池）；没有或失败再用 AI 池。
     wait_pool=False：AI 池正忙（比如在批量分析）就不排队了，直接报错（提取流水线用，别把队列卡住）。"""
@@ -3465,7 +3567,8 @@ def _note_analyze_worker_inner(name, use_local, model):
         meta = "\n".join(meta_lines)
         orig_line = (f"\n- 原标题：{title}" if title_zh else "")
         tag_line = ("\n- 标签：" + "、".join(tags)) if tags else ""
-        doc = (f"# {display_title}\n\n"
+        _tail = _saved_note_title_tail(text)          # v132：标题有好几行时，后几行原样留着
+        doc = (f"# {display_title}\n" + ("\n".join(_tail) + "\n" if _tail else "") + "\n"
                f"{meta}{orig_line}{tag_line}\n\n"
                f"## 🤖 AI 分析\n\n{analysis}\n\n"
                f"---\n\n## 📝 完整文字稿\n\n{transcript}\n")
@@ -3478,6 +3581,7 @@ def _note_analyze_worker_inner(name, use_local, model):
         except Exception:
             pass
         ok = True
+        _lb_after_analyzed(name)                       # v132：加工好了，后台自动贴标签（有本地模型时）
         _clog("视频", "✅ 补分析完成：《%s》（用时 %d 秒）"
               % (display_title[:24], int(_time.time() - start)))
     except Exception as e:
@@ -3952,6 +4056,14 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/video_notes":
             return self._handle_video_notes_list()
+        if path == "/labels/job":                       # v132：贴标签的进度
+            st = _lb_mod().job_state()
+            st["mode"] = _LB_MODE.get("v", "")
+            return self._send(st)
+        if path == "/labels/all":                       # v132：所有标签（已加工清单刷新用）
+            _lb = _lb_mod()
+            return self._send({"ok": True, "cats": _lb.cats(), "notes": _lb.note_labels(),
+                               "authors": _lb.public_authors()})
         if path == "/video_note_analyze_batch":
             b = dict(_note_batch)
             b["resume_in"] = max(0, int((b.get("resume_at") or 0) - _time_now())) if b.get("resume_at") else 0
@@ -4586,6 +4698,34 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_web_model_test(body)
         if path == "/heartbeat":
             return self._handle_heartbeat(body)
+        if path in ("/labels/job", "/labels/set", "/labels/redo"):   # v132：贴标签
+            _lb = _lb_mod()
+            if path == "/labels/job":
+                act = (body.get("action") or "").strip()
+                if act == "stop":
+                    _lb.stop()
+                elif act == "start":
+                    _lb.start(full=True)
+                else:
+                    return self._send({"ok": False, "error": "不认识的操作"})
+                return self._send({"ok": True, "job": _lb.job_state()})
+            kind = (body.get("kind") or "").strip()
+            key = (body.get("key") or "").strip()
+            if kind == "note" and (not key or "/" in key or "\\" in key or ".." in key):
+                return self._send({"ok": False, "error": "非法文件名"})
+            if kind == "author" and (not key or len(key) > 60):
+                return self._send({"ok": False, "error": "作者名不对"})
+            if kind not in ("note", "author"):
+                return self._send({"ok": False, "error": "不认识的类型"})
+            if path == "/labels/redo":
+                ok = _lb.redo(kind, key)
+                return self._send({"ok": bool(ok), "job": _lb.job_state()})
+            cat = (body.get("cat") or "").strip()
+            if kind == "note":
+                _lb.set_note(key, cat, by="you")
+            else:
+                _lb.set_author(key, cat, by="you")
+            return self._send({"ok": True, "cats": _lb.cats()})
         if path == "/video_note_reset":               # v128：重新加工：先把这条放回「未加工」
             name = (body.get("name") or "").strip()
             if not name or "/" in name or "\\" in name or ".." in name:
@@ -4595,8 +4735,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send({"ok": False, "error": "找不到这条笔记"})
             try:
                 lines = p.read_text(encoding="utf-8", errors="replace").split("\n")
-                if not any(l.strip().lstrip("-").strip().startswith(("状态：未分析", "状态:未分析")) for l in lines[1:10]):
-                    idx = next((i for i, l in enumerate(lines[1:12], 1) if l.strip().startswith("-")), min(2, len(lines)))
+                _head = _vn_head(lines)
+                if not any(l.strip().lstrip("-").strip().startswith(("状态：未分析", "状态:未分析")) for l in _head):
+                    idx = next((i for i, l in enumerate(_head, 1) if l.strip().startswith("-")), min(2, len(lines)))
                     lines.insert(idx, "- 状态：未分析")
                     p.write_text("\n".join(lines), encoding="utf-8")
                 _clog("视频", "↩ 放回未加工，重新加工：%s" % name[:40])
@@ -6717,7 +6858,7 @@ class Handler(BaseHTTPRequestHandler):
                 # 解析「- 作者：xxx」。纯数字 ID（抖音没抓到昵称的兜底）不展示，
                 # 只把有意义的昵称返给前端，避免列表上一堆看不懂的数字。
                 author = ""
-                for ln in lines[1:8]:
+                for ln in _vn_head(lines):
                     s = ln.strip().lstrip("-").strip()
                     hit = False
                     for key in ("作者：", "作者:"):
@@ -6732,7 +6873,7 @@ class Handler(BaseHTTPRequestHandler):
                 # 「仅提取」模式存的笔记带「- 状态：未分析」标记 → 前端据此
                 # 显示「AI 分析」补做按钮
                 analyzed = True
-                for ln in lines[1:10]:
+                for ln in _vn_head(lines):
                     s = ln.strip().lstrip("-").strip()
                     if s.startswith("状态：未分析") or s.startswith("状态:未分析"):
                         analyzed = False
@@ -6755,7 +6896,7 @@ class Handler(BaseHTTPRequestHandler):
                         _ts = 0
                 kind = ""                                   # v65：导入的文档 / 文章
                 tags = []                                   # v125：标签（已加工清单显示，以后分类筛选用）
-                for ln in lines[1:14]:
+                for ln in _vn_head(lines):
                     s = ln.strip().lstrip("-").strip()
                     if not kind and s.startswith(("类型：", "类型:")):
                         kind = s[3:].strip()[:20]
@@ -6778,7 +6919,22 @@ class Handler(BaseHTTPRequestHandler):
                 tidy = _vn_tidy_same_name(items, folders)     # v64：头像墙上不出现重名的博主
             except Exception as _e:
                 _clog("博主", "整理同名博主出错：%s" % _e)
-            return self._send({"ok": True, "notes": items, "folders": folders, "tidy": tidy})
+            lbs = {}
+            try:                                            # v132：文章分类、作者领域
+                _lb = _lb_mod()
+                _nl = _lb.note_labels()
+                for it in items:
+                    x = _nl.get(it["name"])
+                    if x and x.get("cat"):
+                        it["cat"] = x["cat"]
+                        if x.get("kw"):
+                            it["kw"] = x["kw"]
+                        if x.get("by") == "you":
+                            it["cat_by"] = "you"
+                lbs = {"cats": _lb.cats(), "authors": _lb.public_authors()}
+            except Exception as _e:
+                _clog("贴标签", "读标签出错：%s" % _e)
+            return self._send({"ok": True, "notes": items, "folders": folders, "tidy": tidy, "labels": lbs})
         except Exception as e:
             return self._send({"ok": False, "notes": [], "folders": [],
                                "error": str(e)})

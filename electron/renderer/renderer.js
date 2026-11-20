@@ -1874,23 +1874,78 @@ async function viImportPaths(paths) {
   }
 }
 // ── v125：加工页的「已加工」：加工好的笔记，最近加工的在最上面 ──
+// ── v132：贴标签——上面一行按分类筛（文章分类 / 作者领域）；每条前面是分类，作者名后面小字是作者的领域；
+//    点分类可以手动改（也可以自己写一个新分类）；标签行右边「自动贴标签」，跑的时候显示进度 ──
 let _vnAllNotes = [], _viDoneShown = 50;
+let _lbCats = [], _lbAuthors = {}, _lbJob = null, _lbBusy = false, _lbLastPoll = 0, _lbLastRefresh = 0, _lbPopOpen = false;
 function viDoneOpen() { try { return localStorage.getItem("viDoneOpen") !== "0"; } catch (e) { return true; } }
+function lbMode() { try { return localStorage.getItem("viLbMode") === "author" ? "author" : "note"; } catch (e) { return "note"; } }
+function lbFilterGet(m) { try { return localStorage.getItem("viLbF_" + m) || ""; } catch (e) { return ""; } }
+function lbFilterSet(m, v) { try { localStorage.setItem("viLbF_" + m, v || ""); } catch (e) {} }
+function lbOf(n, m) {
+  if (m === "author") { const a = n.author && _lbAuthors[n.author]; return (a && a.dom) || ""; }
+  return n.cat || "";
+}
+function lbApply(cats, authors, notesMap) {
+  if (Array.isArray(cats) && cats.length) _lbCats = cats;
+  if (authors && typeof authors === "object") _lbAuthors = authors;
+  if (notesMap && typeof notesMap === "object") (_vnAllNotes || []).forEach((n) => {
+    const x = notesMap[n.name];
+    if (x && x.cat) { n.cat = x.cat; n.kw = x.kw || []; if (x.by === "you") n.cat_by = "you"; else delete n.cat_by; }
+    else { delete n.cat; delete n.kw; delete n.cat_by; }
+  });
+}
+function lbAuthorTip(a) {
+  const x = _lbAuthors[a];
+  if (!x) return "还没判断作者「" + a + "」的领域，点一下可以手动定";
+  const t = ["作者「" + a + "」主要做：" + x.dom + (x.dir ? "（" + x.dir + "）" : "")];
+  if (x.by === "you") t.push("你手动定的");
+  else { if (x.why) t.push("理由：" + x.why); if (x.src) t.push("依据：" + x.src); }
+  t.push("点一下可以改");
+  return t.join("\n");
+}
+function lbBar(total, counts, none, m, f, noAu) {
+  const bar = document.createElement("div"); bar.className = "vi-lb-bar";
+  const seg = document.createElement("span"); seg.className = "vi-lb-mode";
+  [["note", "文章分类", "按每篇讲的内容分"], ["author", "作者领域", "按作者主要做的领域分（读作者主页判断的）"]].forEach(([k, t, tip]) => {
+    const b = document.createElement("button"); b.type = "button"; b.dataset.lbmode = k; b.textContent = t; b.title = tip;
+    if (k === m) b.className = "on";
+    seg.appendChild(b);
+  });
+  bar.appendChild(seg);
+  const chip = (val, label, n, cls) => {
+    const b = document.createElement("button"); b.type = "button";
+    b.className = "vi-lb-chip" + (val === f ? " on" : "") + (cls ? " " + cls : ""); b.dataset.lbf = val;
+    b.appendChild(document.createTextNode(label));
+    const i = document.createElement("i"); i.textContent = n; b.appendChild(i);
+    return b;
+  };
+  bar.appendChild(chip("", "全部", total));
+  const order = _lbCats || [];
+  Object.keys(counts).sort((x, y) => counts[y] - counts[x] || order.indexOf(x) - order.indexOf(y))
+    .forEach((k) => bar.appendChild(chip(k, k, counts[k])));
+  if (none) bar.appendChild(chip("__none", m === "author" ? "未判断" : "未分类", none, "vi-lb-none"));
+  if (noAu) bar.appendChild(chip("__noau", "没写作者", noAu, "vi-lb-none"));
+  return bar;
+}
 function viRenderDone() {
   const box = document.getElementById("viDone");
   if (!box) return;
-  const done = (_vnAllNotes || []).filter((n) => n.analyzed)
+  const all = (_vnAllNotes || []).filter((n) => n.analyzed)
     .sort((a, b) => (b.mt || 0) - (a.mt || 0) || (b.ts || 0) - (a.ts || 0));
-  const open = true;   // v126：由上面的「已加工」标签代替标题行
-  const dn = document.getElementById("viPtabDoneN"); if (dn) dn.textContent = done.length;
+  const dn = document.getElementById("viPtabDoneN"); if (dn) dn.textContent = all.length;
+  const m = lbMode();
+  const counts = {}; let none = 0, noAu = 0;           // 「作者领域」时，没写作者的单独一类（没法判断）
+  all.forEach((n) => {
+    const k = lbOf(n, m);
+    if (k) counts[k] = (counts[k] || 0) + 1; else if (m === "author" && !n.author) noAu++; else none++;
+  });
+  let f = lbFilterGet(m);
+  if (f && (f === "__none" ? !none : f === "__noau" ? !noAu : !counts[f])) f = "";   // 这一类已经没有了：回到「全部」
+  const hit = (n) => (f === "__noau" ? !n.author : f === "__none" ? (!lbOf(n, m) && (m !== "author" || !!n.author)) : lbOf(n, m) === f);
+  const done = !f ? all : all.filter(hit);
   box.innerHTML = "";
-  const head = document.createElement("div");
-  head.className = "vn-done-head"; head.title = "点击展开 / 收起";
-  head.innerHTML = '<span class="vn-caret">' + (open ? "▾" : "▸") + '</span><span class="vn-done-title">已加工（' + done.length +
-    ' 条）</span><span class="vn-done-tip">最近加工好的在最上面，点一条打开看</span>';
-  head.addEventListener("click", () => { try { localStorage.setItem("viDoneOpen", open ? "0" : "1"); } catch (e) {} viRenderDone(); });
-  box.appendChild(head);
-  if (!open) return;
+  box.appendChild(lbBar(all.length, counts, none, m, f, noAu));
   const rows = document.createElement("div"); rows.className = "vn-done-rows";
   done.slice(0, _viDoneShown).forEach((n, i) => {
     const r = document.createElement("div");
@@ -1898,22 +1953,46 @@ function viRenderDone() {
     const no = document.createElement("span"); no.className = "vn-un-no"; no.textContent = (i + 1) + "."; r.appendChild(no);
     const tm = document.createElement("span"); tm.className = "vn-un-time";
     const when = (n.mt ? n.mt * 1000 : 0) || vnNoteTime(n); tm.textContent = when ? vnFmtWhen(when) : ""; tm.title = "加工时间"; r.appendChild(tm);
+    // v132：分类（选「作者领域」时显示这篇作者的领域）。点它可以改
+    const slot = document.createElement("span"); slot.className = "vn-cat-slot";
+    const lab = lbOf(n, m);
+    if (m === "note" || n.author) {
+      const c = document.createElement("span");
+      c.className = "vn-cat" + (lab ? "" : " vn-cat-empty"); c.textContent = lab || "＋ 分类";
+      c.dataset.lbKind = m === "author" ? "author" : "note"; c.dataset.lbKey = m === "author" ? n.author : (n.name || "");
+      c.title = m === "author" ? lbAuthorTip(n.author)
+        : (lab ? "分类：" + lab + (n.cat_by === "you" ? "（你手动定的）" : "（AI 分的）") + "\n点一下可以改" : "还没分类，点一下手动分");
+      slot.appendChild(c);
+    }
+    r.appendChild(slot);
     if (n.kind) r.appendChild(vnKindBadge(n.kind));
     const nm = document.createElement("span"); nm.className = "vn-un-name"; nm.textContent = n.title || (n.name || "").replace(/\.md$/, ""); r.appendChild(nm);
-    if (n.tags && n.tags.length) {
+    const kws = (n.kw && n.kw.length) ? n.kw : (n.tags || []);         // 分好类的显示 AI 给的关键词，没分的还是原来的标签
+    if (kws.length) {
       const tg = document.createElement("span"); tg.className = "vn-done-tags";
-      n.tags.slice(0, 3).forEach((t) => { const c = document.createElement("span"); c.className = "vn-done-tag"; c.textContent = t; tg.appendChild(c); });
+      kws.slice(0, 2).forEach((t) => { const c = document.createElement("span"); c.className = "vn-done-tag"; c.textContent = t; tg.appendChild(c); });
       r.appendChild(tg);
     }
     if (n.author) {
       const au = document.createElement("span"); au.className = "vn-un-author";
       try { au.appendChild(vnAvatarEl({ key: n.author, name: n.author, kind: "author" }, "mini")); } catch (e) {}
-      au.appendChild(document.createTextNode(n.author)); r.appendChild(au);
+      const an = document.createElement("span"); an.className = "vn-au-name"; an.textContent = n.author; au.appendChild(an);
+      const ad = _lbAuthors[n.author];
+      if (m === "note" && ad && ad.dom) {
+        const sp = document.createElement("span"); sp.className = "vn-adom"; sp.textContent = "· " + ad.dom;
+        sp.dataset.lbKind = "author"; sp.dataset.lbKey = n.author; sp.title = lbAuthorTip(n.author);
+        au.appendChild(sp);
+      }
+      r.appendChild(au);
     }
     r.addEventListener("click", () => openVideoNote(n.name));
     rows.appendChild(r);
   });
   box.appendChild(rows);
+  if (!done.length) {
+    const e = document.createElement("div"); e.className = "vi-lb-empty";
+    e.textContent = all.length ? "这一类还没有" : "还没有加工好的"; box.appendChild(e);
+  }
   if (done.length > _viDoneShown) {
     const more = document.createElement("button");
     more.type = "button"; more.className = "ghost-btn small vn-done-more";
@@ -1921,7 +2000,150 @@ function viRenderDone() {
     more.addEventListener("click", () => { _viDoneShown += 50; viRenderDone(); });
     box.appendChild(more);
   }
+  lbRenderActs();
 }
+// 「自动贴标签」按钮 / 进度（只在「已加工」标签下显示）
+function lbRenderActs() {
+  const slot = document.getElementById("viPtabDoneActs");
+  if (!slot) return;
+  const j = _lbJob || {}, now = Date.now() / 1000;
+  const startBtn = '<button type="button" class="ghost-btn small" data-lb-act="start" title="给还没分类的文章分类；读作者主页，判断作者主要做哪个领域。你手动改过的不会动">自动贴标签</button>';
+  let html = startBtn;
+  if (j.running && !j.auto) {
+    let t = "文章 " + j.n_done + " / " + j.n_total;
+    if (j.phase === "authors") {
+      t = "作者 " + j.a_done + " / " + j.a_total;
+      if (j.a_cur) t += j.a_stage === "读主页" ? "，正在读「" + j.a_cur + "」的主页"
+        : j.a_stage === "找主页" ? "，正在找「" + j.a_cur + "」的主页" : "，正在判断「" + j.a_cur + "」";
+    }
+    if (j.stop) t += "（正在停…）";
+    html = '<span class="vi-lb-prog">贴标签：' + escapeHtml(t) + '</span><button type="button" class="ghost-btn small" data-lb-act="stop">停止</button>';
+  } else if (!j.running && j.err && j.finished && now - j.finished < 600) {
+    html = '<span class="vi-lb-prog vi-lb-err" title="' + escapeHtml(j.err) + '">没贴完：' + escapeHtml(j.err) + '</span>' + startBtn;
+  } else if (!j.running && !j.auto && j.summary && j.finished && now - j.finished < 20) {
+    html = '<span class="vi-lb-prog" title="' + escapeHtml(j.summary) + '">' + escapeHtml(j.summary) + '</span>' + startBtn;
+  }
+  if (slot.innerHTML !== html) slot.innerHTML = html;
+}
+async function lbRefresh() {
+  try {
+    const r = await fetch(BACKEND + "/labels/all"); const d = await r.json();
+    if (d && d.ok) { lbApply(d.cats, d.authors, d.notes); if (_lbPopOpen) lbRenderActs(); else viRenderDone(); }
+  } catch (e) {}
+}
+async function lbPoll() {
+  if (_lbBusy) return;
+  _lbBusy = true; _lbLastPoll = Date.now();
+  try {
+    const r = await fetch(BACKEND + "/labels/job"); const j = await r.json();
+    const was = _lbJob; _lbJob = j;
+    const now = Date.now();
+    if ((j.running && now - _lbLastRefresh > 8000) || (was && was.running && !j.running)) { _lbLastRefresh = now; lbRefresh(); }
+    else lbRenderActs();
+  } catch (e) {}
+  _lbBusy = false;
+}
+setInterval(() => {   // 贴标签在跑：2 秒看一次进度、8 秒把新贴的标签拿过来；没在跑、开着「已加工」时 15 秒看一次
+  const v = document.getElementById("view-video");
+  const vis = v && v.classList.contains("active") && v.dataset.mode === "process" && viPtab() === "done";
+  const j = _lbJob || {};
+  const hot = j.running || (j.finished && Date.now() / 1000 - j.finished < 25);
+  if (hot || (vis && Date.now() - _lbLastPoll > 15000)) lbPoll();
+}, 2000);
+async function lbJobAct(act) {
+  try {
+    const r = await fetch(BACKEND + "/labels/job", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: act }) });
+    const d = await r.json();
+    if (d && d.job) { _lbJob = d.job; lbRenderActs(); }
+  } catch (e) { setVideoStatus("贴标签没启动：" + (e && e.message ? e.message : e), "warn"); }
+  setTimeout(lbPoll, 400);
+}
+async function lbSave(kind, key, cat) {
+  lbPopClose();
+  try {
+    const r = await fetch(BACKEND + "/labels/set", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, key, cat }) });
+    const d = await r.json();
+    if (!d || !d.ok) { setVideoStatus("没改成：" + ((d && d.error) || "后端没回话"), "warn"); return; }
+    if (Array.isArray(d.cats)) _lbCats = d.cats;
+    if (kind === "note") {
+      const n = (_vnAllNotes || []).find((x) => x.name === key);
+      if (n) { if (cat) { n.cat = cat; n.cat_by = "you"; } else { delete n.cat; delete n.kw; delete n.cat_by; } }
+    } else if (cat) _lbAuthors[key] = { dom: cat, by: "you" };
+    else delete _lbAuthors[key];
+    viRenderDone();
+  } catch (e) { setVideoStatus("没改成：" + (e && e.message ? e.message : e), "warn"); }
+}
+async function lbRedo(kind, key) {
+  lbPopClose();
+  try {
+    await fetch(BACKEND + "/labels/redo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, key }) });
+  } catch (e) {}
+  setTimeout(lbPoll, 400);
+}
+function lbPopClose() { const p = document.getElementById("viLbPop"); if (p) p.remove(); _lbPopOpen = false; }
+function lbPick(el) {
+  lbPopClose();
+  const kind = el.dataset.lbKind, key = el.dataset.lbKey;
+  if (!kind || !key) return;
+  let cur = "";
+  if (kind === "note") { const n = (_vnAllNotes || []).find((x) => x.name === key); cur = (n && n.cat) || ""; }
+  else cur = (_lbAuthors[key] && _lbAuthors[key].dom) || "";
+  const pop = document.createElement("div"); pop.className = "vi-lb-pop"; pop.id = "viLbPop";
+  const h = document.createElement("div"); h.className = "vi-lb-pop-h";
+  h.textContent = kind === "note" ? "这篇归到哪一类" : "作者「" + key + "」主要做哪个领域";
+  pop.appendChild(h);
+  const ax = kind === "author" ? _lbAuthors[key] : null;
+  if (ax && ax.by !== "you" && (ax.why || ax.src)) {
+    const w = document.createElement("div"); w.className = "vi-lb-pop-why";
+    w.textContent = [ax.dir ? "方向：" + ax.dir : "", ax.why ? "理由：" + ax.why : "", ax.src ? "依据：" + ax.src : ""].filter(Boolean).join("\n");
+    pop.appendChild(w);
+  }
+  const grid = document.createElement("div"); grid.className = "vi-lb-pop-cats";
+  (_lbCats || []).forEach((c) => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "vi-lb-chip" + (c === cur ? " on" : ""); b.textContent = c;
+    b.addEventListener("click", () => lbSave(kind, key, c));
+    grid.appendChild(b);
+  });
+  pop.appendChild(grid);
+  const row = document.createElement("div"); row.className = "vi-lb-pop-new";
+  const inp = document.createElement("input"); inp.type = "text"; inp.maxLength = 8; inp.placeholder = "都不合适？自己写一个";
+  const ok = document.createElement("button"); ok.type = "button"; ok.className = "ghost-btn small"; ok.textContent = "用这个";
+  const go = () => { const v = inp.value.trim(); if (v) lbSave(kind, key, v); };
+  ok.addEventListener("click", go);
+  inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go(); } });
+  row.appendChild(inp); row.appendChild(ok); pop.appendChild(row);
+  const foot = document.createElement("div"); foot.className = "vi-lb-pop-foot";
+  const redo = document.createElement("button"); redo.type = "button"; redo.className = "vi-lb-link";
+  redo.textContent = kind === "author" ? "让 AI 重新判断（会重新读主页）" : "让 AI 重新分类";
+  redo.addEventListener("click", () => lbRedo(kind, key));
+  foot.appendChild(redo); pop.appendChild(foot);
+  document.body.appendChild(pop);
+  const rc = el.getBoundingClientRect(), pw = pop.offsetWidth, ph = pop.offsetHeight;
+  let x = rc.left, y = rc.bottom + 6;
+  if (x + pw > window.innerWidth - 8) x = window.innerWidth - pw - 8;
+  if (y + ph > window.innerHeight - 8) y = Math.max(8, rc.top - ph - 6);
+  pop.style.left = Math.max(8, x) + "px"; pop.style.top = y + "px";
+  _lbPopOpen = true;
+}
+document.getElementById("viDone")?.addEventListener("click", (e) => {   // 先于每一行自己的「打开笔记」
+  const t = e.target.closest && e.target.closest("[data-lb-kind]");
+  if (t) { e.stopPropagation(); e.preventDefault(); lbPick(t); return; }
+  const fb = e.target.closest && e.target.closest("[data-lbf]");
+  if (fb) { e.stopPropagation(); lbFilterSet(lbMode(), fb.dataset.lbf); _viDoneShown = 50; viRenderDone(); return; }
+  const mb = e.target.closest && e.target.closest("[data-lbmode]");
+  if (mb) { e.stopPropagation(); try { localStorage.setItem("viLbMode", mb.dataset.lbmode); } catch (err) {} _viDoneShown = 50; viRenderDone(); }
+}, true);
+document.addEventListener("click", (e) => {
+  const b = e.target.closest && e.target.closest("[data-lb-act]");
+  if (b) lbJobAct(b.dataset.lbAct);
+});
+document.addEventListener("mousedown", (e) => {
+  const p = document.getElementById("viLbPop");
+  if (p && !p.contains(e.target) && !(e.target.closest && e.target.closest("[data-lb-kind]"))) lbPopClose();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && document.getElementById("viLbPop")) { e.stopPropagation(); e.preventDefault(); lbPopClose(); }
+}, true);
 // ── v128：分栏时，左边清单里选中正在看的那一条 ──
 function viSelSync(scroll) {
   document.querySelectorAll("#view-video .vn-sel").forEach((x) => x.classList.remove("vn-sel"));
@@ -4425,7 +4647,8 @@ async function loadVideoNotes() {
     const folders = data.folders || [];
     if (data.tidy && data.tidy.length) _vnTidyMsgs = _vnTidyMsgs.concat(data.tidy).slice(-6);   // v64
     list.innerHTML = "";
-    _vnAllNotes = notes; setTimeout(viRenderDone, 0);   // v125：加工页的「已加工」
+    _vnAllNotes = notes; if (data.labels) lbApply(data.labels.cats, data.labels.authors);   // v132：分类、作者领域
+    setTimeout(viRenderDone, 0);   // v125：加工页的「已加工」
     ["viExtractExtras", "viProcessBars", "viAnLive"].forEach((id) => { const x = document.getElementById(id); if (x) x.innerHTML = ""; });   // v116：搬到提取 / 加工页的几块也一起重画
 
     // 顶部小工具条：新建文件夹（把同一作者/同一主题的笔记归到一起）
