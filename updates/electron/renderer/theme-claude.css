@@ -962,3 +962,9 @@ body.dark .vn-kind.k-gh { background: #e6e6e3; color: #1f1e1a; }
 /* v129：返回后刚看过的那条一直标着；阅读页的「重新加工」 */
 #view-video .vn-last { background: var(--accent-soft) !important; border-color: var(--accent) !important; }
 .vn-reader-content .vbtn-redo { color: var(--accent); }
+
+/* v130：返回右边的「完整查看」 */
+.vn-reader-full { flex: 0 0 auto; padding: 5px 12px; border: 0.5px solid var(--line-strong); border-radius: 8px; background: var(--bg-elev);
+  font: 13px var(--sans); color: var(--text); cursor: pointer; }
+.vn-reader-full:hover { border-color: var(--accent); color: var(--accent); }
+.vn-reader-full[hidden] { display: none; }

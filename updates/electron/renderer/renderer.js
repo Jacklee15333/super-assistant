@@ -5359,10 +5359,9 @@ function vnCleanAnalysis(md) {
 function vnIncompleteNotice(data) {
   const t = (data && data.analysis) || "";
   if (!t.trim() || /这条只提取了原文|（无分析）/.test(t)) return "";
-  if (!/一句话概括/.test(t)) {   // v129：只回了几句话、没有一个小标题
-    if (t.length < 600 && !/^#{1,4}\s/m.test(t)) {
-      return '<div class="vn-incomplete">这篇的加工结果只有几句话，AI 没真正写笔记。<button type="button" class="ghost-btn small" data-reanalyze="' +
-        escapeHtml(data._noteName || "") + '">重新加工</button></div>';
+  if (!/一句话概括/.test(t)) {   // v129/v130：没有一个小标题，不像一篇笔记
+    if (!/^#{1,4}\s/m.test(t)) {
+      return '<div class="vn-incomplete">这篇的加工结果不像一篇笔记（一个小标题都没有），多半是 AI 没写好，或者抓错了内容。点上面的「重新加工」重写。</div>';
     }
     return "";
   }
@@ -5372,8 +5371,7 @@ function vnIncompleteNotice(data) {
   if (!["关键事实", "金句", "值得记住", "我的点评"].some(has)) miss.push("关键事实、金句、行动建议、点评");
   if (!miss.length) return "";
   return '<div class="vn-incomplete">这篇的加工结果没写完（缺了：' + escapeHtml(miss.join("、")) +
-    '），所以比原文少很多。多半是 AI 写到一半断了。<button type="button" class="ghost-btn small" data-reanalyze="' +
-    escapeHtml(data._noteName || "") + '">重新加工</button></div>';
+    '），所以比原文少很多。多半是 AI 写到一半断了。点上面的「重新加工」重写。</div>';
 }
 document.addEventListener("click", (e) => {
   const b = e.target.closest && e.target.closest("[data-reanalyze]");
@@ -13106,9 +13104,19 @@ function vnReaderEnsure() {
   rd.id = "vnReader"; rd.className = "vn-reader"; rd.hidden = true;
   rd.innerHTML = '<div class="vn-reader-bar">' +
     '<button type="button" class="vn-reader-back" title="回到列表刚才的位置（也可以按 Esc）">← 返回</button>' +
+    '<button type="button" class="vn-reader-full" hidden title="左边的清单收起来，整页看这篇">完整查看</button>' +
     '<span class="vn-reader-title"></span></div>' +
     '<div class="vn-reader-body"><div class="dash-content video-result vn-reader-content"></div></div>';
   rd.querySelector(".vn-reader-back").addEventListener("click", vnReaderClose);
+  rd.querySelector(".vn-reader-full").addEventListener("click", (e) => {   // v130
+    const vv = document.getElementById("view-video"), pane = document.querySelector("#view-video .video-pane");
+    if (!vv) return;
+    if (vv.classList.contains("vn-split")) {
+      vv.classList.remove("vn-split"); if (pane) pane.style.display = "none"; e.currentTarget.textContent = "分栏查看";
+    } else {
+      if (pane) pane.style.display = ""; vv.classList.add("vn-split"); e.currentTarget.textContent = "完整查看"; viSelSync(true);
+    }
+  });
   (view || document.body).appendChild(rd);
   return rd;
 }
@@ -13132,6 +13140,8 @@ function vnReaderShow(name) {
     const _vv = document.getElementById("view-video");
     if (_vv && _vv.dataset.mode === "process") _vv.classList.add("vn-split");   // v128：左右分栏
     else if (pane) pane.style.display = "none";
+    const fb = rd.querySelector(".vn-reader-full");                           // v130：分栏时才有「完整查看」
+    if (fb) { fb.hidden = !(_vv && _vv.dataset.mode === "process"); fb.textContent = "完整查看"; }
     rd.hidden = false;
   }
   _vnReaderName = name;

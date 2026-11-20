@@ -1403,9 +1403,9 @@ def _analysis_missing(text):
     要是只写到前面一两块就断了，返回缺了哪几块；结构不是这套的不管（返回 []）。"""
     t = text or ""
     if "一句话概括" not in t:
-        # v129：只回了几句「我会按你的结构做笔记」之类的话，没有一个小标题 → 也算没写
-        if len(t) < 600 and not re.search(r"(?m)^#{1,4}\s", t):
-            return ["整篇笔记（只回了几句话）"]
+        # v129/v130：没有一个小标题 → 不是按要求写的笔记（只回了几句客套话，或者抓成了网页边栏的对话列表）
+        if not re.search(r"(?m)^#{1,4}\s", t):
+            return ["整篇笔记（回来的不是笔记）"]
         return []
     def has(word):
         return re.search(r"(?m)^#{1,4}\s*[^\n]*" + word, t) is not None
