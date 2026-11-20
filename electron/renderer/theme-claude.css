@@ -677,3 +677,28 @@ button .cx-ico, .send-btn .cx-ico { opacity: 1; }
 body:not(.on-chat) .convo-item.active { background: transparent; }
 body:not(.on-chat) .convo-item.active:hover { background: var(--bg-hover); }
 .convo-empty { padding: 4px 10px; font-size: 12.5px; color: var(--text-dim); }
+
+/* ════════════════════ v112：加工（原「视频」）════════════════════ */
+#view-video .video-input-row { align-items: flex-start; }
+#view-video textarea.vi-input {
+  flex: 1; min-width: 0; min-height: 38px; max-height: 168px; resize: none; overflow-y: auto;
+  padding-top: 9px; padding-bottom: 8px; line-height: 1.5; font-family: var(--sans);
+}
+.vi-kind { display: flex; align-items: baseline; gap: 8px; margin: 2px 0 8px; font-size: 12.5px; color: var(--text-dim); }
+.vi-kind[hidden] { display: none; }
+.vi-kind-tag {
+  flex: none; padding: 1px 8px; border-radius: 10px; font-weight: 600; font-size: 12px;
+  color: var(--accent); background: var(--accent-soft);
+}
+.vi-kind-hint { line-height: 1.55; }
+.vn-kind.k-gh { background: #24292f; color: #fff; }
+body.dark .vn-kind.k-gh { background: #e6e6e3; color: #1f1e1a; }
+.vn-gh-btn {
+  flex: none; margin-left: 6px; padding: 1px 8px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--line-strong); background: transparent; color: var(--text-dim); font: 500 12px var(--sans);
+}
+.vn-gh-btn:hover { color: var(--accent); border-color: var(--accent); }
+/* 输入框占满一整行（什么都往这放），选项和按钮在它下面一行，「开始加工」靠右 */
+#view-video .video-input-row { flex-wrap: wrap; row-gap: 8px; }
+#view-video textarea.vi-input { flex: 1 1 100%; width: 100%; }
+#view-video #videoGoBtn { margin-left: auto; }

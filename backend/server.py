@@ -79,7 +79,7 @@ def _clog(tag, msg):
 
 # 这些接口是前端**定时高频轮询**或页面加载时被动拉取的（查状态/进度/列表/配置），
 # 一旦打印就会把控制台刷爆、淹没真正有用的操作日志，所以一律静音、不记。
-_LOG_QUIET_PATHS = {
+_LOG_QUIET_PATHS = {"/intake_kind", 
     "/ping", "/video_note_subs", "/x_note_rebuild_status", "/video_failed", "/video_note_tidy_status", "/phone_inbox/status", "/feishu_inbox/status", "/feishu_inbox/alive", "/feishu_inbox/incoming", "/video_progress", "/video_health", "/video_deps", "/video_notes", "/creator_profiles_batch", "/creator/avatars_status", "/creator/discover",
     "/video_note_analyze_progress", "/sniff/feed", "/sniff/discover", "/video_note_analyze_batch",
     "/chat_progress", "/heartbeat/status", "/lumi/status", "/lumi/evolve_status",
@@ -2132,6 +2132,14 @@ def _video_worker():
                 res = video_transcribe.extract_local(
                     local_path, level=job["level"], progress_cb=cb, lang=job.get("lang") or "zh",
                     vocal=bool(job.get("vocal")))
+            elif job.get("intake") == "github":
+                # v112：GitHub 项目——读项目信息和 README，摘出安装方法
+                import intake as _ik
+                res = _ik.research_github_url(job["url"], progress_cb=cb)
+            elif job.get("intake") == "text":
+                # v112：一段文字——直接存成笔记
+                import intake as _ik
+                res = _ik.text_note(job.get("text") or "")
             elif _dimp is not None and _dimp.article_url(job["url"]):
                 # v65：不是视频网站的链接 → 先当文章读；读不到正文，再当视频试一次（和以前一样）
                 res = _dimp.extract_url(job["url"], progress_cb=cb)
@@ -4486,6 +4494,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_web_model_test(body)
         if path == "/heartbeat":
             return self._handle_heartbeat(body)
+        if path == "/intake_kind":                    # v112：加工——认一认放进来的是什么
+            try:
+                import intake as _ik
+                return self._send(_ik.describe(body.get("text") or ""))
+            except Exception as e:
+                return self._send({"kind": "", "error": str(e)[:200]})
         if path == "/video_transcribe":
             return self._handle_video_transcribe(body)
         if path == "/video_cancel":
@@ -6381,6 +6395,17 @@ class Handler(BaseHTTPRequestHandler):
         支持两种来源：① url=在线链接；② local_path=本地音/视频文件（新增）。"""
         url = body.get("url", "").strip()
         local_path = (body.get("local_path") or "").strip()
+        # v112：加工——先认出放进来的是什么（见 intake.py）。电脑上的文件路径 → 按本地文件处理；
+        #        GitHub 项目、没有链接的一段文字 → 下面走各自的流程；视频 / 文章链接照旧。
+        _intake = ""
+        if url and not local_path:
+            try:
+                import intake as _ik
+                _intake = _ik.classify(url)
+                if _intake == "file":
+                    local_path, url = _ik.local_path(url), ""
+            except Exception:
+                _intake = ""
         level = body.get("level", "balanced")
         lang = (body.get("lang") or "zh").strip()          # v95：视频里说的是什么话（日语、英语…）
         vocal = bool(body.get("vocal"))                    # v102：识别前先分离人声
@@ -6452,6 +6477,23 @@ class Handler(BaseHTTPRequestHandler):
         # ── 分支二：在线链接（原逻辑）──
         if not url:
             return self._send({"ok": False, "error": "请先粘贴视频或文章链接，或导入本地文件。"})
+
+        # v112：GitHub 项目 / 一段文字：不用视频组件，直接排队，分别放进「GitHub 项目」「随手记」文件夹
+        if _intake in ("github", "text"):
+            import intake as _ik
+            if _intake == "github":
+                _o, _r = _ik.github_repo(url)
+                _job = {"url": "https://github.com/%s/%s" % (_o, _r), "intake": "github",
+                        "title": "%s/%s" % (_o, _r), "note_folder": note_folder or _ik.GH_FOLDER}
+            else:
+                import time as _tm
+                _job = {"url": "text://%d" % int(_tm.time() * 1000), "intake": "text", "text": url[:200000],
+                        "title": _ik.text_title(url), "note_folder": note_folder or _ik.TEXT_FOLDER}
+            _job.update({"level": level, "lang": lang, "vocal": False, "use_local": use_local, "model": model,
+                         "screenshot": False, "link": False, "mode": mode, "analyze": do_analyze,
+                         "author": author, "creator_url": "", "notify": body.get("notify")})
+            pos = _enqueue_video(_job)
+            return self._send({"queued": True, "position": pos, "intake": _intake})
 
         # v65：不是视频网站的链接（文章、网页、PDF 链接…）：不用检查视频组件，直接排队；worker 先当文章读
         try:

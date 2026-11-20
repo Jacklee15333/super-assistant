@@ -79,6 +79,10 @@ def is_doc_path(path):
 def noun_of(kind):
     """笔记类型 → AI 提示词里怎么称呼它。"""
     kind = kind or ""
+    if "GitHub" in kind:          # v112：加工里的 GitHub 项目、一段文字
+        return "开源项目"
+    if kind == "文字":
+        return "文字"
     if "表格" in kind:
         return "表格"
     if "演示" in kind:

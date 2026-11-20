@@ -1700,8 +1700,66 @@ document.getElementById("moveModelsBtn")?.addEventListener("click", async () => 
 });
 document.getElementById("videoGoBtn")?.addEventListener("click", runVideoExtract);
 document.getElementById("videoUrl")?.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") { e.preventDefault(); runVideoExtract(); }
+  // v112：输入框能放多行文字了：Enter 开始加工，Shift+Enter 换行（输入法选字时的回车不算）
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); runVideoExtract(); }
 });
+
+// ── v112：加工——认出放进来的是什么（输入框下面那行），只有视频才显示「博主主页」──
+let _viKindTimer = null, _viKindSeq = 0;
+function viAutoGrow() {
+  const el = document.getElementById("videoUrl");
+  if (!el || el.tagName !== "TEXTAREA") return;
+  el.style.height = "auto";
+  el.style.height = Math.min(el.scrollHeight + 2, 168) + "px";
+}
+async function viDetectKind() {
+  const el = document.getElementById("videoUrl"), out = document.getElementById("viKind");
+  if (!el || !out) return;
+  const text = (el.value || "").trim();
+  const creatorRow = document.querySelector("#view-video .video-creator-row");
+  const seq = ++_viKindSeq;
+  if (!text) { out.hidden = true; if (creatorRow) creatorRow.style.display = ""; return; }
+  try {
+    const r = await fetch(BACKEND + "/intake_kind", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+    const d = await r.json();
+    if (seq !== _viKindSeq) return;   // 又改过了，以最新的为准
+    if (!d || !d.kind) { out.hidden = true; return; }
+    out.innerHTML = '<span class="vi-kind-tag k-' + escapeHtml(d.kind) + '">' + escapeHtml(d.label) + "</span>" +
+      '<span class="vi-kind-hint">' + escapeHtml(d.hint || "") + "</span>";
+    out.hidden = false;
+    if (creatorRow) creatorRow.style.display = (d.kind === "video") ? "" : "none";
+  } catch (e) { out.hidden = true; }
+}
+function viOnInputChanged() {
+  viAutoGrow();
+  clearTimeout(_viKindTimer);
+  _viKindTimer = setTimeout(viDetectKind, 250);
+}
+document.getElementById("videoUrl")?.addEventListener("input", viOnInputChanged);
+
+// GitHub 项目笔记：一键让小助帮你装（去对话页，把要说的话填好，你看过再发）
+function vnGhInstall(n) {
+  const m = String((n && n.title) || "").match(/^([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)/);
+  const repo = m ? m[1] : "";
+  if (typeof startNewChat === "function") startNewChat();
+  else document.querySelector('.nav-item[data-view="chat"]')?.click();
+  const box = document.getElementById("input");
+  if (!box) return;
+  box.value = "帮我在这台电脑上装 GitHub 项目 " + (repo ? "https://github.com/" + repo : (n.title || "")) +
+    "。先看它 README 里的安装说明（加工好的笔记里也摘了一份：" + (n.title || "") + "），" +
+    "告诉我要装到哪、打算执行哪些命令，等我确认了再动手。";
+  try { autoGrow(); box.focus(); } catch (e) {}
+}
+function vnGhInstallBtn(n) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "vn-gh-btn";
+  b.textContent = "让小助装";
+  b.title = "去对话里让小助按 README 帮你装（先告诉你要执行什么，你确认了才动手）";
+  b.addEventListener("click", (e) => { e.stopPropagation(); vnGhInstall(n); });
+  return b;
+}
 // 分析进行中又粘进/输入了新链接 → 自动弹「加入队列」（不用等用户点按钮）
 document.getElementById("videoUrl")?.addEventListener("input", (e) => {
   const v = (e.target.value || "").trim();
@@ -1787,14 +1845,14 @@ function setVideoStatus(text, kind, opts) {
   setVideoStatus._t = setTimeout(clear, kind === "warn" ? 60000 : 15000);
 }
 
-let _videoSubmitting = false;   // 防止「提取并分析」被重复点 / 重复入队
+let _videoSubmitting = false;   // 防止「开始加工」被重复点 / 重复入队
 
-// 设置「提取并分析」按钮的外观：idle / submitting / running
+// 设置「开始加工」按钮的外观：idle / submitting / running
 // running 时按钮不禁用，而是变成「＋ 加入队列」——这样有新链接能直接点它排队。
 function setVideoBtnState(state) {
   const btn = document.getElementById("videoGoBtn");
   if (!btn) return;
-  if (!btn.dataset.label) btn.dataset.label = btn.textContent || "提取并分析";
+  if (!btn.dataset.label) btn.dataset.label = btn.textContent || "开始加工";
   if (state === "submitting") {
     btn.disabled = true; btn.classList.add("busy"); btn.classList.remove("queue");
     btn.textContent = "提交中…";
@@ -1810,12 +1868,9 @@ function setVideoBtnState(state) {
 async function runVideoExtract() {
   if (_videoSubmitting) return;   // 正在提交，忽略重复点击
   const url = (document.getElementById("videoUrl").value || "").trim();
-  if (!url) { setVideoStatus("先粘贴一个视频或文章链接（整段分享文案也行）。", "warn"); return; }
+  if (!url) { setVideoStatus("先放点东西进来：视频或文章链接、GitHub 项目、一段文字都行。", "warn"); return; }
   // 若当前已有任务在跑：这次点击 = 把这个链接加入队列（后端自动排队尾）
   if (_videoBusyNow()) {
-    if (!/https?:\/\/\S+/.test(url) && !/[\u4e00-\u9fa5]/.test(url)) {
-      setVideoStatus("这看起来不像链接，确认一下再加入队列。", "warn"); return;
-    }
     _videoSubmitting = true;
     setVideoStatus("正在加入队列…");
     try {
@@ -1873,6 +1928,18 @@ function promptQueueNewLink(url) {
 // startVideoFromFloat 接管去「视频」页提取。
 window.petFeed = function (item) {
   if (!item) return;
+  // v112：所有收进来的东西都先到「加工」：放进输入框、认出种类，你点「开始加工」
+  try {
+    document.querySelector('.nav-item[data-view="video"]').click();
+    const vb = document.getElementById("videoUrl");
+    if (vb) {
+      vb.value = String(item).trim();
+      viOnInputChanged();
+      vb.focus();
+      setVideoStatus("放进来了，确认一下点「开始加工」。", "ok", { holdMs: 6000 });
+      return;
+    }
+  } catch (e) {}
   try { document.querySelector('.nav-item[data-view="chat"]').click(); } catch (e) {}
   var box = document.getElementById("input");
   if (box) {
@@ -1913,7 +1980,7 @@ window.startVideoFromFloat = function (url) {
   }
   // 醒目状态横幅：明确告诉用户链接已到、下一步该点哪
   const busy = _videoBusyNow();
-  const btnText = busy ? "＋ 加入队列" : "提取并分析";
+  const btnText = busy ? "＋ 加入队列" : "开始加工";
   setVideoStatus("🔗 链接已填好！点右上方蓝色「" + btnText + "」按钮即可" +
     (busy ? "排队处理。" : "开始提取。"), "ok", { priority: true, holdMs: 6000 });
   // 按钮强脉冲（不依赖 styles.css，直接内联动画）
@@ -2614,7 +2681,7 @@ async function runVideoInstall() {
     const data = await resp.json();
     if (log) log.textContent = data.message || "";
     if (data.ok) {
-      setVideoStatus("依赖装好了，再点一次「提取并分析」即可。", "ok");
+      setVideoStatus("依赖装好了，再点一次「开始加工」即可。", "ok");
       if (btn) btn.textContent = "已安装 ✓";
     } else if (btn) {
       btn.disabled = false; btn.textContent = "重试安装";
@@ -3481,6 +3548,8 @@ function vnKindInfo(kind) {
   if (/PPT|演示/.test(s)) return { short: "PPT", cls: "k-ppt", color: "#d24726" };
   if (/公众号/.test(s)) return { short: "公众号", cls: "k-wx", color: "#07a35a" };
   if (/文章|网页/.test(s)) return { short: "文章", cls: "k-web", color: "#3b6fd8" };
+  if (/GitHub/.test(s)) return { short: "GitHub", cls: "k-gh", color: "#24292f" };   // v112
+  if (s === "文字") return { short: "文字", cls: "k-text", color: "#555c66" };
   if (/Markdown/.test(s)) return { short: "MD", cls: "k-text", color: "#555c66" };
   if (/电子书/.test(s)) return { short: "电子书", cls: "k-book", color: "#8e44ad" };
   return { short: "文本", cls: "k-text", color: "#555c66" };
@@ -4401,6 +4470,7 @@ function makeVideoNoteItem(n, folders) {
   name.addEventListener("click", () => openVideoNote(n.name));
   if (n.kind) item.appendChild(vnKindBadge(n.kind));     // v65：PDF / Word / 文章…
   item.appendChild(name);
+  if (n.kind && /GitHub/.test(n.kind)) item.appendChild(vnGhInstallBtn(n));   // v112
   // 作者名（蓝色醒目，和标题平级、永不被截断；有真实昵称才显示，纯数字 ID/空 后端已过滤）
   if (n.author) {
     const au = document.createElement("span");
@@ -11825,7 +11895,7 @@ async function _phPoll() {
     if (_phSeq >= 0 && st.seq > _phSeq && st.recent && st.recent.length) {
       const x = st.recent[0];
       _phToast((x.src === "飞书" ? "💬 飞书发来：" : "📱 手机发来：") + (x.title || x.url).slice(0, 40) + (x.ok ? "（已加进队列）" : "（没加进去，点开看原因）"));
-      // v85：手机 / 飞书发来的任务，和在电脑上点「提取并分析」一样：开始盯进度条，做完自动刷新「最新提取」
+      // v85：手机 / 飞书发来的任务，和在电脑上点「开始加工」一样：开始盯进度条，做完自动刷新「最新提取」
       if (x.ok) {
         try { if (typeof pollVideoProgress === "function") pollVideoProgress(); } catch (e) {}
         try { if (typeof setVideoStatus === "function")
