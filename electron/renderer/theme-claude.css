@@ -939,3 +939,22 @@ body.dark .vn-kind.k-gh { background: #e6e6e3; color: #1f1e1a; }
   display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0 0 16px; padding: 9px 12px; border-radius: 8px;
   font-size: 13px; line-height: 1.6; color: #a55a12; background: rgba(214,140,40,.12);
 }
+
+/* ════════════════════ v128：加工页里看笔记：左边清单（选中正在看的）、右边内容 ════════════════════ */
+#view-video.vn-split.active { display: grid; grid-template-columns: minmax(300px, 32%) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+#view-video.vn-split > .topbar { grid-column: 1 / -1; }
+#view-video.vn-split > .video-pane {
+  grid-column: 1; grid-row: 2; min-height: 0; overflow-y: auto; display: block !important;
+  padding: 4px 12px 24px 16px; border-right: 1px solid var(--line);
+}
+#view-video.vn-split > #vnReader { grid-column: 2; grid-row: 2; min-height: 0; }
+#view-video.vn-split .vi-ptab { padding: 6px 10px 7px; font-size: 13.5px; }
+#view-video.vn-split .vn-un-row { gap: 6px; padding-top: 5px; padding-bottom: 5px; }
+#view-video.vn-split .vn-un-row .vn-un-time, #view-video.vn-split .vn-un-row .vn-un-author,
+#view-video.vn-split .vn-un-row .vn-done-tags, #view-video.vn-split .vn-un-row .vn-kind,
+#view-video.vn-split .vn-un-row .vn-un-an, #view-video.vn-split .vn-un-row .vn-un-del,
+#view-video.vn-split .vn-un-row .vn-un-no { display: none !important; }
+#view-video.vn-split .vn-un-row .vn-un-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+#view-video .vn-un-row.vn-sel { background: var(--accent-soft); border-color: var(--accent); }
+#view-video .vn-un-row.vn-sel .vn-un-name { color: var(--text); font-weight: 600; }
+#view-video.vn-split .vn-reader-body { padding: 14px 24px 40px; }
