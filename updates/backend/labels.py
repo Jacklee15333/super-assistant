@@ -834,6 +834,31 @@ _NET_PAUSE = 3                 # 读完一位作者的主页，歇几秒再读�
 AUTHOR_FROM_NOTES = 5          # v135：库里分好类的文章有这么多篇的作者，领域直接按这些文章算（界面上算），不用读主页
 
 
+def _flag_file():
+    return _mem() / "label_job.json"
+
+
+def _flag(on):
+    """v136：你点了「自动贴标签」还没贴完就关了软件 → 下次开软件接着贴。"""
+    try:
+        p = _flag_file()
+        if on:
+            p.write_text(json.dumps({"at": int(time.time())}), encoding="utf-8")
+        elif p.exists():
+            p.unlink()
+    except Exception:
+        pass
+
+
+def resume_on_start():
+    try:
+        if _flag_file().exists():
+            _log("接着上次没贴完的标签")
+            start(full=True)
+    except Exception:
+        pass
+
+
 def job_state():
     with _lock:
         d = dict(_job)
@@ -868,11 +893,15 @@ def start(full=True, notes=None, authors=None, auto=False):
         if _job["running"]:
             if not auto:
                 _job["auto"] = False           # 你点的：接着跑，界面上显示进度
+                if full:
+                    _flag(True)
             return True
         _job.update({"running": True, "stop": False, "auto": bool(auto), "phase": "", "mode": "",
                      "n_total": 0, "n_done": 0, "n_ok": 0, "n_fail": 0,
                      "a_total": 0, "a_done": 0, "a_ok": 0, "a_fail": 0, "a_local": 0, "a_cur": "", "a_stage": "",
                      "started": time.time(), "finished": 0, "summary": "", "err": ""})
+    if full and not auto:
+        _flag(True)
     threading.Thread(target=_run, daemon=True, name="labels").start()
     return True
 
@@ -1091,5 +1120,6 @@ def _run():
                 s = "都贴好了，没有要贴的" if not (j["n_fail"] or j["a_fail"]) else "这次没贴上"
             j.update({"running": False, "stop": False, "phase": "", "a_cur": "", "a_stage": "",
                       "finished": time.time(), "summary": s})
+        _flag(False)                           # 贴完 / 你点了停止 / 出错停下：都不用再接着贴
         if not _job["auto"]:
             _log(s or ("没贴完：" + _job["err"]))
