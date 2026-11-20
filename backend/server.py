@@ -2567,6 +2567,13 @@ def _pool_ready_for_batch():
     return True, ""
 
 
+def _vn_mtime(p):
+    try:
+        return p.stat().st_mtime
+    except Exception:
+        return 0
+
+
 # v121：哪条 AI 分析失败了、为什么（加工页的清单里标出来）；分析成功就去掉。存在 video_notes/_an_fail.json
 _AN_FAIL = {"data": None}
 
@@ -6692,13 +6699,16 @@ class Handler(BaseHTTPRequestHandler):
                     except Exception:
                         _ts = 0
                 kind = ""                                   # v65：导入的文档 / 文章
+                tags = []                                   # v125：标签（已加工清单显示，以后分类筛选用）
                 for ln in lines[1:14]:
                     s = ln.strip().lstrip("-").strip()
-                    if s.startswith(("类型：", "类型:")):
+                    if not kind and s.startswith(("类型：", "类型:")):
                         kind = s[3:].strip()[:20]
-                        break
+                    elif not tags and s.startswith(("标签：", "标签:")):
+                        tags = [t.strip() for t in re.split(r"[、,，]", s[3:]) if t.strip()][:8]
                 items.append({"name": p.name, "title": title, "author": author, "ts": _ts, "kind": kind,
                               "analyzed": analyzed, "an_fail": _an_fail_all().get(p.name, "") if not analyzed else "",
+                              "tags": tags, "mt": _vn_mtime(p),
                               "folder": mapping.get(p.name, "")})
             # 顺手清理：分组表里指向已删除笔记的残留条目
             stale = [k for k in mapping if k not in existing]
