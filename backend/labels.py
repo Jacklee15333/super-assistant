@@ -20,39 +20,88 @@ import threading
 import time
 
 OTHER = "其它"
-DEFAULT_CATS = [
-    ("AI", "大模型、AI 工具和应用、AI 编程、Agent、AI 公司和行业动态"),
-    ("科技", "AI 以外的科技：手机数码、汽车、航天、芯片、机器人、互联网产品"),
-    ("商业创业", "创业、做生意、商业模式、营销、经营管理、副业赚钱"),
-    ("财经投资", "经济、金融、投资理财、股市、房产、消费和财富"),
-    ("职场", "求职、工作方法、升职加薪、带团队、职业规划"),
-    ("个人成长", "认知、思维方式、学习方法、效率、自律、读书、人生选择"),
-    ("内容创作", "短视频、自媒体、写作、个人品牌、直播、做账号"),
-    ("法律", "法律知识、法律案例、维权、律师说法"),
-    ("时事社会", "新闻热点、社会现象、国际局势、政策"),
-    ("历史人文", "历史、哲学、文化、文学艺术、社科"),
-    ("心理情感", "心理学、情绪、人际关系、婚恋、家庭"),
-    ("健康", "身体健康、医学、饮食营养、运动健身"),
-    ("教育学习", "英语和外语、考试、孩子教育、某门课的知识讲解"),
-    ("生活娱乐", "生活技巧、美食、旅行、搞笑、影视、游戏"),
-    (OTHER, "实在归不进上面任何一类的"),
+# v134：两级分类——先分大类，再在大类里分子类（文章放进具体的子类）。
+# 参考：IAB 内容分类标准（一级 + 二级）、B 站知识区分区、得到的课程门类，再按你库里的内容调整。
+# 每项：(名字, 说明)；说明会写进给 AI 的提示里，帮它分清边界。
+TAXONOMY = [
+    ("AI", "人工智能相关的一切（哪怕是 AI 公司的商业新闻）", [
+        ("模型动态", "大模型发布、能力对比、评测"), ("AI工具", "AI 产品和工具怎么用、测评、工作流、智能体"),
+        ("AI编程", "用 AI 写代码、Agent / RAG 开发"), ("行业公司", "AI 公司动态、融资上市、算力、竞争"),
+        ("AI搞钱", "用 AI 创业、做副业、变现"), ("安全监管", "AI 安全、伦理、监管、对就业和社会的影响"),
+        ("前沿研究", "论文、科研进展、具身智能研究")]),
+    ("商业", "创业、生意和公司经营", [
+        ("创业", "创业方法、一人公司、需求验证、创业经历"), ("搞钱副业", "赚钱方法、副业、知识变现、信息差"),
+        ("商业模式", "商业逻辑、商业模式、案例拆解"), ("营销品牌", "营销、品牌、获客、定价"),
+        ("经营管理", "企业管理、组织、战略、运营"), ("行业观察", "某个行业或公司的分析（制造业、餐饮、消费品…）"),
+        ("电商带货", "电商、直播带货、供应链")]),
+    ("成长", "个人成长", [
+        ("认知思维", "认知提升、思维模型、独立思考、逻辑"), ("学习方法", "学习方法、读书、知识管理、自学"),
+        ("效率习惯", "时间管理、自律、行动力、习惯养成"), ("人生选择", "人生方向、长期主义、重大决定"),
+        ("沟通表达", "说话、说服、表达、人情世故")]),
+    ("财经", "经济、金融和钱", [
+        ("宏观经济", "经济形势、经济政策、国际经济"), ("投资交易", "股票、基金、交易心理、资产配置"),
+        ("金融常识", "银行、信用卡、保险、货币、金融规则"), ("财富认知", "财富思维、财务自由、现金流、家庭理财"),
+        ("房产", "买房、房价、楼市")]),
+    ("职场", "工作和职业", [
+        ("求职", "找工作、面试、简历、校招"), ("工作方法", "做事方法、汇报、开会"),
+        ("带团队", "管理者成长、新经理、团队管理"), ("职业发展", "升职加薪、职业规划、转行"),
+        ("职场关系", "和领导同事相处、职场冲突")]),
+    ("自媒体", "做内容、做账号", [
+        ("短视频", "选题、脚本、拍摄、剪辑"), ("账号运营", "涨粉、流量、平台规则和算法"),
+        ("写作文案", "写作、文案、表达技巧"), ("个人IP", "个人品牌、人设"),
+        ("内容变现", "广告、带货、知识付费"), ("直播", "直播技巧、直播运营")]),
+    ("科技", "AI 以外的科技", [
+        ("汽车出行", "电动车、自动驾驶、飞行汽车"), ("航天", "火箭、卫星、太空探索"),
+        ("手机数码", "手机、电脑、消费电子"), ("芯片硬件", "芯片、半导体、硬件"),
+        ("机器人", "人形机器人、工业机器人"), ("互联网", "互联网产品、平台、软件"),
+        ("科学科普", "物理、天文、生物等科学知识")]),
+    ("社会", "时事和社会话题", [
+        ("热点事件", "社会新闻、网络热点"), ("国际局势", "国际关系、大国博弈、地缘政治"),
+        ("政策民生", "政策解读、就业、教育医疗养老"), ("舆论观察", "网红、塌房、争议言论、舆论分析"),
+        ("性别议题", "性别、婚恋观念等社会讨论"), ("反诈防骗", "诈骗、骗局、防骗")]),
+    ("法律", "法律相关", [
+        ("普法常识", "法律知识、法条解读"), ("刑事案件", "犯罪、刑事责任"),
+        ("民事纠纷", "合同、借贷、婚姻家庭、继承"), ("劳动权益", "劳动法、工资、加班、调休"),
+        ("消费维权", "消费者权益、产品质量、平台纠纷"), ("热点评法", "律师用法律视角评社会热点")]),
+    ("人文", "历史、思想和文化", [
+        ("历史", "中国史、世界史、历史人物、文明比较"), ("哲学思想", "哲学、思想家、宗教"),
+        ("国学经典", "国学、传统文化、经典名著"), ("文化艺术", "文学、艺术、文化现象")]),
+    ("心理", "心理和情感", [
+        ("情绪压力", "焦虑、情绪管理、抗压"), ("自我认知", "自尊、自信、心理成长"),
+        ("人际关系", "社交、相处、家庭关系"), ("婚恋亲密", "恋爱、婚姻、亲密关系"),
+        ("心理学知识", "心理学原理、效应、实验")]),
+    ("教育", "学校和学科学习", [
+        ("英语", "英语学习：语法、口语、词汇"), ("孩子教育", "家庭教育、亲子、学校教育"),
+        ("考试升学", "高考、考研、留学、考证"), ("学科知识", "数理化等学科讲解")]),
+    ("健康", "身体健康", [
+        ("医学常识", "疾病、用药、就医"), ("饮食营养", "吃什么、营养、肠道"),
+        ("运动健身", "锻炼、减肥、体态"), ("作息成瘾", "睡眠、作息、戒瘾、多巴胺")]),
+    ("生活", "日常生活和娱乐", [
+        ("消费购物", "买东西、测评、消费观"), ("影视娱乐", "电影、电视剧、综艺、明星、剧情解读"),
+        ("游戏", "电子游戏"), ("体育", "球赛、世界杯、体育赛事"),
+        ("旅行美食", "旅游、美食"), ("日常生活", "生活技巧、日常记录、家居")]),
+    (OTHER, "实在归不进上面任何一类的", []),
 ]
-# 模型偶尔不按名字写：常见说法 → 分类名
-_ALIAS = {
+DEFAULT_CATS = [(n, d) for n, d, _s in TAXONOMY]          # 大类（作者领域只用大类）
+# v132 的一级分类 → v134 的大类（以前贴好的标签照样认）
+OLD2NEW = {"商业创业": "商业", "财经投资": "财经", "个人成长": "成长", "内容创作": "自媒体", "时事社会": "社会",
+           "历史人文": "人文", "心理情感": "心理", "教育学习": "教育", "生活娱乐": "生活"}
+# 模型偶尔不按名字写：常见说法 → 大类
+_ALIAS = dict(OLD2NEW, **{
     "人工智能": "AI", "AI科技": "AI", "大模型": "AI", "AI工具": "AI", "AIGC": "AI",
-    "数码": "科技", "科技数码": "科技", "互联网": "科技", "汽车": "科技", "航天": "科技",
-    "商业": "商业创业", "创业": "商业创业", "营销": "商业创业", "经营": "商业创业", "副业": "商业创业",
-    "财经": "财经投资", "金融": "财经投资", "投资": "财经投资", "理财": "财经投资", "经济": "财经投资",
-    "成长": "个人成长", "认知": "个人成长", "自我提升": "个人成长", "效率": "个人成长", "思维": "个人成长",
-    "自媒体": "内容创作", "短视频": "内容创作", "创作": "内容创作", "写作": "内容创作",
-    "时事": "时事社会", "社会": "时事社会", "新闻": "时事社会", "国际": "时事社会", "政治": "时事社会",
-    "历史": "历史人文", "人文": "历史人文", "哲学": "历史人文", "文化": "历史人文",
-    "心理": "心理情感", "情感": "心理情感", "婚恋": "心理情感", "两性": "心理情感",
+    "数码": "科技", "科技数码": "科技", "互联网": "科技", "汽车": "科技", "航天": "科技", "机器人": "科技",
+    "创业": "商业", "营销": "商业", "经营": "商业", "副业": "商业", "电商": "商业",
+    "金融": "财经", "投资": "财经", "理财": "财经", "经济": "财经",
+    "个人成长": "成长", "认知": "成长", "自我提升": "成长", "效率": "成长", "思维": "成长",
+    "内容创作": "自媒体", "短视频": "自媒体", "创作": "自媒体", "写作": "自媒体",
+    "时事": "社会", "新闻": "社会", "国际": "社会", "政治": "社会",
+    "历史": "人文", "哲学": "人文", "文化": "人文",
+    "心理学": "心理", "情感": "心理", "婚恋": "心理", "两性": "心理",
+    "英语": "教育", "学习": "教育", "外语": "教育",
     "医学": "健康", "养生": "健康", "运动": "健康", "健身": "健康",
-    "教育": "教育学习", "英语": "教育学习", "学习": "教育学习", "外语": "教育学习",
-    "生活": "生活娱乐", "娱乐": "生活娱乐", "搞笑": "生活娱乐", "美食": "生活娱乐", "旅行": "生活娱乐",
+    "娱乐": "生活", "影视": "生活", "体育": "生活", "游戏": "生活", "美食": "生活", "旅行": "生活",
     "法律常识": "法律", "法治": "法律", "职业": "职场", "其他": OTHER,
-}
+})
 PLATFORM_LABEL = {"douyin": "抖音", "bilibili": "B站", "youtube": "YouTube", "x": "X", "web": "网站"}
 
 _lock = threading.RLock()
@@ -152,16 +201,68 @@ def _clean_cat(s):
 
 
 def cats():
-    """所有分类名（默认的 + 你自己写的），「其它」放最后。"""
+    """所有大类名（默认的 + 你自己写的），「其它」放最后。"""
     names = [n for n, _d in DEFAULT_CATS if n != OTHER]
     with _lock:
         custom = list(_read(_cfg_file()).get("custom") or [])
     for c in custom:
         c = _clean_cat(c)
+        c = OLD2NEW.get(c, c)
         if c and c not in names and c != OTHER:
             names.append(c)
     names.append(OTHER)
     return names
+
+
+def subs_of(big):
+    """这个大类下面的子类（默认的 + 你自己加的）。没有子类的大类（「其它」、你自己写的大类）返回 []。"""
+    base = next(([n for n, _d in sb] for b, _d0, sb in TAXONOMY if b == big), None)
+    with _lock:
+        extra = list(((_read(_cfg_file()).get("subs") or {}).get(big)) or [])
+    out = list(base or [])
+    for x in extra:
+        x = _clean_cat(x)
+        if x and x not in out and x != OTHER:
+            out.append(x)
+    return out
+
+
+def has_subs(big):
+    return bool(big) and bool(subs_of(big))
+
+
+def tree():
+    """给界面用：[{name: 大类, subs: [子类…]}]；有子类的大类，最后都能选「其它」。"""
+    out = []
+    for b in cats():
+        sb = subs_of(b)
+        out.append({"name": b, "subs": (sb + [OTHER]) if sb else []})
+    return out
+
+
+def add_sub(big, sub):
+    """你在某个大类里自己写了一个新子类：记下来，以后 AI 也会用。"""
+    sub = _clean_cat(sub)
+    if not big or not sub or sub == OTHER or sub in subs_of(big):
+        return
+    with _lock:
+        d = dict(_read(_cfg_file()))
+        m = dict(d.get("subs") or {})
+        m[big] = (list(m.get(big) or []) + [sub])[-20:]
+        d["subs"] = m
+        _write(_cfg_file(), d)
+
+
+def _tree_lines():
+    """给 AI 看的两级分类表：「- 大类（说明）：子类（说明）、子类（说明）…」。"""
+    info = {b: (d, dict(sb)) for b, d, sb in TAXONOMY}
+    out = []
+    for b in cats():
+        d, sd = info.get(b, ("", {}))
+        head = "- %s%s" % (b, ("（%s）" % d) if d else "")
+        sb = subs_of(b)
+        out.append(head + ("：" + "、".join(("%s（%s）" % (x, sd[x])) if sd.get(x) else x for x in sb) if sb else ""))
+    return "\n".join(out)
 
 
 def add_cat(name):
@@ -210,9 +311,84 @@ def normalize_cat(raw, names=None):
 
 # ════════════════════ 标签读写 ════════════════════
 
+_SUB_ALIAS = {
+    "AI": {"大模型": "模型动态", "模型": "模型动态", "评测": "模型动态", "工具": "AI工具", "智能体": "AI工具",
+           "编程": "AI编程", "AGENT": "AI编程", "开发": "AI编程", "公司": "行业公司", "行业": "行业公司", "算力": "行业公司",
+           "创业": "AI搞钱", "赚钱": "AI搞钱", "副业": "AI搞钱", "安全": "安全监管", "监管": "安全监管", "伦理": "安全监管",
+           "研究": "前沿研究", "论文": "前沿研究", "科研": "前沿研究"},
+    "商业": {"一人公司": "创业", "副业": "搞钱副业", "赚钱": "搞钱副业", "变现": "搞钱副业", "营销": "营销品牌", "品牌": "营销品牌",
+           "管理": "经营管理", "企业管理": "经营管理", "电商": "电商带货", "带货": "电商带货", "行业": "行业观察"},
+    "成长": {"认知": "认知思维", "思维": "认知思维", "学习": "学习方法", "读书": "学习方法", "时间管理": "效率习惯",
+           "效率": "效率习惯", "自律": "效率习惯", "习惯": "效率习惯", "沟通": "沟通表达", "表达": "沟通表达"},
+    "财经": {"经济": "宏观经济", "投资": "投资交易", "交易": "投资交易", "理财": "财富认知", "财富": "财富认知",
+           "金融": "金融常识", "楼市": "房产"},
+    "职场": {"面试": "求职", "管理": "带团队", "团队管理": "带团队", "升职": "职业发展", "职业规划": "职业发展"},
+    "自媒体": {"拍摄": "短视频", "剪辑": "短视频", "运营": "账号运营", "涨粉": "账号运营", "写作": "写作文案", "文案": "写作文案",
+            "IP": "个人IP", "个人品牌": "个人IP", "变现": "内容变现"},
+    "科技": {"汽车": "汽车出行", "新能源": "汽车出行", "火箭": "航天", "卫星": "航天", "手机": "手机数码", "数码": "手机数码",
+           "芯片": "芯片硬件", "科普": "科学科普", "科学": "科学科普"},
+    "社会": {"热点": "热点事件", "新闻": "热点事件", "国际": "国际局势", "政策": "政策民生", "民生": "政策民生",
+           "舆论": "舆论观察", "性别": "性别议题", "诈骗": "反诈防骗", "反诈": "反诈防骗"},
+    "法律": {"普法": "普法常识", "刑事": "刑事案件", "民事": "民事纠纷", "劳动": "劳动权益", "维权": "消费维权", "评法": "热点评法"},
+    "人文": {"哲学": "哲学思想", "思想": "哲学思想", "国学": "国学经典", "文化": "文化艺术", "艺术": "文化艺术"},
+    "心理": {"情绪": "情绪压力", "压力": "情绪压力", "人际": "人际关系", "婚恋": "婚恋亲密", "恋爱": "婚恋亲密", "心理学": "心理学知识"},
+    "教育": {"英语学习": "英语", "语法": "英语", "家庭教育": "孩子教育", "考试": "考试升学", "留学": "考试升学"},
+    "健康": {"医学": "医学常识", "饮食": "饮食营养", "营养": "饮食营养", "运动": "运动健身", "健身": "运动健身",
+           "睡眠": "作息成瘾", "成瘾": "作息成瘾"},
+    "生活": {"消费": "消费购物", "购物": "消费购物", "影视": "影视娱乐", "电影": "影视娱乐", "娱乐": "影视娱乐",
+           "旅行": "旅行美食", "美食": "旅行美食", "日常": "日常生活"},
+}
+
+
+def normalize_sub(big, raw):
+    """模型写的子类 → 这个大类下面的子类名；认不出返回空串。"""
+    subs = subs_of(big)
+    s = _clean_cat(raw)
+    if not subs or not s:
+        return ""
+    if s in (OTHER, "其他"):
+        return OTHER
+    up = s.upper()
+    for n in subs:
+        if n.upper() == up:
+            return n
+    a = (_SUB_ALIAS.get(big) or {}).get(up) or (_SUB_ALIAS.get(big) or {}).get(s)
+    if a in subs:
+        return a
+    for n in sorted(subs, key=len, reverse=True):
+        if len(n) >= 2 and n.upper() in up:
+            return n
+    for n in subs:
+        if len(s) >= 2 and up in n.upper():
+            return n
+    return ""
+
+
+def _find_sub_anywhere(raw):
+    """只写了子类名（或子类写到了别的大类下）：子类名只属于一个大类时，返回 (大类, 子类)。"""
+    s = _clean_cat(raw)
+    if not s or s in (OTHER, "其他"):
+        return None
+    hits = [(b, n) for b in cats() for n in subs_of(b) if n == s]
+    return hits[0] if len(hits) == 1 else None
+
+
+def _norm_note(e):
+    """v132 存的一级分类名 → 现在的大类名（子类还没定）。"""
+    if not isinstance(e, dict):
+        return e
+    c = e.get("cat") or ""
+    if c in OLD2NEW:
+        e = dict(e, cat=OLD2NEW[c])
+        e.pop("sub", None)
+    return e
+
+
 def note_labels():
+    """所有文章的分类 {文件名: {cat 大类, sub 子类, kw, by, at}}（以前的一级分类名自动换成现在的大类名）。"""
     with _lock:
-        return _read(_note_file())
+        raw = _read(_note_file())
+    return {k: _norm_note(v) for k, v in raw.items()}
 
 
 def author_labels():
@@ -226,15 +402,18 @@ def public_authors():
     for k, v in author_labels().items():
         if isinstance(v, dict) and v.get("dom"):
             out[k] = {x: v.get(x, "") for x in ("dom", "dir", "why", "src", "by")}
+            out[k]["dom"] = OLD2NEW.get(out[k]["dom"], out[k]["dom"])      # v132 的分类名 → 现在的大类名
     return out
 
 
-def set_note(name, cat, by="you", kw=None):
-    """给一篇文章定分类。by="ai" 时不覆盖你手动定的。cat 为空 = 清掉。返回是否写了。"""
+def set_note(name, cat, sub="", by="you", kw=None):
+    """给一篇文章定分类：大类 cat + 子类 sub。by="ai" 时不覆盖你手动定的。cat 为空 = 清掉。返回是否写了。"""
     name = (name or "").strip()
     if not name:
         return False
     cat = _clean_cat(cat)
+    cat = OLD2NEW.get(cat, cat)
+    sub = _clean_cat(sub) if cat else ""
     with _lock:
         d = dict(_read(_note_file()))
         old = d.get(name) or {}
@@ -246,6 +425,8 @@ def set_note(name, cat, by="you", kw=None):
             d.pop(name, None)
         else:
             e = {"cat": cat, "by": by, "at": int(time.time())}
+            if sub:
+                e["sub"] = sub
             k = kw if kw is not None else old.get("kw")       # 关键词说的是内容，改分类时留着
             if k:
                 e["kw"] = list(k)[:3]
@@ -253,6 +434,24 @@ def set_note(name, cat, by="you", kw=None):
         _write(_note_file(), d)
     if cat and by == "you":
         add_cat(cat)
+        if sub:
+            add_sub(cat, sub)
+    return True
+
+
+def _fill_sub(name, sub, kw=None):
+    """大类是你手动定的、子类还空着：AI 只补子类（大类不动，还算你定的）。"""
+    with _lock:
+        d = dict(_read(_note_file()))
+        e = dict(d.get(name) or {})
+        if not e.get("cat") or e.get("sub") or not sub:
+            return False
+        e["cat"] = OLD2NEW.get(e["cat"], e["cat"])
+        e["sub"] = _clean_cat(sub)
+        if kw and not e.get("kw"):
+            e["kw"] = list(kw)[:3]
+        d[name] = e
+        _write(_note_file(), d)
     return True
 
 
@@ -262,6 +461,7 @@ def set_author(key, dom, by="you", **extra):
     if not key:
         return False
     dom = _clean_cat(dom)
+    dom = OLD2NEW.get(dom, dom)
     with _lock:
         d = dict(_read(_author_file()))
         old = d.get(key) or {}
@@ -390,16 +590,21 @@ def _note_prompt(batch):
             parts.append("标签：" + "、".join(n["tags"][:6]))
         if n.get("summary"):
             parts.append("概括：" + n["summary"])
+        if n.get("fixed"):
+            parts.append("大类已定：" + n["fixed"])
         rows.append("%d. %s" % (i, "｜".join(parts)))
-    return ("你是内容分类助手。下面是我收藏的 %d 篇笔记，请给每篇分一个类，再写 2 个关键词。\n\n"
-            "分类只能从下面选一个（只写分类名，不要写说明）：\n%s\n\n"
+    return ("你是内容分类助手。下面是我收藏的 %d 篇笔记。请给每篇分类：先选一个大类，再选这个大类下面的一个子类；再写 2 个关键词。\n\n"
+            "分类表（每行「-」后面是大类，冒号后面是它的子类，括号里是说明；只写名字，不要写说明）：\n%s\n\n"
             "要求：\n"
-            "① 每篇只输出一行，格式：编号. 分类｜关键词1、关键词2\n"
-            "② 关键词 2～6 个字，说清楚这篇具体讲什么；不要写作者名、账号名、平台活动名（比如“抖音精选”“抖来学法”）\n"
-            "③ 按这篇的内容本身分类，不按作者分类；实在归不进任何一类才写“%s”\n"
-            "④ 不要解释，不要输出别的内容\n\n"
-            "示例输出：\n1. 财经投资｜信用卡、消费陷阱\n2. AI｜AI 编程、Agent\n\n"
-            "笔记：\n%s\n" % (len(batch), _cat_lines(), OTHER, "\n".join(rows)))
+            "① 每篇只输出一行，格式：编号. 大类/子类｜关键词1、关键词2\n"
+            "② 子类必须是那个大类下面的；子类都不合适就写「大类/其它」；整张表都不合适才写「%s」\n"
+            "③ 按这篇讲的内容分，不按作者分：和 AI 相关的都放 AI（哪怕是 AI 公司的新闻）；律师用法律视角评热点放「法律/热点评法」；"
+            "转发的推文按推文讲的事分；影视剧情解读放「生活/影视娱乐」\n"
+            "④ 标了「大类已定」的，大类照写，只在那个大类里选子类\n"
+            "⑤ 关键词 2～6 个字，说清楚这篇具体讲什么；不要写作者名、账号名、平台活动名（比如“抖音精选”“抖来学法”）\n"
+            "⑥ 不要解释，不要输出别的内容\n\n"
+            "示例输出：\n1. 财经/金融常识｜信用卡、消费陷阱\n2. AI/AI编程｜Claude Code、Agent\n3. 法律/热点评法｜调休、劳动法\n\n"
+            "笔记：\n%s\n" % (len(batch), _tree_lines(), OTHER, "\n".join(rows)))
 
 
 _LINE_RE = re.compile(r"^\s*(\d{1,3})\s*[\.\)、:：．]\s*(.+?)\s*$")
@@ -409,7 +614,7 @@ def _clean_kws(s, avoid=()):
     out = []
     for k in re.split(r"[、,，/;；]+", s or ""):
         k = k.strip().strip("#＃“”\"'《》「」()（）[]【】.。·:：*").strip()
-        if not k or len(k) > 10 or k in out:
+        if not k or len(k) > (20 if k.isascii() else 10) or k in out:      # 英文词（Claude Code）可以长一点
             continue
         if any(a and (k == a or k in a) for a in avoid):
             continue
@@ -420,7 +625,8 @@ def _clean_kws(s, avoid=()):
 
 
 def _parse_note_reply(raw, batch, lenient=False):
-    """lenient=True（第二遍）：AI 坚持写了分类表里没有的类，就归到「其它」。"""
+    """每行「编号. 大类/子类｜关键词」→ {序号: (大类, 子类, 关键词)}。
+    lenient=True（第二遍）：子类认不出就放「大类/其它」，大类也认不出就放「其它」。"""
     names = cats()
     out = {}
     for ln in (raw or "").splitlines():
@@ -432,13 +638,37 @@ def _parse_note_reply(raw, batch, lenient=False):
         if not (0 <= idx < len(batch)) or idx in out:
             continue
         parts = re.split(r"[｜|]", m.group(2), maxsplit=1)
-        cat = normalize_cat(re.sub(r"^分类\s*[:：]?", "", parts[0]), names)
-        if not cat and lenient and _clean_cat(parts[0]):
+        path = re.sub(r"^(?:分类|大类)\s*[:：]?", "", parts[0]).strip()
+        bits = [x for x in re.split(r"\s*[/／·>＞→\-－—]+\s*", path, maxsplit=1) if x.strip()]
+        one = _find_sub_anywhere(bits[0]) if len(bits) == 1 else None      # 只写了子类名（「投资交易」）
+        cat = one[0] if one else (normalize_cat(bits[0], names) if bits else "")
+        sub = one[1] if one else (normalize_sub(cat, bits[1]) if (cat and len(bits) > 1) else "")
+        if len(bits) > 1 and not sub:                 # 子类写到了别的大类下：按子类认大类
+            hit = _find_sub_anywhere(bits[1])
+            if hit:
+                cat, sub = hit
+        if not cat and bits:                          # 只写了子类名
+            hit = _find_sub_anywhere(bits[0])
+            if hit:
+                cat, sub = hit
+        fixed = batch[idx].get("fixed") or ""
+        if fixed:                                     # 大类是你定的：只要子类
+            sub = normalize_sub(fixed, bits[-1]) if bits else ""
+            if not sub and lenient:
+                sub = OTHER
+            if not sub:
+                continue
+            cat = fixed
+        if not cat and lenient and bits and _clean_cat(bits[0]):
             cat = OTHER
         if not cat:
             continue
-        kw = _clean_kws(parts[1] if len(parts) > 1 else "", avoid=(cat, batch[idx].get("author") or ""))
-        out[idx] = (cat, kw)
+        if has_subs(cat) and not sub:
+            if not lenient:
+                continue                              # 子类没写对：最后再单独问一次
+            sub = OTHER
+        kw = _clean_kws(parts[1] if len(parts) > 1 else "", avoid=(cat, sub, batch[idx].get("author") or ""))
+        out[idx] = (cat, sub, kw)
     return out
 
 
@@ -695,8 +925,11 @@ def _do_notes(todo, bs):
         consec = 0
         for i, n in enumerate(batch):
             if i in got:
-                cat, kw = got[i]
-                set_note(n["name"], cat, by="ai", kw=kw)
+                cat, sub, kw = got[i]
+                if n.get("fixed"):
+                    _fill_sub(n["name"], sub, kw)
+                else:
+                    set_note(n["name"], cat, sub=sub, by="ai", kw=kw)
                 with _lock:
                     _job["n_done"] += 1
                     _job["n_ok"] += 1
@@ -773,11 +1006,18 @@ def _run():
             # ① 文章分类
             lab = note_labels()
             qs = set(q_notes)
-            if full:
-                todo = [n for n in notes if n["analyzed"] and not (lab.get(n["name"]) or {}).get("cat")]
-            else:
-                todo = [n for n in notes if n["name"] in qs and n["analyzed"]
-                        and (lab.get(n["name"]) or {}).get("by") != "you"]
+            todo = []
+            for n in notes:
+                if not n["analyzed"] or (not full and n["name"] not in qs):
+                    continue
+                e = lab.get(n["name"]) or {}
+                if full and e.get("cat") and (e.get("sub") or not has_subs(e["cat"])):
+                    continue                          # 大类、子类都有了
+                if e.get("by") == "you":
+                    if e.get("sub") or not has_subs(e.get("cat") or ""):
+                        continue                      # 你手动定好的不动
+                    n = dict(n, fixed=e["cat"])       # v134：大类你定了，子类让 AI 在里面选
+                todo.append(n)
             if todo:
                 with _lock:
                     _job["n_total"] += len(todo)
