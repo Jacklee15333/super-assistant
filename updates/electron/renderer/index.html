@@ -313,7 +313,8 @@
           <!-- ① 开始提取：所有「发起一个新任务」要填的东西都在这张卡片里 -->
           <div class="v-card v-card-extract">
             <div class="v-card-head">
-              <span class="v-card-title">工具</span>
+              <span class="v-card-title">提取</span>
+              <button type="button" class="vi-gear" id="viGearBtn" title="设置" aria-label="设置" aria-expanded="false"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
               <button type="button" class="v-info-btn" data-info="info-extract" title="说明">ⓘ</button>
             </div>
             <div class="v-info-pop" id="info-extract">什么都能放：视频或文章链接、GitHub 项目、一段文字，或者电脑里文件的完整路径。软件会认出是什么，用对应的办法处理、分好类。可以连续放好几个，会自动排队。</div>
@@ -322,7 +323,7 @@
             <div class="vi-main">
               <div class="vi-input-wrap">
                 <textarea id="videoUrl" class="text-input vi-input" rows="2"
-                placeholder="什么都能放：一段文字、链接、GitHub 项目、本地文件或文件夹（拖进来、粘贴路径，或点右下角的📎）。想找值得关注的博主和网站，就写「搜：领域」。Enter 开始，Shift+Enter 换行"></textarea>
+                placeholder="什么都能放：一段文字、链接、GitHub 项目、本地文件或文件夹（拖进来、粘贴路径，或点右下角的📎）。想找值得关注的博主和网站，就写「搜：领域」。按 Enter 开始，Shift+Enter 换行"></textarea>
                 <button type="button" class="vi-attach" id="viAttachBtn" title="选电脑里的文件或文件夹">📎</button>
                 <div class="vi-attach-menu" id="viAttachMenu" hidden>
                   <button id="videoLocalBtn" class="vi-attach-item" title="从电脑里选文件导入：音频、视频会提取文字稿；PDF、Word、Excel、PPT、TXT、Markdown 等文档直接读出全文">选文件…</button>
@@ -332,12 +333,12 @@
               <button id="videoGoBtn" class="send-btn">开始提取</button>
             </div>
             <div id="viKind" class="vi-kind" hidden></div>
-            <div class="vi-phone-row"></div>
             <div class="vi-sec" id="viVideoSec">
               <div class="vi-sec-head" role="button" tabindex="0" title="视频识别（质量、语言、博主主页、整理原文、分离人声）和维护工具（依赖安装、抖音自检、诊断）">
                 <span class="vi-sec-caret">▸</span><span>设置</span><span class="vi-sec-sum" id="viVideoSum"></span>
               </div>
               <div class="vi-sec-body" hidden>
+                <div class="vi-sec-row vi-phone-row"></div>
                 <div class="vi-sec-row"><span class="vi-sec-label">识别质量</span><select id="videoLevel" class="text-input">
                 <option value="speed">快速（糙）</option>
                 <option value="balanced">均衡（推荐）</option>
