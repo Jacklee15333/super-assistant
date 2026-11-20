@@ -5851,6 +5851,9 @@ class Handler(BaseHTTPRequestHandler):
         # 工具名 -> 友好中文，进度里显示得让人看得懂（保持克制，不加花哨图标）
         _TOOL_LABEL = {
             "video_transcript": "提取视频文字",
+            "extract_content": "交给提取",          # v122
+            "process_notes": "交给加工",
+            "list_extracted": "查看已提取",
             "web_search": "联网搜索",
             "search_web": "联网搜索",
             "read_webpage": "读取网页",

@@ -193,8 +193,122 @@ def tool_shell(args):
 
 
 # ---------- 工具表：函数 + 危险等级 ----------
+# ───── v122：「提取」「加工」做成工具：对话里遇到这类事，AI 直接交给它们（走本机后端的同一套接口）─────
+def _local_api(path, body=None, timeout=30):
+    import json as _json
+    import urllib.request as _ur
+    url = "http://127.0.0.1:8756" + path
+    data = None if body is None else _json.dumps(body).encode("utf-8")
+    req = _ur.Request(url, data=data, headers={"Content-Type": "application/json"},
+                      method="POST" if body is not None else "GET")
+    opener = _ur.build_opener(_ur.ProxyHandler({}))      # 本机接口不走代理
+    with opener.open(req, timeout=timeout) as r:
+        return _json.loads(r.read().decode("utf-8", "replace"))
+
+
+def _extract_defaults():
+    try:
+        import phone_inbox
+        d = dict(phone_inbox._load().get("defaults") or {})
+    except Exception:
+        d = {}
+    d["analyze"] = False                       # 提取只出半成品，AI 分析交给「加工」
+    return d
+
+
+def tool_extract_content(args):
+    """把链接 / 一段文字 / GitHub 项目 / 电脑上的文件或文件夹交给「提取」排队处理。"""
+    inp = str(args.get("input") or args.get("url") or args.get("text") or "").strip()
+    if not inp:
+        return "没有要提取的内容"
+    try:
+        import intake
+        kind = intake.classify(inp)
+        label = intake.describe(inp).get("label") or ""
+    except Exception:
+        kind, label = "", ""
+    try:
+        if kind in ("file", "paths"):
+            scan = _local_api("/intake_scan", {"paths": [x for x in inp.splitlines() if x.strip()]})
+            files = scan.get("files") or []
+            if not files:
+                return "这些路径里没找到能提取的文件（音视频、PDF、Word、Excel、TXT…）"
+            n = 0
+            for f in files[:300]:
+                r = _local_api("/video_transcribe", dict(_extract_defaults(), local_path=f))
+                n += 1 if r.get("queued") else 0
+            return "已把 %d 个文件放进「提取」队列，提取完在「提取 → 已提取」里能看到。" % n
+        body = dict(_extract_defaults(), url=inp)
+        r = _local_api("/video_transcribe", body)
+        if r.get("queued"):
+            return "已放进「提取」队列（第 %s 个%s）。提取完在「提取 → 已提取」里能看到；要 AI 分析就交给「加工」。" % (
+                r.get("position") or 1, "，认出来是：" + label if label else "")
+        if r.get("need"):
+            return "视频组件还没装齐（%s），在「提取」页的设置 → 维护工具里点「安装/更新依赖」" % "、".join(r.get("need") or [])
+        return "没放进去：" + str(r.get("error") or r)[:200]
+    except Exception as e:
+        return "提取没开始：%s" % str(e)[:200]
+
+
+def _unanalyzed_notes():
+    d = _local_api("/video_notes", None)
+    notes = [n for n in (d.get("notes") or []) if n.get("analyzed") is False]
+    notes.sort(key=lambda n: n.get("ts") or 0, reverse=True)
+    return notes
+
+
+def tool_process_notes(args):
+    """让「加工」用 AI 分析提取出来的半成品：最新一条 / 全部 / 标题里带某个词的那条。"""
+    which = str(args.get("which") or "latest").strip()
+    try:
+        notes = _unanalyzed_notes()
+        if not notes:
+            return "没有还没分析的笔记，都加工好了。"
+        if which in ("all", "全部", "所有"):
+            r = _local_api("/video_note_analyze_batch", {"names": [n["name"] for n in notes]})
+            return ("已交给「加工」批量分析 %d 条，进度和 AI 实时画面在「加工」页。" % len(notes)) if r.get("ok") \
+                else "批量分析没开始：" + str(r.get("error") or "")[:200]
+        if which in ("latest", "最新", "最近", "刚才", "刚提取的"):
+            target = notes[0]
+        else:
+            target = next((n for n in notes if which in (n.get("title") or "")), None)
+            if not target:
+                return "还没分析的笔记里没找到标题带「%s」的。最近的几条是：%s" % (
+                    which, "；".join((n.get("title") or "")[:24] for n in notes[:5]))
+        r = _local_api("/video_note_analyze", {"name": target["name"]})
+        if r.get("ok"):
+            return "已交给「加工」分析《%s》，进度和 AI 实时画面在「加工」页，分析好的在「笔记」里。" % (target.get("title") or "")[:40]
+        return "没开始分析：" + str(r.get("error") or "")[:200]
+    except Exception as e:
+        return "加工没开始：%s" % str(e)[:200]
+
+
+def tool_list_extracted(args):
+    """看最近提取了什么、哪些还没分析。"""
+    try:
+        limit = max(1, min(int(args.get("limit") or 10), 30))
+    except Exception:
+        limit = 10
+    only = bool(args.get("only_unanalyzed"))
+    try:
+        d = _local_api("/video_notes", None)
+        notes = sorted(d.get("notes") or [], key=lambda n: n.get("ts") or 0, reverse=True)
+        if only:
+            notes = [n for n in notes if n.get("analyzed") is False]
+        total_un = sum(1 for n in (d.get("notes") or []) if n.get("analyzed") is False)
+        lines = ["• %s%s（%s）" % ((n.get("title") or "")[:40], ("，" + n["author"]) if n.get("author") else "",
+                                   "已分析" if n.get("analyzed") else ("分析失败" if n.get("an_fail") else "还没分析"))
+                 for n in notes[:limit]]
+        return "一共 %d 条，还没分析的 %d 条。最近的：\n%s" % (len(d.get("notes") or []), total_un, "\n".join(lines))
+    except Exception as e:
+        return "读不到已提取的内容：%s" % str(e)[:200]
+
+
 # 每项：(函数, 危险等级)
 TOOL_REGISTRY = {
+    "extract_content": (tool_extract_content, "safe"),      # v122
+    "process_notes": (tool_process_notes, "safe"),          # v122
+    "list_extracted": (tool_list_extracted, "safe"),        # v122
     # 安全（直接执行）
     "get_time": (tool_get_time, "safe"),
     "calc": (tool_calc, "safe"),
@@ -241,6 +355,27 @@ def is_danger(name):
 
 # ---------- 给模型看的 schema ----------
 TOOLS_SCHEMA = [
+    {"type": "function", "function": {
+        "name": "extract_content",
+        "description": "交给软件的「提取」：把链接（视频、文章、网页）、GitHub 项目、一段文字、电脑上的文件或文件夹放进提取队列，"
+                       "提取出原文存成笔记（半成品）。用户说「帮我提取 / 收进来 / 存一下 / 记下来 这个……」或者发来链接让你保存时调用。"
+                       "只是想知道视频讲了什么、要马上看文字稿，用 video_transcript。",
+        "parameters": {"type": "object", "properties": {
+            "input": {"type": "string", "description": "要提取的东西：链接、整段分享文案、一段文字，或文件 / 文件夹的完整路径（多个就一行一个）"}},
+            "required": ["input"]}}},
+    {"type": "function", "function": {
+        "name": "process_notes",
+        "description": "交给软件的「加工」：让 AI 分析提取出来、还没分析的笔记（总结要点、打标签分类），分析好的进「笔记」。"
+                       "用户说「分析一下刚提取的 / 把没分析的都分析了 / 分析某某那条」时调用。",
+        "parameters": {"type": "object", "properties": {
+            "which": {"type": "string", "description": "latest＝最新提取的那条；all＝全部还没分析的；或者标题里的一个关键词"}},
+            "required": ["which"]}}},
+    {"type": "function", "function": {
+        "name": "list_extracted",
+        "description": "看最近提取了什么、哪些还没分析（用户问「今天收了哪些 / 还有多少没分析」时用）",
+        "parameters": {"type": "object", "properties": {
+            "only_unanalyzed": {"type": "boolean", "description": "只看还没分析的"},
+            "limit": {"type": "integer", "description": "列几条，默认 10"}}}}},
     {"type": "function", "function": {
         "name": "get_time", "description": "获取当前日期和时间",
         "parameters": {"type": "object", "properties": {}}}},

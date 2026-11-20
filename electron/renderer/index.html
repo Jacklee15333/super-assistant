@@ -333,6 +333,15 @@
               <button id="videoGoBtn" class="send-btn">开始提取</button>
             </div>
             <div id="viKind" class="vi-kind" hidden></div>
+            <!-- v122：在这里直接聊（本地模型）；聊到「提取 / 加工」的事，小助会自己交给它们 -->
+            <div class="vi-chat" id="viChat" hidden>
+              <div class="vi-chat-msgs" id="viChatMsgs"></div>
+              <div class="vi-chat-foot">
+                <span class="vi-chat-model" id="viChatModel"></span>
+                <button type="button" class="vi-chat-link" id="viChatMore" title="把这段聊天搬到「对话」页接着聊">到对话页接着聊</button>
+                <button type="button" class="vi-chat-link" id="viChatClear">清空</button>
+              </div>
+            </div>
             <div class="vi-sec" id="viVideoSec">
               <div class="vi-sec-head" role="button" tabindex="0" title="视频识别（质量、语言、博主主页、整理原文、分离人声）和维护工具（依赖安装、抖音自检、诊断）">
                 <span class="vi-sec-caret">▸</span><span>设置</span><span class="vi-sec-sum" id="viVideoSum"></span>
