@@ -1016,3 +1016,6 @@ body.dark .vn-kind.k-gh { background: #e6e6e3; color: #1f1e1a; }
 .vi-lb-pop-subs { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--line); }
 .vi-lb-pop-subh { margin-bottom: 6px; font-size: 12px; color: var(--text-dim); }
 #view-video.vn-split .vi-lb-subbar { margin: -4px 0 8px; }
+
+/* v135：「作者领域」里按这篇自己的分类放的（作者内容很杂 / 没写作者）：虚线框 */
+.vn-cat.vn-cat-own { border-style: dashed; }

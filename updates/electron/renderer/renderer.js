@@ -1882,10 +1882,8 @@ function viDoneOpen() { try { return localStorage.getItem("viDoneOpen") !== "0";
 function lbMode() { try { return localStorage.getItem("viLbMode") === "author" ? "author" : "note"; } catch (e) { return "note"; } }
 function lbFilterGet(m) { try { return localStorage.getItem("viLbF_" + m) || ""; } catch (e) { return ""; } }
 function lbFilterSet(m, v) { try { localStorage.setItem("viLbF_" + m, v || ""); } catch (e) {} }
-function lbOf(n, m) {
-  if (m === "author") { const a = n.author && _lbAuthors[n.author]; return (a && a.dom) || ""; }
-  return n.cat || "";
-}
+function lbOf(n, m) { return m === "author" ? lbEff(n).big : (n.cat || ""); }
+function lbSubOfN(n, m) { return m === "author" ? lbEff(n).sub : (n.sub || ""); }
 function lbApply(cats, authors, notesMap, tree) {
   if (Array.isArray(cats) && cats.length) _lbCats = cats;
   if (Array.isArray(tree) && tree.length) _lbTree = tree;                        // v134：两级分类（大类 → 子类）
@@ -1900,12 +1898,13 @@ function lbApply(cats, authors, notesMap, tree) {
   });
 }
 function lbSubsOf(big) { const t = (_lbTree || []).find((x) => x.name === big); return (t && t.subs) || []; }
-function lbSubGet(big) { try { return localStorage.getItem("viLbS_" + big) || ""; } catch (e) { return ""; } }
-function lbSubSet(big, v) { try { localStorage.setItem("viLbS_" + big, v || ""); } catch (e) {} }
+function lbSubKey(m, big) { return "viLbS_" + (m === "author" ? "a_" : "") + big; }
+function lbSubGet(m, big) { try { return localStorage.getItem(lbSubKey(m, big)) || ""; } catch (e) { return ""; } }
+function lbSubSet(m, big, v) { try { localStorage.setItem(lbSubKey(m, big), v || ""); } catch (e) {} }
 // v134：选了某个大类，下面再一行：这个大类里的子类（带条数）
-function lbSubBar(big, items, sf) {
+function lbSubBar(big, items, sf, m) {
   const counts = {}; let nosub = 0;
-  items.forEach((n) => { if (n.sub) counts[n.sub] = (counts[n.sub] || 0) + 1; else nosub++; });
+  items.forEach((n) => { const s = lbSubOfN(n, m); if (s) counts[s] = (counts[s] || 0) + 1; else nosub++; });
   const order = lbSubsOf(big);
   const bar = document.createElement("div"); bar.className = "vi-lb-bar vi-lb-subbar";
   const chip = (val, label, n, cls) => {
@@ -1922,19 +1921,74 @@ function lbSubBar(big, items, sf) {
   if (nosub && order.length) bar.appendChild(chip("__nosub", "未细分", nosub, "vi-lb-none"));
   return bar;
 }
+// ── v135：作者的领域按你库里他的文章分类来算（分好类的文章够 5 篇才算）──
+//    有一个大类占一半以上 → 专注（比如「法律 · 热点评法」）；都不到一半 → 内容很杂（比如姜胡说：商业/成长），
+//    「作者领域」里他的每一篇就按这篇自己的分类放。没写作者的文章也一样。
+let _lbProf = {};
+function lbCalcProfiles() {
+  const by = {};
+  (_vnAllNotes || []).forEach((n) => { if (n.analyzed && n.author && n.cat) (by[n.author] = by[n.author] || []).push(n); });
+  const out = {};
+  Object.keys(by).forEach((a) => {
+    const list = by[a];
+    if (list.length < 5) return;
+    const bigC = {}, pairC = {}, subC = {};
+    list.forEach((n) => {
+      bigC[n.cat] = (bigC[n.cat] || 0) + 1;
+      const k = n.sub && n.sub !== "其它" ? n.cat + " · " + n.sub : n.cat;
+      pairC[k] = (pairC[k] || 0) + 1;
+    });
+    const bigs = Object.entries(bigC).sort((x, y) => y[1] - x[1]);
+    const big = bigs[0][0], share = bigs[0][1] / list.length;
+    list.forEach((n) => { if (n.cat === big && n.sub && n.sub !== "其它") subC[n.sub] = (subC[n.sub] || 0) + 1; });
+    const subs = Object.entries(subC).sort((x, y) => y[1] - x[1]);
+    const sub = subs.length && subs[0][1] / bigs[0][1] >= 0.5 ? subs[0][0] : "";     // 这个子类占他这一大类一半以上才写上
+    out[a] = { dom: big, sub, broad: share < 0.5, n: list.length, share,
+               top: Object.entries(pairC).sort((x, y) => y[1] - x[1]).slice(0, 3).map(([k, v]) => k + " " + v + " 篇"),
+               bigs: bigs.slice(0, 2).map((x) => x[0]) };
+  });
+  _lbProf = out;
+}
+function lbAuthorInfo(a) {
+  if (!a) return null;
+  const st = _lbAuthors[a];
+  if (st && st.by === "you" && st.dom) return { dom: st.dom, sub: st.sub || "", broad: false, kind: "you" };
+  const p = _lbProf[a];
+  if (p) return Object.assign({ kind: "lib" }, p);
+  if (st && st.dom) return { dom: st.dom, sub: "", broad: false, kind: "home", dir: st.dir, why: st.why, src: st.src };
+  return null;
+}
+// 「作者领域」时这一条算到哪一类：作者专注 → 作者的领域；没写作者 / 作者内容很杂 / 作者还没判断 → 这篇自己的分类
+function lbEff(n) {
+  const ai = lbAuthorInfo(n.author);
+  if (ai && !ai.broad) return { big: ai.dom, sub: ai.sub || "", own: false };
+  if (n.cat) return { big: n.cat, sub: n.sub || "", own: true,
+    why: !n.author ? "这篇没写作者" : ai ? "作者「" + n.author + "」内容很杂（" + ai.bigs.join("、") + "…）" : "作者「" + n.author + "」还没判断领域" };
+  return { big: "", sub: "", own: true, why: "" };
+}
 function lbAuthorTip(a) {
-  const x = _lbAuthors[a];
+  const x = lbAuthorInfo(a);
   if (!x) return "还没判断作者「" + a + "」的领域，点一下可以手动定";
-  const t = ["作者「" + a + "」主要做：" + x.dom + (x.dir ? "（" + x.dir + "）" : "")];
-  if (x.by === "you") t.push("你手动定的");
-  else { if (x.why) t.push("理由：" + x.why); if (x.src) t.push("依据：" + x.src); }
+  const t = [];
+  if (x.kind === "you") t.push("作者「" + a + "」：" + x.dom + (x.sub ? " · " + x.sub : "") + "（你手动定的）");
+  else if (x.kind === "lib") {
+    t.push("作者「" + a + "」：按你库里他的 " + x.n + " 篇文章算的");
+    t.push(x.broad ? "内容很杂，没有哪一类超过一半，「作者领域」里他的每一篇按这篇自己的分类放"
+                   : "主要做：" + x.dom + (x.sub ? " · " + x.sub : "") + "（占 " + Math.round(x.share * 100) + "%）");
+    t.push("最多的：" + x.top.join("、"));
+  } else {
+    t.push("作者「" + a + "」主要做：" + x.dom + (x.dir ? "（" + x.dir + "）" : ""));
+    if (x.why) t.push("理由：" + x.why);
+    if (x.src) t.push("依据：" + x.src);
+    t.push("库里他的文章不到 5 篇，先按主页判断");
+  }
   t.push("点一下可以改");
   return t.join("\n");
 }
-function lbBar(total, counts, none, m, f, noAu) {
+function lbBar(total, counts, none, m, f) {
   const bar = document.createElement("div"); bar.className = "vi-lb-bar";
   const seg = document.createElement("span"); seg.className = "vi-lb-mode";
-  [["note", "文章分类", "按每篇讲的内容分"], ["author", "作者领域", "按作者主要做的领域分（读作者主页判断的）"]].forEach(([k, t, tip]) => {
+  [["note", "文章分类", "按每篇讲的内容分"], ["author", "作者领域", "按作者主要做的领域分（按你库里他的文章算；内容很杂的作者、没写作者的，按每篇自己的分类）"]].forEach(([k, t, tip]) => {
     const b = document.createElement("button"); b.type = "button"; b.dataset.lbmode = k; b.textContent = t; b.title = tip;
     if (k === m) b.className = "on";
     seg.appendChild(b);
@@ -1952,7 +2006,6 @@ function lbBar(total, counts, none, m, f, noAu) {
   Object.keys(counts).sort((x, y) => counts[y] - counts[x] || order.indexOf(x) - order.indexOf(y))
     .forEach((k) => bar.appendChild(chip(k, k, counts[k])));
   if (none) bar.appendChild(chip("__none", m === "author" ? "未判断" : "未分类", none, "vi-lb-none"));
-  if (noAu) bar.appendChild(chip("__noau", "没写作者", noAu, "vi-lb-none"));
   return bar;
 }
 function viRenderDone() {
@@ -1961,24 +2014,21 @@ function viRenderDone() {
   const all = (_vnAllNotes || []).filter((n) => n.analyzed)
     .sort((a, b) => (b.mt || 0) - (a.mt || 0) || (b.ts || 0) - (a.ts || 0));
   const dn = document.getElementById("viPtabDoneN"); if (dn) dn.textContent = all.length;
+  lbCalcProfiles();                                   // v135：作者领域按库里他的文章算
   const m = lbMode();
-  const counts = {}; let none = 0, noAu = 0;           // 「作者领域」时，没写作者的单独一类（没法判断）
-  all.forEach((n) => {
-    const k = lbOf(n, m);
-    if (k) counts[k] = (counts[k] || 0) + 1; else if (m === "author" && !n.author) noAu++; else none++;
-  });
+  const counts = {}; let none = 0;
+  all.forEach((n) => { const k = lbOf(n, m); if (k) counts[k] = (counts[k] || 0) + 1; else none++; });
   let f = lbFilterGet(m);
-  if (f && (f === "__none" ? !none : f === "__noau" ? !noAu : !counts[f])) f = "";   // 这一类已经没有了：回到「全部」
-  const hit = (n) => (f === "__noau" ? !n.author : f === "__none" ? (!lbOf(n, m) && (m !== "author" || !!n.author)) : lbOf(n, m) === f);
-  let done = !f ? all : all.filter(hit);
+  if (f && (f === "__none" ? !none : !counts[f])) f = "";          // 这一类已经没有了：回到「全部」
+  let done = !f ? all : all.filter((n) => (f === "__none" ? !lbOf(n, m) : lbOf(n, m) === f));
   box.innerHTML = "";
-  box.appendChild(lbBar(all.length, counts, none, m, f, noAu));
-  // v134：选了一个大类（文章分类）→ 下面一行按子类再筛
-  if (m === "note" && f && f !== "__none" && (lbSubsOf(f).length || done.some((n) => n.sub))) {
-    let sf = lbSubGet(f);
-    if (sf && (sf === "__nosub" ? !done.some((n) => !n.sub) : !done.some((n) => n.sub === sf))) sf = "";
-    box.appendChild(lbSubBar(f, done, sf));
-    if (sf) done = done.filter((n) => (sf === "__nosub" ? !n.sub : n.sub === sf));
+  box.appendChild(lbBar(all.length, counts, none, m, f));
+  // v134/v135：选了一个大类 → 下面一行按子类再筛（文章分类、作者领域都可以）
+  if (f && f !== "__none" && (lbSubsOf(f).length || done.some((n) => lbSubOfN(n, m)))) {
+    let sf = lbSubGet(m, f);
+    if (sf && (sf === "__nosub" ? !done.some((n) => !lbSubOfN(n, m)) : !done.some((n) => lbSubOfN(n, m) === sf))) sf = "";
+    box.appendChild(lbSubBar(f, done, sf, m));
+    if (sf) done = done.filter((n) => (sf === "__nosub" ? !lbSubOfN(n, m) : lbSubOfN(n, m) === sf));
   }
   const rows = document.createElement("div"); rows.className = "vn-done-rows";
   done.slice(0, _viDoneShown).forEach((n, i) => {
@@ -1987,34 +2037,37 @@ function viRenderDone() {
     const no = document.createElement("span"); no.className = "vn-un-no"; no.textContent = (i + 1) + "."; r.appendChild(no);
     const tm = document.createElement("span"); tm.className = "vn-un-time";
     const when = (n.mt ? n.mt * 1000 : 0) || vnNoteTime(n); tm.textContent = when ? vnFmtWhen(when) : ""; tm.title = "加工时间"; r.appendChild(tm);
-    // v132：分类（选「作者领域」时显示这篇作者的领域）。点它可以改
+    // 分类：「文章分类」是这篇的「大类 · 子类」；「作者领域」是作者的领域——作者内容很杂、没写作者时，用这篇自己的分类（虚线框）
     const slot = document.createElement("span"); slot.className = "vn-cat-slot";
-    const lab = lbOf(n, m);
-    if (m === "note" || n.author) {
-      const c = document.createElement("span");
-      c.className = "vn-cat" + (lab ? "" : " vn-cat-empty");
-      c.textContent = lab ? (m === "note" && n.sub ? lab + " · " + n.sub : lab) : "＋ 分类";        // v134：大类 · 子类
-      c.dataset.lbKind = m === "author" ? "author" : "note"; c.dataset.lbKey = m === "author" ? n.author : (n.name || "");
-      c.title = m === "author" ? lbAuthorTip(n.author)
-        : (lab ? "分类：" + lab + (n.sub ? " › " + n.sub : "（还没分到子类）") + (n.cat_by === "you" ? "（你手动定的）" : "（AI 分的）") + "\n点一下可以改" : "还没分类，点一下手动分");
-      slot.appendChild(c);
+    const e = m === "author" ? lbEff(n) : { big: n.cat || "", sub: n.sub || "", own: true, why: "" };
+    const c = document.createElement("span");
+    c.className = "vn-cat" + (e.big ? "" : " vn-cat-empty") + (m === "author" && e.own && e.big ? " vn-cat-own" : "");
+    c.textContent = e.big ? (e.sub ? e.big + " · " + e.sub : e.big) : "＋ 分类";
+    if (m === "author" && !e.own) {
+      c.dataset.lbKind = "author"; c.dataset.lbKey = n.author; c.title = lbAuthorTip(n.author);
+    } else {
+      c.dataset.lbKind = "note"; c.dataset.lbKey = n.name || "";
+      c.title = (m === "author" && e.why ? e.why + "，这里按这篇自己的分类。\n" : "") +
+        (e.big ? "分类：" + e.big + (e.sub ? " › " + e.sub : "（还没分到子类）") + (n.cat_by === "you" ? "（你手动定的）" : "（AI 分的）") + "\n点一下可以改"
+               : "还没分类，点一下手动分");
     }
-    r.appendChild(slot);
+    slot.appendChild(c); r.appendChild(slot);
     if (n.kind) r.appendChild(vnKindBadge(n.kind));
     const nm = document.createElement("span"); nm.className = "vn-un-name"; nm.textContent = n.title || (n.name || "").replace(/\.md$/, ""); r.appendChild(nm);
     const kws = (n.kw && n.kw.length) ? n.kw : (n.tags || []);         // 分好类的显示 AI 给的关键词，没分的还是原来的标签
     if (kws.length) {
       const tg = document.createElement("span"); tg.className = "vn-done-tags";
-      kws.slice(0, 2).forEach((t) => { const c = document.createElement("span"); c.className = "vn-done-tag"; c.textContent = t; tg.appendChild(c); });
+      kws.slice(0, 2).forEach((t) => { const k2 = document.createElement("span"); k2.className = "vn-done-tag"; k2.textContent = t; tg.appendChild(k2); });
       r.appendChild(tg);
     }
     if (n.author) {
       const au = document.createElement("span"); au.className = "vn-un-author";
-      try { au.appendChild(vnAvatarEl({ key: n.author, name: n.author, kind: "author" }, "mini")); } catch (e) {}
+      try { au.appendChild(vnAvatarEl({ key: n.author, name: n.author, kind: "author" }, "mini")); } catch (err) {}
       const an = document.createElement("span"); an.className = "vn-au-name"; an.textContent = n.author; au.appendChild(an);
-      const ad = _lbAuthors[n.author];
-      if (m === "note" && ad && ad.dom) {
-        const sp = document.createElement("span"); sp.className = "vn-adom"; sp.textContent = "· " + ad.dom;
+      const ai = lbAuthorInfo(n.author);
+      if (m === "note" && ai) {                       // 作者名后面：专注的写他的大类；很杂的写前两个大类（比如「商业/成长」）
+        const sp = document.createElement("span"); sp.className = "vn-adom";
+        sp.textContent = "· " + (ai.broad ? ai.bigs.join("/") : ai.dom);
         sp.dataset.lbKind = "author"; sp.dataset.lbKey = n.author; sp.title = lbAuthorTip(n.author);
         au.appendChild(sp);
       }
@@ -2025,8 +2078,8 @@ function viRenderDone() {
   });
   box.appendChild(rows);
   if (!done.length) {
-    const e = document.createElement("div"); e.className = "vi-lb-empty";
-    e.textContent = all.length ? "这一类还没有" : "还没有加工好的"; box.appendChild(e);
+    const em = document.createElement("div"); em.className = "vi-lb-empty";
+    em.textContent = all.length ? "这一类还没有" : "还没有加工好的"; box.appendChild(em);
   }
   if (done.length > _viDoneShown) {
     const more = document.createElement("button");
@@ -2107,7 +2160,7 @@ async function lbSave(kind, key, cat, sub) {
         if (cat) { n.cat = cat; if (sub) n.sub = sub; else delete n.sub; n.cat_by = "you"; }
         else { delete n.cat; delete n.sub; delete n.kw; delete n.cat_by; }
       }
-    } else if (cat) _lbAuthors[key] = { dom: cat, by: "you" };
+    } else if (cat) _lbAuthors[key] = { dom: cat, sub: sub || "", by: "you" };
     else delete _lbAuthors[key];
     viRenderDone();
   } catch (e) { setVideoStatus("没改成：" + (e && e.message ? e.message : e), "warn"); }
@@ -2126,20 +2179,20 @@ function lbPick(el) {
   if (!kind || !key) return;
   let cur = "", curSub = "";
   if (kind === "note") { const n = (_vnAllNotes || []).find((x) => x.name === key); cur = (n && n.cat) || ""; curSub = (n && n.sub) || ""; }
-  else cur = (_lbAuthors[key] && _lbAuthors[key].dom) || "";
+  else { const ai0 = lbAuthorInfo(key); cur = (ai0 && ai0.dom) || ""; curSub = (ai0 && ai0.sub) || ""; }
   const pop = document.createElement("div"); pop.className = "vi-lb-pop"; pop.id = "viLbPop";
   const h = document.createElement("div"); h.className = "vi-lb-pop-h";
   h.textContent = kind === "note" ? "这篇归到哪一类" : "作者「" + key + "」主要做哪个领域";
   pop.appendChild(h);
-  const ax = kind === "author" ? _lbAuthors[key] : null;
-  if (ax && ax.by !== "you" && (ax.why || ax.src)) {
+  const ax = kind === "author" ? lbAuthorInfo(key) : null;
+  if (ax && ax.kind !== "you") {                       // v135：作者是怎么判断出来的（按库里他的文章 / 按主页）
     const w = document.createElement("div"); w.className = "vi-lb-pop-why";
-    w.textContent = [ax.dir ? "方向：" + ax.dir : "", ax.why ? "理由：" + ax.why : "", ax.src ? "依据：" + ax.src : ""].filter(Boolean).join("\n");
+    w.textContent = lbAuthorTip(key).split("\n").slice(1, -1).join("\n");
     pop.appendChild(w);
   }
   const grid = document.createElement("div"); grid.className = "vi-lb-pop-cats"; pop.appendChild(grid);
   const subBox = document.createElement("div"); subBox.className = "vi-lb-pop-subs";   // v134：选了大类，下面是它的子类
-  if (kind === "note") pop.appendChild(subBox);
+  pop.appendChild(subBox);
   const row = document.createElement("div"); row.className = "vi-lb-pop-new";
   const inp = document.createElement("input"); inp.type = "text"; inp.maxLength = 8;
   const ok = document.createElement("button"); ok.type = "button"; ok.className = "ghost-btn small"; ok.textContent = "用这个";
@@ -2153,7 +2206,7 @@ function lbPick(el) {
   };
   const renderSubs = () => {
     subBox.innerHTML = "";
-    const subs = kind === "note" ? lbSubsOf(pick) : [];
+    const subs = lbSubsOf(pick);
     subBox.hidden = !subs.length;
     inp.placeholder = subs.length ? "在「" + pick + "」里新加一个子类" : "都不合适？自己写一个";
     if (!subs.length) return;
@@ -2161,7 +2214,7 @@ function lbPick(el) {
     const g = document.createElement("div"); g.className = "vi-lb-pop-cats";
     subs.forEach((sn) => {
       const b = document.createElement("button"); b.type = "button"; b.className = "vi-lb-chip" + (pick === cur && sn === curSub ? " on" : ""); b.textContent = sn;
-      b.addEventListener("click", () => lbSave("note", key, pick, sn));
+      b.addEventListener("click", () => lbSave(kind, key, pick, sn));
       g.appendChild(b);
     });
     subBox.appendChild(g);
@@ -2169,7 +2222,7 @@ function lbPick(el) {
   (_lbCats || []).forEach((c) => {
     const b = document.createElement("button"); b.type = "button"; b.className = "vi-lb-chip" + (c === cur ? " on" : ""); b.textContent = c;
     b.addEventListener("click", () => {
-      if (kind !== "note" || !lbSubsOf(c).length) { lbSave(kind, key, c, ""); return; }   // 作者只定大类；没有子类的大类直接定
+      if (!lbSubsOf(c).length) { lbSave(kind, key, c, ""); return; }                  // 没有子类的大类直接定
       pick = c;
       grid.querySelectorAll(".vi-lb-chip").forEach((x) => x.classList.toggle("on", x.textContent === c));
       renderSubs(); place();
@@ -2178,7 +2231,7 @@ function lbPick(el) {
   });
   const go = () => {
     const v = inp.value.trim(); if (!v) return;
-    if (kind === "note" && pick && lbSubsOf(pick).length) lbSave("note", key, pick, v);        // 新子类
+    if (pick && lbSubsOf(pick).length) lbSave(kind, key, pick, v);                            // 新子类
     else lbSave(kind, key, v, "");
   };
   ok.addEventListener("click", go);
@@ -2188,7 +2241,8 @@ function lbPick(el) {
   const redo = document.createElement("button"); redo.type = "button"; redo.className = "vi-lb-link";
   redo.textContent = kind === "author" ? "让 AI 重新判断（会重新读主页）" : "让 AI 重新分类";
   redo.addEventListener("click", () => lbRedo(kind, key));
-  foot.appendChild(redo); pop.appendChild(foot);
+  if (!(ax && ax.kind === "lib")) foot.appendChild(redo);        // 按库里文章算的作者：文章分类一变就跟着变，不用重新判断
+  pop.appendChild(foot);
   renderSubs();
   document.body.appendChild(pop);
   place();
@@ -2198,7 +2252,7 @@ document.getElementById("viDone")?.addEventListener("click", (e) => {   // 先�
   const t = e.target.closest && e.target.closest("[data-lb-kind]");
   if (t) { e.stopPropagation(); e.preventDefault(); lbPick(t); return; }
   const sbn = e.target.closest && e.target.closest("[data-lbs]");          // v134：子类那一行
-  if (sbn) { e.stopPropagation(); lbSubSet(sbn.dataset.big, sbn.dataset.lbs); _viDoneShown = 50; viRenderDone(); return; }
+  if (sbn) { e.stopPropagation(); lbSubSet(lbMode(), sbn.dataset.big, sbn.dataset.lbs); _viDoneShown = 50; viRenderDone(); return; }
   const fb = e.target.closest && e.target.closest("[data-lbf]");
   if (fb) { e.stopPropagation(); lbFilterSet(lbMode(), fb.dataset.lbf); _viDoneShown = 50; viRenderDone(); return; }
   const mb = e.target.closest && e.target.closest("[data-lbmode]");

@@ -4746,7 +4746,7 @@ class Handler(BaseHTTPRequestHandler):
             if kind == "note":
                 _lb.set_note(key, cat, sub=(body.get("sub") or "").strip(), by="you")    # v134：大类 + 子类
             else:
-                _lb.set_author(key, cat, by="you")
+                _lb.set_author(key, cat, sub=(body.get("sub") or "").strip(), by="you")    # v135：作者也能定子类
             return self._send({"ok": True, "cats": _lb.cats(), "tree": _lb.tree()})
         if path == "/video_note_reset":               # v128：重新加工：先把这条放回「未加工」
             name = (body.get("name") or "").strip()
