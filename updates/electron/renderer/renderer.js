@@ -1871,6 +1871,65 @@ async function viImportPaths(paths) {
     setVideoStatus("导入出错：" + (e && e.message ? e.message : e), "warn");
   }
 }
+// ── v125：加工页的「已加工」：加工好的笔记，最近加工的在最上面 ──
+let _vnAllNotes = [], _viDoneShown = 50;
+function viDoneOpen() { try { return localStorage.getItem("viDoneOpen") !== "0"; } catch (e) { return true; } }
+function viRenderDone() {
+  const box = document.getElementById("viDone");
+  if (!box) return;
+  const done = (_vnAllNotes || []).filter((n) => n.analyzed)
+    .sort((a, b) => (b.mt || 0) - (a.mt || 0) || (b.ts || 0) - (a.ts || 0));
+  const open = viDoneOpen();
+  box.innerHTML = "";
+  const head = document.createElement("div");
+  head.className = "vn-done-head"; head.title = "点击展开 / 收起";
+  head.innerHTML = '<span class="vn-caret">' + (open ? "▾" : "▸") + '</span><span class="vn-done-title">已加工（' + done.length +
+    ' 条）</span><span class="vn-done-tip">最近加工好的在最上面，点一条打开看</span>';
+  head.addEventListener("click", () => { try { localStorage.setItem("viDoneOpen", open ? "0" : "1"); } catch (e) {} viRenderDone(); });
+  box.appendChild(head);
+  if (!open) return;
+  const rows = document.createElement("div"); rows.className = "vn-done-rows";
+  done.slice(0, _viDoneShown).forEach((n, i) => {
+    const r = document.createElement("div");
+    r.className = "vn-un-row vn-done-row"; r.dataset.name = n.name || ""; r.title = "点击打开这条笔记";
+    const no = document.createElement("span"); no.className = "vn-un-no"; no.textContent = (i + 1) + "."; r.appendChild(no);
+    const tm = document.createElement("span"); tm.className = "vn-un-time";
+    const when = (n.mt ? n.mt * 1000 : 0) || vnNoteTime(n); tm.textContent = when ? vnFmtWhen(when) : ""; tm.title = "加工时间"; r.appendChild(tm);
+    if (n.kind) r.appendChild(vnKindBadge(n.kind));
+    const nm = document.createElement("span"); nm.className = "vn-un-name"; nm.textContent = n.title || (n.name || "").replace(/\.md$/, ""); r.appendChild(nm);
+    if (n.tags && n.tags.length) {
+      const tg = document.createElement("span"); tg.className = "vn-done-tags";
+      n.tags.slice(0, 3).forEach((t) => { const c = document.createElement("span"); c.className = "vn-done-tag"; c.textContent = t; tg.appendChild(c); });
+      r.appendChild(tg);
+    }
+    if (n.author) {
+      const au = document.createElement("span"); au.className = "vn-un-author";
+      try { au.appendChild(vnAvatarEl({ key: n.author, name: n.author, kind: "author" }, "mini")); } catch (e) {}
+      au.appendChild(document.createTextNode(n.author)); r.appendChild(au);
+    }
+    r.addEventListener("click", () => openVideoNote(n.name));
+    rows.appendChild(r);
+  });
+  box.appendChild(rows);
+  if (done.length > _viDoneShown) {
+    const more = document.createElement("button");
+    more.type = "button"; more.className = "ghost-btn small vn-done-more";
+    more.textContent = "再显示 50 条（还有 " + (done.length - _viDoneShown) + " 条）";
+    more.addEventListener("click", () => { _viDoneShown += 50; viRenderDone(); });
+    box.appendChild(more);
+  }
+}
+// 批量加工时，每加工好一条，「未加工」少一条；过几秒重新拉一次，让它出现在「已加工」里
+let _viUnLeft = -1, _viDoneRefresh = null;
+setInterval(() => {
+  if (document.getElementById("view-video")?.dataset.mode !== "process") return;
+  const n = (_vnUnTodo || []).length;
+  if (_viUnLeft >= 0 && n < _viUnLeft && !_viDoneRefresh) {
+    _viDoneRefresh = setTimeout(() => { _viDoneRefresh = null; loadVideoNotes(); }, 3000);
+  }
+  _viUnLeft = n;
+}, 2000);
+
 // ── v124：正在加工的那一条，点它的名字展开 / 收起 AI 实时画面（就在这一条下面）──
 let _viLiveOpen = false, _viLiveCur = "", _viLiveEl = null;
 function viLivePlace() {
@@ -4314,6 +4373,7 @@ async function loadVideoNotes() {
     const folders = data.folders || [];
     if (data.tidy && data.tidy.length) _vnTidyMsgs = _vnTidyMsgs.concat(data.tidy).slice(-6);   // v64
     list.innerHTML = "";
+    _vnAllNotes = notes; setTimeout(viRenderDone, 0);   // v125：加工页的「已加工」
     ["viExtractExtras", "viProcessBars", "viAnLive"].forEach((id) => { const x = document.getElementById(id); if (x) x.innerHTML = ""; });   // v116：搬到提取 / 加工页的几块也一起重画
 
     // 顶部小工具条：新建文件夹（把同一作者/同一主题的笔记归到一起）
