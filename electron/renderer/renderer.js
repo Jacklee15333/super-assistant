@@ -1871,6 +1871,44 @@ async function viImportPaths(paths) {
     setVideoStatus("导入出错：" + (e && e.message ? e.message : e), "warn");
   }
 }
+// ── v124：正在加工的那一条，点它的名字展开 / 收起 AI 实时画面（就在这一条下面）──
+let _viLiveOpen = false, _viLiveCur = "", _viLiveEl = null;
+function viLivePlace() {
+  let lv = document.getElementById("vnLive");
+  if (lv) _viLiveEl = lv; else lv = _viLiveEl;
+  if (!lv) return;
+  const holder = document.getElementById("viAnLive");
+  const rows = document.querySelector("#viProcessBars #vnUnList .vn-un-rows");
+  const row = (_viLiveCur && rows) ? Array.from(rows.querySelectorAll(".vn-un-row")).find((x) => x.dataset.name === _viLiveCur) : null;
+  if (rows) rows.querySelectorAll(".vn-un-row.vi-live-row").forEach((x) => { if (x !== row) x.classList.remove("vi-live-row", "vi-live-open"); });
+  if (row) {
+    row.classList.add("vi-live-row"); row.classList.toggle("vi-live-open", _viLiveOpen);
+    const nm = row.querySelector(".vn-un-name");
+    if (nm) nm.title = _viLiveOpen ? "点一下收起 AI 实时画面" : "正在加工：点一下看 AI 实时画面";
+  }
+  if (row && _viLiveOpen) {
+    let slot = document.getElementById("viRowLive");
+    if (!slot) { slot = document.createElement("div"); slot.id = "viRowLive"; slot.className = "vi-row-live"; }
+    if (slot.previousElementSibling !== row) row.after(slot);
+    if (lv.parentNode !== slot) slot.appendChild(lv);
+  } else {
+    if (holder && lv.parentNode !== holder) holder.appendChild(lv);
+    document.getElementById("viRowLive")?.remove();
+  }
+  if (!_vnLiveTimer && document.getElementById("vnLive")) vnLivePoll();   // 清单重画时轮询停了就接上
+}
+document.getElementById("viProcessBars")?.addEventListener("click", (e) => {
+  const nm = e.target.closest && e.target.closest(".vn-un-row.vi-live-row .vn-un-name");
+  if (!nm) return;
+  e.stopPropagation(); e.preventDefault();      // 正在加工的这条：点名字是开关实时画面，不是打开笔记
+  _viLiveOpen = !_viLiveOpen;
+  viLivePlace();
+  if (_viLiveOpen) { clearTimeout(_vnLiveTimer); _vnLiveTimer = null; vnLivePoll(); }
+}, true);
+setInterval(() => {
+  if (document.getElementById("view-video")?.dataset.mode === "process" && _viLiveCur) viLivePlace();
+}, 1500);
+
 // ── v120：加工页的处理进度 ──
 const VI_AN_IDLE = "现在没有在加工的内容。";
 let _viAnIdleTimer = null;
@@ -10356,7 +10394,7 @@ async function vnLivePoll() {
   if (!box) { _vnLiveTimer = null; return; }          // 列表重画时会重新启动
   const viewOn = document.getElementById("view-video")?.classList.contains("active") && !document.hidden;
   if (!viewOn) { _vnLiveTimer = setTimeout(vnLivePoll, 3000); return; }
-  const open = vnLiveIsOpen() && document.getElementById("view-video")?.dataset.mode === "process";   // v120：在加工页才截图
+  const open = _viLiveOpen && document.getElementById("view-video")?.dataset.mode === "process";   // v124：展开了实时画面才截图
   let d = null;
   try {
     d = await (await fetch(BACKEND + "/ai_live?watch=" + (open ? "1" : "0"), { cache: "no-store" })).json();
@@ -10368,6 +10406,9 @@ async function vnLivePoll() {
   const b = d.batch || {}, p = d.pool || {};
   const single = !b.running && !!_noteAnRunning;   // v120：单条 AI 分析也显示实时画面
   _viBatchRunning = !!b.running; viAnStopSync();   // v121：有分析在跑才显示「停止」
+  _viLiveCur = b.running ? (b.current || "") : (_noteAnRunning || "");   // v124：正在加工哪一条
+  if (!_viLiveCur) _viLiveOpen = false;
+  viLivePlace();
   if (b.running && !_noteAnRunning) setAnStatus("🤖 批量分析中：第 " + Math.min(b.total || 0, (b.done || 0) + 1) + " / " + (b.total || 0) + " 篇" +
     (b.title ? "《" + b.title + "》" : "") + (p.stage ? "：" + p.stage : ""));
   if (!b.running && !single) {

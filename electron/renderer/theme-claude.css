@@ -863,3 +863,11 @@ body.dark .vn-kind.k-gh { background: #e6e6e3; color: #1f1e1a; }
 #viProcessBars #vnUnList > .vn-un-head { display: flex; align-items: center; gap: 8px; padding: 8px 2px 10px; }
 #viProcessBars #vnUnList > .vn-un-head .vn-un-title { font-size: 15px; font-weight: 600; color: var(--text); }
 #viProcessBars #vnUnList > .vn-un-head .vn-batch-hacts { margin-left: auto; display: inline-flex; gap: 8px; align-items: center; }
+
+/* ════════════════════ v124：加工页不要单独的处理进度框；正在加工那条点名字看实时画面 ════════════════════ */
+#view-video #viAnCard { display: none !important; }
+#viProcessBars .vn-un-row.vi-live-row .vn-un-name { cursor: pointer; color: var(--accent); }
+#viProcessBars .vn-un-row.vi-live-row .vn-un-name::after { content: "  ▸ 实时画面"; font-size: 12px; color: var(--text-dim); }
+#viProcessBars .vn-un-row.vi-live-row.vi-live-open .vn-un-name::after { content: "  ▾ 收起"; }
+.vi-row-live { margin: -2px 0 8px; padding: 10px 12px; border: 1px solid var(--accent); border-top: none; border-radius: 0 0 10px 10px; background: var(--bg-elev); }
+.vi-row-live .vn-live { margin: 0; border: none; padding: 0; }
