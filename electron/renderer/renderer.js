@@ -384,6 +384,12 @@ function viSecSum() {
   if (document.getElementById("videoVocal")?.checked) parts.push("分离人声");
   if ((document.getElementById("videoCreatorUrl")?.value || "").trim()) parts.push("填了博主主页");
   sum.textContent = parts.join(" · ");
+  const gear = document.getElementById("viGearBtn");
+  if (gear) {
+    gear.title = "设置：" + parts.join(" · ");
+    const d = document.getElementById("videoDepBadge");
+    gear.classList.toggle("has-alert", !!(d && !d.hidden && d.textContent.trim() && !/已是最新/.test(d.textContent)));
+  }
 }
 (function () {
   const sec = document.getElementById("viVideoSec");
@@ -396,6 +402,17 @@ function viSecSum() {
   const toggle = () => { const o = body.hidden; apply(o); try { localStorage.setItem("viVideoSecOpen", o ? "1" : "0"); } catch (e) {} };
   head.addEventListener("click", toggle);
   head.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
+  // v119：设置改成「提取」标题右边的齿轮（点了不要顺带把整张卡片收起来）
+  const gear = document.getElementById("viGearBtn");
+  if (gear) {
+    gear.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const card = gear.closest(".v-card-extract");
+      if (card && card.classList.contains("v-collapsed") && typeof vExtractSetCollapsed === "function") vExtractSetCollapsed(false);
+      toggle();
+    });
+    new MutationObserver(() => gear.setAttribute("aria-expanded", String(!body.hidden))).observe(body, { attributes: true, attributeFilter: ["hidden"] });
+  }
   sec.addEventListener("change", viSecSum);
   sec.addEventListener("input", viSecSum);
   [300, 1500, 4000].forEach((ms) => setTimeout(viSecSum, ms));   // 语言、整理原文这几项是后加进来的
@@ -2102,7 +2119,7 @@ window.petFeed = function (item) {
       vb.value = String(item).trim();
       viOnInputChanged();
       vb.focus();
-      setVideoStatus("放进来了，确认一下点「开始提取」。", "ok", { holdMs: 6000 });
+      setVideoStatus("放进来了，确认一下按回车开始。", "ok", { holdMs: 6000 });
       return;
     }
   } catch (e) {}
@@ -2147,8 +2164,7 @@ window.startVideoFromFloat = function (url) {
   // 醒目状态横幅：明确告诉用户链接已到、下一步该点哪
   const busy = _videoBusyNow();
   const btnText = busy ? "＋ 加入队列" : "开始提取";
-  setVideoStatus("🔗 链接已填好！点右上方蓝色「" + btnText + "」按钮即可" +
-    (busy ? "排队处理。" : "开始提取。"), "ok", { priority: true, holdMs: 6000 });
+  setVideoStatus("🔗 链接已填好！在输入框里按回车就" + (busy ? "排进队列。" : "开始提取。"), "ok", { priority: true, holdMs: 6000 });   // v119：没有按钮了
   // 按钮强脉冲（不依赖 styles.css，直接内联动画）
   const btn = document.getElementById("videoGoBtn");
   if (btn) {
@@ -2847,7 +2863,7 @@ async function runVideoInstall() {
     const data = await resp.json();
     if (log) log.textContent = data.message || "";
     if (data.ok) {
-      setVideoStatus("依赖装好了，再点一次「开始提取」即可。", "ok");
+      setVideoStatus("依赖装好了，在输入框里再按一次回车即可。", "ok");
       if (btn) btn.textContent = "已安装 ✓";
     } else if (btn) {
       btn.disabled = false; btn.textContent = "重试安装";
@@ -11944,7 +11960,7 @@ function _cwfBind(root) {
 // 视频页的搜索面板：放在「开始提取」卡片里、「维护工具」上面，样子和「维护工具」一样能折叠
 function vFindBuild() {
   const card = document.querySelector(".v-card-extract");
-  const tools = card && (card.querySelector(":scope > .vi-phone-row") || card.querySelector(":scope > .video-tools"));   // v118：结果放在输入框下面
+  const tools = card && (card.querySelector(":scope > #viVideoSec") || card.querySelector(":scope > .video-tools"));   // v119：结果放在输入框下面、设置上面
   if (!card || !tools || document.getElementById("vFind")) return null;
   const wrap = document.createElement("div");
   wrap.id = "vFind"; wrap.className = "vfind";
