@@ -284,7 +284,7 @@ function pgMount(view, hit) {
   }
   if (G.tabs) {
     hdr.classList.add("pg-has-head");
-    head.innerHTML = (G.parkedIn ? '<button type="button" class="pg-back" title="回到待开发">待开发</button><span class="pg-sep">/</span>' : "") +
+    head.innerHTML = (G.parkedIn ? '<button type="button" class="pg-back" title="回到待开发">← 待开发</button>' : "") +
       '<span class="pg-title">' + G.title + '</span><span class="pg-tabs" role="tablist">' +
       G.tabs.map((t) => {
         const on = t.key === hit.tab.key;
@@ -293,7 +293,7 @@ function pgMount(view, hit) {
       }).join("") + "</span>";
   } else {
     hdr.classList.add("pg-has-back");
-    head.innerHTML = '<button type="button" class="pg-back" title="回到待开发">待开发</button><span class="pg-sep">/</span>';
+    head.innerHTML = '<button type="button" class="pg-back" title="回到待开发">← 待开发</button>';
   }
 }
 
@@ -365,7 +365,7 @@ function setVideoMode(mode) {
   const t = document.getElementById("videoPageTitle");
   if (t) t.textContent = VIDEO_MODE_TITLE[mode];
   if (mode === "process") {   // 加工页：批量 AI 分析默认展开
-    try { localStorage.setItem("vnBatchOpen", "1"); } catch (e) {}
+    try { localStorage.setItem("vnBatchOpen", "1"); localStorage.setItem("vnUnOpen", "1"); } catch (e) {}
     const body = document.getElementById("vnBatchBody");
     if (body && body.hidden) document.querySelector("#vnBatchBar .vn-batch-head")?.click();
   }
@@ -435,11 +435,13 @@ function viSecSum() {
       if (old) old.remove();
       dest.appendChild(el);
     });
-    const acts = document.querySelector("#viProcessBars #vnBatchHActs"), unHead = document.querySelector("#viProcessBars #vnUnList .vn-un-head");
-    if (acts && unHead && acts.parentNode !== unHead) {   // v123：「批量加工」（跑的时候是「停止」）放在「未加工」右边
-      unHead.appendChild(acts);
-      acts.addEventListener("click", (e) => e.stopPropagation());   // 点按钮别顺带把清单收起来
+    const acts = document.querySelector("#viProcessBars #vnBatchHActs"), aslot = document.getElementById("viPtabActs");
+    if (acts && aslot) {   // v126：「批量加工」（跑的时候是「停止」）放在标签那一行的右边
+      const old = aslot.querySelector(":scope > #vnBatchHActs");
+      if (old && old !== acts) old.remove();
+      if (acts.parentNode !== aslot) aslot.appendChild(acts);
     }
+    viPtabSync();
     const lv = document.querySelector("#viProcessBars #vnLive"), lslot = document.getElementById("viAnLive");   // v120
     if (lv && lslot) { const o = lslot.querySelector(":scope > #vnLive"); if (o && o !== lv) o.remove(); lslot.appendChild(lv); }
     const ex = document.getElementById("viExtractExtras"), f = ex && ex.querySelector(":scope > #vnFailBar");
@@ -1879,7 +1881,8 @@ function viRenderDone() {
   if (!box) return;
   const done = (_vnAllNotes || []).filter((n) => n.analyzed)
     .sort((a, b) => (b.mt || 0) - (a.mt || 0) || (b.ts || 0) - (a.ts || 0));
-  const open = viDoneOpen();
+  const open = true;   // v126：由上面的「已加工」标签代替标题行
+  const dn = document.getElementById("viPtabDoneN"); if (dn) dn.textContent = done.length;
   box.innerHTML = "";
   const head = document.createElement("div");
   head.className = "vn-done-head"; head.title = "点击展开 / 收起";
@@ -1919,11 +1922,34 @@ function viRenderDone() {
     box.appendChild(more);
   }
 }
+// ── v126：加工页两个标签：未加工 / 已加工 ──
+function viPtab() { try { return localStorage.getItem("viPtab") === "done" ? "done" : "todo"; } catch (e) { return "todo"; } }
+function viPtabSync() {
+  const t = viPtab(), v = document.getElementById("viProcess");
+  if (!v) return;
+  v.dataset.ptab = t;
+  document.querySelectorAll(".vi-ptab").forEach((b) => {
+    const on = b.dataset.ptab === t; b.classList.toggle("active", on); b.setAttribute("aria-selected", String(on));
+  });
+  const tn = document.getElementById("viPtabTodoN"); if (tn) tn.textContent = (_vnUnTodo || []).length;
+  // 未加工清单要是之前被收起了，在标签下面总是展开
+  const un = document.querySelector("#viProcessBars #vnUnList"), rows = un && un.querySelector(".vn-un-rows");
+  if (t === "todo" && rows && rows.hidden) un.querySelector(".vn-un-head")?.click();
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest && e.target.closest(".vi-ptab");
+  if (!b) return;
+  try { localStorage.setItem("viPtab", b.dataset.ptab); } catch (err) {}
+  viPtabSync();
+});
+setTimeout(viPtabSync, 0);
+
 // 批量加工时，每加工好一条，「未加工」少一条；过几秒重新拉一次，让它出现在「已加工」里
 let _viUnLeft = -1, _viDoneRefresh = null;
 setInterval(() => {
   if (document.getElementById("view-video")?.dataset.mode !== "process") return;
   const n = (_vnUnTodo || []).length;
+  const tn = document.getElementById("viPtabTodoN"); if (tn && tn.textContent !== String(n)) tn.textContent = n;
   if (_viUnLeft >= 0 && n < _viUnLeft && !_viDoneRefresh) {
     _viDoneRefresh = setTimeout(() => { _viDoneRefresh = null; loadVideoNotes(); }, 3000);
   }
