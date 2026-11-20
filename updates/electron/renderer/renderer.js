@@ -190,12 +190,12 @@ const NAV_GROUPS = {
     { key: "list", label: "列表", view: "datadb" },
     { key: "cloud", label: "云图", view: "knowledge" },
   ] },
-  you: { title: "懂你", tabs: [
+  you: { title: "懂你", parkedIn: "lab", tabs: [
     { key: "profile", label: "画像", view: "lumi", sub: "profile" },
     { key: "insight", label: "洞察", view: "lumi", sub: "insight" },
     { key: "memory", label: "记忆", view: "memory" },
   ] },
-  crew: { title: "分身与技能", tabs: [
+  crew: { title: "分身与技能", parkedIn: "lab", tabs: [
     { key: "agents", label: "分身", view: "agents" },
     { key: "skills", label: "技能", view: "skills" },
   ] },
@@ -255,7 +255,7 @@ function navSync(view, sub) {
   const hit = navFind(view, sub);
   document.querySelectorAll(".sidebar .nav-item").forEach((b) => b.classList.remove("active"));
   const vis = hit
-    ? document.querySelector('.sidebar .nav-item[data-nav-group="' + hit.g + '"]')
+    ? document.querySelector('.sidebar .nav-item[data-nav-group="' + (NAV_GROUPS[hit.g].parkedIn || hit.g) + '"]')
     : Array.from(document.querySelectorAll('.sidebar .nav-item[data-view="' + view + '"]')).find((b) => !b.closest(".nav-legacy"));
   if (vis) vis.classList.add("active");
   document.body.classList.toggle("on-chat", view === "chat");
@@ -283,7 +283,8 @@ function pgMount(view, hit) {
   }
   if (G.tabs) {
     hdr.classList.add("pg-has-head");
-    head.innerHTML = '<span class="pg-title">' + G.title + '</span><span class="pg-tabs" role="tablist">' +
+    head.innerHTML = (G.parkedIn ? '<button type="button" class="pg-back" title="回到待开发">待开发</button><span class="pg-sep">/</span>' : "") +
+      '<span class="pg-title">' + G.title + '</span><span class="pg-tabs" role="tablist">' +
       G.tabs.map((t) => {
         const on = t.key === hit.tab.key;
         return '<button type="button" role="tab" class="pg-tab' + (on ? " active" : "") + '" aria-selected="' + on +
@@ -363,8 +364,9 @@ document.addEventListener("click", (e) => {
     if (bd && bd.hidden) { bd.hidden = false; const tg = row.querySelector("[data-lab-toggle]"); if (tg) tg.textContent = "收起"; }
     return;
   }
-  const o = e.target.closest && e.target.closest("[data-lab-open], [data-open-cfg], [data-lab-toggle]");
+  const o = e.target.closest && e.target.closest("[data-lab-open], [data-lab-group], [data-open-cfg], [data-lab-toggle]");
   if (!o) return;
+  if (o.dataset.labGroup) { navOpenGroup(o.dataset.labGroup); return; }
   if (o.dataset.labOpen) { navGo(o.dataset.labOpen); return; }
   if (o.dataset.openCfg) { openConfigFile(o.dataset.openCfg); return; }
   const bd = o.closest(".lab-row") && o.closest(".lab-row").querySelector(".lab-body");
@@ -1013,9 +1015,8 @@ function renderConvoList() {
 
     list.appendChild(item);
   });
-  if (!list.children.length) {
-    list.innerHTML = '<div class="convo-empty">聊过的对话会出现在这里</div>';
-  }
+  const sec = list.closest(".convo-section");
+  if (sec) sec.hidden = !list.children.length;   // v113：没有聊过的对话就整块不显示
 }
 
 function renameConversation(id) {
