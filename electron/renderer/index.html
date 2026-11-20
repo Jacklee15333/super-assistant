@@ -1269,7 +1269,7 @@
                   <div class="sn-hint" style="margin:0 0 10px">只影响「快速嗅探」：本地模型最快；网页模型 / Claude 总结更好但慢很多。「深度嗅探」固定用网页模型。改完点下面「保存」生效。</div>
                   <div class="sn-row" style="gap:12px;padding:10px 0;border-top:1px solid var(--line);margin-bottom:12px">
                     <label class="sniff-switch"><input type="checkbox" id="sniffAuto" /><span class="sniff-switch-track"></span><span class="sniff-switch-label">自动嗅探</span></label>
-                    <span class="sn-field">每 <input type="number" id="sniffEvery" class="sn-input sn-num" value="6" min="1" max="100" /> 次心跳</span>
+                    <span class="sn-field">每 <input type="number" id="sniffEvery" class="sn-input sn-num" value="6" min="1" max="288" /> 次心跳<span style="color:var(--text-dim);font-size:11px;margin-left:6px">（1 次≈5 分钟：6＝每半小时，12＝每小时，288＝每天一次）</span></span>
                     <button class="sn-btn sm" id="sniffAutoSave">保存</button>
                   </div>
                   </div></details>

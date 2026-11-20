@@ -7154,6 +7154,12 @@ def main():
         scrapling_fetch.prepare_async()
     except Exception as e:
         print("[scrapling] 准备抓取增强失败：%s" % e)
+    # v109：网站嗅探的「自动嗅探」在软件里也会定时跑了（以前只有单独运行 heartbeat.py 才跑）
+    try:
+        import sniffer
+        sniffer.boot_scheduler()
+    except Exception as e:
+        print("[sniff] 启动自动嗅探计时失败：%s" % e)
     # 启动时恢复上次没跑完的视频任务，自动接着处理
     try:
         _restore_video_queue()

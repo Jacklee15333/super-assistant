@@ -68,7 +68,7 @@ def get_config():
     except Exception:
         pass
     try:
-        cfg["every"] = max(1, min(int(cfg["every"]), 100))
+        cfg["every"] = max(1, min(int(cfg["every"]), 288))   # v109：最多 288 次≈每天一次
     except Exception:
         cfg["every"] = 6
     cfg["auto"] = bool(cfg.get("auto", False))
@@ -966,6 +966,62 @@ def start_async(use_local=True, model="qwen2.5"):
     t = _threading.Thread(target=_job, daemon=True)
     t.start()
     return {"ok": True}
+
+
+# ---------------- v109：软件里的定时「自动嗅探」 ----------------
+# 以前「自动嗅探 · 每 N 次心跳」只在单独运行 heartbeat.py 时才会跑，在软件里打开开关其实不生效。
+# 现在后台自己计时：1 次心跳按 5 分钟算（和心跳默认间隔一样），到点、且这会儿没在嗅探，就自动来一轮快速嗅探。
+BEAT_SECONDS = 300
+AUTO_STATE_PATH = MEMORY_DIR / "sniff_auto_state.json"
+_sched = {"started": False}
+
+
+def _auto_last():
+    try:
+        return float(json.loads(AUTO_STATE_PATH.read_text(encoding="utf-8")).get("last", 0))
+    except Exception:
+        return 0.0
+
+
+def _auto_mark(ts):
+    try:
+        AUTO_STATE_PATH.write_text(json.dumps(
+            {"last": ts, "at": datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M")},
+            ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def auto_due(now=None):
+    """打开了自动嗅探，并且离上次自动跑已经过了「N 次心跳」那么久。"""
+    cfg = get_config()
+    if not cfg.get("auto"):
+        return False
+    now = now or time.time()
+    return now - _auto_last() >= cfg.get("every", 6) * BEAT_SECONDS
+
+
+def boot_scheduler():
+    """后台启动时调用：每分钟看一眼，到点就自动嗅探一轮。重复调用只启动一次。"""
+    if _sched["started"]:
+        return
+    _sched["started"] = True
+
+    def _loop():
+        time.sleep(120)                      # 启动后先等两分钟，别和开机抢资源
+        while True:
+            try:
+                if auto_due() and not _run_state["running"]:
+                    _auto_mark(time.time())
+                    every = get_config().get("every", 6)
+                    if start_async(use_local=True, model="qwen2.5").get("ok"):
+                        print("[sniff] 自动嗅探：开始一轮（设置是每 %d 次心跳，约 %d 分钟一次）"
+                              % (every, every * BEAT_SECONDS // 60), flush=True)
+            except Exception as e:
+                print("[sniff] 自动嗅探出错（忽略）：%s" % e, flush=True)
+            time.sleep(60)
+
+    _threading.Thread(target=_loop, name="sniff-auto", daemon=True).start()
 
 
 if __name__ == "__main__":

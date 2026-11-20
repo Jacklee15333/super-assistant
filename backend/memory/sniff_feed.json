@@ -1648,5 +1648,126 @@
     "category": "AI动态",
     "key": "6a030650f288540e",
     "ts": "2026-11-20 09:16"
+  },
+  {
+    "kind": "功能",
+    "title": "管控前沿 AI 风险：从训练到部署",
+    "summary": "OpenAI 发表关于 AI 安全管理的成果，涵盖训练到部署的全流程风险控制。属于 AI 安全领域的新方法，试图解决模型开发过程中的伦理和安全问题。这对提高 AI 技术的可靠性、推动负责任的 AI 发展具有重要意义。",
+    "importance": "高",
+    "source_title": "OpenAI 新闻",
+    "link": "https://openai.com/news/",
+    "category": "AI动态",
+    "key": "9c6ee03e6fa98d34",
+    "ts": "2026-11-20 12:19"
+  },
+  {
+    "kind": "概念",
+    "title": "沉默的共识",
+    "summary": "一篇探讨 AI 领域潜在共识或社会预期的文章。属于概念性研究，可能涉及 AI 伦理、社会影响或技术发展预期等方向。这类讨论有助于理解 AI 技术发展的社会基础和潜在挑战，属于长期趋势分析。",
+    "importance": "中",
+    "source_title": "OpenAI 新闻",
+    "link": "https://openai.com/news/",
+    "category": "AI动态",
+    "key": "e1c9373ab0b8361f",
+    "ts": "2026-11-20 12:19"
+  },
+  {
+    "kind": "功能",
+    "title": "ViKernel Scanner",
+    "summary": "ViKernel Scanner 是一种用于检测和防止模型后门的安全工具，能够识别下载模型中可能存在的恶意触发词。该工具属于人工智能安全领域，有助于提升模型的可信度和安全性，对保障AI系统的可靠性具有重要意义。",
+    "importance": "高",
+    "source_title": "Hugging Face 博客",
+    "link": "https://huggingface.co/blog",
+    "category": "AI动态",
+    "key": "72236b3dc9456577",
+    "ts": "2026-11-20 12:22"
+  },
+  {
+    "kind": "发布",
+    "title": "Rumble-2-Flash: an open 0.5B speech model for 40+ languages",
+    "summary": "Rumble-2-Flash 是一个开源的0.5B参数语音模型，支持40多种语言。该模型属于多语言语音识别方向，能够提升多语言语音处理的效率和准确性，对全球语音应用的普及具有重要意义。",
+    "importance": "中",
+    "source_title": "Hugging Face 博客",
+    "link": "https://huggingface.co/blog",
+    "category": "AI动态",
+    "key": "5550392fdcdb5ffb",
+    "ts": "2026-11-20 12:22"
+  },
+  {
+    "kind": "功能",
+    "title": "Distributed Inference for Local AI via Superfluid",
+    "summary": "Superfluid 提出了一种分布式推理技术，用于本地AI模型的高效部署。该技术属于人工智能推理优化方向，能够提升本地AI在资源受限设备上的运行效率，对边缘计算和本地化AI应用具有重要意义。",
+    "importance": "中",
+    "source_title": "Hugging Face 博客",
+    "link": "https://huggingface.co/blog",
+    "category": "AI动态",
+    "key": "ac82e2e0a111c33a",
+    "ts": "2026-11-20 12:22"
+  },
+  {
+    "kind": "发布",
+    "title": "Anthropic’s Nasdaq debut",
+    "summary": "Anthropic公司成功在纳斯达克上市，标志着其在人工智能领域商业化进程的重要里程碑。这项发布属于人工智能企业融资与市场拓展方向，反映出资本市场对前沿AI技术的持续关注与支持。",
+    "importance": "高",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "0e5ed277f5659fa4",
+    "ts": "2026-11-20 12:23"
+  },
+  {
+    "kind": "功能",
+    "title": "Postgres 19 Repack: Faster, Built-In Table Bloat Cleanup",
+    "summary": "PostgreSQL 19版本引入了内置的表膨胀清理功能Repack，属于数据库优化领域的重要特性。该功能可以显著提升数据存储效率，属于企业级数据库系统性能优化的关键技术突破。",
+    "importance": "中",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "b3bc4ef160e58f6f",
+    "ts": "2026-11-20 12:23"
+  },
+  {
+    "kind": "概念",
+    "title": "What Comes After AGI?",
+    "summary": "DeepMind探讨AGI（通用人工智能）发展后的技术演变方向，属于人工智能长期研究趋势的理论探讨。这类讨论有助于厘清AGI技术演进路径，对基础研究具有重要启发价值。",
+    "importance": "中",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "1754b598fe16b75f",
+    "ts": "2026-11-20 12:23"
+  },
+  {
+    "kind": "发布",
+    "title": "Launch HN: Onlook – An open-source developer tool for designers",
+    "summary": "Onlook是一款面向设计领域的开源开发者工具，属于前端开发协作工具的创新产品。其开源特性可能推动设计与开发工作流的标准化，对Web开发社区具有潜在影响。",
+    "importance": "中",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "247c90a01ab70c83",
+    "ts": "2026-11-20 12:23"
+  },
+  {
+    "kind": "功能",
+    "title": "Unlocking Stable On-Policy RL on TPU with Bitwise-Zero Train–Inference Mismatch",
+    "summary": "谷歌在TPU上实现稳定策略梯度强化学习的新方法，属于机器学习框架优化方向的技术进展。该技术可能提升强化学习在实际场景中的训练效率与稳定性，对AI研究具有参考价值。",
+    "importance": "中",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "343eb1b563571f02",
+    "ts": "2026-11-20 12:23"
+  },
+  {
+    "kind": "概念",
+    "title": "Weight-Space Programming builds neural networks like a 1990s researcher",
+    "summary": "Weight-Space Programming是一种回归1990年代神经网络构建方式的编程范式，属于机器学习工程方法论的创新尝试。该方法可能为理解神经网络结构提供新视角，对算法开发具有理论研究意义。",
+    "importance": "中",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "86de36a6e0266c9b",
+    "ts": "2026-11-20 12:23"
   }
 ]
