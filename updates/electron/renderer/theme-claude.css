@@ -821,3 +821,12 @@ body.dark .vn-kind.k-gh { background: #e6e6e3; color: #1f1e1a; }
 #view-video #viVideoSec:not(.open) { display: none; }
 #view-video #viVideoSec.open > .vi-sec-body { border-top: none; }
 #view-video .vi-sec .vi-phone-row { margin: 0; }
+
+/* ════════════════════ v120：加工页的处理进度 + 实时画面 ════════════════════ */
+#view-video .vi-an-card { margin-bottom: 16px; }
+.vi-an-status { padding: 8px 10px; border-radius: 8px; font-size: 13px; line-height: 1.6; color: var(--text-dim); background: var(--bg-hover); }
+.vi-an-status.busy { color: var(--text); }
+.vi-an-status.ok { color: #2ea05a; background: rgba(46,160,90,.10); }
+.vi-an-status.warn { color: #b0571e; background: rgba(200,110,30,.10); }
+.vi-an-live { margin-top: 10px; }
+.vi-an-live:empty { display: none; }
