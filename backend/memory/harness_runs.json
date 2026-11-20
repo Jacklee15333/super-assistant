@@ -1,30 +1,5 @@
 [
   {
-    "id": "video-1795140934953",
-    "ts": "11-20 10:15:34",
-    "kind": "video",
-    "title": "Creativity is a team sport | Walter Isaacson & Kent Walker",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "保存",
-      "博主主页"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "保存": 1,
-      "博主主页": 1
-    },
-    "steps": 4,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 17,
-    "note": "✅ 已完成《Creativity is a team》，继续处理下一个（还剩 111 个）"
-  },
-  {
     "id": "video-1795140952144",
     "ts": "11-20 10:15:52",
     "kind": "video",
@@ -1316,7 +1291,7 @@
     "id": "video-1795146379505",
     "ts": "11-20 11:46:19",
     "kind": "video",
-    "title": "视频提取：ps://www.youtube.com/watch?v=Z-UIoabBtjQ",
+    "title": "曾敬驊、李沐逛PEDRO挑七夕禮物！「默契版」快問快答2選1 男神自爆：OOO",
     "tools": [
       "解析链接",
       "获取字幕",
@@ -1337,10 +1312,37 @@
     },
     "steps": 7,
     "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 45,
+    "note": "✅ 已完成《曾敬驊、李沐逛PEDRO挑七夕禮物！「默》，继续处理下一个（还剩 68 个）"
+  },
+  {
+    "id": "video-1795146425510",
+    "ts": "11-20 11:47:05",
+    "kind": "video",
+    "title": "视频提取：ps://www.youtube.com/watch?v=zJnlhQtHEEQ",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "语音转文字",
+      "检查漏识别"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "语音转文字": 1,
+      "检查漏识别": 1
+    },
+    "steps": 5,
+    "error": "",
     "outcome": "",
     "status": "running",
     "tokens_est": 0,
     "seconds": 0,
-    "_start": 1795146379.5051448
+    "_start": 1795146425.510441
   }
 ]
