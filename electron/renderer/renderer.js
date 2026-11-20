@@ -1892,7 +1892,8 @@ function lbApply(cats, authors, notesMap, tree) {
       n.cat = x.cat; n.kw = x.kw || [];
       if (x.sub) n.sub = x.sub; else delete n.sub;
       if (x.by === "you") n.cat_by = "you"; else delete n.cat_by;
-    } else { delete n.cat; delete n.sub; delete n.kw; delete n.cat_by; }
+      n.cat_eng = x.eng || "";                                                  // v138：web = 网页 AI 分的
+    } else { delete n.cat; delete n.sub; delete n.kw; delete n.cat_by; delete n.cat_eng; }
   });
 }
 function lbSubsOf(big) { const t = (_lbTree || []).find((x) => x.name === big); return (t && t.subs) || []; }
@@ -2058,7 +2059,7 @@ function viRenderDone() {
     } else {
       c.dataset.lbKind = "note"; c.dataset.lbKey = n.name || "";
       c.title = (m === "author" && p0 && p0.why ? p0.why + "，这里按这篇自己的分类。\n" : "") +
-        (n.cat ? "分类：" + n.cat + (n.sub ? " › " + n.sub : "（还没分到子类）") + (n.cat_by === "you" ? "（你手动定的）" : "（AI 分的）") + "\n点一下可以改"
+        (n.cat ? "分类：" + n.cat + (n.sub ? " › " + n.sub : "（还没分到子类）") + (n.cat_by === "you" ? "（你手动定的）" : n.cat_eng === "web" ? "（网页 AI 分的）" : "（本地模型分的，点「自动贴标签」会用网页 AI 重新分）") + "\n点一下可以改"
                : "还没分类，点一下手动分");
     }
     slot.appendChild(c); r.appendChild(slot);

@@ -419,7 +419,7 @@ def public_authors():
     return out
 
 
-def set_note(name, cat, sub="", by="you", kw=None):
+def set_note(name, cat, sub="", by="you", kw=None, eng=None):
     """给一篇文章定分类：大类 cat + 子类 sub。by="ai" 时不覆盖你手动定的。cat 为空 = 清掉。返回是否写了。"""
     name = (name or "").strip()
     if not name:
@@ -440,6 +440,8 @@ def set_note(name, cat, sub="", by="you", kw=None):
             e = {"cat": cat, "by": by, "at": int(time.time())}
             if by == "ai":
                 e["tv"] = TAX_V                       # v137：按哪一版分类表分的
+                if eng:
+                    e["eng"] = eng                    # v138：谁分的：web = 网页 AI，local = 本地模型
             if sub:
                 e["sub"] = sub
             k = kw if kw is not None else old.get("kw")       # 关键词说的是内容，改分类时留着
@@ -575,8 +577,14 @@ def _parse_note(name, txt):
                        for l in head)
     if analyzed and any("（分析出错" in ln for ln in lines[:120]):
         analyzed = False
+    points = []                                # v138：「核心观点」的几个小标题（给网页 AI 判断用，信息多一点更准）
+    if analyzed:
+        mm = re.search(r"(?m)^#{2,3}\s*核心观点\s*$", txt)
+        if mm:
+            for h in re.findall(r"(?m)^###\s*(?:\d+[\.、]\s*)?(.+)$", txt[mm.end():mm.end() + 8000])[:5]:
+                points.append(_short(h.replace("**", ""), 40))
     return {"name": name, "title": title, "author": author, "url": url, "tags": tags,
-            "analyzed": analyzed, "summary": _summary(txt) if analyzed else ""}
+            "analyzed": analyzed, "summary": _summary(txt, 220) if analyzed else "", "points": points}
 
 
 def scan_notes():
@@ -601,40 +609,117 @@ def _llm(prompt):
     return f(prompt) or ""
 
 
-def _note_prompt(batch):
+# v137/v138：分类规则（贴标签和「加工」写笔记时都用这一份）
+_RULES = ("· 按这篇具体讲的是什么事来分，不按作者是谁，也不按讲法（评论、科普、吐槽）分\n"
+          "· 律师、博主评热点，看他评的是什么事：评校招工资放「职场/求职」，评手机质量放「科技/手机数码」，"
+          "评调休放「法律/劳动权益」，评主播塌房放「社会/网红舆论」；只有核心在讲法律知识、案件定性、怎么维权的才放「法律」\n"
+          "· 作者是自媒体博主，不代表这篇就是「内容创作」——只有讲怎么做内容、做账号的才放那里\n"
+          "· 和 AI 相关的都放 AI（哪怕是 AI 公司的新闻）；转发的推文按推文讲的事分\n"
+          "· 讲电影电视剧的剧情、人物、演技放「生活/影视娱乐」；借剧情讲商业、做人道理的，按讲的道理分\n"
+          "· 子类挑最贴近这篇主题的那个，不要把讲不同事情的文章都塞进同一个笼统的子类；"
+          "子类都不合适写「大类/其它」，整张表都不合适才写「%s」\n" % OTHER)
+
+
+def analysis_guide():
+    """v138：给「加工」的提示词用：分类表 + 分类规则——写笔记的 AI 顺手在最后分好类、总结好标签。"""
+    return ("分类表（每行「-」后面是大类，冒号后面是它的子类，括号里是说明；只写名字，不要写说明）：\n%s\n分类规则：\n%s"
+            % (_tree_lines(), _RULES))
+
+
+def parse_path(path, fixed="", lenient=False):
+    """「大类/子类」→ (大类, 子类)。认不出返回 ("", "")；大类认出了、子类没写对：lenient 时子类放「其它」，否则子类留空。"""
+    names = cats()
+    path = re.sub(r"^(?:分类|大类)\s*[:：]?", "", (path or "").replace("**", "").strip()).strip()
+    bits = [x for x in re.split(r"\s*[/／·>＞→\-－—]+\s*", path, maxsplit=1) if x.strip()]
+    if not bits:
+        return "", ""
+    one = _find_sub_anywhere(bits[0]) if len(bits) == 1 else None      # 只写了子类名（「投资交易」）
+    cat = one[0] if one else normalize_cat(bits[0], names)
+    sub = one[1] if one else (normalize_sub(cat, bits[1]) if (cat and len(bits) > 1) else "")
+    if len(bits) > 1 and not sub:                 # 子类写到了别的大类下：按子类认大类
+        hit = _find_sub_anywhere(bits[1])
+        if hit:
+            cat, sub = hit
+    if not cat:
+        hit = _find_sub_anywhere(bits[0])
+        if hit:
+            cat, sub = hit
+    if fixed:                                     # 大类是你定的：只要子类
+        sub = normalize_sub(fixed, bits[-1])
+        if not sub and lenient:
+            sub = OTHER
+        return (fixed, sub) if sub else ("", "")
+    if not cat and lenient and _clean_cat(bits[0]):
+        cat = OTHER
+    if not cat:
+        return "", ""
+    if has_subs(cat) and not sub and lenient:
+        sub = OTHER
+    return cat, sub
+
+
+_SEC_RE = re.compile(r"(?m)^#{1,4}\s*(?:\d+[\.、]\s*)?分类(?:与)?标签\s*[:：]?\s*$")
+
+
+def split_from_analysis(text):
+    """v138：「加工」结果最后 AI 写的「## 分类标签」一节：拆出来，从笔记正文里去掉。
+    返回 (正文, 大类, 子类, 标签列表)；没有这一节返回 (原文, "", "", [])。"""
+    t = text or ""
+    ms = list(_SEC_RE.finditer(t))
+    if not ms:
+        return t, "", "", []
+    m = ms[-1]
+    rest = t[m.end():]
+    nxt = re.search(r"(?m)^#{1,4}\s", rest)
+    sec = rest[:nxt.start()] if nxt else rest
+    body = (t[:m.start()].rstrip() + ("\n\n" + rest[nxt.start():] if nxt else "")).rstrip()
+    tags, path = [], ""
+    for ln in sec.splitlines():
+        x = ln.strip().lstrip("-*•· ").replace("**", "").strip()
+        mm = re.match(r"^(?:标签|关键词)\s*[:：]\s*(.+)$", x)
+        if mm:
+            tags = _clean_kws(mm.group(1), n=5)
+            continue
+        mm = re.match(r"^(?:分类|大类/子类|大类／子类|类别)\s*[:：]\s*(.+)$", x)
+        if mm:
+            path = mm.group(1)
+    cat, sub = parse_path(path) if path else ("", "")
+    if cat:
+        tags = [k for k in tags if k not in (cat, sub)]
+    return body, cat, sub, tags
+
+
+def _note_prompt(batch, rich=False):
     rows = []
     for i, n in enumerate(batch, 1):
         parts = ["标题：" + _short(n["title"], 90)]
         if n.get("tags"):
-            parts.append("标签：" + "、".join(n["tags"][:6]))
+            parts.append("原标签：" + "、".join(n["tags"][:6]))
         if n.get("summary"):
-            parts.append("概括：" + n["summary"])
+            parts.append("概括：" + (n["summary"] if rich else _short(n["summary"], 140)))
+        if rich and n.get("points"):
+            parts.append("要点：" + "；".join(n["points"]))
         if n.get("fixed"):
             parts.append("大类已定：" + n["fixed"])
         rows.append("%d. %s" % (i, "｜".join(parts)))
-    return ("你是内容分类助手。下面是我收藏的 %d 篇笔记。请给每篇分类：先选一个大类，再选这个大类下面的一个子类；再写 2 个关键词。\n\n"
+    return ("你是内容分类助手。下面是我收藏的 %d 篇笔记。请先给每篇总结 3～5 个标签，再根据这些标签和内容分类："
+            "先选一个大类，再选这个大类下面的一个子类。\n\n"
             "分类表（每行「-」后面是大类，冒号后面是它的子类，括号里是说明；只写名字，不要写说明）：\n%s\n\n"
-            "要求：\n"
-            "① 每篇只输出一行，格式：编号. 大类/子类｜关键词1、关键词2\n"
-            "② 子类必须是那个大类下面的；子类都不合适就写「大类/其它」；整张表都不合适才写「%s」\n"
-            "③ 按这篇具体讲的是什么事来分，不按作者是谁，也不按讲法（评论、科普、吐槽）分：\n"
-            "  · 律师、博主评热点，看他评的是什么事：评校招工资放「职场/求职」，评手机质量放「科技/手机数码」，"
-            "评调休放「法律/劳动权益」，评主播塌房放「社会/网红舆论」；只有核心在讲法律知识、案件定性、怎么维权的才放「法律」\n"
-            "  · 作者是自媒体博主，不代表这篇就是「内容创作」——只有讲怎么做内容、做账号的才放那里\n"
-            "  · 和 AI 相关的都放 AI（哪怕是 AI 公司的新闻）；转发的推文按推文讲的事分\n"
-            "  · 讲电影电视剧的剧情、人物、演技放「生活/影视娱乐」；借剧情讲商业、做人道理的，按讲的道理分\n"
-            "  · 子类挑最贴近这篇主题的那个，不要把讲不同事情的文章都塞进同一个笼统的子类\n"
-            "④ 标了「大类已定」的，大类照写，只在那个大类里选子类\n"
-            "⑤ 关键词 2～6 个字，说清楚这篇具体讲什么；不要写作者名、账号名、平台活动名（比如“抖音精选”“抖来学法”）\n"
-            "⑥ 不要解释，不要输出别的内容\n\n"
-            "示例输出：\n1. 财经/金融常识｜信用卡、消费陷阱\n2. AI/AI编程｜Claude Code、Agent\n3. 法律/劳动权益｜调休、加班\n4. 职场/求职｜校招、起薪\n\n"
-            "笔记：\n%s\n" % (len(batch), _tree_lines(), OTHER, "\n".join(rows)))
+            "分类规则：\n%s\n"
+            "输出要求：\n"
+            "① 每篇只输出一行，格式：编号. 标签1、标签2、标签3｜大类/子类\n"
+            "② 标签 2～6 个字，说清楚这篇具体讲的什么；不要写作者名、账号名、平台活动名（比如“抖音精选”“抖来学法”）\n"
+            "③ 标了「大类已定」的，大类照写，只在那个大类里选子类\n"
+            "④ 不要解释，不要输出别的内容\n\n"
+            "示例输出：\n1. 信用卡、消费陷阱、分期｜财经/金融常识\n2. Claude Code、Agent、写代码｜AI/AI编程\n"
+            "3. 调休、加班、假期制度｜法律/劳动权益\n4. 校招、起薪、应届生｜职场/求职\n\n"
+            "笔记：\n%s\n" % (len(batch), _tree_lines(), _RULES, "\n".join(rows)))
 
 
 _LINE_RE = re.compile(r"^\s*(\d{1,3})\s*[\.\)、:：．]\s*(.+?)\s*$")
 
 
-def _clean_kws(s, avoid=()):
+def _clean_kws(s, avoid=(), n=2):
     out = []
     for k in re.split(r"[、,，/;；]+", s or ""):
         k = k.strip().strip("#＃“”\"'《》「」()（）[]【】.。·:：*").strip()
@@ -643,15 +728,14 @@ def _clean_kws(s, avoid=()):
         if any(a and (k == a or k in a) for a in avoid):
             continue
         out.append(k)
-        if len(out) >= 2:
+        if len(out) >= n:
             break
     return out
 
 
 def _parse_note_reply(raw, batch, lenient=False):
-    """每行「编号. 大类/子类｜关键词」→ {序号: (大类, 子类, 关键词)}。
+    """每行「编号. 标签…｜大类/子类」（老格式「编号. 大类/子类｜关键词」也认）→ {序号: (大类, 子类, 标签)}。
     lenient=True（第二遍）：子类认不出就放「大类/其它」，大类也认不出就放「其它」。"""
-    names = cats()
     out = {}
     for ln in (raw or "").splitlines():
         ln = ln.strip().strip("*").strip()
@@ -661,38 +745,16 @@ def _parse_note_reply(raw, batch, lenient=False):
         idx = int(m.group(1)) - 1
         if not (0 <= idx < len(batch)) or idx in out:
             continue
-        parts = re.split(r"[｜|]", m.group(2), maxsplit=1)
-        path = re.sub(r"^(?:分类|大类)\s*[:：]?", "", parts[0]).strip()
-        bits = [x for x in re.split(r"\s*[/／·>＞→\-－—]+\s*", path, maxsplit=1) if x.strip()]
-        one = _find_sub_anywhere(bits[0]) if len(bits) == 1 else None      # 只写了子类名（「投资交易」）
-        cat = one[0] if one else (normalize_cat(bits[0], names) if bits else "")
-        sub = one[1] if one else (normalize_sub(cat, bits[1]) if (cat and len(bits) > 1) else "")
-        if len(bits) > 1 and not sub:                 # 子类写到了别的大类下：按子类认大类
-            hit = _find_sub_anywhere(bits[1])
-            if hit:
-                cat, sub = hit
-        if not cat and bits:                          # 只写了子类名
-            hit = _find_sub_anywhere(bits[0])
-            if hit:
-                cat, sub = hit
-        fixed = batch[idx].get("fixed") or ""
-        if fixed:                                     # 大类是你定的：只要子类
-            sub = normalize_sub(fixed, bits[-1]) if bits else ""
-            if not sub and lenient:
-                sub = OTHER
-            if not sub:
-                continue
-            cat = fixed
-        if not cat and lenient and bits and _clean_cat(bits[0]):
-            cat = OTHER
-        if not cat:
+        parts = [x.strip() for x in re.split(r"[｜|]", m.group(2)) if x.strip()]
+        if not parts:
             continue
-        if has_subs(cat) and not sub:
-            if not lenient:
-                continue                              # 子类没写对：最后再单独问一次
-            sub = OTHER
-        kw = _clean_kws(parts[1] if len(parts) > 1 else "", avoid=(cat, sub, batch[idx].get("author") or ""))
-        out[idx] = (cat, sub, kw)
+        ci = max((i for i, x in enumerate(parts) if re.search(r"[/／]", x)), default=len(parts) - 1)   # 带「/」的是分类
+        fixed = batch[idx].get("fixed") or ""
+        cat, sub = parse_path(parts[ci], fixed=fixed, lenient=lenient)
+        if not cat or (has_subs(cat) and not sub):
+            continue                              # 没认出来：最后再单独问一次（第二遍放宽）
+        kws = "、".join(re.sub(r"^(?:标签|关键词)\s*[:：]", "", x) for i, x in enumerate(parts) if i != ci)
+        out[idx] = (cat, sub, _clean_kws(kws, avoid=(cat, sub, batch[idx].get("author") or ""), n=4))
     return out
 
 
@@ -846,7 +908,7 @@ _job = {"running": False, "stop": False, "auto": False, "phase": "", "mode": "",
         "a_total": 0, "a_done": 0, "a_ok": 0, "a_fail": 0, "a_local": 0, "a_cur": "", "a_stage": "",
         "started": 0, "finished": 0, "summary": "", "err": ""}
 _want = {"full": False, "notes": [], "authors": []}
-_NOTE_BATCH = {"local": 12, "pool": 40}
+_NOTE_BATCH = {"local": 12, "pool": 30}
 _HOME_OFF_AFTER = 5            # 连着这么多位作者的主页都读不到 → 这一轮后面的只用库里的笔记判断
 _NET_PAUSE = 3                 # 读完一位作者的主页，歇几秒再读下一位（免得被平台风控）
 AUTHOR_FROM_NOTES = 5          # v135：库里分好类的文章有这么多篇的作者，领域直接按这些文章算（界面上算），不用读主页
@@ -947,6 +1009,15 @@ def redo(kind, key):
     return False
 
 
+def _label_ok(e):
+    """v138：这篇已经按最新分类表分好了，而且是网页 AI 分的（或你手动定的）。"""
+    if not e or not e.get("cat"):
+        return False
+    if has_subs(e["cat"]) and not e.get("sub"):
+        return False
+    return e.get("by") == "you" or (int(e.get("tv") or 1) >= TAX_V and e.get("eng") == "web")
+
+
 def _do_notes(todo, bs):
     """一批一批分类。AI 连着 3 次没回话 / 格式不对 → 抛异常停下。"""
     pending, second, consec = list(todo), [], 0
@@ -957,7 +1028,7 @@ def _do_notes(todo, bs):
             bs, lenient = max(4, bs // 2), True
         batch, pending = pending[:bs], pending[bs:]
         try:
-            raw = _llm(_note_prompt(batch))
+            raw = _llm(_note_prompt(batch, rich=_job.get("mode") == "pool"))
             got = _parse_note_reply(raw, batch, lenient=lenient)
         except Exception as e:
             if _job["stop"]:
@@ -983,7 +1054,8 @@ def _do_notes(todo, bs):
                 if n.get("fixed"):
                     _fill_sub(n["name"], sub, kw)
                 else:
-                    set_note(n["name"], cat, sub=sub, by="ai", kw=kw)
+                    set_note(n["name"], cat, sub=sub, by="ai", kw=kw,
+                             eng="web" if _job.get("mode") == "pool" else "local")
                 with _lock:
                     _job["n_done"] += 1
                     _job["n_ok"] += 1
@@ -1065,9 +1137,8 @@ def _run():
                 if not n["analyzed"] or (not full and n["name"] not in qs):
                     continue
                 e = lab.get(n["name"]) or {}
-                if (full and e.get("cat") and (e.get("sub") or not has_subs(e["cat"]))
-                        and (e.get("by") == "you" or int(e.get("tv") or 1) >= TAX_V)):
-                    continue                          # 大类、子类都有了，而且是按最新的分类表分的
+                if _label_ok(e):
+                    continue                          # 已经按最新分类表、由网页 AI（或你手动）分好了
                 if e.get("by") == "you":
                     if e.get("sub") or not has_subs(e.get("cat") or ""):
                         continue                      # 你手动定好的不动
@@ -1077,8 +1148,11 @@ def _run():
                 with _lock:
                     _job["n_total"] += len(todo)
                     _job["phase"] = "notes"
-                _log("开始给 %d 篇文章分类（%s）" % (len(todo), "本地模型" if mode == "local" else "AI 池"))
-                _do_notes(todo, _NOTE_BATCH.get(mode, 12))
+                eng = "local" if (_job.get("auto") and mode == "local") else "pool"   # v138：你点的用网页 AI；新加工的自动补用本地模型
+                with _lock:
+                    _job["mode"] = eng
+                _log("开始给 %d 篇文章分类（%s）" % (len(todo), "本地模型" if eng == "local" else "网页 AI"))
+                _do_notes(todo, _NOTE_BATCH.get(eng, 12))
             if _job["stop"]:
                 break
             # ② 作者领域
@@ -1109,6 +1183,7 @@ def _run():
                 with _lock:
                     _job["a_total"] += len(cand)
                     _job["phase"] = "authors"
+                    _job["mode"] = mode               # 作者（库里文章不到 5 篇的）按主页判断：本机有本地模型就用本地的，快
                 _log("开始判断 %d 位作者的领域（读主页 + 库里的笔记）" % len(cand))
                 _do_authors(cand, by_author, set(q_auth))
     except Exception as e:

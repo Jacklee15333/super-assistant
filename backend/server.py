@@ -1316,7 +1316,11 @@ def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None
         "可操作的做法或最有用的信息，越具体、越能落地越好。\n\n"
         "## 我的点评\n用 4-6 句客观点评：这些观点有没有道理、哪里值得认同、"
         "哪里需要注意或保留、可能的片面之处，普通人可以怎么用。\n\n"
-        "整体要条理清晰、信息密度高、尽量详尽，是深度归纳不是照抄原文。\n")
+        "## 分类标签\n最后单独写这一节，固定两行，方便以后按类别筛选：\n"
+        "标签：先总结 3～5 个标签，每个 2～6 个字，说清楚这篇具体讲的什么（不要写作者名、账号名、平台活动名）\n"
+        "分类：大类/子类（根据上面的标签和内容，从下面的分类表里选：先选大类，再选这个大类下面的子类）\n"
+        + _lb_guide() +
+        "\n整体要条理清晰、信息密度高、尽量详尽，是深度归纳不是照抄原文。\n")
 
     # 按开关追加「插图 / 跳转原片」标记要求。文字稿带 [mm:ss]，模型据此打准时间。
     if want_markers:
@@ -2358,21 +2362,23 @@ def _video_worker():
                 # ★标题翻译（随分析一起完成）：分析模型已被要求在开头输出「中文标题：xxx」，
                 #   这里把它抽出来当中文标题，并从正文里删掉这行（避免笔记里重复出现）。
                 title_from_ai, analysis = _split_title_from_analysis(analysis)
-                # ★标签：优先用平台自带的话题标签（抖音 #话题，最准），不够再让 AI 补。
+                analysis, _lbc, _lbs, _lbt = _lb_split(analysis)        # v138：写笔记的 AI 在最后写的「分类标签」
                 cb("AI 分析", "归纳标签…")
                 platform_tags = res.get("platform_tags") or []
-                try:
-                    ai_tags = _cx_suggest_tag(title, analysis,
-                                              job["use_local"], job["model"])
-                except Exception:
-                    ai_tags = []
-                # 平台标签在前、AI 标签在后，去重，最多取 6 个
+                ai_tags = []
+                if not _lbt:                                            # 写笔记的 AI 没总结标签，才让本地模型补
+                    try:
+                        ai_tags = _cx_suggest_tag(title, analysis,
+                                                  job["use_local"], job["model"])
+                    except Exception:
+                        ai_tags = []
+                # v138：写笔记的 AI 总结的标签在前、平台话题标签在后（最多 8 个）；没有就照旧：平台标签在前、补的在后
                 tags = []
-                for _t in list(platform_tags) + list(ai_tags):
+                for _t in (list(_lbt) + list(platform_tags)) if _lbt else (list(platform_tags) + list(ai_tags)):
                     _t = (_t or "").strip().lstrip("#").strip()
                     if _t and _t not in tags:
                         tags.append(_t)
-                tags = tags[:6]
+                tags = tags[:8 if _lbt else 6]
                 ts = datetime.datetime.now()
                 safe = "".join(c for c in title[:20]
                                if c.isalnum() or c in " 　-_") or "video"
@@ -2453,7 +2459,7 @@ def _video_worker():
                     _video_failed_notes.append((fname, job.get("use_local", True), job.get("model", "qwen2.5")))
                     _clog("视频", "⚠ 《%s》文字稿已保存，但 AI 分析没成功，队列跑完后会自动补分析" % title[:20])
                 else:
-                    _lb_after_analyzed(fname)          # v132：提取时一起加工好的，也自动贴标签
+                    _lb_after_analyzed(fname, _lbc, _lbs, _lbt, job.get("use_local", True), job.get("model", ""))   # v132/v138
                 # 让「提取完成」的结果卡 / 视频列表也直接显示中文标题（原标题另存一份备查）
                 res["title_original"] = title
                 res["title"] = display_title
@@ -3402,16 +3408,11 @@ def _lb_mode():
 
 
 def _lb_llm(prompt):
-    """v132：贴标签问 AI：本机有本地模型就用本地的（快、不占 AI 池）；没有再排队用 AI 池。
-    新加工好的自动贴（auto）只用本地模型，免得和批量加工抢 AI 池。"""
+    """v138：你点的「自动贴标签」用网页 AI（AI 池，分得准）；新加工好的、加工时没拿到分类的，才用本地模型自动补；
+    库里文章不到 5 篇的作者按主页判断，本机有本地模型就用本地的（快）。"""
     import labels as _lb
-    if _lb_mode() == "local":
-        try:
-            return _local_chat(prompt, num_ctx=8192, timeout=300)
-        except Exception as e:
-            if _lb.job_state().get("auto"):
-                raise
-            _clog("贴标签", "本地模型没回话（%s），这次改用 AI 池" % str(e)[:80])
+    if _lb.job_state().get("mode") == "local":
+        return _local_chat(prompt, num_ctx=8192 * 2, timeout=300)
     t = _ai_gate.acquire("贴标签（文章分类、作者领域）", should_stop=_lb.stopping)
     if t is None:
         raise RuntimeError("已停止")
@@ -3430,8 +3431,38 @@ def _lb_mod():
     return _lb
 
 
-def _lb_after_analyzed(name):
-    """v132：一条刚加工好：有本地模型就在后台给它分类，作者还没领域的也顺手判断（不耽误加工）。"""
+def _lb_guide():
+    """v138：给「加工」提示词用的分类表 + 分类规则。"""
+    try:
+        return _lb_mod().analysis_guide()
+    except Exception:
+        return ""
+
+
+def _lb_split(analysis):
+    """v138：加工结果最后 AI 写的「分类标签」：拆出来（大类、子类、标签），从笔记正文里去掉。"""
+    try:
+        return _lb_mod().split_from_analysis(analysis)
+    except Exception:
+        return analysis, "", "", []
+
+
+def _lb_after_analyzed(name, cat="", sub="", tags=None, use_local=True, model=""):
+    """v132：一条刚加工好：有本地模型就在后台给它分类，作者还没领域的也顺手判断（不耽误加工）。
+    v138：写笔记的 AI 已经在最后分好类、总结好标签 → 直接存成这篇的分类（网页 AI 分的最准），不用再单独贴。"""
+    if cat:
+        try:
+            try:
+                _ul, _m = core.video_model(use_local, model)
+            except Exception:
+                _ul, _m = use_local, model
+            _eng = "web" if (not _ul and core.is_web_model(_m)) else "local"
+            _lb_mod().set_note(name, cat, sub=sub, by="ai", kw=list(tags or [])[:4], eng=_eng)
+            _clog("贴标签", "《%s》加工时 AI 分好了类：%s" % (re.sub(r"^\d{8}-\d{6}-", "", name)[:24],
+                                                     cat + (" · " + sub if sub else "")))
+        except Exception as e:
+            _clog("贴标签", "存加工时的分类出错：%s" % str(e)[:80])
+
     def _go():
         try:
             import time as _t
@@ -3625,23 +3656,26 @@ def _note_analyze_worker_inner(name, use_local, model):
             # AI 池没成功：不把报错当分析结果存进笔记（保持「未分析」，以后还能再补）
             raise RuntimeError((analysis or "").strip().strip("（）")[:200])
         title_from_ai, analysis = _split_title_from_analysis(analysis)
+        analysis, _lbc, _lbs, _lbt = _lb_split(analysis)            # v138：写笔记的 AI 在最后写的「分类标签」
         try:
             analysis = _cx_adopt_web_images(analysis, note_stem)    # AI 池生成的示意图存进笔记
         except Exception:
             pass
 
         stage("AI 分析", "归纳标签…")
-        try:
-            ai_tags = _cx_suggest_tag(title, analysis, use_local, model)
-        except Exception:
-            ai_tags = []
-        # 已有标签（平台话题标签/用户手动加的）在前，AI 标签在后，去重取 6 个
+        ai_tags = []
+        if not _lbt:                                                # 写笔记的 AI 没总结标签，才让本地模型补
+            try:
+                ai_tags = _cx_suggest_tag(title, analysis, use_local, model)
+            except Exception:
+                ai_tags = []
+        # v138：写笔记的 AI 总结的标签在前、原来的标签在后（最多 8 个）；没有就照旧：原来的在前、补的在后
         tags = []
-        for _t in list(old_tags) + list(ai_tags):
+        for _t in (list(_lbt) + list(old_tags)) if _lbt else (list(old_tags) + list(ai_tags)):
             _t = (_t or "").strip().lstrip("#").strip()
             if _t and _t not in tags:
                 tags.append(_t)
-        tags = tags[:6]
+        tags = tags[:8 if _lbt else 6]
 
         # 跳转原片标记 → 真实跳转链接（不截图：视频画面早已清理）
         if want_link and segments and clean_url:
@@ -3691,7 +3725,7 @@ def _note_analyze_worker_inner(name, use_local, model):
         except Exception:
             pass
         ok = True
-        _lb_after_analyzed(name)                       # v132：加工好了，后台自动贴标签（有本地模型时）
+        _lb_after_analyzed(name, _lbc, _lbs, _lbt, use_local, model)   # v132/v138：加工时分好的类直接存
         _clog("视频", "✅ 补分析完成：《%s》（用时 %d 秒）"
               % (display_title[:24], int(_time.time() - start)))
     except Exception as e:
@@ -6728,9 +6762,10 @@ class Handler(BaseHTTPRequestHandler):
             title_zh, analysis = _split_title_from_analysis(analysis)
         except Exception:
             analysis = tweet_text
-        # 标签：让 AI 归纳几个（失败就空）
+        analysis, _lbc, _lbs, _lbt = _lb_split(analysis)            # v138：写笔记的 AI 在最后写的「分类标签」
+        # 标签：写笔记的 AI 总结了就用它的；没有再让本地模型归纳几个（失败就空）
         try:
-            tags = _cx_suggest_tag(raw_title, analysis or tweet_text, use_local, model)
+            tags = list(_lbt) or _cx_suggest_tag(raw_title, analysis or tweet_text, use_local, model)
         except Exception:
             tags = []
         tags = [(_t or "").strip().lstrip("#").strip() for _t in (tags or [])]
@@ -6757,6 +6792,8 @@ class Handler(BaseHTTPRequestHandler):
             _cx_video_dir().joinpath(fname).write_text(doc, encoding="utf-8")
         except Exception:
             pass
+        if _lbc:
+            _lb_after_analyzed(fname, _lbc, _lbs, _lbt, use_local, model)     # v138
         return fname
 
     def _handle_video_transcribe(self, body):
@@ -7039,6 +7076,8 @@ class Handler(BaseHTTPRequestHandler):
                         it["cat"] = x["cat"]
                         if x.get("sub"):
                             it["sub"] = x["sub"]                    # v134：子类
+                        if x.get("eng"):
+                            it["cat_eng"] = x["eng"]                # v138：web = 网页 AI 分的
                         if x.get("kw"):
                             it["kw"] = x["kw"]
                         if x.get("by") == "you":

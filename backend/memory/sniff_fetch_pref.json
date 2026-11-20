@@ -62,5 +62,13 @@
   "tmtpost.com": {
     "mode": "browser",
     "at": "2026-11-20 17:47"
+  },
+  "nber.org/papers": {
+    "mode": "fast",
+    "at": "2026-11-20 21:33"
+  },
+  "sloanreview.mit.edu": {
+    "mode": "fast",
+    "at": "2026-11-20 21:33"
   }
 }
