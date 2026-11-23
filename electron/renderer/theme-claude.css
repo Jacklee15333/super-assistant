@@ -1074,3 +1074,9 @@ body.dark .vn-kind.k-gh { background: #e6e6e3; color: #1f1e1a; }
 .cv-state { flex: none; font-size: 12px; color: var(--text-dim); }
 .cv-row button { flex: none; }
 .cv-more { display: block; width: 100%; margin: 6px 0 2px; }
+
+/* v144：博主 / 文件夹里：「← 返回」，标题行往下滚也一直在顶上 */
+.vn-crumb-sticky { position: sticky; top: 0; z-index: 6; margin: 0 0 8px; padding: 6px 2px; background: var(--bg); }
+.vn-back { margin-right: 6px; padding: 3px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg-elev, transparent);
+  cursor: pointer; font: 500 13px var(--sans); line-height: 20px; color: var(--text); }
+.vn-back:hover { border-color: var(--accent); color: var(--accent); }
