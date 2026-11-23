@@ -1030,3 +1030,10 @@ body.dark .vn-kind.k-gh { background: #e6e6e3; color: #1f1e1a; }
 .vi-lb-tagbar-h { margin-right: 2px; font-size: 12px; color: var(--text-dim); white-space: nowrap; }
 .vi-tg-pop .vi-lb-pop-cats { min-height: 24px; }
 #view-video.vn-split .vi-lb-tagbar-h { display: none; }
+
+/* v141：提取设置「保存设置」：有改动没保存时按钮是实心的，提示文字变色 */
+.vs-save-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 8px 0 8px; }
+#videoSettingsSave { flex: none; }
+#videoSettingsSave.vs-dirty { color: #fff; background: var(--accent); border-color: var(--accent); }
+.vs-save-msg { min-width: 0; font-size: 12.5px; line-height: 1.5; color: var(--text-dim); }
+.vs-save-msg.vs-warn { color: #b5532a; }
