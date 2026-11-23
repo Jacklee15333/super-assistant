@@ -5917,7 +5917,7 @@ class Handler(BaseHTTPRequestHandler):
                     r = creator_watch.list_videos_url(prof.get("platform") or "", home, body.get("limit", 0))
                     ent = {"key": key, "home": home, "platform": r["platform"], "platform_label": r["platform_label"],
                            "videos": r["videos"], "total": r["total"], "empty_reason": r.get("empty_reason") or "",
-                           "ts": int(_time_now())}
+                           "note": r.get("note") or "", "ts": int(_time_now())}
                     _pv_save(cid, ent)
                     _clog("博主", "「%s」主页上列到 %d 个视频" % (key, len(ent["videos"])))
                     cached = False
@@ -5936,6 +5936,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send({"ok": True, "key": key, "home": home, "platform": ent.get("platform") or "",
                                    "platform_label": ent.get("platform_label") or "", "videos": vids,
                                    "total": ent.get("total") or len(vids), "empty_reason": ent.get("empty_reason") or "",
+                                   "note": ent.get("note") or "", "works": prof.get("works"),
                                    "cached": cached, "ts": ent.get("ts") or 0, "now": int(_time_now())})
             except Exception as e:
                 return self._send({"ok": False, "message": str(e)[:300]}, 200)
