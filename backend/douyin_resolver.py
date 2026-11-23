@@ -1039,7 +1039,19 @@ def _parse_cookie_str(raw):
 
 
 def _load_user_cookie():
-    """读用户手动填的抖音 Cookie（backend/memory/douyin_cookie.txt）。没有返回 {}。"""
+    """读抖音 Cookie。没有返回 {}。
+    v146：先读这台电脑上的私密文件夹（「登录抖音」存在那里，不在项目里、不会被 GitHub 备份），
+    没有再读老位置 backend/memory/douyin_cookie.txt。"""
+    try:
+        import os as _os
+        pp = _private_cookie_file()
+        if _os.path.exists(pp):
+            with open(pp, "r", encoding="utf-8") as f:
+                raw = f.read().strip()
+            if raw:
+                return _parse_cookie_str(raw)
+    except Exception:
+        pass
     try:
         p = _cookie_file()
         import os
@@ -1399,12 +1411,16 @@ def _posts_from_api(session, sec_uid, limit, diag=None):
                 pg["raw_head"] = (raw or "")[:200]
             diag["pages"].append(pg)
         if not isinstance(data, dict) or not data:
+            if diag is not None:
+                diag["stop"] = "fail" if out else "none"      # v146：翻页中途没拿到 = 断了
             break
         lst = data.get("aweme_list")
         if not isinstance(lst, list):
             lst = []
         if not lst:
             # 没有作品列表：首页就停（交给上层兜底），翻页途中则正常结束
+            if diag is not None:
+                diag["stop"] = "fail" if out else "none"
             break
         for aw in lst:
             it = _norm_post_item(aw)
@@ -1419,11 +1435,17 @@ def _posts_from_api(session, sec_uid, limit, diag=None):
                     pass
         if cap and len(out) >= cap:
             out = out[:cap]
+            if diag is not None:
+                diag["stop"] = "cap"
             break
         if not data.get("has_more"):
+            if diag is not None:
+                diag["stop"] = "end"
             break
         nxt = data.get("max_cursor")
         if nxt in (None, "", 0, "0") or str(nxt) == str(cursor):
+            if diag is not None:
+                diag["stop"] = "fail"
             break
         cursor = str(nxt)
     return out, name
@@ -1538,6 +1560,15 @@ def list_user_posts(url, limit=40):
     # ①②：正式接口（a_bogus 优先，X-Bogus 兜底，都在 _sign_post_query 里处理）
     try:
         videos, name = _posts_from_api(s, sec, limit, diag=diag)
+        if videos and diag.get("stop") == "fail" and cookie_status().get("state") == "ok":
+            try:                                   # v146：后面几页没拿到：浏览器（带登录）往下滚着再列一遍
+                v2, n2, _why = _posts_via_browser(sec, limit, timeout_s=60)
+                diag["browser_retry"] = _why or ("ok:%d" % len(v2))
+                if len(v2) > len(videos):
+                    return {"ok": True, "videos": v2, "name": name or n2, "total": len(v2),
+                            "sec_uid": sec, "source": "browser"}
+            except Exception as e:
+                diag["browser_retry_exc"] = str(e)[:120]
         if videos:
             src = "api+abogus" if _abogus_available() else "api+xbogus"
             return {"ok": True, "videos": videos, "name": name, "total": len(videos),
@@ -1623,6 +1654,7 @@ def _posts_via_browser(sec, limit=40, timeout_s=40):
             page.on("response", lambda r: pending.append(r) if "aweme/post" in r.url else None)
             page.goto(_BROWSER_USER_PAGE % sec, wait_until="domcontentloaded", timeout=25000)
             end = _t.time() + timeout_s
+            hard_end = _t.time() + (max(timeout_s, 300) if want > 200 else timeout_s)   # v146
             idle_rounds = 0
             while _t.time() < end and len(videos) < want:
                 page.wait_for_timeout(1200)
@@ -1646,6 +1678,8 @@ def _posts_via_browser(sec, limit=40, timeout_s=40):
                 if not has_more:
                     break
                 idle_rounds = 0 if got_new else idle_rounds + 1
+                if got_new:                              # v146：还在出新作品：再多等一会儿
+                    end = min(hard_end, max(end, _t.time() + 20))
                 if videos and idle_rounds >= 4:          # 滚了几次都没新作品：到底了
                     break
                 try:                                      # 往下滚，触发加载下一页
@@ -1763,3 +1797,185 @@ def versions():
     except Exception:
         pass
     return out
+
+
+
+# ════════════════ v146：抖音登录（列出博主的全部作品要用）════════════════
+# 抖音不登录，只给看主页最新的 18 个左右（主页上「看更多最新作品 → 登录」）。
+# 「登录抖音」：弹出一个真的浏览器窗口，你用抖音 App 扫码登录；软件看到登录成功，就把 Cookie 存好、自动关掉窗口。
+# Cookie 和这个浏览器的资料都存在这台电脑的私密文件夹里（Windows：%LOCALAPPDATA%\SuperAssistant），
+# 不在项目文件夹里，所以不会被 GitHub 备份上传。登录一般 60 天有效，快到期 / 过期了界面会提醒。
+import os as _os146
+import time as _time146
+import shutil as _shutil146
+import threading as _th146
+
+_LOGIN = {"state": "idle", "msg": "", "started": 0, "finished": 0, "stop": False}
+_LOGIN_URL = "https://www.douyin.com/"
+_login_hook = {"setup": None, "headless": False, "timeout": 360}     # 测试用
+
+
+def _private_dir():
+    base = _os146.environ.get("LOCALAPPDATA") or _os146.path.join(_os146.path.expanduser("~"), ".local", "share")
+    d = _os146.path.join(base, "SuperAssistant")
+    _os146.makedirs(d, exist_ok=True)
+    return d
+
+
+def _private_cookie_file():
+    return _os146.path.join(_private_dir(), "douyin_cookie.txt")
+
+
+def _login_profile_dir():
+    return _os146.path.join(_private_dir(), "douyin_login_browser")
+
+
+def cookie_status(cookies=None):
+    """抖音登录 Cookie 的状态：{state: none（没有）/ guest（没登录）/ expired（过期了）/ ok，login_at, expire_at, days_left, where}。"""
+    import urllib.parse as _up
+    ck = _load_user_cookie() if cookies is None else cookies
+    out = {"state": "none", "login_at": "", "expire_at": "", "days_left": None, "where": ""}
+    if cookies is None:
+        try:
+            pp = _private_cookie_file()
+            out["where"] = "private" if (_os146.path.exists(pp) and open(pp, encoding="utf-8").read().strip()) else ("project" if ck else "")
+        except Exception:
+            pass
+    if not ck:
+        return out
+    if not (ck.get("sessionid") or ck.get("sessionid_ss") or ck.get("sid_tt")):
+        out["state"] = "guest"
+        return out
+    out["state"] = "ok"
+    try:
+        parts = _up.unquote(ck.get("sid_guard") or "").split("|")
+        ts, age = int(parts[1]), int(parts[2])
+        exp = ts + age
+        out["login_at"] = _time146.strftime("%Y-%m-%d", _time146.localtime(ts))
+        out["expire_at"] = _time146.strftime("%Y-%m-%d", _time146.localtime(exp))
+        out["days_left"] = int((exp - _time146.time()) // 86400)
+        if exp < _time146.time():
+            out["state"] = "expired"
+    except Exception:
+        pass
+    return out
+
+
+def _write_private_cookie(ck):
+    p = _private_cookie_file()
+    if _os146.path.exists(p):
+        try:
+            _shutil146.copyfile(p, p[:-4] + ".bak.txt")
+        except Exception:
+            pass
+    tmp = p + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write("; ".join("%s=%s" % (k, v) for k, v in ck.items() if k and v))
+    _os146.replace(tmp, p)
+
+
+def save_cookie_text(raw):
+    """你粘贴的 Cookie（浏览器里请求头「Cookie:」后面那一长串）。要带登录信息（sessionid）、没过期才收。"""
+    raw = (raw or "").strip()
+    if raw.lower().startswith("cookie:"):
+        raw = raw[7:].strip()
+    ck = _parse_cookie_str(raw)
+    st = cookie_status(ck)
+    if st["state"] in ("none", "guest"):
+        return {"ok": False, "error": "这串里没有登录信息（sessionid）：要先在浏览器里登录抖音，再复制 Cookie"}
+    if st["state"] == "expired":
+        return {"ok": False, "error": "这串 Cookie 已经过期了（%s 到期），在浏览器里重新登录一次再复制" % st["expire_at"]}
+    _write_private_cookie(ck)
+    r = cookie_status()
+    r["ok"] = True
+    return r
+
+
+def login_state():
+    d = dict(_LOGIN)
+    d.pop("stop", None)
+    return d
+
+
+def login_start():
+    """打开浏览器窗口让你扫码登录（后台线程，马上返回）。"""
+    if _LOGIN["state"] == "running":
+        return login_state()
+    _LOGIN.update(state="running", msg="正在打开浏览器窗口…", started=_time146.time(), finished=0, stop=False)
+    _th146.Thread(target=_login_worker, daemon=True, name="douyin-login").start()
+    return login_state()
+
+
+def login_cancel():
+    if _LOGIN["state"] == "running":
+        _LOGIN["stop"] = True
+    return login_state()
+
+
+def _login_done(state, msg):
+    _LOGIN.update(state=state, msg=msg, finished=_time146.time())
+    print("[抖音] " + msg, flush=True)
+
+
+def _login_worker():
+    try:
+        from playwright.sync_api import sync_playwright
+    except Exception as e:
+        return _login_done("fail", "没装 Playwright，打不开浏览器（%s）" % str(e)[:60])
+    urls = ["https://www.douyin.com", "https://douyin.com"]
+    try:
+        with sync_playwright() as pw:
+            ctx, err = None, ""
+            for ch in ("chrome", "msedge", None):
+                try:
+                    kw = dict(headless=bool(_login_hook["headless"]), locale="zh-CN", viewport={"width": 1180, "height": 820},
+                              args=["--disable-blink-features=AutomationControlled", "--no-proxy-server"],
+                              ignore_default_args=["--enable-automation"])
+                    if ch:
+                        kw["channel"] = ch
+                    ctx = pw.chromium.launch_persistent_context(_login_profile_dir(), **kw)
+                    break
+                except Exception as e:
+                    err = str(e)[:80]
+            if ctx is None:
+                return _login_done("fail", "没有可用的浏览器（Chrome / Edge）：%s" % err)
+            try:
+                if _login_hook["setup"]:
+                    _login_hook["setup"](ctx)
+                page = ctx.pages[0] if ctx.pages else ctx.new_page()
+                try:
+                    page.goto(_LOGIN_URL, wait_until="domcontentloaded", timeout=30000)
+                except Exception:
+                    pass
+                _LOGIN["msg"] = "浏览器窗口打开了：在窗口右上角点「登录」，用抖音 App 扫码。登录好这个窗口会自己关掉"
+                end, got = _time146.time() + int(_login_hook["timeout"]), None
+                while _time146.time() < end:
+                    if _LOGIN["stop"]:
+                        return _login_done("cancel", "你取消了登录")
+                    try:
+                        if not ctx.pages:
+                            raise RuntimeError("closed")
+                        m = {c["name"]: c["value"] for c in ctx.cookies(urls) if c.get("value")}
+                    except Exception:
+                        return _login_done("closed", "浏览器窗口被关掉了，没登录上")
+                    if cookie_status(m)["state"] == "ok":
+                        got = m
+                        break
+                    _time146.sleep(2)
+                if not got:
+                    return _login_done("timeout", "等了 %d 分钟还没登录上，窗口先关了，可以再点一次「登录抖音」" % (int(_login_hook["timeout"]) // 60))
+                _time146.sleep(2.5)                  # 登录后页面还会再写几个 Cookie，等一下再一起存
+                try:
+                    got = {c["name"]: c["value"] for c in ctx.cookies(urls) if c.get("value")} or got
+                except Exception:
+                    pass
+                _write_private_cookie(got)
+                st = cookie_status()
+                return _login_done("ok", "抖音登录好了" + ("（有效期到 %s）" % st["expire_at"] if st.get("expire_at") else ""))
+            finally:
+                try:
+                    ctx.close()
+                except Exception:
+                    pass
+    except Exception as e:
+        return _login_done("fail", "打开浏览器出错：%s" % str(e)[:100])

@@ -1,5 +1,14 @@
 [
   {
+    "time": "2026-11-23 14:39",
+    "ok": true,
+    "source": "auto",
+    "files": 1337,
+    "learned": 64,
+    "model": "web",
+    "summary": "主人是一个持续寻找技术变革与商业机会交汇点的独立思考者，既想看清趋势背后的真实逻辑，也想把信息、技术和认知转化为能够长期积累的实际价值。"
+  },
+  {
     "time": "2026-11-20 23:18",
     "ok": true,
     "source": "auto",
@@ -437,15 +446,6 @@
     "source": "auto",
     "files": 730,
     "learned": 24,
-    "model": "web",
-    "summary": "本轮没读到有效内容"
-  },
-  {
-    "time": "2026-07-08 12:52",
-    "ok": false,
-    "source": "auto",
-    "files": 706,
-    "learned": 12,
     "model": "web",
     "summary": "本轮没读到有效内容"
   }
