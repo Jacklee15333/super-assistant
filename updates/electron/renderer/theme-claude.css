@@ -1037,3 +1037,16 @@ body.dark .vn-kind.k-gh { background: #e6e6e3; color: #1f1e1a; }
 #videoSettingsSave.vs-dirty { color: #fff; background: var(--accent); border-color: var(--accent); }
 .vs-save-msg { min-width: 0; font-size: 12.5px; line-height: 1.5; color: var(--text-dim); }
 .vs-save-msg.vs-warn { color: #b5532a; }
+
+/* v142：「自动加工」开关（未加工那一行右边） */
+.vn-auto-tg { display: inline-flex; align-items: center; gap: 7px; padding: 3px 11px 3px 7px; border: 1px solid var(--line); border-radius: 14px;
+  background: none; cursor: pointer; font: 13px var(--sans); line-height: 20px; color: var(--text-dim); white-space: nowrap; }
+.vn-auto-tg:hover { color: var(--text); border-color: var(--text-dim); }
+.vn-auto-tg i { position: relative; flex: none; width: 26px; height: 15px; border-radius: 8px; background: var(--line); transition: background .15s; }
+.vn-auto-tg i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px; border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .25); transition: left .15s; }
+.vn-auto-tg.on { color: var(--text); border-color: var(--accent); }
+.vn-auto-tg.on i { background: var(--accent); }
+.vn-auto-tg.on i::after { left: 13px; }
+.vn-auto-tg.paused i { background: #d9a37a; }
+.vn-auto-tg:disabled { opacity: .6; cursor: default; }

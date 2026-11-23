@@ -2922,11 +2922,126 @@ def _note_batch_enqueue(names, use_local=True, model="qwen2.5", why=""):
     _note_batch.update({"running": True, "total": len(names), "done": 0, "ok": 0, "fail": 0, "ok_names": [],
                         "current": "", "stop": False, "errors": [], "started": _time_now(), "finished": 0,
                         "streak": 0, "paused": "", "waiting": "", "resume_at": 0, "extra": [],
-                        "failed_names": [], "round": 1, "user_stop": False, "resumed": False})
+                        "failed_names": [], "round": 1, "user_stop": False, "resumed": False, "auto": False})
     _clog("视频", "📦 %s：开始批量补分析 %d 条（每条换一张新的 AI 卡）" % (why or "补分析", len(names)))
     _threading.Thread(target=_note_batch_worker, args=(names, use_local, model),
                       daemon=True, name="note-batch").start()
     return len(names)
+
+
+# ════════════════ v142：「自动加工」开关 ════════════════
+# 「加工 → 未加工」右上角的开关，存在 memory/auto_process.json：
+#   · 开着：软件一打开，先接着做上次没做完的，再把所有「未加工」的排进批量加工；开着软件时，
+#     新提取的（还没加工的）隔两三分钟也自动加进去。
+#   · 关着：什么都不自动做（上次没做完的也不接着做），要加工就点「批量加工」。
+#   · 没设过：和以前一样——开软件只接着做上次没做完的那批。
+#   · 你点了「停止」：这次开着软件就不再自动加了（下次开软件照常）；点「批量加工」或重新打开开关就恢复。
+#   · 同一条一次开软件里只自动排一次（AI 一直分析不出来的，不会反复试）。
+_AUTO_PROC = {"paused": False, "tried": set(), "seen": {}}
+_ap_lock = _threading.Lock()
+
+
+def _ap_file():
+    return core.MEMORY_DIR / "auto_process.json"
+
+
+def _ap_load():
+    try:
+        d = json.loads(_ap_file().read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def _ap_write(d):
+    p = _ap_file()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_name(p.name + ".tmp")
+    tmp.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
+    os.replace(str(tmp), str(p))
+
+
+def _ap_on():
+    return bool(_ap_load().get("on"))
+
+
+def _ap_state():
+    d = _ap_load()
+    return {"auto_on": bool(d.get("on")), "auto_set": "on" in d, "auto_paused": bool(_AUTO_PROC["paused"])}
+
+
+def _ap_remember(use_local, model):
+    """记下你批量加工用的 AI（自动加工也用它）。"""
+    if not model:
+        return
+    try:
+        d = _ap_load()
+        if d.get("model") != model or d.get("use_local") != bool(use_local):
+            d.update(use_local=bool(use_local), model=str(model)[:80])
+            _ap_write(d)
+    except Exception:
+        pass
+
+
+def _ap_model():
+    d = _ap_load()
+    if d.get("model"):
+        return d.get("use_local", True), d["model"]
+    try:
+        import phone_inbox as _pi
+        df = (_pi._load() or {}).get("defaults") or {}
+        if df.get("model"):
+            return df.get("use_local", True), df["model"]
+    except Exception:
+        pass
+    return True, "qwen2.5"
+
+
+def _ap_tick(why=""):
+    """自动加工开着：把还没加工的排进批量加工（正在跑就加进去）。返回加了几条。"""
+    if not _ap_on() or _AUTO_PROC["paused"]:
+        return 0
+    with _ap_lock:
+        d = _cx_video_dir()
+        now = _time_now()
+        since = float(_note_batch.get("started") or 0) if _note_batch.get("running") else 0
+        seen = _AUTO_PROC["seen"]
+        names = []
+        for p in sorted(d.glob("*.md"), key=lambda x: x.name, reverse=True):     # 新的在前
+            nm = p.name
+            if nm.startswith("_") or nm in _AUTO_PROC["tried"]:
+                continue
+            try:
+                mt = p.stat().st_mtime
+            except Exception:
+                continue
+            if seen.get(nm) == mt:
+                continue                       # 上次看过、没变过、已经加工好的
+            if now - mt < 180 or (since and mt <= since):
+                continue                       # 刚写好的等一会儿（可能还在提取）；正在跑的那批开始前就有的，等那批跑完再说
+            if _vn_still_todo(nm):
+                names.append(nm)
+            else:
+                seen[nm] = mt
+        if not names:
+            return 0
+        _AUTO_PROC["tried"].update(names)
+        ul, model = _ap_model()
+        was = bool(_note_batch.get("running"))
+        n = _note_batch_enqueue(names, ul, model, "自动加工（%s）" % why if why else "自动加工")
+        if n and not was:
+            _note_batch["auto"] = True
+        return n
+
+
+def _ap_loop():
+    import time as _t
+    while True:
+        _t.sleep(150)
+        try:
+            _ap_tick("新提取的")
+        except Exception as e:
+            _clog("视频", "自动加工检查出错：%s" % e)
 
 
 def _parse_saved_note(text):
@@ -4278,6 +4393,10 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/video_notes":
             return self._handle_video_notes_list()
+        if path == "/note_auto":                        # v142：「自动加工」开关
+            st = _ap_state()
+            st["ok"] = True
+            return self._send(st)
         if path == "/video_settings":                   # v141：保存的提取设置
             _d = _vs_load()
             return self._send({"ok": True, "saved": _d or None, "text": _vs_text(_d) if _d else ""})
@@ -4301,6 +4420,7 @@ class Handler(BaseHTTPRequestHandler):
                     b["cur_author"] = _note_an_state.get("author", "")
                     b["cur_started"] = _note_an_state.get("started_at", 0)
             b["now"] = _time_now()
+            b.update(_ap_state())                    # v142：「自动加工」开关
             return self._send(b)
         if path == "/video_note_analyze_progress":
             with _note_an_lock:
@@ -4925,6 +5045,28 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_web_model_test(body)
         if path == "/heartbeat":
             return self._handle_heartbeat(body)
+        if path == "/note_auto":                      # v142：打开 / 关掉「自动加工」
+            on = bool(body.get("on"))
+            d = _ap_load()
+            d["on"] = on
+            d["at"] = int(_time_now())
+            if body.get("model"):
+                d["use_local"] = bool(body.get("use_local", True))
+                d["model"] = str(body.get("model"))[:80]
+            _ap_write(d)
+            n = 0
+            if on:
+                _AUTO_PROC["paused"] = False
+                _AUTO_PROC["tried"].clear()
+                _clog("视频", "「自动加工」打开了：开软件就自动加工未加工的，新提取的也会自动加工")
+                if not _note_batch.get("running") and _batch_file().exists():
+                    _note_batch_resume()                   # 上次没做完的先接着做
+                n = _ap_tick("你打开了自动加工")
+            else:
+                _clog("视频", "「自动加工」关了：以后不自动加工（正在跑的这批要停，点「停止」）")
+            st = _ap_state()
+            st.update(ok=True, started=n, running=bool(_note_batch.get("running")))
+            return self._send(st)
         if path == "/video_settings":                 # v141：「设置」里点了「保存设置」
             if body.get("level") not in _VS_LEVELS:
                 return self._send({"ok": False, "error": "识别质量不对"})
@@ -7363,6 +7505,7 @@ class Handler(BaseHTTPRequestHandler):
         if body.get("stop"):
             _note_batch["stop"] = True
             _note_batch["user_stop"] = True        # v136：你点的停止 → 下次开软件不接着做
+            _AUTO_PROC["paused"] = True             # v142：这次开着软件也先不自动加工了
             # v62：正在等 AI 回复的这一条也马上放下（以前要等它答完或超时才停，看起来像点了没反应）
             try:
                 with _note_an_lock:
@@ -7388,6 +7531,8 @@ class Handler(BaseHTTPRequestHandler):
                 names.append(nm)
         if not names:
             return self._send({"ok": False, "error": "没有可分析的笔记"})
+        _AUTO_PROC["paused"] = False                # v142：你自己开始加工了 → 「停止」带来的暂停取消
+        _ap_remember(body.get("use_local", True), body.get("model"))
         _note_batch_enqueue(names, body.get("use_local", True), body.get("model", "qwen2.5"), "手动批量")
         return self._send({"ok": True, "total": len(names)})
 
@@ -7746,9 +7891,21 @@ def main():
         import time as _t_rs
         _t_rs.sleep(5)
         try:
-            _note_batch_resume()
+            _ast = _ap_load()
+            if "on" not in _ast or _ast.get("on"):     # v142：没设过（以前的做法）或「自动加工」开着：接着做上次没做完的
+                _note_batch_resume()
+            elif _batch_file().exists():
+                _clog("视频", "「自动加工」关着：上次没做完的批量加工先不接着做（要做就点「批量加工」或打开开关）")
         except Exception as e:
             _clog("视频", "接着做上次的批量加工出错：%s" % e)
+        try:                                           # v142：「自动加工」开着：把所有还没加工的排上
+            if _ap_on():
+                _n = _ap_tick("开软件")
+                if not _n:
+                    _clog("视频", "「自动加工」开着：现在没有要加工的")
+        except Exception as e:
+            _clog("视频", "自动加工出错：%s" % e)
+        _threading.Thread(target=_ap_loop, daemon=True, name="auto-proc").start()
         try:
             _lb_mod().resume_on_start()
         except Exception as e:
