@@ -1,5 +1,23 @@
 [
   {
+    "time": "2026-11-23 17:39",
+    "ok": true,
+    "source": "auto",
+    "files": 1343,
+    "learned": 7,
+    "model": "web",
+    "summary": "主人是一个关注 AI 技术革命、商业机会与社会运行规律，善于追问底层逻辑和识别风险，正在探索将海量信息转化为个人知识资产、可靠 AI 能力与现实行动优势的长期主"
+  },
+  {
+    "time": "2026-11-23 16:41",
+    "ok": true,
+    "source": "auto",
+    "files": 1343,
+    "learned": 11,
+    "model": "web",
+    "summary": "主人是一个以独立判断和商业逻辑观察世界、正在深入探索 AI 智能体与知识系统的人，希望把信息优势、技术能力和对规则的理解转化为可持续的个人能力、实际生产力与更大"
+  },
+  {
     "time": "2026-11-23 14:39",
     "ok": true,
     "source": "auto",
@@ -428,24 +446,6 @@
     "source": "auto",
     "files": 763,
     "learned": 19,
-    "model": "web",
-    "summary": "本轮没读到有效内容"
-  },
-  {
-    "time": "2026-07-08 14:52",
-    "ok": false,
-    "source": "auto",
-    "files": 744,
-    "learned": 14,
-    "model": "web",
-    "summary": "本轮没读到有效内容"
-  },
-  {
-    "time": "2026-07-08 13:53",
-    "ok": false,
-    "source": "auto",
-    "files": 730,
-    "learned": 24,
     "model": "web",
     "summary": "本轮没读到有效内容"
   }

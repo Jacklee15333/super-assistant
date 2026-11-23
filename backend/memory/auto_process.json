@@ -1,6 +1,6 @@
 {
- "on": false,
- "at": 1795417249,
+ "on": true,
+ "at": 1795420914,
  "use_local": true,
  "model": "qwen3:14b"
 }
