@@ -772,6 +772,50 @@ def list_videos(cid, limit=40):
     return result
 
 
+def list_videos_url(platform, url, limit=0):
+    """v143：按主页链接列视频——「笔记」里点进一个博主，资料卡下面列他主页上的全部视频（博主不用加进「博主」监控列表）。
+    返回 {platform, platform_label, name, videos:[{vid,url,title,when,when_human,days_ago,title_zh?,views?}], total}，
+    按发布日期新的在前（没日期的放最后）。列不到会抛出带说明的异常。"""
+    try:
+        limit = int(limit)
+    except Exception:
+        limit = 0
+    limit = 0 if limit <= 0 else min(1000, limit)        # 0 = 尽量全部
+    plat = platform if platform in _PLATFORM_LABEL else _detect_platform(url)
+    data = list_recent(plat, url, limit)
+    today = datetime.date.today()
+    try:
+        tmap = _load().get("title_zh_map") or {}
+    except Exception:
+        tmap = {}
+    out = []
+    for v in data.get("videos", []) or []:
+        if not isinstance(v, dict):
+            continue
+        vv = dict(v)
+        w = (vv.get("when") or "").strip()
+        vv["when_human"], vv["days_ago"] = "", None
+        if re.match(r"^\d{8}$", w):
+            try:
+                d = datetime.date(int(w[:4]), int(w[4:6]), int(w[6:8]))
+                vv["when_human"] = "%04d-%02d-%02d" % (d.year, d.month, d.day)
+                vv["days_ago"] = (today - d).days
+            except Exception:
+                pass
+        else:
+            vv["when"] = ""
+        t = (vv.get("title") or "").strip()
+        if not vv.get("title_zh") and t and t in tmap:
+            vv["title_zh"] = tmap[t]
+        out.append(vv)
+    out.sort(key=lambda x: x.get("when") or "", reverse=True)     # 新的在前；同一天保持原来的先后
+    res = {"platform": plat, "platform_label": _PLATFORM_LABEL.get(plat, plat or "?"),
+           "name": (data.get("name") or "").strip(), "videos": out, "total": data.get("total") or len(out)}
+    if not out and data.get("error"):
+        res["empty_reason"] = data.get("error")
+    return res
+
+
 # ──────────────────────────── 视频缓存（秒开）────────────────────────────
 def _save_video_cache(cid, result):
     """把某个博主「这次列到的视频」存进持久缓存，供下次点开秒显示。
