@@ -1,0 +1,6 @@
+{
+ "on": true,
+ "at": 1795406294,
+ "use_local": true,
+ "model": "qwen3:14b"
+}

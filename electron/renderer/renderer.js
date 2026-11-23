@@ -5437,6 +5437,7 @@ async function vnPollBatch() {
   // 正在批量分析时，隐藏「批量 AI 分析」和各组的「分析本组」按钮，避免重复提交
   document.querySelectorAll(".vn-batch-btn, .vn-group-batch, .vn-un-an").forEach((b) => { b.hidden = !!d.running; });
   vnBatchHead(d);                 // v59：标题行（折叠时也能看到进度和当前在做什么）
+  try { naApply(d); } catch (_) {}   // v142：「自动加工」开关
   vnUnMark(d);                    // v68：清单里标出「正在分析」「上次没成功」
   const idle = document.getElementById("vnBatchIdle");
   if (idle) idle.hidden = !!(d.running || d.finished);
@@ -5448,7 +5449,8 @@ async function vnPollBatch() {
       (d.running ? (d.waiting ? "批量分析等待中 " : "批量分析中 ") : "批量分析结束 ") + d.done + " / " + d.total +
       "（成功 " + d.ok + "，失败 " + d.fail + "）" +
       (d.running && d.round > 1 ? '<span class="vn-batch-cur">第 ' + d.round + " 遍：补之前没成功的</span>" : "") +
-      (d.running && d.resumed ? '<span class="vn-batch-cur">接着上次没做完的</span>' : "") +       // v136：断点续传
+      (d.running && d.resumed ? '<span class="vn-batch-cur">接着上次没做完的</span>'
+        : d.running && d.auto ? '<span class="vn-batch-cur">自动加工</span>' : "") +       // v136：断点续传；v142：自动加工开始的
 
     "</div>" +
     '<div class="vn-batch-track"><div class="vn-batch-fill" style="width:' + pct + '%"></div></div>' +
@@ -14277,4 +14279,69 @@ async function _vsSave() {
   };
   load();
   setInterval(_vsRender, 2000);   // 别的代码改了选项（选日语模型自动切到日语、读回整理原文开关）也跟得上
+})();
+
+
+// ════════════════════ v142：「自动加工」开关 ════════════════════
+// 「未加工」那一行右边：开着 → 软件一打开就自动加工所有「未加工」的（上次没做完的先接着做），开着软件时新提取的也自动加工；
+// 关着 → 不自动加工。你点了「停止」：这次开着软件先不自动加，下次开软件照常。
+let _naSt = null, _naBusy = false;
+function naApply(d) {
+  if (!d || d.auto_on === undefined) return;
+  _naSt = { on: !!d.auto_on, set: !!d.auto_set, paused: !!d.auto_paused };
+  naRender();
+}
+function naRender() {
+  const slot = document.getElementById("viPtabActs");
+  if (!slot || !_naSt) return;
+  let b = document.getElementById("vnAutoToggle");
+  if (!b) {
+    b = document.createElement("button");
+    b.type = "button"; b.id = "vnAutoToggle"; b.className = "vn-auto-tg";
+    b.innerHTML = "<i></i><span></span>";
+    b.addEventListener("click", naToggle);
+  }
+  if (b.parentNode !== slot || slot.firstChild !== b) slot.insertBefore(b, slot.firstChild);
+  const st = _naSt;
+  b.classList.toggle("on", st.on);
+  b.classList.toggle("paused", st.on && st.paused);
+  b.disabled = _naBusy;
+  b.setAttribute("aria-pressed", st.on ? "true" : "false");
+  b.querySelector("span").textContent = st.on && st.paused ? "自动加工（这次已停）" : "自动加工";
+  b.title = st.on
+    ? (st.paused
+      ? "开着，但这次你点了「停止」：开着软件期间先不自动加工了，下次打开软件会照常自动加工。\n想现在接着做，点「批量加工」。点这个开关就关掉"
+      : "开着：软件一打开就自动加工所有「未加工」的文章（上次没做完的先接着做）；\n开着软件时，新提取的文章过两三分钟也会自动加工。点一下关掉")
+    : (st.set
+      ? "关着：不会自动加工（上次没做完的也不接着做），要加工就点「批量加工」。点一下打开"
+      : "关着：现在打开软件只会接着做上次没做完的那批。\n点一下打开：以后一打开软件，就自动加工所有「未加工」的文章");
+}
+async function naToggle(e) {
+  e.stopPropagation();
+  if (!_naSt || _naBusy) return;
+  const want = !_naSt.on;
+  if (want && !confirm("打开「自动加工」？\n\n" +
+      "· 现在就开始：先接着做上次没做完的，再把所有「未加工」的文章一条条加工；\n" +
+      "· 以后每次打开软件都会自动开始；开着软件时，新提取的文章过两三分钟也会自动加工；\n" +
+      "· 用的是你现在选的 AI，和点「批量加工」一样；\n" +
+      "· 随时可以点「停止」（这次就不再自动加，下次开软件照常），或者把开关关掉。")) return;
+  _naBusy = true; naRender();
+  const s = (typeof settings === "function") ? settings() : {};
+  try {
+    const d = await (await fetch(BACKEND + "/note_auto", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ on: want, use_local: s.use_local, model: s.model }) })).json();
+    if (d && d.ok) naApply(d);
+    if (d && d.ok && !want && d.running) setAnStatus("「自动加工」关了。正在跑的这批要停，点「停止」。", "ok", 10000);
+    if (d && d.ok && want && !d.running) setAnStatus("「自动加工」开了：现在没有要加工的，以后新提取的会自动加工。", "ok", 10000);
+  } catch (err) { alert("没切换成功：" + (err && err.message ? err.message : err)); }
+  _naBusy = false; naRender();
+  setTimeout(vnPollBatch, 600);
+}
+(function _naBoot() {
+  let tries = 0;
+  const load = async () => {
+    try { const d = await (await fetch(BACKEND + "/note_auto")).json(); if (d && d.ok) { naApply(d); return; } } catch (_) {}
+    if (++tries < 40) setTimeout(load, 1500);
+  };
+  setTimeout(load, 1500);
 })();
