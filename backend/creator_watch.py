@@ -614,7 +614,7 @@ def _list_douyin(url, limit):
                 vids = res["videos"]
                 # 名字：接口/HTML 拿到就用，否则再单独探一次主页昵称
                 name = (res.get("name") or "").strip() or _douyin_name_from_page(target)
-                return {"name": name, "videos": vids, "total": res.get("total") or len(vids)}
+                return {"name": name, "videos": vids, "total": res.get("total") or len(vids), "note": res.get("note") or ""}
             # 接口/HTML 都没拿到作品 → 记下原因，继续往下试 yt-dlp
             _dy_reason = res.get("error") or "接口与主页都没解析到作品"
         else:
@@ -813,6 +813,7 @@ def list_videos_url(platform, url, limit=0):
            "name": (data.get("name") or "").strip(), "videos": out, "total": data.get("total") or len(out)}
     if not out and data.get("error"):
         res["empty_reason"] = data.get("error")
+    res["note"] = data.get("note") or ""             # v147：列少了的原因（比如抖音翻到第几页不给了）
     return res
 
 

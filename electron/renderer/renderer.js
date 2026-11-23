@@ -14582,6 +14582,13 @@ function cvRender(box, key) {
   if (!st.home) note("cv-hint", "还没绑定他的主页：现在只列出你已有的笔记。点上面的「绑定博主主页」或「自动找主页」后，这里会列出他主页上的全部视频。");
   if (st.err) note("cv-err", (d ? "这次没读成功（下面是上次读到的）：" : "主页上的视频没列到（下面先列出你已有的笔记）：") + st.err);
   if (st.plat === "douyin" && st.home) cvLoginNote(box, key, st);      // v146：抖音没登录只给看最新 18 个左右
+  if (st.plat === "douyin" && d && !st.loading && _dyLg && _dyLg.state === "ok") {   // v147：登录着还没列全：说清楚列到多少、为什么
+    const works = d.works || (_vnProfiles[key] || {}).works || 0, got = (d.videos || []).length;
+    if (d.note || (works && got < works - 3)) {
+      note("cv-err", (works ? "他主页一共 " + works + " 个作品，这次列到 " + got + " 个。" : "") +
+        (d.note || "可以过一会儿点「刷新」再试；还不行的话把软件的「诊断」发我看看。"));
+    }
+  }
   if (!st.open) return;
   // ── 按状态筛 ──
   if (rows.length) {
@@ -14707,7 +14714,8 @@ function dyAfterLogin() {                 // 登录好了：开着的抖音博�
       st.msg = "抖音登录好了，正在重新列他的全部作品…";
       cvLoad(key, true).then(() => {
         if (st.msg.startsWith("抖音登录好了，正在")) {
-          st.msg = st.err ? "" : "抖音登录好了：他主页上列到 " + ((st.data && st.data.videos.length) || 0) + " 个作品";
+          const w = (st.data && st.data.works) || 0;
+          st.msg = st.err ? "" : "抖音登录好了：他主页上列到 " + ((st.data && st.data.videos.length) || 0) + " 个作品" + (w ? "（主页一共 " + w + " 个）" : "");
           cvRefresh(key);
         }
       });

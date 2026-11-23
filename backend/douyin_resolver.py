@@ -1207,15 +1207,47 @@ def _abogus_available():
     global _ABOGUS_OK, _ABOGUS_SIGNER
     if _ABOGUS_OK is not None:
         return _ABOGUS_OK
-    try:
-        import dy_abogus  # 需要 gmssl
-        fp = dy_abogus.BrowserFingerprintGenerator.generate_fingerprint("Edge")
-        _ABOGUS_SIGNER = dy_abogus.ABogus(fp=fp, user_agent=_SIGN_UA)
-        _ABOGUS_OK = True
-    except Exception:
-        _ABOGUS_OK = False
-        _ABOGUS_SIGNER = None
+    for _try in (0, 1):
+        try:
+            import dy_abogus  # 需要 gmssl
+            fp = dy_abogus.BrowserFingerprintGenerator.generate_fingerprint("Edge")
+            _ABOGUS_SIGNER = dy_abogus.ABogus(fp=fp, user_agent=_SIGN_UA)
+            _ABOGUS_OK = True
+            return True
+        except ImportError as e:
+            # v147：没有 gmssl 就算不出 a_bogus，抖音的作品接口直接 403（Signature Not Found）→ 自动装一次
+            if _try == 0 and "gmssl" in str(e) and _pip_install_gmssl():
+                import importlib
+                import sys as _sys
+                importlib.invalidate_caches()
+                _sys.modules.pop("dy_abogus", None)
+                continue
+            break
+        except Exception:
+            break
+    _ABOGUS_OK = False
+    _ABOGUS_SIGNER = None
     return _ABOGUS_OK
+
+
+def _pip_install_gmssl():
+    """v147：列抖音作品要 a_bogus 签名，签名要 gmssl（一个很小的纯 Python 包）：没装就自动装一次。"""
+    import subprocess
+    import sys as _sys
+    print("[抖音] 列作品要用 gmssl（算 a_bogus 签名），自动装一下（只装一次）…", flush=True)
+    for extra in ([], ["-i", "https://pypi.tuna.tsinghua.edu.cn/simple"]):
+        try:
+            cmd = [_sys.executable, "-m", "pip", "install", "gmssl"] + extra
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=240)
+            if r.returncode != 0 and "externally-managed" in ((r.stderr or "") + (r.stdout or "")):
+                r = subprocess.run(cmd + ["--break-system-packages"], capture_output=True, text=True, timeout=240)
+            if r.returncode == 0:
+                print("[抖音] gmssl 装好了", flush=True)
+                return True
+        except Exception:
+            pass
+    print("[抖音] gmssl 没装上（网络问题？），这次先用浏览器列", flush=True)
+    return False
 
 
 def _build_post_query(sec_uid, max_cursor, count, ms_token, webid="", verify_fp="", uifid=""):
@@ -1433,6 +1465,11 @@ def _posts_from_api(session, sec_uid, limit, diag=None):
                     name = ((aw.get("author") or {}).get("nickname") or "").strip()
                 except Exception:
                     pass
+            if diag is not None and not diag.get("aweme_count"):
+                try:
+                    diag["aweme_count"] = int((aw.get("author") or {}).get("aweme_count") or 0)   # v147
+                except Exception:
+                    pass
         if cap and len(out) >= cap:
             out = out[:cap]
             if diag is not None:
@@ -1560,19 +1597,20 @@ def list_user_posts(url, limit=40):
     # ①②：正式接口（a_bogus 优先，X-Bogus 兜底，都在 _sign_post_query 里处理）
     try:
         videos, name = _posts_from_api(s, sec, limit, diag=diag)
-        if videos and diag.get("stop") == "fail" and cookie_status().get("state") == "ok":
+        _short = diag.get("stop") == "fail" or (diag.get("aweme_count") or 0) > len(videos) + 3     # v147
+        if videos and _short and cookie_status().get("state") == "ok":
             try:                                   # v146：后面几页没拿到：浏览器（带登录）往下滚着再列一遍
-                v2, n2, _why = _posts_via_browser(sec, limit, timeout_s=60)
+                v2, n2, _why = _posts_via_browser(sec, limit, timeout_s=60, diag=diag)
                 diag["browser_retry"] = _why or ("ok:%d" % len(v2))
                 if len(v2) > len(videos):
-                    return {"ok": True, "videos": v2, "name": name or n2, "total": len(v2),
-                            "sec_uid": sec, "source": "browser"}
+                    return _list_ok(diag, {"ok": True, "videos": v2, "name": name or n2, "total": len(v2),
+                                           "sec_uid": sec, "source": "browser"})
             except Exception as e:
                 diag["browser_retry_exc"] = str(e)[:120]
         if videos:
             src = "api+abogus" if _abogus_available() else "api+xbogus"
-            return {"ok": True, "videos": videos, "name": name, "total": len(videos),
-                    "sec_uid": sec, "source": src}
+            return _list_ok(diag, {"ok": True, "videos": videos, "name": name, "total": len(videos),
+                                   "sec_uid": sec, "source": src})
     except Exception as e:
         diag["api_exc"] = str(e)[:120]
 
@@ -1592,19 +1630,19 @@ def list_user_posts(url, limit=40):
     try:
         videos, name = _posts_from_html(html, limit)
         if videos:
-            return {"ok": True, "videos": videos, "name": name, "total": len(videos),
-                    "sec_uid": sec, "source": "html"}
+            return _list_ok(diag, {"ok": True, "videos": videos, "name": name, "total": len(videos),
+                                   "sec_uid": sec, "source": "html"})
     except Exception as e:
         diag["html_exc"] = str(e)[:120]
 
     # ④：真浏览器兜底（2026-11 抖音给作品列表接口加签名后加的）：后台打开博主主页，
     #    让页面自己请求作品列表，我们只「听」返回的数据
     try:
-        videos, name, why = _posts_via_browser(sec, limit)
+        videos, name, why = _posts_via_browser(sec, limit, diag=diag)
         diag["browser"] = why or ("ok:%d" % len(videos))
         if videos:
-            return {"ok": True, "videos": videos, "name": name, "total": len(videos),
-                    "sec_uid": sec, "source": "browser"}
+            return _list_ok(diag, {"ok": True, "videos": videos, "name": name, "total": len(videos),
+                                   "sec_uid": sec, "source": "browser"})
     except Exception as e:
         diag["browser_exc"] = str(e)[:120]
 
@@ -1618,82 +1656,163 @@ def list_user_posts(url, limit=40):
 _BROWSER_USER_PAGE = "https://www.douyin.com/user/%s"
 
 
-def _posts_via_browser(sec, limit=40, timeout_s=40):
-    """用本机 Chrome（后台、无界面、直连）打开博主主页，截获页面自己发出的作品列表请求
-    （/aweme/v1/web/aweme/post/），往下滚动加载更多，直到够数或没有更多。
-    返回 (videos, name, 失败原因)。只读公开主页，不登录、不批量抓别人的数据。"""
+_BROWSER_LIST_LOCK = _thr.Lock()        # v147：登录用的浏览器资料同一时间只能开一个
+
+
+def _list_ok(diag, res):
+    """v147：列成功了也记一份诊断（memory/douyin_list_diag.txt），列少了好查原因；只记 Cookie 的名字，不记内容。"""
+    try:
+        diag["result"] = "%s:%d" % (res.get("source"), len(res.get("videos") or []))
+        if diag.get("browser_note"):
+            res["note"] = diag["browser_note"]
+        _write_list_diag(diag)
+    except Exception:
+        pass
+    return res
+
+
+def _posts_via_browser(sec, limit=40, timeout_s=40, diag=None):
+    """用本机 Chrome（后台、无界面）打开博主主页，截获页面自己发出的作品列表请求
+    （/aweme/v1/web/aweme/post/，页面自己签好名），往下滚动加载更多，直到够数或没有更多。
+    v147：登录过（「登录抖音」那个浏览器）就直接用那个浏览器的资料，和你自己在浏览器里看一模一样；
+          抖音加载下一页常常要等好几秒，没新作品时多等一会儿、换着法子往下滚（最多 5 分钟）。
+    返回 (videos, name, 失败原因)。"""
     import time as _t
+    import os as _os
     try:
         from playwright.sync_api import sync_playwright
     except Exception as e:
         return [], "", "没装 Playwright（%s）" % str(e)[:40]
     want = 1000 if (not limit or int(limit) <= 0) else int(limit)
     pending, videos, seen = [], [], set()
-    name, has_more = "", True
-    with sync_playwright() as pw:
-        browser = None
-        for ch in ("chrome", "msedge", None):
-            try:
-                kw = dict(headless=True, args=["--disable-blink-features=AutomationControlled",
-                                               "--mute-audio", "--no-proxy-server"])
-                if ch:
-                    kw["channel"] = ch
-                browser = pw.chromium.launch(**kw)
-                break
-            except Exception:
-                continue
-        if browser is None:
-            return [], "", "没有可用的浏览器（Chrome/Edge）"
-        try:
-            ctx = browser.new_context(user_agent=_PC_UA, locale="zh-CN", viewport={"width": 1280, "height": 900})
-            ck = _load_user_cookie()
-            if ck:
-                ctx.add_cookies([{"name": k, "value": v, "domain": ".douyin.com", "path": "/"}
-                                 for k, v in ck.items() if k and v])
-            page = ctx.new_page()
-            page.on("response", lambda r: pending.append(r) if "aweme/post" in r.url else None)
-            page.goto(_BROWSER_USER_PAGE % sec, wait_until="domcontentloaded", timeout=25000)
-            end = _t.time() + timeout_s
-            hard_end = _t.time() + (max(timeout_s, 300) if want > 200 else timeout_s)   # v146
-            idle_rounds = 0
-            while _t.time() < end and len(videos) < want:
-                page.wait_for_timeout(1200)
-                got_new = False
-                while pending:
-                    r = pending.pop(0)
+    name, has_more, stop, rounds, resp_n, captcha, mode = "", True, "", 0, 0, False, ""
+    use_prof = False
+    try:
+        use_prof = (cookie_status().get("state") == "ok" and _os.path.isdir(_login_profile_dir())
+                    and _BROWSER_LIST_LOCK.acquire(timeout=1))
+    except Exception:
+        use_prof = False
+    args = ["--disable-blink-features=AutomationControlled", "--mute-audio", "--no-proxy-server"]
+    try:
+        with sync_playwright() as pw:
+            browser, ctx = None, None
+            if use_prof:
+                for ch in ("chrome", "msedge", None):
                     try:
-                        data = r.json()
+                        kw = dict(headless=True, args=args, ignore_default_args=["--enable-automation"],
+                                  user_agent=_PC_UA, locale="zh-CN", viewport={"width": 1280, "height": 900})
+                        if ch:
+                            kw["channel"] = ch
+                        ctx = pw.chromium.launch_persistent_context(_login_profile_dir(), **kw)
+                        mode = "登录用的浏览器"
+                        break
+                    except Exception:
+                        ctx = None
+            if ctx is None:
+                for ch in ("chrome", "msedge", None):
+                    try:
+                        kw = dict(headless=True, args=args)
+                        if ch:
+                            kw["channel"] = ch
+                        browser = pw.chromium.launch(**kw)
+                        break
                     except Exception:
                         continue
-                    for aw in (data.get("aweme_list") or []):
-                        it = _norm_post_item(aw)
-                        if it and it["vid"] not in seen:
-                            seen.add(it["vid"])
-                            videos.append(it)
-                            got_new = True
-                            if not name:
-                                name = ((aw.get("author") or {}).get("nickname") or "").strip()
-                    if "has_more" in data:
-                        has_more = bool(data.get("has_more"))
-                if not has_more:
-                    break
-                idle_rounds = 0 if got_new else idle_rounds + 1
-                if got_new:                              # v146：还在出新作品：再多等一会儿
-                    end = min(hard_end, max(end, _t.time() + 20))
-                if videos and idle_rounds >= 4:          # 滚了几次都没新作品：到底了
-                    break
-                try:                                      # 往下滚，触发加载下一页
-                    page.mouse.wheel(0, 2400)
-                    page.evaluate("() => window.scrollBy(0, 2400)")
+                if browser is None:
+                    return [], "", "没有可用的浏览器（Chrome/Edge）"
+                ctx = browser.new_context(user_agent=_PC_UA, locale="zh-CN", viewport={"width": 1280, "height": 900})
+                ck = _load_user_cookie()
+                if ck:
+                    ctx.add_cookies([{"name": k, "value": v, "domain": ".douyin.com", "path": "/"}
+                                     for k, v in ck.items() if k and v])
+                mode = "带 Cookie 的新浏览器" if ck else "没登录的新浏览器"
+            try:
+                page = ctx.pages[0] if ctx.pages else ctx.new_page()
+                page.on("response", lambda r: pending.append(r) if "aweme/post" in r.url else None)
+                page.goto(_BROWSER_USER_PAGE % sec, wait_until="domcontentloaded", timeout=25000)
+                t0 = _t.time()
+                end = t0 + timeout_s
+                hard_end = t0 + (max(timeout_s, 300) if want > 200 else timeout_s)
+                idle = 0
+                while len(videos) < want:
+                    if _t.time() >= end:
+                        stop = "time"
+                        break
+                    page.wait_for_timeout(1500)
+                    rounds += 1
+                    got_new = False
+                    while pending:
+                        r = pending.pop(0)
+                        try:
+                            data = r.json()
+                        except Exception:
+                            continue
+                        resp_n += 1
+                        for aw in (data.get("aweme_list") or []):
+                            it = _norm_post_item(aw)
+                            if it and it["vid"] not in seen:
+                                seen.add(it["vid"])
+                                videos.append(it)
+                                got_new = True
+                                if not name:
+                                    name = ((aw.get("author") or {}).get("nickname") or "").strip()
+                        if "has_more" in data:
+                            has_more = bool(data.get("has_more"))
+                    if not has_more:
+                        stop = "end"
+                        break
+                    if got_new:
+                        idle = 0
+                        end = min(hard_end, max(end, _t.time() + 25))     # 还在出新作品：再多等一会儿
+                    else:
+                        idle += 1
+                    if videos and idle >= 14:                      # 二十来秒都没新的：抖音不给了
+                        stop = "stall"
+                        break
+                    try:                                           # 往下滚，触发加载下一页（几种办法轮着来）
+                        if idle and idle % 3 == 0:
+                            page.evaluate("() => window.scrollBy(0, -900)")
+                            page.wait_for_timeout(400)
+                        page.evaluate("""() => {
+                            const items = document.querySelectorAll('[data-e2e="user-post-list"] li, [data-e2e="scroll-list"] li');
+                            const last = items[items.length - 1];
+                            if (last) last.scrollIntoView({block: 'end'});
+                            window.scrollTo(0, document.documentElement.scrollHeight);
+                        }""")
+                        page.mouse.wheel(0, 2400)
+                        page.keyboard.press("End")
+                    except Exception:
+                        pass
+                if len(videos) >= want:
+                    stop = stop or "want"
+                try:
+                    captcha = bool(page.evaluate("""() => !!document.querySelector('#captcha_container, .captcha_verify_container, [class*="captcha-verify"], iframe[src*="verify"]')"""))
                 except Exception:
                     pass
-        finally:
+            finally:
+                try:
+                    ctx.close()
+                except Exception:
+                    pass
+                try:
+                    if browser:
+                        browser.close()
+                except Exception:
+                    pass
+    finally:
+        if use_prof:
             try:
-                browser.close()
+                _BROWSER_LIST_LOCK.release()
             except Exception:
                 pass
+    if diag is not None:
+        diag["browser_run"] = {"mode": mode, "stop": stop, "rounds": rounds, "responses": resp_n,
+                               "got": len(videos), "has_more_last": has_more, "captcha": captcha}
+        if stop in ("stall", "time") and has_more and videos:
+            diag["browser_note"] = ("抖音列到第 %d 个就不再给了%s。可以过一会儿点「刷新」再试；"
+                                    "还不行的话，点「登录抖音」重新扫一次码" % (len(videos), "（出现了验证码）" if captcha else ""))
     if not videos:
-        return [], name, "浏览器打开主页也没等到作品列表（可能要登录/出验证码；可在 memory/douyin_cookie.txt 填登录 Cookie）"
+        return [], name, "浏览器打开主页也没等到作品列表（可能要登录/出验证码；点「登录抖音」扫码登录后再试）"
     return videos[:want], name, ""
 
 
