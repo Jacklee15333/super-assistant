@@ -1,18 +1,12 @@
 {
-  "active": true,
-  "phase": "researching",
+  "active": false,
+  "phase": "done",
   "total": 1337,
   "done": 1337,
   "learned": 64,
-  "current": {
-    "name": "年11月主流开源大模型性能、MoE架构、推理Token成本与私有化部署性价比对比",
-    "scope": "主动研究",
-    "index": 0
-  },
+  "current": null,
   "queue": [],
   "activity": [
-    "14:33:16  📂 爬取 视频内容库《20261123-092044-4款开源FLASH模型横评谁才是本地部》（第 1326/1337 篇）",
-    "14:33:16  🤖 派给 AI 通读这篇…",
     "14:33:30  ✓ 已学习：1. **视频比较了四款开源的 Flash 模型**（Qwen3.8-Flash-N",
     "14:33:30  📂 爬取 视频内容库《20261123-110633-AI接手越来越多任务人的价值会怎么变》（第 1327/1337 篇）",
     "14:33:30  🤖 派给 AI 通读这篇…",
@@ -50,7 +44,9 @@
     "14:34:49  🧩 读完了，正在把 1551 篇的学习数据汇总成对你的理解…",
     "14:39:19  🎉 分析完成，小助更懂你了。",
     "14:39:19  🌐 开始根据你的画像主动上网搜相关内容…",
-    "14:41:02  🔍 正在研究：年11月主流开源大模型性能、MoE架构、推理Token成本与私有化部署性价比对比"
+    "14:41:02  🔍 正在研究：年11月主流开源大模型性能、MoE架构、推理Token成本与私有化部署性价比对比",
+    "14:41:10  ✓ 已存进成长库：年11月主流开源大模型性能、MoE架构、推理Token成本与私有化部署性价比对比（4 个来源）",
+    "14:41:10  🌐 主动研究完成，新增 1 篇进成长库（下次洞察会读到）。"
   ],
   "read_files": [
     {
@@ -506,14 +502,31 @@
   "research": [
     {
       "topic": "年11月主流开源大模型性能、MoE架构、推理Token成本与私有化部署性价比对比",
-      "status": "searching",
-      "sources": [],
-      "saved": "",
+      "status": "saved",
+      "sources": [
+        {
+          "title": "年 nián、nìng - 汉典",
+          "url": "https://www.zdic.net/hans/%E5%B9%B4"
+        },
+        {
+          "title": "年（nián）- 年的意思与解释 | 汉语国学",
+          "url": "https://www.hanyuguoxue.com/zidian/zi-24180"
+        },
+        {
+          "title": "年 - PRTS - 玩家共同构筑的明日方舟中文Wiki",
+          "url": "https://prts.wiki/w/%E5%B9%B4"
+        },
+        {
+          "title": "年 - Wiktionary, the free dictionary",
+          "url": "https://en.wiktionary.org/wiki/%E5%B9%B4"
+        }
+      ],
+      "saved": "D:\\my projects\\超能小助\\backend\\memory\\insight_research\\research-20261123-144110-年11月主流开源大模型性能MoE架构推理Token成本与私有.md",
       "at": "14:41:02"
     }
   ],
   "started_at": "2026-11-23 14:27",
-  "finished_at": "",
+  "finished_at": "2026-11-23 14:41",
   "source": "auto",
   "read_local": true,
   "use_local": false,
