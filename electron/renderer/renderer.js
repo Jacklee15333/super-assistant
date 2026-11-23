@@ -12218,7 +12218,11 @@ function vnRenderIconView(list, notes, folders, byFolder, ungrouped) {
   crumb.appendChild(home); crumb.appendChild(sep); crumb.appendChild(here);
   wrap.appendChild(crumb);
   wrap.appendChild(vnProfileCard(cur));
-  if (cur.kind === "author" && cur.name !== "未填作者") wrap.appendChild(vnCreatorVideos(cur));   // v143：他主页上的全部视频
+  if (cur.kind === "author" && cur.name !== "未填作者") {     // v143 / v145：博主的视频和笔记合成一张表，下面不再单独摆笔记图标
+    wrap.appendChild(vnCreatorVideos(cur));
+    list.appendChild(wrap);
+    return;
+  }
 
   const items = cur.items.slice().sort((a, b) => vnNoteTime(b) - vnNoteTime(a));
   const pages = Math.max(1, Math.ceil(items.length / VN_ICON_PAGE_SIZE));
@@ -14396,17 +14400,33 @@ async function naToggle(e) {
 })();
 
 
-// ════════════════════ v143：博主主页上的全部视频 ════════════════════
-// 「笔记」里点进一个博主（资料卡下面）：按绑定的主页列出他发过的全部视频，按发布时间新的在最上面；
-// 单条点「提取」，或勾选后点「提取选中的」。已经有笔记的标「已有笔记」（点了打开），提取过的标「已提取」。
-// 列到的会记下来，下次点开先秒显示；超过 12 小时没读过，会在后台再读一遍主页。
+// ════════════════════ v143 / v145：博主的视频（「笔记」里点进一个博主，资料卡下面）════════════════════
+// 一张表：他主页上的全部视频 + 他已有的笔记合在一起，按日期新的在最上面，每条标出走到哪一步：
+//   未提取（可以「提取」）→ 已提取（送去提取了，笔记还没出来）→ 未加工（有笔记、还没 AI 分析，可以「加工」）→ 已加工。
+// 有笔记的点标题打开笔记；没笔记的点标题在浏览器里打开视频。上面一排按状态筛，勾选后批量提取 / 批量加工。
+// 主页上没列到的笔记也放进来（标「主页没列到」，日期用提取时间），所以下面不再单独摆笔记图标。
 const _cvMem = {};
 const CV_PAGE = 50, CV_STALE_H = 12;
+const CV_ST = {
+  new: ["未提取", "还没提取。点「提取」排进提取队列"],
+  sent: ["已提取", "已经送去提取了，笔记还没出来（可能还在排队；一直没出来的话去「提取」页看看是不是没成功）"],
+  todo: ["未加工", "已经提取成笔记了，还没做 AI 分析。点「加工」开始"],
+  proc: ["加工中", "已经排进加工了，做完会变成「已加工」"],
+  done: ["已加工", "已经提取、也做完 AI 分析了。点标题打开笔记"],
+};
+const CV_ORDER = ["new", "sent", "todo", "proc", "done"];
+const _CV_VID_RES = [/douyin\.com\/(?:video|note)\/(\d{8,})/, /(BV[0-9A-Za-z]{10})/, /(?:[?&]v=|youtu\.be\/|\/shorts\/)([0-9A-Za-z_-]{11})/, /\/status(?:es)?\/(\d{6,})/];
 function cvSt(key) {
-  return _cvMem[key] || (_cvMem[key] = { data: null, err: "", loading: false, sel: new Set(), queued: new Set(),
-    shown: CV_PAGE, msg: "", scroll: 0, open: true });
+  return _cvMem[key] || (_cvMem[key] = { data: null, err: "", loading: false, sel: new Set(), queued: new Set(), proc: new Set(),
+    shown: CV_PAGE, msg: "", scroll: 0, open: true, filter: "", notes: [], home: false });
 }
-function cvCan(st, v) { return !v.note && !v.extracted && !st.queued.has(String(v.vid)); }
+function cvVidOf(u) { for (const rx of _CV_VID_RES) { const m = rx.exec(u || ""); if (m) return m[1]; } return ""; }
+function cvTKey(t) { return String(t || "").replace(/#\S+/g, "").replace(/[\s\p{P}\p{S}]+/gu, "").slice(0, 18); }
+function cvYmd(ms) {
+  if (!ms) return "";
+  const d = new Date(ms);
+  return d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0");
+}
 function cvBoxes(key) { return Array.from(document.querySelectorAll(".cv-box")).filter((b) => b.dataset.key === key); }
 function cvRefresh(key) { cvBoxes(key).forEach((b) => cvRender(b, key)); }
 function cvAgo(sec) {
@@ -14416,18 +14436,37 @@ function cvAgo(sec) {
   if (sec < 86400) return Math.floor(sec / 3600) + " 小时前";
   return Math.floor(sec / 86400) + " 天前";
 }
+// 视频和笔记对上号，算出每一条走到哪一步
+function cvRows(st) {
+  const notes = st.notes || [], byKey = {}, used = new Set(), rows = [];
+  notes.forEach((n) => { const u = (n.src || "").trim(); if (u) { byKey[u] = byKey[u] || n; const v = cvVidOf(u); if (v) byKey[v] = byKey[v] || n; } });
+  const pick = (n) => (n && !used.has(n.name) ? (used.add(n.name), n) : null);
+  ((st.data && st.data.videos) || []).forEach((v) => {
+    const n = pick(byKey[String(v.vid)]) || pick(byKey[(v.url || "").trim()]) || pick(byKey[cvVidOf(v.url)]) ||
+      (v.note ? pick(notes.find((x) => x.name === v.note)) : null);
+    rows.push({ v, n });
+  });
+  const byT = {};                                    // 链接没对上的：标题一样也算同一条
+  rows.forEach((r) => { if (!r.n) { const k = cvTKey(r.v.title); if (k.length >= 6 && !byT[k]) byT[k] = r; } });
+  notes.forEach((n) => { if (used.has(n.name)) return; const r = byT[cvTKey(n.title)]; if (r && !r.n) { r.n = n; used.add(n.name); } });
+  notes.forEach((n) => { if (!used.has(n.name)) rows.push({ v: null, n }); });   // 主页上没列到的笔记
+  rows.forEach((r) => {
+    r.id = r.v ? "v:" + r.v.vid : "n:" + r.n.name;
+    r.date = r.v ? (r.v.when || "") : cvYmd(vnNoteTime(r.n));
+    r.status = r.n ? (r.n.analyzed ? "done" : st.proc.has(r.n.name) ? "proc" : "todo")
+      : (r.v.extracted || st.queued.has(String(r.v.vid))) ? "sent" : "new";
+  });
+  rows.sort((a, b) => (a.date === b.date ? 0 : !a.date ? 1 : !b.date ? -1 : a.date < b.date ? 1 : -1));
+  return rows;
+}
 function vnCreatorVideos(g) {
   const p = _vnProfiles[g.key] || {};
   const box = document.createElement("div");
   box.className = "cv-box"; box.dataset.key = g.key;
-  if (!(p.home || p.url)) {
-    const h = document.createElement("div"); h.className = "cv-hint";
-    h.textContent = "绑定博主主页后（上面的「绑定博主主页」或「自动找主页」），这里会列出他主页上的全部视频，可以挑着提取。";
-    box.appendChild(h);
-    return box;
-  }
   const st = cvSt(g.key);
-  if (!st.data && !st.loading && !st.err) cvLoad(g.key, false);
+  st.notes = g.items || [];
+  st.home = !!(p.home || p.url);
+  if (st.home && !st.data && !st.loading && !st.err) cvLoad(g.key, false);
   cvRender(box, g.key);
   return box;
 }
@@ -14449,10 +14488,10 @@ async function cvLoad(key, refresh) {
   cvRefresh(key);
   if (again) cvLoad(key, true);
 }
-async function cvExtract(key, ids) {
+async function cvExtract(key, vids) {
   const st = cvSt(key), d = st.data;
   if (!d) return;
-  const items = d.videos.filter((v) => ids.includes(String(v.vid)) && cvCan(st, v))
+  const items = d.videos.filter((v) => vids.includes(String(v.vid)))
     .map((v) => ({ creator_id: v.creator_id, vid: v.vid, url: v.url, title: v.title || "", platform: d.platform || "" }));
   if (!items.length) return;
   if (items.length > 10 && !confirm("提取 " + items.length + " 个视频？\n\n" +
@@ -14464,9 +14503,27 @@ async function cvExtract(key, ids) {
     const r = await (await fetch(BACKEND + "/creator/extract", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ items, use_local: s.use_local, model: s.model }) })).json();
     if (r && r.ok) {
-      items.forEach((it) => { st.queued.add(String(it.vid)); st.sel.delete(String(it.vid)); });
-      st.msg = (r.message || "已加入提取队列") + "。在「提取」页能看进度。";
+      items.forEach((it) => { st.queued.add(String(it.vid)); st.sel.delete("v:" + it.vid); });
+      st.msg = (r.message || "已加入提取队列") + "。在「提取」页能看进度，提取完这里会变成「未加工」。";
     } else st.msg = "没提交成功：" + ((r && r.message) || "原因不明");
+  } catch (e) { st.msg = "没提交成功：" + (e && e.message ? e.message : e); }
+  cvRefresh(key);
+}
+async function cvProcess(key, pairs) {             // pairs：[{id, name}]
+  const st = cvSt(key);
+  if (!pairs.length) return;
+  if (pairs.length > 10 && !confirm("加工 " + pairs.length + " 条笔记？\n\n" +
+      "会一条一条做 AI 分析（和「批量加工」一样），条数多的要比较久；可以在「加工」页看进度、随时停止。")) return;
+  st.msg = "正在提交 " + pairs.length + " 条…";
+  cvRefresh(key);
+  const s = (typeof settings === "function") ? settings() : {};
+  try {
+    const r = await (await fetch(BACKEND + "/video_note_analyze_batch", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ names: pairs.map((x) => x.name), use_local: s.use_local, model: s.model, append: true }) })).json();
+    if (r && r.ok) {
+      pairs.forEach((x) => { st.proc.add(x.name); st.sel.delete(x.id); });
+      st.msg = (r.appended ? "已加进正在跑的批量加工：" : "开始加工：") + pairs.length + " 条。在「加工」页能看进度，做完这里会变成「已加工」。";
+    } else st.msg = "没提交成功：" + ((r && (r.error || r.message)) || "原因不明");
   } catch (e) { st.msg = "没提交成功：" + (e && e.message ? e.message : e); }
   cvRefresh(key);
 }
@@ -14475,15 +14532,23 @@ function cvRender(box, key) {
   const old = box.querySelector(".cv-list");
   if (old) st.scroll = old.scrollTop;
   box.innerHTML = "";
+  const rows = cvRows(st);
+  const byId = {}, counts = {};
+  rows.forEach((r) => { byId[r.id] = r; counts[r.status] = (counts[r.status] || 0) + 1; });
+  if (st.filter && !counts[st.filter]) st.filter = "";
+  const act = (r) => r.status === "new" || r.status === "todo";
+  st.sel.forEach((id) => { if (!byId[id] || !act(byId[id])) st.sel.delete(id); });
+  const view = st.filter ? rows.filter((r) => r.status === st.filter) : rows;
+  // ── 标题行 ──
   const head = document.createElement("div"); head.className = "cv-head";
   const ttl = document.createElement("span"); ttl.className = "cv-title";
-  ttl.textContent = (st.open ? "▾ " : "▸ ") + "主页上的视频" + (d ? "（" + d.videos.length + " 个）" : "");
+  ttl.textContent = (st.open ? "▾ " : "▸ ") + "视频（" + rows.length + " 个）";
   ttl.title = "点一下展开 / 收起";
   ttl.addEventListener("click", () => { st.open = !st.open; cvRefresh(key); });
   head.appendChild(ttl);
   const sub = document.createElement("span"); sub.className = "cv-sub";
   sub.textContent = st.loading ? (d ? "正在重新读他的主页…" : "正在读他的主页，视频多的要等一会儿…")
-    : d ? "按发布时间，最新的在最上面 · " + (d.cached ? "上次读取 " + cvAgo(d.now - d.ts) : "刚读取") : "";
+    : "按日期，最新的在最上面" + (d ? " · " + (d.cached ? "主页上次读取 " + cvAgo(d.now - d.ts) : "主页刚读取") : "");
   head.appendChild(sub);
   const acts = document.createElement("span"); acts.className = "cv-acts";
   const btn = (text, tip, fn, cls) => {
@@ -14493,73 +14558,93 @@ function cvRender(box, key) {
     acts.appendChild(b);
     return b;
   };
-  if (d && d.videos.length) {
-    st.sel.forEach((id) => { const v = d.videos.find((x) => String(x.vid) === id); if (!v || !cvCan(st, v)) st.sel.delete(id); });
-    const can = d.videos.filter((v) => cvCan(st, v));
-    if (can.length) {
-      const all = st.sel.size === can.length;
-      btn(all ? "全不选" : "全选没提取的（" + can.length + "）", "勾上所有还没提取、也没有笔记的视频", () => {
-        if (all) st.sel.clear(); else can.forEach((v) => st.sel.add(String(v.vid)));
-        cvRefresh(key);
-      });
-    }
-    if (st.sel.size) btn("提取选中的（" + st.sel.size + "）", "把勾上的视频排进提取队列，一个一个提取", () => cvExtract(key, Array.from(st.sel)), "cv-primary");
+  const canView = view.filter(act);
+  if (canView.length) {
+    const all = canView.every((r) => st.sel.has(r.id));
+    btn(all ? "全不选" : "全选（" + canView.length + "）", "勾上" + (st.filter ? "下面这些" : "所有") + "「未提取」和「未加工」的", () => {
+      if (all) canView.forEach((r) => st.sel.delete(r.id)); else canView.forEach((r) => st.sel.add(r.id));
+      cvRefresh(key);
+    });
   }
-  btn(st.loading ? "读取中…" : "刷新", "重新去他的主页读一遍视频列表（新发的也能看到）", () => cvLoad(key, true)).disabled = st.loading;
+  const selNew = [...st.sel].filter((id) => byId[id].status === "new");
+  const selTodo = [...st.sel].filter((id) => byId[id].status === "todo");
+  if (selNew.length) btn("提取选中的（" + selNew.length + "）", "把勾上的「未提取」排进提取队列",
+    () => cvExtract(key, selNew.map((id) => id.slice(2))), "cv-primary");
+  if (selTodo.length) btn("加工选中的（" + selTodo.length + "）", "把勾上的「未加工」笔记做 AI 分析",
+    () => cvProcess(key, selTodo.map((id) => ({ id, name: byId[id].n.name }))), "cv-primary");
+  if (st.home) btn(st.loading ? "读取中…" : "刷新", "重新去他的主页读一遍视频列表（新发的也能看到）", () => cvLoad(key, true)).disabled = st.loading;
   head.appendChild(acts);
   box.appendChild(head);
-  if (st.msg) { const m = document.createElement("div"); m.className = "cv-msg"; m.textContent = st.msg; box.appendChild(m); }
-  if (st.err) {
-    const m = document.createElement("div"); m.className = "cv-err";
-    m.textContent = (d ? "这次没读成功（下面是上次读到的）：" : "没列到视频：") + st.err;
-    box.appendChild(m);
+  const note = (cls, text) => { const m = document.createElement("div"); m.className = cls; m.textContent = text; box.appendChild(m); };
+  if (st.msg) note("cv-msg", st.msg);
+  if (!st.home) note("cv-hint", "还没绑定他的主页：现在只列出你已有的笔记。点上面的「绑定博主主页」或「自动找主页」后，这里会列出他主页上的全部视频。");
+  if (st.err) note("cv-err", (d ? "这次没读成功（下面是上次读到的）：" : "主页上的视频没列到（下面先列出你已有的笔记）：") + st.err);
+  if (!st.open) return;
+  // ── 按状态筛 ──
+  if (rows.length) {
+    const fb = document.createElement("div"); fb.className = "cv-filter";
+    const chip = (val, label, n) => {
+      const b = document.createElement("button"); b.type = "button";
+      b.className = "vi-lb-chip vi-lb-sub" + (val === st.filter ? " on" : "");
+      b.appendChild(document.createTextNode(label));
+      const i = document.createElement("i"); i.textContent = n; b.appendChild(i);
+      b.title = val ? CV_ST[val][1] : "所有视频和笔记";
+      b.addEventListener("click", () => { st.filter = val; st.shown = CV_PAGE; st.scroll = 0; cvRefresh(key); });
+      fb.appendChild(b);
+    };
+    chip("", "全部", rows.length);
+    CV_ORDER.forEach((k) => { if (counts[k]) chip(k, CV_ST[k][0], counts[k]); });
+    box.appendChild(fb);
   }
-  if (!st.open || !d) return;
-  if (!d.videos.length) {
-    const m = document.createElement("div"); m.className = "cv-empty";
-    m.textContent = "他的主页上没列到视频" + (d.empty_reason ? "：" + d.empty_reason : "");
-    box.appendChild(m);
-    return;
-  }
+  if (!rows.length) { if (d && !st.loading) note("cv-empty", "他的主页上没列到视频" + (d.empty_reason ? "：" + d.empty_reason : "")); return; }
+  // ── 一行一条 ──
   const list = document.createElement("div"); list.className = "cv-list";
-  d.videos.slice(0, st.shown).forEach((v, i) => {
-    const id = String(v.vid), can = cvCan(st, v);
-    const row = document.createElement("div"); row.className = "cv-row" + (can ? "" : " cv-done");
-    const cb = document.createElement("input"); cb.type = "checkbox"; cb.disabled = !can; cb.checked = st.sel.has(id);
-    cb.title = can ? "勾上，一起提取" : "已经提取过 / 有笔记了";
-    cb.addEventListener("change", () => { if (cb.checked) st.sel.add(id); else st.sel.delete(id); cvRefresh(key); });
+  view.slice(0, st.shown).forEach((r, i) => {
+    const v = r.v, n = r.n;
+    const row = document.createElement("div"); row.className = "cv-row cv-s-" + r.status;
+    const cb = document.createElement("input"); cb.type = "checkbox"; cb.disabled = !act(r); cb.checked = st.sel.has(r.id);
+    cb.title = act(r) ? "勾上，一起" + (r.status === "new" ? "提取" : "加工") : CV_ST[r.status][0];
+    cb.addEventListener("change", () => { if (cb.checked) st.sel.add(r.id); else st.sel.delete(r.id); cvRefresh(key); });
     row.appendChild(cb);
     const no = document.createElement("span"); no.className = "cv-no"; no.textContent = (i + 1) + "."; row.appendChild(no);
-    const dt = document.createElement("span"); dt.className = "cv-date"; dt.textContent = v.when_human || "—";
-    dt.title = v.days_ago == null ? "没拿到发布时间" : v.days_ago === 0 ? "今天发布" : v.days_ago + " 天前发布";
+    const dt = document.createElement("span"); dt.className = "cv-date";
+    dt.textContent = r.date ? r.date.slice(0, 4) + "-" + r.date.slice(4, 6) + "-" + r.date.slice(6, 8) : "—";
+    dt.title = v ? (v.days_ago == null ? "没拿到发布时间" : v.days_ago === 0 ? "今天发布" : v.days_ago + " 天前发布") : "提取的日期（主页列表里没找到这条）";
     row.appendChild(dt);
     const t = document.createElement("a"); t.className = "cv-t";
-    t.textContent = v.title_zh || v.title || "（没有标题）";
-    t.title = (v.title || "") + (v.title_zh && v.title && v.title_zh !== v.title ? "\n" + v.title_zh : "") + "\n点一下在浏览器里打开这个视频";
-    t.href = v.url || "#"; t.target = "_blank";
-    row.appendChild(t);
-    if (v.views) { const vw = document.createElement("span"); vw.className = "cv-views"; vw.textContent = "▶ " + vnFmtNum(v.views); row.appendChild(vw); }
-    if (v.note) {
-      const b = document.createElement("button"); b.type = "button"; b.className = "vn-batch-stop cv-has"; b.textContent = "已有笔记";
-      b.title = "这个视频已经提取成笔记了，点一下打开";
-      b.addEventListener("click", (e) => { e.stopPropagation(); openVideoNote(v.note); });
-      row.appendChild(b);
-    } else if (!can) {
-      const s2 = document.createElement("span"); s2.className = "cv-state";
-      s2.textContent = st.queued.has(id) ? "已加入提取队列" : "已提取";
-      row.appendChild(s2);
+    t.textContent = v ? (v.title_zh || v.title || "（没有标题）") : (n.title || n.name.replace(/\.md$/, ""));
+    if (n) {
+      t.href = "#"; t.title = (v ? (v.title || "") + "\n" : "") + "点一下打开笔记";
+      t.addEventListener("click", (e) => { e.preventDefault(); openVideoNote(n.name); });
     } else {
-      const b = document.createElement("button"); b.type = "button"; b.className = "vn-batch-stop"; b.textContent = "提取";
-      b.title = "把这个视频排进提取队列";
-      b.addEventListener("click", (e) => { e.stopPropagation(); cvExtract(key, [id]); });
-      row.appendChild(b);
+      t.href = v.url || "#"; t.target = "_blank";
+      t.title = (v.title || "") + (v.title_zh && v.title && v.title_zh !== v.title ? "\n" + v.title_zh : "") + "\n点一下在浏览器里打开这个视频";
     }
+    row.appendChild(t);
+    if (!v) { const x = document.createElement("span"); x.className = "cv-x"; x.textContent = "主页没列到"; x.title = "这条笔记在他主页的视频列表里没找到（可能更早、被删了，或主页没读到）"; row.appendChild(x); }
+    if (v && v.views) { const vw = document.createElement("span"); vw.className = "cv-views"; vw.textContent = "▶ " + vnFmtNum(v.views); row.appendChild(vw); }
+    const chipEl = document.createElement("span"); chipEl.className = "cv-chip cv-c-" + r.status;
+    chipEl.textContent = CV_ST[r.status][0];
+    chipEl.title = CV_ST[r.status][1] + (n && n.an_fail && r.status === "todo" ? "\n上次加工没成功：" + n.an_fail : "");
+    row.appendChild(chipEl);
+    const ac = document.createElement("span"); ac.className = "cv-actc";
+    if (r.status === "new" || r.status === "todo") {
+      const b = document.createElement("button"); b.type = "button"; b.className = "vn-batch-stop";
+      b.textContent = r.status === "new" ? "提取" : "加工";
+      b.title = r.status === "new" ? "把这个视频排进提取队列" : "给这条笔记做 AI 分析";
+      b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (r.status === "new") cvExtract(key, [String(v.vid)]); else cvProcess(key, [{ id: r.id, name: n.name }]);
+      });
+      ac.appendChild(b);
+    }
+    row.appendChild(ac);
     list.appendChild(row);
   });
-  if (d.videos.length > st.shown) {
+  if (view.length > st.shown) {
     const more = document.createElement("button");
     more.type = "button"; more.className = "ghost-btn small cv-more";
-    more.textContent = "再显示 " + CV_PAGE + " 个（还有 " + (d.videos.length - st.shown) + " 个）";
+    more.textContent = "再显示 " + CV_PAGE + " 个（还有 " + (view.length - st.shown) + " 个）";
     more.addEventListener("click", () => { st.shown += CV_PAGE; cvRefresh(key); });
     list.appendChild(more);
   }
@@ -14567,3 +14652,12 @@ function cvRender(box, key) {
   list.scrollTop = st.scroll;
   list.addEventListener("scroll", () => { st.scroll = list.scrollTop; });
 }
+// 有刚提交提取 / 加工的：开着这个博主页时，隔一会儿刷新一次笔记，状态跟着变（提取完→未加工，加工完→已加工）
+setInterval(() => {
+  const v = document.getElementById("view-video");
+  if (!(v && v.classList.contains("active") && v.dataset.mode === "notes" && _vnIconPath && _vnIconPath.kind === "author")) return;
+  const st = _cvMem[_vnIconPath.name];
+  if (!st || !(st.queued.size || st.proc.size)) return;
+  if (document.getElementById("viLbPop") || (typeof vnReaderIsOpen === "function" && vnReaderIsOpen())) return;
+  loadVideoNotes();
+}, 20000);

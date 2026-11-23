@@ -1080,3 +1080,15 @@ body.dark .vn-kind.k-gh { background: #e6e6e3; color: #1f1e1a; }
 .vn-back { margin-right: 6px; padding: 3px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg-elev, transparent);
   cursor: pointer; font: 500 13px var(--sans); line-height: 20px; color: var(--text); }
 .vn-back:hover { border-color: var(--accent); color: var(--accent); }
+
+/* v145：博主页一张表：每条标出走到哪一步（未提取 → 已提取 → 未加工 → 已加工） */
+.cv-filter { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.cv-chip { flex: none; padding: 0 8px; border-radius: 9px; font-size: 11.5px; line-height: 19px; white-space: nowrap; }
+.cv-c-new { color: var(--text-dim); background: var(--bg-hover); }
+.cv-c-sent { color: #3b6ea5; background: rgba(59, 110, 165, .12); }
+.cv-c-todo { color: #b5532a; background: rgba(181, 83, 42, .12); }
+.cv-c-proc { color: #9a6b14; background: rgba(214, 160, 40, .18); }
+.cv-c-done { color: #2f7d4f; background: rgba(47, 125, 79, .13); }
+.cv-actc { flex: none; width: 52px; display: inline-flex; justify-content: flex-end; }
+.cv-x { flex: none; font-size: 11.5px; color: var(--text-dim); }
+.cv-s-done .cv-t, .cv-s-proc .cv-t, .cv-s-todo .cv-t { color: var(--text); }

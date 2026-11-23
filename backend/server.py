@@ -7401,15 +7401,18 @@ class Handler(BaseHTTPRequestHandler):
                         _ts = 0
                 kind = ""                                   # v65：导入的文档 / 文章
                 tags = []                                   # v125：标签（已加工清单显示，以后分类筛选用）
+                src = ""                                    # v145：来源链接
                 for ln in _vn_head(lines):
                     s = ln.strip().lstrip("-").strip()
                     if not kind and s.startswith(("类型：", "类型:")):
                         kind = s[3:].strip()[:20]
                     elif not tags and s.startswith(("标签：", "标签:")):
                         tags = [t.strip() for t in re.split(r"[、,，]", s[3:]) if t.strip()][:8]
+                    elif not src and s.startswith(("来源链接：", "来源链接:")):     # v145：博主页对照视频用
+                        src = s[5:].strip()[:300]
                 items.append({"name": p.name, "title": title, "author": author, "ts": _ts, "kind": kind,
                               "analyzed": analyzed, "an_fail": _an_fail_all().get(p.name, "") if not analyzed else "",
-                              "tags": tags, "mt": _vn_mtime(p),
+                              "tags": tags, "src": src, "mt": _vn_mtime(p),
                               "folder": mapping.get(p.name, "")})
             # 顺手清理：分组表里指向已删除笔记的残留条目
             stale = [k for k in mapping if k not in existing]
@@ -7625,7 +7628,7 @@ class Handler(BaseHTTPRequestHandler):
         if body.get("resume_now"):
             _note_batch["resume_now"] = True
             return self._send({"ok": True})
-        if _note_batch["running"]:
+        if _note_batch["running"] and not body.get("append"):     # v145：append=True → 加进正在跑的那批
             return self._send({"ok": False, "error": "已经有一批在分析了（%d/%d），等它结束或先点「停止」"
                                                     % (_note_batch["done"], _note_batch["total"])})
         d = self._video_dir()
@@ -7638,8 +7641,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._send({"ok": False, "error": "没有可分析的笔记"})
         _AUTO_PROC["paused"] = False                # v142：你自己开始加工了 → 「停止」带来的暂停取消
         _ap_remember(body.get("use_local", True), body.get("model"))
+        _was = bool(_note_batch["running"])
         _note_batch_enqueue(names, body.get("use_local", True), body.get("model", "qwen2.5"), "手动批量")
-        return self._send({"ok": True, "total": len(names)})
+        return self._send({"ok": True, "total": len(names), "appended": _was})
 
     def _handle_video_note_get(self, name):
         try:
