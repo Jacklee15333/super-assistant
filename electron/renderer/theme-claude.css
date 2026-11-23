@@ -1019,3 +1019,14 @@ body.dark .vn-kind.k-gh { background: #e6e6e3; color: #1f1e1a; }
 
 /* v135：「作者领域」里按这篇自己的分类放的（作者内容很杂 / 没写作者）：虚线框 */
 .vn-cat.vn-cat-own { border-style: dashed; }
+
+/* v140：内容标签——文章后面的标签能点（看同一个标签的所有文章），✎ 改标签；「标签」模式 / 选了大类后的标签行 */
+.vn-done-tag.vn-tg { cursor: pointer; }
+.vn-done-tag.vn-tg:hover { color: var(--accent); background: var(--accent-soft); }
+.vn-tg-edit { padding: 0 6px; border-radius: 9px; font-size: 11.5px; line-height: 18px; color: var(--text-dim); cursor: pointer; opacity: 0; white-space: nowrap; }
+.vn-done-row:hover .vn-tg-edit { opacity: .85; }
+.vn-tg-edit:hover { color: var(--accent); opacity: 1; }
+.vi-lb-tagbar { border-left-style: dashed; }
+.vi-lb-tagbar-h { margin-right: 2px; font-size: 12px; color: var(--text-dim); white-space: nowrap; }
+.vi-tg-pop .vi-lb-pop-cats { min-height: 24px; }
+#view-video.vn-split .vi-lb-tagbar-h { display: none; }

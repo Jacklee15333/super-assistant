@@ -1877,12 +1877,18 @@ async function viImportPaths(paths) {
 // ── v132：贴标签——上面一行按分类筛（文章分类 / 作者领域）；每条前面是分类，作者名后面小字是作者的领域；
 //    点分类可以手动改（也可以自己写一个新分类）；标签行右边「自动贴标签」，跑的时候显示进度 ──
 let _vnAllNotes = [], _viDoneShown = 50;
+let _lbTagGroups = [];                                  // v140：内容标签的分组 [{name, tags}]
 let _lbCats = [], _lbTree = [], _lbAuthors = {}, _lbJob = null, _lbBusy = false, _lbLastPoll = 0, _lbLastRefresh = 0, _lbPopOpen = false;
 function viDoneOpen() { try { return localStorage.getItem("viDoneOpen") !== "0"; } catch (e) { return true; } }
-function lbMode() { try { return localStorage.getItem("viLbMode") === "author" ? "author" : "note"; } catch (e) { return "note"; } }
+function lbMode() { try { const v = localStorage.getItem("viLbMode"); return v === "author" || v === "tag" ? v : "note"; } catch (e) { return "note"; } }
 function lbFilterGet(m) { try { return localStorage.getItem("viLbF_" + m) || ""; } catch (e) { return ""; } }
 function lbFilterSet(m, v) { try { localStorage.setItem("viLbF_" + m, v || ""); } catch (e) {} }
-function lbApply(cats, authors, notesMap, tree) {
+function lbApply(cats, authors, notesMap, tree, tagsMap, tagGroups) {
+  if (Array.isArray(tagGroups) && tagGroups.length) _lbTagGroups = tagGroups;      // v140：内容标签
+  if (tagsMap && typeof tagsMap === "object") (_vnAllNotes || []).forEach((n) => {
+    const t = tagsMap[n.name];
+    if (n.analyzed && Array.isArray(t) && t.length) n.tg = t; else delete n.tg;
+  });
   if (Array.isArray(cats) && cats.length) _lbCats = cats;
   if (Array.isArray(tree) && tree.length) _lbTree = tree;                        // v134：两级分类（大类 → 子类）
   if (authors && typeof authors === "object") _lbAuthors = authors;
@@ -1993,7 +1999,8 @@ function lbBar(total, counts, none, m, f) {
   const bar = document.createElement("div"); bar.className = "vi-lb-bar";
   const seg = document.createElement("span"); seg.className = "vi-lb-mode";
   [["note", "文章分类", "按每篇讲的内容分"],
-   ["author", "作者领域", "按作者主要做的领域分：按你库里他的文章算，主要做好几个领域的作者同时出现在这几个领域；没写作者的按每篇自己的分类"]].forEach(([k, t, tip]) => {
+   ["author", "作者领域", "按作者主要做的领域分：按你库里他的文章算，主要做好几个领域的作者同时出现在这几个领域；没写作者的按每篇自己的分类"],
+   ["tag", "标签", "按每篇讲的话题找：同一个话题（比如「一人公司」「Claude」「副业」）的文章都在一起。先选一组，再点标签；点文章后面的标签也能直接跳过来"]].forEach(([k, t, tip]) => {
     const b = document.createElement("button"); b.type = "button"; b.dataset.lbmode = k; b.textContent = t; b.title = tip;
     if (k === m) b.className = "on";
     seg.appendChild(b);
@@ -2010,8 +2017,116 @@ function lbBar(total, counts, none, m, f) {
   const order = _lbCats || [];
   Object.keys(counts).sort((x, y) => counts[y] - counts[x] || order.indexOf(x) - order.indexOf(y))
     .forEach((k) => bar.appendChild(chip(k, k, counts[k])));
-  if (none) bar.appendChild(chip("__none", m === "author" ? "未判断" : "未分类", none, "vi-lb-none"));
+  if (none) bar.appendChild(chip("__none", m === "author" ? "未判断" : m === "tag" ? "没有标签" : "未分类", none, "vi-lb-none"));
   return bar;
+}
+// ── v140：内容标签——每篇 2～4 个话题标签（n.tg）；「标签」模式先选一组再选标签，「文章分类」选了大类后也能再按标签细分 ──
+function lbTagGroupOf(t) { const g = (_lbTagGroups || []).find((x) => (x.tags || []).includes(t)); return g ? g.name : "我加的"; }
+function lbTagGroupTags(g) {
+  const x = (_lbTagGroups || []).find((y) => y.name === g);
+  if (x) return x.tags || [];
+  if (g !== "我加的") return [];
+  const out = new Set(); (_vnAllNotes || []).forEach((n) => (n.tg || []).forEach((t) => { if (lbTagGroupOf(t) === "我加的") out.add(t); }));
+  return Array.from(out);
+}
+function lbTagPlaces(n) { const gs = []; (n.tg || []).forEach((t) => { const g = lbTagGroupOf(t); if (!gs.includes(g)) gs.push(g); }); return gs.map((g) => ({ big: g, sub: "", own: true })); }
+function lbTagSelGet(ctx) { try { return localStorage.getItem("viLbT_" + ctx) || ""; } catch (e) { return ""; } }
+function lbTagSelSet(ctx, v) { try { localStorage.setItem("viLbT_" + ctx, v || ""); } catch (e) {} }
+function lbTagCounts(items, only) {
+  const c = {};
+  items.forEach((n) => (n.tg || []).forEach((t) => { if (!only || only.has(t)) c[t] = (c[t] || 0) + 1; }));
+  return c;
+}
+function lbAllTagNames() {
+  const out = [];
+  (_lbTagGroups || []).forEach((g) => (g.tags || []).forEach((t) => { if (!out.includes(t)) out.push(t); }));
+  (_vnAllNotes || []).forEach((n) => (n.tg || []).forEach((t) => { if (!out.includes(t)) out.push(t); }));
+  return out;
+}
+// 一行标签（带篇数）：counts = {标签: 篇数}；limit = 最多显示几个（0 = 全部，选中的总会显示）
+function lbTagRow(counts, sel, ctx, title, limit) {
+  const keys = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b, "zh"));
+  if (!keys.length) return null;
+  const bar = document.createElement("div"); bar.className = "vi-lb-bar vi-lb-subbar vi-lb-tagbar";
+  const h = document.createElement("span"); h.className = "vi-lb-tagbar-h"; h.textContent = title; bar.appendChild(h);
+  const chip = (val, label, n) => {
+    const b = document.createElement("button"); b.type = "button";
+    b.className = "vi-lb-chip vi-lb-sub vi-lb-tg" + (val === sel ? " on" : "");
+    b.dataset.lbtsel = val; b.dataset.lbtctx = ctx;
+    b.appendChild(document.createTextNode(label));
+    if (n != null) { const i = document.createElement("i"); i.textContent = n; b.appendChild(i); }
+    return b;
+  };
+  bar.appendChild(chip("", "不限", null));
+  const shown = limit ? keys.slice(0, limit) : keys;
+  if (sel && counts[sel] && !shown.includes(sel)) shown.push(sel);
+  shown.forEach((k) => bar.appendChild(chip(k, k, counts[k])));
+  return bar;
+}
+// 点了文章后面的标签：换到「标签」模式，直接看这个标签的所有文章
+function lbGoTag(t) {
+  if (!t) return;
+  const g = lbTagGroupOf(t);
+  try { localStorage.setItem("viLbMode", "tag"); } catch (e) {}
+  lbFilterSet("tag", g); lbTagSelSet("tag:" + g, t);
+  _viDoneShown = 50; viRenderDone();
+  const box = document.getElementById("viDone"); if (box && box.scrollIntoView) box.scrollIntoView({ block: "start" });
+}
+// 改一篇的标签：点 × 去掉，输入框里加（可以选已有的）；保存后以后不会再被自动改
+function lbTagEdit(el) {
+  lbPopClose();
+  const name = el.dataset.lbtedit;
+  const n = (_vnAllNotes || []).find((x) => x.name === name);
+  if (!n) return;
+  let cur = (n.tg || []).slice();
+  const pop = document.createElement("div"); pop.className = "vi-lb-pop vi-tg-pop"; pop.id = "viLbPop";
+  const h = document.createElement("div"); h.className = "vi-lb-pop-h"; h.textContent = "这篇的标签"; pop.appendChild(h);
+  const why = document.createElement("div"); why.className = "vi-lb-pop-why";
+  why.textContent = "点标签上的 × 去掉；在下面输入新标签，回车加上（可以选已有的）。保存后，这篇以后不会再被自动改。"; pop.appendChild(why);
+  const box = document.createElement("div"); box.className = "vi-lb-pop-cats"; pop.appendChild(box);
+  const render = () => {
+    box.innerHTML = "";
+    if (!cur.length) { const em = document.createElement("span"); em.className = "vi-lb-pop-subh"; em.textContent = "还没有标签"; box.appendChild(em); }
+    cur.forEach((t) => {
+      const b = document.createElement("button"); b.type = "button"; b.className = "vi-lb-chip on"; b.textContent = t + " ×"; b.title = "去掉「" + t + "」";
+      b.addEventListener("click", () => { cur = cur.filter((x) => x !== t); render(); });
+      box.appendChild(b);
+    });
+  };
+  const row = document.createElement("div"); row.className = "vi-lb-pop-new";
+  const inp = document.createElement("input"); inp.type = "text"; inp.maxLength = 12; inp.placeholder = "加一个标签"; inp.setAttribute("list", "viTagList");
+  const dl = document.createElement("datalist"); dl.id = "viTagList";
+  lbAllTagNames().forEach((t) => { const o = document.createElement("option"); o.value = t; dl.appendChild(o); });
+  const add = document.createElement("button"); add.type = "button"; add.className = "ghost-btn small"; add.textContent = "加上";
+  const doAdd = () => { const v = inp.value.replace(/[#＃，,、\s]+/g, "").slice(0, 12); if (v && !cur.includes(v)) { cur.push(v); render(); } inp.value = ""; inp.focus(); };
+  add.addEventListener("click", doAdd);
+  inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); doAdd(); } });
+  row.appendChild(inp); row.appendChild(add); row.appendChild(dl); pop.appendChild(row);
+  const foot = document.createElement("div"); foot.className = "vi-lb-pop-foot";
+  const save = document.createElement("button"); save.type = "button"; save.className = "ghost-btn small"; save.textContent = "保存";
+  save.addEventListener("click", () => { if (inp.value.trim()) doAdd(); lbTagSave(name, cur); });
+  foot.appendChild(save); pop.appendChild(foot);
+  render();
+  document.body.appendChild(pop);
+  const rc = el.getBoundingClientRect(), pw = pop.offsetWidth, ph = pop.offsetHeight;
+  let x = rc.left - pw + rc.width, y = rc.bottom + 6;
+  if (x + pw > window.innerWidth - 8) x = window.innerWidth - pw - 8;
+  if (y + ph > window.innerHeight - 8) y = Math.max(8, rc.top - ph - 6);
+  pop.style.left = Math.max(8, x) + "px"; pop.style.top = y + "px";
+  _lbPopOpen = true;
+  inp.focus();
+}
+async function lbTagSave(name, tags) {
+  try {
+    const r = await fetch(BACKEND + "/labels/tags", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, tags }) });
+    const d = await r.json();
+    if (d && d.ok) {
+      const n = (_vnAllNotes || []).find((x) => x.name === name);
+      if (n) { if (d.tags && d.tags.length) n.tg = d.tags; else delete n.tg; }
+      if (Array.isArray(d.tag_groups) && d.tag_groups.length) _lbTagGroups = d.tag_groups;
+      lbPopClose(); viRenderDone();
+    } else setVideoStatus("标签没存上：" + ((d && d.error) || "原因不明"), "warn");
+  } catch (e) { setVideoStatus("标签没存上：" + (e && e.message ? e.message : e), "warn"); }
 }
 function viRenderDone() {
   const box = document.getElementById("viDone");
@@ -2021,7 +2136,8 @@ function viRenderDone() {
   const dn = document.getElementById("viPtabDoneN"); if (dn) dn.textContent = all.length;
   lbCalcProfiles();                                   // v135/v136：作者领域按库里他的文章算
   const m = lbMode();
-  const placesOf = (n) => (m === "author" ? lbPlaces(n) : (n.cat ? [{ big: n.cat, sub: n.sub || "", own: true }] : []));
+  const placesOf = (n) => (m === "author" ? lbPlaces(n) : m === "tag" ? lbTagPlaces(n)
+    : (n.cat ? [{ big: n.cat, sub: n.sub || "", own: true }] : []));
   const counts = {}; let none = 0;                    // 「作者领域」时一条可以算进好几个领域
   all.forEach((n) => { const ps = placesOf(n); if (!ps.length) none++; ps.forEach((p) => { counts[p.big] = (counts[p.big] || 0) + 1; }); });
   let f = lbFilterGet(m);
@@ -2030,7 +2146,7 @@ function viRenderDone() {
   let done = !f ? all : f === "__none" ? all.filter((n) => !placesOf(n).length) : all.filter((n) => !!at(n));
   box.innerHTML = "";
   box.appendChild(lbBar(all.length, counts, none, m, f));
-  if (f && f !== "__none") {                          // 选了一个大类 → 下面一行按子类再筛
+  if (m !== "tag" && f && f !== "__none") {           // 选了一个大类 → 下面一行按子类再筛
     const subOf = (n) => (at(n) || {}).sub || "";
     if (lbSubsOf(f).length || done.some((n) => subOf(n))) {
       let sf = lbSubGet(m, f);
@@ -2038,6 +2154,23 @@ function viRenderDone() {
       box.appendChild(lbSubBar(f, done, sf, subOf));
       if (sf) done = done.filter((n) => (sf === "__nosub" ? !subOf(n) : subOf(n) === sf));
     }
+  }
+  if (m === "tag" && f !== "__none") {               // v140：「标签」：选了一组 → 这一组的标签；「全部」→ 最常用的标签
+    const ctx = "tag:" + f;
+    const cnt = lbTagCounts(done, f ? new Set(lbTagGroupTags(f)) : null);
+    let ts = lbTagSelGet(ctx);
+    if (ts && !cnt[ts]) ts = "";
+    const tr = lbTagRow(cnt, ts, ctx, f ? "「" + f + "」里的标签" : "常用标签", f ? 0 : 30);
+    if (tr) box.appendChild(tr);
+    if (ts) done = done.filter((n) => (n.tg || []).includes(ts));
+  } else if (m === "note" && f && f !== "__none") {  // v140：「文章分类」选了大类（子类）→ 还能再按标签细分
+    const ctx = "note:" + f;
+    const cnt = lbTagCounts(done, null);
+    let ts = lbTagSelGet(ctx);
+    if (ts && !cnt[ts]) ts = "";
+    const tr = lbTagRow(cnt, ts, ctx, "按标签", 24);
+    if (tr) box.appendChild(tr);
+    if (ts) done = done.filter((n) => (n.tg || []).includes(ts));
   }
   const rows = document.createElement("div"); rows.className = "vn-done-rows";
   done.slice(0, _viDoneShown).forEach((n, i) => {
@@ -2048,7 +2181,8 @@ function viRenderDone() {
     const when = (n.mt ? n.mt * 1000 : 0) || vnNoteTime(n); tm.textContent = when ? vnFmtWhen(when) : ""; tm.title = "加工时间"; r.appendChild(tm);
     // 分类：「文章分类」是这篇的「大类 · 子类」；「作者领域」是作者的领域（好几个就都写上；没写作者的用这篇自己的分类，虚线框）
     const slot = document.createElement("span"); slot.className = "vn-cat-slot";
-    const ps = placesOf(n), p0 = at(n) || ps[0] || null;
+    const ps = m === "tag" ? (n.cat ? [{ big: n.cat, sub: n.sub || "", own: true }] : []) : placesOf(n);   // v140：「标签」时这里还是这篇的分类
+    const p0 = (m === "tag" ? null : at(n)) || ps[0] || null;
     const c = document.createElement("span");
     let text = "";
     if (p0) text = (m === "author" && !at(n) && ps.length > 1) ? ps.map((x) => x.big).join(" / ") : p0.big + (p0.sub ? " · " + p0.sub : "");
@@ -2065,10 +2199,21 @@ function viRenderDone() {
     slot.appendChild(c); r.appendChild(slot);
     if (n.kind) r.appendChild(vnKindBadge(n.kind));
     const nm = document.createElement("span"); nm.className = "vn-un-name"; nm.textContent = n.title || (n.name || "").replace(/\.md$/, ""); r.appendChild(nm);
-    const kws = (n.kw && n.kw.length) ? n.kw : (n.tags || []);         // 分好类的显示 AI 给的关键词，没分的还是原来的标签
-    if (kws.length) {
+    // v140：有内容标签就显示标签（点了看同一个标签的所有文章）；还没有的显示 AI 给的关键词 / 原来的标签
+    const tgs = (n.tg && n.tg.length) ? n.tg : null;
+    const kws = tgs || ((n.kw && n.kw.length) ? n.kw : (n.tags || []));
+    if (kws.length || n.analyzed) {
       const tg = document.createElement("span"); tg.className = "vn-done-tags";
-      kws.slice(0, 2).forEach((t) => { const k2 = document.createElement("span"); k2.className = "vn-done-tag"; k2.textContent = t; tg.appendChild(k2); });
+      if (tgs && n.kw && n.kw.length) tg.title = "AI 关键词：" + n.kw.join("、");
+      kws.slice(0, tgs ? 3 : 2).forEach((t) => {
+        const k2 = document.createElement("span"); k2.className = "vn-done-tag" + (tgs ? " vn-tg" : ""); k2.textContent = t;
+        if (tgs) { k2.dataset.lbt = t; k2.title = "看所有「" + t + "」的文章"; }
+        tg.appendChild(k2);
+      });
+      if (n.analyzed) {
+        const ed = document.createElement("span"); ed.className = "vn-tg-edit"; ed.textContent = tgs ? "✎" : "＋标签";
+        ed.title = "改这篇的标签"; ed.dataset.lbtedit = n.name || ""; tg.appendChild(ed);
+      }
       r.appendChild(tg);
     }
     if (n.author) {
@@ -2127,7 +2272,7 @@ function lbRenderActs() {
 async function lbRefresh() {
   try {
     const r = await fetch(BACKEND + "/labels/all"); const d = await r.json();
-    if (d && d.ok) { lbApply(d.cats, d.authors, d.notes, d.tree); if (_lbPopOpen) lbRenderActs(); else viRenderDone(); }
+    if (d && d.ok) { lbApply(d.cats, d.authors, d.notes, d.tree, d.tags, d.tag_groups); if (_lbPopOpen) lbRenderActs(); else viRenderDone(); }
   } catch (e) {}
 }
 async function lbPoll() {
@@ -2262,6 +2407,12 @@ function lbPick(el) {
 document.getElementById("viDone")?.addEventListener("click", (e) => {   // 先于每一行自己的「打开笔记」
   const t = e.target.closest && e.target.closest("[data-lb-kind]");
   if (t) { e.stopPropagation(); e.preventDefault(); lbPick(t); return; }
+  const tge = e.target.closest && e.target.closest("[data-lbtedit]");       // v140：改这篇的标签
+  if (tge) { e.stopPropagation(); e.preventDefault(); lbTagEdit(tge); return; }
+  const tgc = e.target.closest && e.target.closest("[data-lbt]");           // v140：点文章后面的标签
+  if (tgc) { e.stopPropagation(); e.preventDefault(); lbGoTag(tgc.dataset.lbt); return; }
+  const tgs = e.target.closest && e.target.closest("[data-lbtsel]");        // v140：标签那一行
+  if (tgs) { e.stopPropagation(); lbTagSelSet(tgs.dataset.lbtctx, tgs.dataset.lbtsel); _viDoneShown = 50; viRenderDone(); return; }
   const sbn = e.target.closest && e.target.closest("[data-lbs]");          // v134：子类那一行
   if (sbn) { e.stopPropagation(); lbSubSet(lbMode(), sbn.dataset.big, sbn.dataset.lbs); _viDoneShown = 50; viRenderDone(); return; }
   const fb = e.target.closest && e.target.closest("[data-lbf]");
@@ -2275,7 +2426,7 @@ document.addEventListener("click", (e) => {
 });
 document.addEventListener("mousedown", (e) => {
   const p = document.getElementById("viLbPop");
-  if (p && !p.contains(e.target) && !(e.target.closest && e.target.closest("[data-lb-kind]"))) lbPopClose();
+  if (p && !p.contains(e.target) && !(e.target.closest && e.target.closest("[data-lb-kind], [data-lbtedit]"))) lbPopClose();
 });
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && document.getElementById("viLbPop")) { e.stopPropagation(); e.preventDefault(); lbPopClose(); }
@@ -4783,7 +4934,7 @@ async function loadVideoNotes() {
     const folders = data.folders || [];
     if (data.tidy && data.tidy.length) _vnTidyMsgs = _vnTidyMsgs.concat(data.tidy).slice(-6);   // v64
     list.innerHTML = "";
-    _vnAllNotes = notes; if (data.labels) lbApply(data.labels.cats, data.labels.authors, null, data.labels.tree);   // v132：分类、作者领域；v134：两级
+    _vnAllNotes = notes; if (data.labels) lbApply(data.labels.cats, data.labels.authors, null, data.labels.tree, null, data.labels.tag_groups);   // v132：分类、作者领域；v134：两级；v140：标签分组（每条的标签在 n.tg）
     setTimeout(viRenderDone, 0);   // v125：加工页的「已加工」
     ["viExtractExtras", "viProcessBars", "viAnLive"].forEach((id) => { const x = document.getElementById(id); if (x) x.innerHTML = ""; });   // v116：搬到提取 / 加工页的几块也一起重画
 

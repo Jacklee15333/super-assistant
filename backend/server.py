@@ -3431,6 +3431,14 @@ def _lb_mod():
     return _lb
 
 
+def _tg_mod():
+    """v140：内容标签（tags.py）。"""
+    import tags as _tg
+    if not _tg._hooks.get("labels"):
+        _tg.configure(log=_clog, labels=_lb_mod())
+    return _tg
+
+
 def _lb_guide():
     """v138：给「加工」提示词用的分类表 + 分类规则。"""
     try:
@@ -3449,7 +3457,12 @@ def _lb_split(analysis):
 
 def _lb_after_analyzed(name, cat="", sub="", tags=None, use_local=True, model=""):
     """v132：一条刚加工好：有本地模型就在后台给它分类，作者还没领域的也顺手判断（不耽误加工）。
-    v138：写笔记的 AI 已经在最后分好类、总结好标签 → 直接存成这篇的分类（网页 AI 分的最准），不用再单独贴。"""
+    v138：写笔记的 AI 已经在最后分好类、总结好标签 → 直接存成这篇的分类（网页 AI 分的最准），不用再单独贴。
+    v140：内容标签作废（你手动改过的不动），下次打开「已加工」按新内容重新贴。"""
+    try:
+        _tg_mod().forget(name)
+    except Exception:
+        pass
     if cat:
         try:
             try:
@@ -4206,8 +4219,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(st)
         if path == "/labels/all":                       # v132：所有标签（已加工清单刷新用）
             _lb = _lb_mod()
+            _tgm = _tg_mod()
             return self._send({"ok": True, "cats": _lb.cats(), "tree": _lb.tree(), "notes": _lb.note_labels(),
-                               "authors": _lb.public_authors()})
+                               "authors": _lb.public_authors(),
+                               "tags": _tgm.all_tags(), "tag_groups": _tgm.groups()})     # v140：内容标签
         if path == "/video_note_analyze_batch":
             b = dict(_note_batch)
             b["resume_in"] = max(0, int((b.get("resume_at") or 0) - _time_now())) if b.get("resume_at") else 0
@@ -4842,6 +4857,16 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_web_model_test(body)
         if path == "/heartbeat":
             return self._handle_heartbeat(body)
+        if path == "/labels/tags":                    # v140：手动改一篇的内容标签
+            name = (body.get("name") or "").strip()
+            if not name or "/" in name or "\\" in name or ".." in name or not name.endswith(".md"):
+                return self._send({"ok": False, "error": "非法文件名"})
+            tl = body.get("tags")
+            if not isinstance(tl, list):
+                return self._send({"ok": False, "error": "标签格式不对"})
+            _tgm = _tg_mod()
+            got = _tgm.set_tags(name, [str(x) for x in tl][:20])
+            return self._send({"ok": True, "tags": got, "tag_groups": _tgm.groups()})
         if path in ("/labels/job", "/labels/set", "/labels/redo"):   # v132：贴标签
             _lb = _lb_mod()
             if path == "/labels/job":
@@ -7085,6 +7110,20 @@ class Handler(BaseHTTPRequestHandler):
                 lbs = {"cats": _lb.cats(), "tree": _lb.tree(), "authors": _lb.public_authors()}
             except Exception as _e:
                 _clog("贴标签", "读标签出错：%s" % _e)
+            try:                                            # v140：内容标签（加工好了还没标签的，按内容自动贴）
+                _tgm = _tg_mod()
+                try:
+                    _nl2 = _lb_mod().note_labels()
+                except Exception:
+                    _nl2 = {}
+                _tgm.ensure(items, lab=_nl2)
+                _ta = _tgm.all_tags()
+                for it in items:
+                    if it.get("analyzed") and _ta.get(it["name"]):
+                        it["tg"] = _ta[it["name"]]
+                lbs["tag_groups"] = _tgm.groups()
+            except Exception as _e:
+                _clog("贴标签", "读内容标签出错：%s" % _e)
             return self._send({"ok": True, "notes": items, "folders": folders, "tidy": tidy, "labels": lbs})
         except Exception as e:
             return self._send({"ok": False, "notes": [], "folders": [],
