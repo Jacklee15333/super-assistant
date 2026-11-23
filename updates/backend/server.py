@@ -3044,6 +3044,70 @@ def _ap_loop():
             _clog("视频", "自动加工检查出错：%s" % e)
 
 
+# ════════════════ v143：「笔记」里博主资料卡：他主页上的全部视频 ════════════════
+# 点进一个博主：按绑定的主页列出他发过的全部视频（新的在前），可以单条提取、勾选批量提取。
+# 列到的存一份在 memory/creator_profile_videos.json，下次点开先秒显示；已经有笔记的标出来（点了打开笔记）。
+_PV_LOCK = _threading.Lock()
+_PV_VID_RES = [re.compile(r"douyin\.com/(?:video|note)/(\d{8,})"), re.compile(r"(BV[0-9A-Za-z]{10})"),
+               re.compile(r"(?:[?&]v=|youtu\.be/|/shorts/)([0-9A-Za-z_-]{11})"), re.compile(r"/status(?:es)?/(\d{6,})")]
+
+
+def _pv_file():
+    return core.MEMORY_DIR / "creator_profile_videos.json"
+
+
+def _pv_load():
+    try:
+        d = json.loads(_pv_file().read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def _pv_save(cid, entry):
+    with _PV_LOCK:
+        d = _pv_load()
+        d[cid] = entry
+        if len(d) > 300:                           # 只留最近看过的 300 个博主
+            for k in sorted(d, key=lambda k: (d[k] or {}).get("ts") or 0)[:len(d) - 300]:
+                d.pop(k, None)
+        p = _pv_file()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        tmp = p.with_name(p.name + ".tmp")
+        tmp.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+        os.replace(str(tmp), str(p))
+
+
+def _pv_vid_of(url):
+    for rx in _PV_VID_RES:
+        m = rx.search(url or "")
+        if m:
+            return m.group(1)
+    return ""
+
+
+def _pv_note_map():
+    """笔记里已经有的视频：{视频号 或 完整链接: 笔记文件名}（看每条笔记的「来源链接」）。"""
+    out = {}
+    for p in _cx_video_dir().glob("*.md"):
+        if p.name.startswith("_"):
+            continue
+        try:
+            with open(p, "rb") as f:
+                head = f.read(3000).decode("utf-8", "ignore")
+        except Exception:
+            continue
+        m = re.search(r"来源链接[:：]\s*(\S+)", head)
+        if not m:
+            continue
+        u = m.group(1).strip()
+        out.setdefault(u, p.name)
+        v = _pv_vid_of(u)
+        if v:
+            out.setdefault(v, p.name)
+    return out
+
+
 def _parse_saved_note(text):
     """从已存档的笔记 md 里拆出（标题, 元信息行列表, 文字稿, 已有标签列表）。
     元信息行 = 开头那些 '- 来源链接/作者/提取时间…'；
@@ -5811,6 +5875,47 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send({"ok": True, **data})
             except Exception as e:
                 return self._send({"ok": False, "cached": False, "message": str(e)}, 200)
+
+        if path == "/creator/profile_videos":
+            # v143：「笔记」里博主资料卡：按绑定的主页列出他的全部视频（新的在前）。refresh=False 先用上次列到的
+            try:
+                import creator_watch
+                import creator_profiles as _cpf
+                import hashlib as _hl
+                key = (body.get("key") or "").strip()
+                prof = (_cpf.list_profiles() or {}).get(key) or {}
+                home = (prof.get("home") or prof.get("url") or "").strip()
+                if not key or not home:
+                    return self._send({"ok": False, "message": "还没绑定这个博主的主页：先点「绑定博主主页」或「自动找主页」"})
+                cid = "prof:" + _hl.md5((key + "|" + home).encode("utf-8")).hexdigest()[:16]
+                ent = None if body.get("refresh") else _pv_load().get(cid)
+                if not ent:
+                    _clog("博主", "列「%s」主页上的视频…" % key)
+                    r = creator_watch.list_videos_url(prof.get("platform") or "", home, body.get("limit", 0))
+                    ent = {"key": key, "home": home, "platform": r["platform"], "platform_label": r["platform_label"],
+                           "videos": r["videos"], "total": r["total"], "empty_reason": r.get("empty_reason") or "",
+                           "ts": int(_time_now())}
+                    _pv_save(cid, ent)
+                    _clog("博主", "「%s」主页上列到 %d 个视频" % (key, len(ent["videos"])))
+                    cached = False
+                else:
+                    cached = True
+                vids = [dict(v) for v in (ent.get("videos") or [])]
+                for v in vids:
+                    v["creator_id"] = cid
+                creator_watch._annotate_extracted(vids)
+                nmap = _pv_note_map()
+                for v in vids:
+                    n = nmap.get(str(v.get("vid") or "")) or nmap.get((v.get("url") or "").strip()) or nmap.get(_pv_vid_of(v.get("url") or ""))
+                    if n:
+                        v["note"] = n
+                        v["extracted"] = True
+                return self._send({"ok": True, "key": key, "home": home, "platform": ent.get("platform") or "",
+                                   "platform_label": ent.get("platform_label") or "", "videos": vids,
+                                   "total": ent.get("total") or len(vids), "empty_reason": ent.get("empty_reason") or "",
+                                   "cached": cached, "ts": ent.get("ts") or 0, "now": int(_time_now())})
+            except Exception as e:
+                return self._send({"ok": False, "message": str(e)[:300]}, 200)
 
         if path == "/creator/videos":
             # 列出某博主主页最近的视频（只读，不动快照），给界面挑选/批量提取用
