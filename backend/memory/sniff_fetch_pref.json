@@ -74,5 +74,9 @@
   "sspai.com": {
     "mode": "fast",
     "at": "2026-11-20 23:19"
+  },
+  "cnnic.net.cn": {
+    "mode": "browser",
+    "at": "2026-11-23 09:36"
   }
 }
