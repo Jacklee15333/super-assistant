@@ -1,82 +1,5 @@
 [
   {
-    "kind": "概念",
-    "title": "Labor Hub：AI与劳动力的未来",
-    "summary": "Metaculus新增Labor Hub项目，聚焦人工智能对美国劳动力市场的影响。该平台可能用于分析AI技术发展如何重塑就业结构，属于探索AI社会影响的新趋势研究。",
-    "importance": "中",
-    "source_title": "Metaculus",
-    "link": "https://www.metaculus.com",
-    "category": "趋势瞭望台",
-    "key": "75a912c4d03a9d91",
-    "ts": "2026-11-20 17:06"
-  },
-  {
-    "kind": "发布",
-    "title": "Radiant：未来规划工具",
-    "summary": "Metaculus推出Radiant工具，声称能在方案实施前「绘制未来蓝图」。这可能涉及基于预测数据的模拟分析功能，属于增强决策支持的新产品方向。",
-    "importance": "中",
-    "source_title": "Metaculus",
-    "link": "https://www.metaculus.com",
-    "category": "趋势瞭望台",
-    "key": "ec6a9a4df563d932",
-    "ts": "2026-11-20 17:06"
-  },
-  {
-    "kind": "发布",
-    "title": "Launch HN: Onlook (YC W25) – An open-source developer tool for designers",
-    "summary": "Onlook 是一个面向设计师的开源开发者工具，属于协作效率工具类创新。该工具可能通过可视化编程或跨平台协作功能，解决设计与开发之间的沟通障碍，属于软件开发流程优化领域。",
-    "importance": "中",
-    "source_title": "Hacker News",
-    "link": "https://news.ycombinator.com/",
-    "category": "AI动态",
-    "key": "6b0ba1369511f862",
-    "ts": "2026-11-20 17:24"
-  },
-  {
-    "kind": "发布",
-    "title": "镁伽科技完成近2亿美元融资，建设直接面向真实世界的AI智能基础设施",
-    "summary": "镁伽科技近日完成近2亿美元融资，用于建设直接面向真实世界的AI智能基础设施。这表明AI技术正在从实验室走向实际应用场景，推动AI在制造业、物流、医疗等领域的落地，属于AI基础设施建设方向，对AI技术的商业化和规模化应用具有重要意义",
-    "importance": "高",
-    "source_title": "36氪",
-    "link": "https://36kr.com",
-    "category": "趋势瞭望台",
-    "key": "b9c2dd5a026cc294",
-    "ts": "2026-11-20 17:24"
-  },
-  {
-    "kind": "功能",
-    "title": "AI智能体Harness演进为类操作系统基础设施",
-    "summary": "Harness作为一种智能体框架，正在从补丁工具演进为类操作系统基础设施。这表明AI工具正在向更系统化的方向发展，为智能体提供更底层、更全面的支持，属于AI工具和基础设施功能的升级，对AI系统的集成和管理能力有重要影响",
-    "importance": "中",
-    "source_title": "36氪",
-    "link": "https://36kr.com",
-    "category": "趋势瞭望台",
-    "key": "d61f0878d2f70bd7",
-    "ts": "2026-11-20 17:24"
-  },
-  {
-    "kind": "概念",
-    "title": "新质生产力大咖说·AI季",
-    "summary": "新质生产力大咖说·AI季是一个聚焦AI技术如何推动生产力变革的活动或栏目，强调AI在不同产业场景中的应用和影响。这代表了AI在推动经济和社会发展中的新趋势，对理解AI在实际生产中的作用具有重要意义",
-    "importance": "中",
-    "source_title": "36氪",
-    "link": "https://36kr.com",
-    "category": "趋势瞭望台",
-    "key": "fc28e0afcf6b397a",
-    "ts": "2026-11-20 17:24"
-  },
-  {
-    "kind": "概念",
-    "title": "未名·AI Park 揭牌",
-    "summary": "“未名·AI Park”由北京大学与海淀共建，旨在打造AI创新转化的高地，推动人工智能技术的产业化和商业化。这一举措体现了高校与地方政府在AI领域深度合作的趋势，有助于加速AI技术落地和人才培养。",
-    "importance": "中",
-    "source_title": "钛媒体",
-    "link": "https://www.tmtpost.com",
-    "category": "趋势瞭望台",
-    "key": "0b2927dc1af2970e",
-    "ts": "2026-11-20 17:24"
-  },
-  {
     "kind": "发布",
     "title": "华为云开放具身智能世界模型底座",
     "summary": "华为云推出双榜SOTA的具身世界模型，首次公开整套训练与部署解决方案。该模型通过国产算力优化，将具身智能竞争维度从单一芯片性能扩展到训练效率、数据规模、部署成本等多维战场，有助于推动国产算力在工业场景的规模化应用。",
@@ -10998,5 +10921,82 @@
     "category": "趋势瞭望台",
     "key": "12f79c4df76b609a",
     "ts": "2026-11-23 10:31"
+  },
+  {
+    "kind": "发布",
+    "title": "Gemini 4 Neon",
+    "summary": "Gemini 4 Neon 是 Google DeepMind 推出的最新一代 AI 模型，属于通用人工智能领域。该模型可能在自然语言处理、多模态理解等方面有显著提升，适用于更广泛的场景和任务，代表了 DeepMind 在 AI 技术上的最新进展。",
+    "importance": "高",
+    "source_title": "Google DeepMind 博客",
+    "link": "https://deepmind.google/discover/blog/",
+    "category": "AI动态",
+    "key": "96cac5f2609f52a6",
+    "ts": "2026-11-23 10:39"
+  },
+  {
+    "kind": "发布",
+    "title": "Genie 4",
+    "summary": "Genie 4 是 DeepMind 推出的新版本交互式世界生成工具，属于 AI 生成内容和虚拟环境构建领域。它可能在交互性、沉浸感和内容生成的多样性方面有所增强，适用于游戏、教育、虚拟现实等多个应用场景。",
+    "importance": "高",
+    "source_title": "Google DeepMind 博客",
+    "link": "https://deepmind.google/discover/blog/",
+    "category": "AI动态",
+    "key": "814b70d08a897d8d",
+    "ts": "2026-11-23 10:39"
+  },
+  {
+    "kind": "发布",
+    "title": "Gemini 4 Hydrogen",
+    "summary": "Gemini 4 Hydrogen 是 DeepMind 推出的另一款新一代 AI 模型，可能在特定任务或领域（如语言、代码、推理）上有更强的性能，属于 AI 模型优化和专业化方向。它的发布可能标志着 DeepMind 在模型架构和训练方法上的进一步突破。",
+    "importance": "高",
+    "source_title": "Google DeepMind 博客",
+    "link": "https://deepmind.google/discover/blog/",
+    "category": "AI动态",
+    "key": "b61402a018f02c6d",
+    "ts": "2026-11-23 10:39"
+  },
+  {
+    "kind": "发布",
+    "title": "Gemini 4 Carbon",
+    "summary": "Gemini 4 Carbon 是 DeepMind 推出的 AI 模型新版本，可能在计算效率、能耗控制或模型压缩方面有所改进，属于 AI 模型优化和部署方向。它的发布可能对大规模 AI 应用和边缘计算场景有重要意义。",
+    "importance": "高",
+    "source_title": "Google DeepMind 博客",
+    "link": "https://deepmind.google/discover/blog/",
+    "category": "AI动态",
+    "key": "8024c36a6e65cb66",
+    "ts": "2026-11-23 10:39"
+  },
+  {
+    "kind": "发布",
+    "title": "Gemini Robotics 2.5",
+    "summary": "Gemini Robotics 2.5 是 DeepMind 在机器人领域推出的新版本，可能在感知、推理、工具使用和交互能力上有显著提升，属于 AI 与机器人技术结合的前沿方向。它可能推动机器人在现实世界中的更广泛应用，如工业、服务和探索领域。",
+    "importance": "高",
+    "source_title": "Google DeepMind 博客",
+    "link": "https://deepmind.google/discover/blog/",
+    "category": "AI动态",
+    "key": "021495f7495ef336",
+    "ts": "2026-11-23 10:39"
+  },
+  {
+    "kind": "功能",
+    "title": "Opening the datasets behind our AI weather models",
+    "summary": "DeepMind 开放了其 AI 天气模型背后的数据集，属于 AI 在气象预测领域的应用。此举有助于推动相关研究和创新，提高天气预测的准确性和实用性，对农业、灾害预警等领域具有重要意义。",
+    "importance": "中",
+    "source_title": "Google DeepMind 博客",
+    "link": "https://deepmind.google/discover/blog/",
+    "category": "AI动态",
+    "key": "134e187b58914719",
+    "ts": "2026-11-23 10:39"
+  },
+  {
+    "kind": "概念",
+    "title": "LLMON: An LLM-Native Markup Language, now in Granite 4.1 3B and 8B",
+    "summary": "LLMON 是一种专为大语言模型（LLM）设计的原生标记语言，已在 Granite 4.1 的 3B 和 8B 模型中实现。它为模型处理和生成结构化内容提供了新的方式，可能推动更高效的模型交互和应用。",
+    "importance": "中",
+    "source_title": "Hugging Face 博客",
+    "link": "https://huggingface.co/blog",
+    "category": "AI动态",
+    "key": "f35b9555a9930fa8",
+    "ts": "2026-11-23 10:40"
   }
 ]
