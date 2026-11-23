@@ -383,6 +383,7 @@ function viSecSum() {
   if (document.getElementById("videoTidyAuto")?.checked) parts.push("整理原文");
   if (document.getElementById("videoVocal")?.checked) parts.push("分离人声");
   if ((document.getElementById("videoCreatorUrl")?.value || "").trim()) parts.push("填了博主主页");
+  if (window.__vsDirty) parts.push("有改动没保存");                // v141
   sum.textContent = parts.join(" · ");
   const gear = document.getElementById("viGearBtn");
   if (gear) {
@@ -13203,7 +13204,8 @@ function _phSyncDefaults() {
   try {
     const lv = document.getElementById("videoLevel");
     const body = {};
-    if (lv && lv.value) body.level = lv.value;
+    const _sv = window.__vsSaved;                       // v141：保存过提取设置 → 手机 / 飞书按保存的质量
+    if (_sv && _sv.level) body.level = _sv.level; else if (lv && lv.value) body.level = lv.value;
     try {
       const s = typeof settings === "function" ? settings() : null;
       if (s) { body.use_local = s.use_local; body.model = s.model; }
@@ -13297,10 +13299,7 @@ function _vtTidyBar(resultEl, data) {
   setTimeout(async () => {
     try { const r = await fetch(BACKEND + "/transcript_tidy/config"); cb.checked = !!(await r.json()).auto; } catch (e) {}
   }, 3000);
-  cb.addEventListener("change", () => {
-    fetch(BACKEND + "/transcript_tidy/config", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ auto: cb.checked }) }).catch(() => {});
-  });
+  // v141：勾了 / 取消先不改后台的开关：在这里点的提取按勾的来；点「保存设置」后，手机 / 飞书发来的也按它
 })();
 
 
@@ -13959,11 +13958,13 @@ function vnCurLang() {
   const f0 = window.fetch;
   window.fetch = function (url, opts) {
     try {
-      if (/\/video_transcribe(\?|$)/.test(String(url)) && opts && typeof opts.body === "string" && opts.body.charAt(0) === "{") {
+      if (/\/(video_transcribe|creator\/extract)(\?|$)/.test(String(url)) && opts && typeof opts.body === "string" && opts.body.charAt(0) === "{") {
         const b = JSON.parse(opts.body);
         let changed = false;
         if (!b.lang) { b.lang = vnCurLang(); changed = true; }
         if (b.vocal === undefined) { b.vocal = vnCurVocal(); changed = true; }      // v102：先分离人声
+        const _td = document.getElementById("videoTidyAuto");                       // v141：提取完整理原文（按页面上勾的）
+        if (b.tidy === undefined && _td) { b.tidy = !!_td.checked; changed = true; }
         if (changed) opts = Object.assign({}, opts, { body: JSON.stringify(b) });
       }
     } catch (_) {}
@@ -14185,4 +14186,95 @@ function vnCurVocal() {
   const cb = row.querySelector("input");
   try { cb.checked = localStorage.getItem("videoVocalPick") === "1"; } catch (_) {}
   cb.addEventListener("change", () => { try { localStorage.setItem("videoVocalPick", cb.checked ? "1" : "0"); } catch (_) {} });
+})();
+
+
+// ════════════════════ v141：提取设置「保存设置」════════════════════
+// 「设置」里选好识别质量、语言、分离人声、整理原文 → 点「保存设置」：存到后台，软件重开也还是这些；
+// 手机 / 飞书发来的、博主列表里勾选的、失败重试的，也都按保存的提取。改了没保存，按钮和标题行会提醒。
+function _vsCur() {
+  const lv = document.getElementById("videoLevel"), lg = document.getElementById("videoLang");
+  const vo = document.getElementById("videoVocal"), td = document.getElementById("videoTidyAuto");
+  return { level: lv ? lv.value : "", lang: lg ? lg.value : "zh", vocal: !!(vo && vo.checked), tidy: !!(td && td.checked) };
+}
+function _vsSame(a, b) { return !!a && !!b && a.level === b.level && a.lang === b.lang && !!a.vocal === !!b.vocal && !!a.tidy === !!b.tidy; }
+function _vsOptText(id, v) {
+  const s = document.getElementById(id);
+  const o = s && Array.from(s.options).find((x) => x.value === v);
+  return o ? o.textContent.trim() : (v || "");
+}
+function _vsDesc(d) {
+  const bits = [_vsOptText("videoLevel", d.level), _vsOptText("videoLang", d.lang)];
+  if (d.vocal) bits.push("先分离人声");
+  if (d.tidy) bits.push("提取完整理原文");
+  return bits.filter(Boolean).join(" · ");
+}
+function _vsRender() {
+  const btn = document.getElementById("videoSettingsSave"), msg = document.getElementById("videoSettingsMsg");
+  if (!btn || !msg || btn.disabled) return;
+  const sv = window.__vsSaved, cur = _vsCur();
+  const dirty = !sv || !_vsSame(sv, cur);
+  const was = window.__vsDirty;
+  window.__vsDirty = !!sv && dirty;
+  btn.classList.toggle("vs-dirty", dirty);
+  btn.textContent = dirty ? "保存设置" : "✓ 已保存";
+  let t;
+  if (!sv) t = "还没保存过。保存后软件重开也是这些设置，手机 / 飞书发来的、博主列表里勾选的也都按它提取";
+  else if (dirty) t = "有改动还没保存：在这里点的提取按现在选的；手机 / 飞书 / 博主列表还按已保存的（" + _vsDesc(sv) + "）";
+  else t = "以后的提取都按这个：" + _vsDesc(sv) + "（手机 / 飞书发来的、博主列表里勾选的也一样）";
+  if (msg.textContent !== t) msg.textContent = t;
+  msg.classList.toggle("vs-warn", window.__vsDirty);
+  if (was !== window.__vsDirty && typeof viSecSum === "function") viSecSum();
+}
+function _vsApply(d) {
+  const lv = document.getElementById("videoLevel"), lg = document.getElementById("videoLang");
+  const vo = document.getElementById("videoVocal"), td = document.getElementById("videoTidyAuto");
+  if (lv && d.level && Array.from(lv.options).some((o) => o.value === d.level)) lv.value = d.level;
+  if (lg && d.lang && Array.from(lg.options).some((o) => o.value === d.lang)) lg.value = d.lang;
+  if (vo) vo.checked = !!d.vocal;
+  if (td) td.checked = !!d.tidy;
+  try {
+    localStorage.setItem("videoLevelPick", d.level || "");
+    localStorage.setItem("videoLangPick", d.lang || "");
+    localStorage.setItem("videoVocalPick", d.vocal ? "1" : "0");
+  } catch (_) {}
+  if (typeof viSecSum === "function") viSecSum();
+}
+async function _vsSave() {
+  const btn = document.getElementById("videoSettingsSave"), msg = document.getElementById("videoSettingsMsg");
+  if (btn) { btn.disabled = true; btn.textContent = "保存中…"; }
+  try {
+    const r = await fetch(BACKEND + "/video_settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(_vsCur()) });
+    const d = await r.json();
+    if (!d || !d.ok) throw new Error((d && d.error) || "没存上");
+    window.__vsSaved = d.saved;
+    _vsApply(d.saved);
+    try { _phSyncDefaults(); } catch (_) {}
+    if (btn) btn.disabled = false;
+    _vsRender();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = "保存设置"; }
+    if (msg) { msg.textContent = "没保存上：" + (e && e.message ? e.message : e) + "（后端还没连上的话，过一会儿再点）"; msg.classList.add("vs-warn"); }
+  }
+}
+(function _vsBoot() {
+  const body = document.querySelector("#viVideoSec .vi-sec-body");
+  if (!body || document.getElementById("videoSettingsSave")) return;
+  const row = document.createElement("div");
+  row.className = "vs-save-row";
+  row.innerHTML = '<button type="button" class="ghost-btn small" id="videoSettingsSave">保存设置</button><span id="videoSettingsMsg" class="vs-save-msg"></span>';
+  const tools = body.querySelector(".video-tools");
+  body.insertBefore(row, tools && tools.parentNode === body ? tools : null);
+  row.querySelector("button").addEventListener("click", _vsSave);
+  body.addEventListener("change", () => setTimeout(_vsRender, 0));
+  let tries = 0;
+  const load = async () => {
+    try {
+      const d = await (await fetch(BACKEND + "/video_settings")).json();
+      if (d && d.ok) { window.__vsSaved = d.saved || null; if (d.saved) _vsApply(d.saved); _vsRender(); return; }
+    } catch (_) {}
+    if (++tries < 40) setTimeout(load, 1500);           // 后端还没起来：过一会儿再试
+  };
+  load();
+  setInterval(_vsRender, 2000);   // 别的代码改了选项（选日语模型自动切到日语、读回整理原文开关）也跟得上
 })();

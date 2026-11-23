@@ -2252,7 +2252,15 @@ def _video_worker():
                     and res.get("source") not in ("doc", "article") and not _video_cancel.get("all")):
                 try:
                     import transcript_tidy as _tt
-                    if _tt.auto_on() and (job.get("lang") or "zh") == "zh" and len(_tt._bare(res["transcript"])) >= 60:
+                    _tdy = bool(job["tidy"]) if "tidy" in job else _tt.auto_on()     # v141：任务自己带了开关就按它
+                    _lg = job.get("lang") or "zh"
+                    if _lg == "auto":                   # v141：自动识别语言：识别出来基本是汉字（没有日文假名）就当中文
+                        _s4 = res["transcript"][:4000]
+                        _han = len(re.findall(r"[\u4e00-\u9fff]", _s4))
+                        _kana = len(re.findall(r"[\u3040-\u30ff]", _s4))
+                        _lat = len(re.findall(r"[A-Za-z]", _s4))
+                        _lg = "zh" if (_han >= 40 and _kana * 10 < _han and _lat < _han) else ""
+                    if _tdy and _lg == "zh" and len(_tt._bare(res["transcript"])) >= 60:
                         cb("整理原文", "让 AI 加标点、按意思分段…")
                         _new, _msg = _tidy_text(res["transcript"], progress=lambda m: cb("整理原文", m),
                                                 force=True, wait_pool=False)
@@ -3831,6 +3839,51 @@ def _quick_title(url, timeout=8):
         return ""
 
 
+# ── v141：保存的提取设置（识别质量、语言、分离人声、整理原文）──
+#    「设置」里点「保存设置」存到 memory/video_settings.json，软件重开也还是这些。
+#    不经过视频页的提取（手机 / 飞书发来的、博主列表里勾选的、失败重试的……）没写的设置都按这里保存的来；
+#    视频页上点的提取按页面上选的（页面一打开就是保存的设置）。
+_VS_LEVELS = ("speed", "balanced", "accurate", "ultra", "ja", "anime")
+_VS_LANGS = ("zh", "ja", "en", "ko", "yue", "auto")
+_VS_LEVEL_TXT = {"speed": "快速", "balanced": "均衡", "accurate": "精准", "ultra": "超精准",
+                 "ja": "日语专用", "anime": "日语·情绪 / 小声"}
+_VS_LANG_TXT = {"zh": "中文", "ja": "日语", "en": "英语", "ko": "韩语", "yue": "粤语", "auto": "自动识别语言"}
+
+
+def _vs_file():
+    return core.MEMORY_DIR / "video_settings.json"
+
+
+def _vs_load():
+    """保存过的提取设置 {level, lang, vocal, tidy, at}；没保存过返回 {}。"""
+    try:
+        d = json.loads(_vs_file().read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def _vs_save(body):
+    d = {"level": body.get("level") if body.get("level") in _VS_LEVELS else "balanced",
+         "lang": body.get("lang") if body.get("lang") in _VS_LANGS else "zh",
+         "vocal": bool(body.get("vocal")), "tidy": bool(body.get("tidy")), "at": int(_time_now())}
+    p = _vs_file()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_name(p.name + ".tmp")
+    tmp.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
+    os.replace(str(tmp), str(p))
+    return d
+
+
+def _vs_text(d):
+    bits = [_VS_LEVEL_TXT.get(d.get("level"), d.get("level") or ""), _VS_LANG_TXT.get(d.get("lang"), d.get("lang") or "")]
+    if d.get("vocal"):
+        bits.append("先分离人声")
+    if d.get("tidy"):
+        bits.append("提取完整理原文")
+    return " · ".join(b for b in bits if b)
+
+
 def _enqueue_video(job):
     """把一个视频任务加入队列，必要时启动后台 worker。返回它的排队位置。
     会去重：同一个 url 如果正在处理、或已在待处理队列里，就不再重复入队，
@@ -3839,6 +3892,18 @@ def _enqueue_video(job):
     import time as _t
     if not job.get("id"):
         job["id"] = "vj" + str(_t.time()) + "-" + str(_t.monotonic_ns() % 100000)
+    if job.get("tidy") is None:
+        job.pop("tidy", None)
+    _vs = _vs_load()                       # v141：没写的识别设置按保存的来（手机 / 飞书 / 博主列表 / 重试…）
+    if _vs:
+        if not job.get("level"):
+            job["level"] = _vs.get("level") or "balanced"
+        if not job.get("lang"):
+            job["lang"] = _vs.get("lang") or "zh"
+        if "vocal" not in job:
+            job["vocal"] = bool(_vs.get("vocal"))
+        if "tidy" not in job and "tidy" in _vs:
+            job["tidy"] = bool(_vs.get("tidy"))
     # 入队即规范化 URL：iesdouyin 长链 → 标准抖音链接，从入口杜绝 Unsupported URL。
     job["url"] = _normalize_video_url(job.get("url") or "")
     url = (job.get("url") or "").strip()
@@ -4213,6 +4278,9 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/video_notes":
             return self._handle_video_notes_list()
+        if path == "/video_settings":                   # v141：保存的提取设置
+            _d = _vs_load()
+            return self._send({"ok": True, "saved": _d or None, "text": _vs_text(_d) if _d else ""})
         if path == "/labels/job":                       # v132：贴标签的进度
             st = _lb_mod().job_state()
             st["mode"] = _LB_MODE.get("v", "")
@@ -4857,6 +4925,22 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_web_model_test(body)
         if path == "/heartbeat":
             return self._handle_heartbeat(body)
+        if path == "/video_settings":                 # v141：「设置」里点了「保存设置」
+            if body.get("level") not in _VS_LEVELS:
+                return self._send({"ok": False, "error": "识别质量不对"})
+            d = _vs_save(body)
+            try:
+                import transcript_tidy as _tt
+                _tt.set_config(d["tidy"])                 # 「提取完整理原文」也是后台的开关
+            except Exception:
+                pass
+            try:
+                import phone_inbox
+                phone_inbox.remember_defaults({"level": d["level"]})    # 手机 / 飞书发来的照这个质量
+            except Exception:
+                pass
+            _clog("提取设置", "已保存：%s。以后手机 / 飞书发来的、博主列表里勾选的也按这个提取" % _vs_text(d))
+            return self._send({"ok": True, "saved": d, "text": _vs_text(d)})
         if path == "/labels/tags":                    # v140：手动改一篇的内容标签
             name = (body.get("name") or "").strip()
             if not name or "/" in name or "\\" in name or ".." in name or not name.endswith(".md"):
@@ -5005,7 +5089,7 @@ class Handler(BaseHTTPRequestHandler):
                     job.setdefault("url", rec.get("local_path") or "")
                     if lv in ("speed", "balanced", "accurate", "ultra", "ja", "anime"):
                         job["level"] = lv
-                    job.setdefault("level", "balanced")
+                    job.setdefault("level", _vs_load().get("level") or "balanced")     # v141
                     job.setdefault("use_local", True)
                     job.setdefault("model", "qwen2.5")
                     job.setdefault("mode", "auto")
@@ -5620,10 +5704,10 @@ class Handler(BaseHTTPRequestHandler):
                 # v89：识别质量用前端传来的（视频页当前选的）；老界面没传 → 用电脑上最近一次提取时的选择
                 level = body.get("level") or ""
                 if level not in ("speed", "balanced", "accurate", "ultra", "ja", "anime"):
-                    level = ""
+                    level = _vs_load().get("level") or ""          # v141：先按「设置」里保存的
                     try:
                         import phone_inbox as _pi
-                        level = ((_pi._load() or {}).get("defaults") or {}).get("level") or ""
+                        level = level or ((_pi._load() or {}).get("defaults") or {}).get("level") or ""
                     except Exception:
                         level = ""
                     if level not in ("speed", "balanced", "accurate", "ultra", "ja", "anime"):
@@ -5689,9 +5773,9 @@ class Handler(BaseHTTPRequestHandler):
                                           "title": it.get("title") or ""})
                         done_keys.append({"creator_id": cid, "vid": vid, "url": u})
                         continue
-                    _enqueue_video({"url": u, "level": level, "use_local": use_local,
-                                    "model": model, "screenshot": False, "link": False,
-                                    "mode": mode})
+                    _enqueue_video(dict({"url": u, "level": level, "use_local": use_local,
+                                         "model": model, "screenshot": False, "link": False,
+                                         "mode": mode}, **{k: body[k] for k in ("lang", "vocal", "tidy") if k in body}))   # v141
                     queued += 1
                     done_keys.append({"creator_id": cid, "vid": vid, "url": u})
                     new_marks.append({"creator_id": cid, "vid": vid, "url": u,
@@ -6839,9 +6923,11 @@ class Handler(BaseHTTPRequestHandler):
                     local_path, url = (_ik.local_path(url) or (_ik.paths_in(url) or [""])[0]), ""
             except Exception:
                 _intake = ""
-        level = body.get("level", "balanced")
-        lang = (body.get("lang") or "zh").strip()          # v95：视频里说的是什么话（日语、英语…）
-        vocal = bool(body.get("vocal"))                    # v102：识别前先分离人声
+        _vs = _vs_load()                                   # v141：没传的按「设置」里保存的（手机 / 飞书发来的就是这样）
+        level = body.get("level") or _vs.get("level") or "balanced"
+        lang = (body.get("lang") or _vs.get("lang") or "zh").strip()          # v95：视频里说的是什么话（日语、英语…）
+        vocal = bool(body["vocal"]) if "vocal" in body else bool(_vs.get("vocal"))   # v102：识别前先分离人声
+        tidy = bool(body["tidy"]) if "tidy" in body else (bool(_vs["tidy"]) if "tidy" in _vs else None)   # v141：提取完整理原文
         use_local = body.get("use_local", True)
         model = body.get("model", "qwen2.5")
         # 新增：插图 / 跳转原片开关（前端「视频」面板的两个勾选）
@@ -6899,7 +6985,7 @@ class Handler(BaseHTTPRequestHandler):
                 "url": "local://" + local_path,   # 占位，仅用于去重/显示，不会真的去下载
                 "local_path": local_path,
                 "title": title,
-                "level": level, "lang": lang, "vocal": vocal, "use_local": use_local, "model": model,
+                "level": level, "lang": lang, "vocal": vocal, "tidy": tidy, "use_local": use_local, "model": model,
                 "screenshot": do_screenshot, "link": do_link, "mode": mode,
                 "analyze": do_analyze,
                 "author": author, "note_folder": note_folder,
@@ -6935,7 +7021,7 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             _art = ""
         if _art:
-            pos = _enqueue_video({"url": url, "level": level, "lang": lang, "vocal": vocal,
+            pos = _enqueue_video({"url": url, "level": level, "lang": lang, "vocal": vocal, "tidy": tidy,
                                   "use_local": use_local, "model": model,
                                   "screenshot": False, "link": False,
                                   "mode": mode, "analyze": do_analyze,
@@ -6970,7 +7056,7 @@ class Handler(BaseHTTPRequestHandler):
             if not has_subtitle:
                 return self._send({"need": missing})
 
-        pos = _enqueue_video({"url": url, "level": level, "lang": lang, "vocal": vocal,
+        pos = _enqueue_video({"url": url, "level": level, "lang": lang, "vocal": vocal, "tidy": tidy,
                               "use_local": use_local, "model": model,
                               "screenshot": do_screenshot, "link": do_link,
                               "mode": mode, "analyze": do_analyze,
