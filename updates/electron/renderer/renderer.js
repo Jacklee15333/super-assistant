@@ -12057,10 +12057,53 @@ function vnNoteTile(n) {
   return t;
 }
 
-function vnIconGo(path) {
-  _vnIconPath = path; _vnIconPage = 1;
-  loadVideoNotes();
+// v144：「返回」——进到某个博主 / 文件夹前在哪（哪一页、滚到哪），返回时原样回去
+const _vnIconBack = [];          // [{path, page, scroll}]
+function vnScrollBox() {
+  let el = document.getElementById("vnIcons");
+  while (el && el !== document.body && el !== document.documentElement) {
+    const oy = getComputedStyle(el).overflowY;
+    if ((oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight + 1) return el;
+    el = el.parentElement;
+  }
+  return document.scrollingElement || document.documentElement;
 }
+function vnIconGo(path, opts) {
+  opts = opts || {};
+  if (!opts.back) {
+    if (path) _vnIconBack.push({ path: _vnIconPath, page: _vnIconPage, scroll: vnScrollBox().scrollTop });
+    else _vnIconBack.length = 0;
+  }
+  _vnIconPath = path; _vnIconPage = opts.page || 1;
+  const to = opts.scroll != null ? opts.scroll : 0;      // 进去：从最上面看；返回：回到原来滚到的地方
+  Promise.resolve(loadVideoNotes()).then(() => requestAnimationFrame(() => { vnScrollBox().scrollTop = to; }));
+}
+function vnIconBack() {
+  const prev = _vnIconBack.pop();
+  if (!prev) { vnIconGo(null); return; }
+  vnIconGo(prev.path, { back: true, page: prev.page, scroll: prev.scroll });
+}
+function vnIconHome() {               // 点「全部」：回到最上层；是从那儿进来的，就回到原来滚到的地方
+  const root = _vnIconBack.find((x) => !x.path);
+  _vnIconBack.length = 0;
+  if (root) vnIconGo(null, { back: true, page: root.page, scroll: root.scroll });
+  else vnIconGo(null);
+}
+function vnIconCanBack() {
+  const v = document.getElementById("view-video");
+  return !!(_vnIconPath && v && v.classList.contains("active") && v.dataset.mode === "notes" && document.getElementById("vnIcons")
+    && !document.getElementById("viLbPop") && !(typeof vnReaderIsOpen === "function" && vnReaderIsOpen()));
+}
+document.addEventListener("mouseup", (e) => {          // 鼠标侧键「后退」
+  if (e.button === 3 && vnIconCanBack()) { e.preventDefault(); vnIconBack(); }
+});
+document.addEventListener("keydown", (e) => {          // Alt + ←
+  if (e.altKey && e.key === "ArrowLeft" && vnIconCanBack()) {
+    const t = e.target;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    e.preventDefault(); vnIconBack();
+  }
+});
 
 function vnRenderIconView(list, notes, folders, byFolder, ungrouped) {
   const wrap = document.createElement("div");
@@ -12160,10 +12203,15 @@ function vnRenderIconView(list, notes, folders, byFolder, ungrouped) {
 
   // ── 进到某个博主 / 文件夹里 ──
   const crumb = document.createElement("div");
-  crumb.className = "vn-crumb";
+  crumb.className = "vn-crumb vn-crumb-sticky";
+  const back = document.createElement("button");             // v144：「返回」
+  back.type = "button"; back.className = "vn-back"; back.textContent = "← 返回";
+  back.title = "回到进来之前的地方（鼠标侧键「后退」、Alt + ← 也行）";
+  back.addEventListener("click", (e) => { e.preventDefault(); vnIconBack(); });
+  crumb.appendChild(back);
   const home = document.createElement("a");
   home.textContent = "全部"; home.href = "#";
-  home.addEventListener("click", (e) => { e.preventDefault(); vnIconGo(null); });
+  home.addEventListener("click", (e) => { e.preventDefault(); vnIconHome(); });
   const sep = document.createElement("span"); sep.textContent = "›"; sep.className = "vn-crumb-sep";
   const here = document.createElement("span"); here.className = "vn-crumb-here";
   here.textContent = (cur.kind === "author" ? "作者：" : "") + cur.name + "（" + cur.items.length + " 条）";
