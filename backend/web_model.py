@@ -2114,10 +2114,17 @@ class _WebWorker:
 
     @staticmethod
     def _same_reply(a, b):
-        """两段文字是否像是同一条回复（去掉空白和 Markdown 符号后，开头一段互相包含）。"""
+        """两段文字是否像是同一条回复（去掉空白和 Markdown 符号后，开头一段互相包含）。
+        v139：行首的序号「1. 」不算——网页上有序列表的序号是画出来的，读纯文字时没有，只有 Markdown 版有。
+              以前每条都很短时（贴标签一行一篇），就因为多了「1.」「2.」被认成不是同一条，
+              Markdown 版被丢掉、序号也跟着丢了，贴标签就一直「格式不对」。链接后面的网址也不算。"""
         import re as _re
-        na = _re.sub(r"[\s\u00a0*_#`>|\-\[\]()!]+", "", a or "")
-        nb = _re.sub(r"[\s\u00a0*_#`>|\-\[\]()!]+", "", b or "")
+
+        def norm(s):
+            s = _re.sub(r"(?m)^[ \t\u00a0]*\d{1,3}[\.\)．][ \t\u00a0]*", "", s or "")
+            s = _re.sub(r"\]\((?:https?:|cx-webimg:)[^)\s]*\)", "]", s)
+            return _re.sub(r"[\s\u00a0*_#`>|\-\[\]()!]+", "", s)
+        na, nb = norm(a), norm(b)
         if not na or not nb:
             return False
         k = min(40, len(na), len(nb))
@@ -3704,7 +3711,8 @@ _GRAB_MARKDOWN_JS = r"""(anchorText) => {
                 continue;
             }
             if(tag==='ol'){
-                let i=1;
+                let i=parseInt(el.getAttribute('start')||'1',10);    // v139：中间被别的内容隔开、接着往下编号的列表（start=11）从 11 数
+                if(isNaN(i)) i=1;
                 for(const li of el.children){
                     if(li.tagName && li.tagName.toLowerCase()==='li')
                         out += (i++)+'. '+walk(li).trim()+'\n';

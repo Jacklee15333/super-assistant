@@ -716,7 +716,50 @@ def _note_prompt(batch, rich=False):
             "笔记：\n%s\n" % (len(batch), _tree_lines(), _RULES, "\n".join(rows)))
 
 
-_LINE_RE = re.compile(r"^\s*(\d{1,3})\s*[\.\)、:：．]\s*(.+?)\s*$")
+# v139：每行开头的编号。「1.」「1、」「1)」之外，也认「【1】」「(1)」「第1篇」；「3.5 Sonnet」这种不算编号
+_LINE_RE = re.compile(r"^\s*(?:[\[【(（]\s*(\d{1,3})\s*[\]】)）]|第\s*(\d{1,3})\s*篇|(\d{1,3})\s*[\.\)）．](?!\d)|(\d{1,3})\s*[、:：])"
+                      r"\s*[\.、:：．]?\s*(.+?)\s*$")
+# 好几篇挤在一行里时（换行没读到），在下一篇的编号前面断开
+_JOIN_RE = re.compile(r"\s+(?=(?:[\[【]\d{1,3}[\]】]|第\d{1,3}篇|\d{1,3}[\.\)）．]\s|\d{1,3}、)\s*\S)")
+
+
+def _num_line(ln):
+    """一行 →（编号, 后面的内容）；不是编号开头的 →（None, 这一行）。"""
+    m = _LINE_RE.match(ln)
+    if not m:
+        return None, ln
+    return int(next(g for g in m.groups()[:4] if g)), m.group(5)
+
+
+def _reply_lines(raw):
+    """v139：AI 的回复 → 一行行：去掉代码块标记、引用符号、标题井号；Markdown 表格「| 1 | 标签 | 大类/子类 |」
+    换成「1. 标签｜大类/子类」；好几篇挤在一行的拆开。"""
+    out = []
+    for ln in (raw or "").splitlines():
+        s = ln.strip()
+        if not s or s.startswith("```"):
+            continue
+        if s.startswith("|") and s.endswith("|") and s.count("|") >= 3:
+            cells = [c.strip() for c in s.strip("|").split("|")]
+            if all(re.fullmatch(r":?-{2,}:?", c) for c in cells if c):
+                continue                                             # 表头下面那行 | --- | --- |
+            if cells and re.fullmatch(r"\d{1,3}", cells[0]):
+                s = cells[0] + ". " + "｜".join(c for c in cells[1:] if c)
+            else:
+                s = "｜".join(c for c in cells if c)
+        s = re.sub(r"^[-•·+]\s+", "", s.lstrip(">#").strip()).strip("*").strip()
+        if not s:
+            continue
+        if len(re.findall(r"[｜|]", s)) >= 2:
+            out += [x.strip() for x in _JOIN_RE.split(s) if x.strip()]
+        else:
+            out.append(s)
+    return out
+
+
+def _is_item(ln):
+    """像不像「标签…｜大类/子类」这样的一篇（提示词里的格式说明、表头不算）。"""
+    return bool(re.search(r"[｜|]", ln)) and not re.search(r"大类\s*[/／]\s*子类|标签1|编号", ln)
 
 
 def _clean_kws(s, avoid=(), n=2):
@@ -733,19 +776,32 @@ def _clean_kws(s, avoid=(), n=2):
     return out
 
 
-def _parse_note_reply(raw, batch, lenient=False):
+def _parse_note_reply(raw, batch, lenient=False, info=None):
     """每行「编号. 标签…｜大类/子类」（老格式「编号. 大类/子类｜关键词」也认）→ {序号: (大类, 子类, 标签)}。
-    lenient=True（第二遍）：子类认不出就放「大类/其它」，大类也认不出就放「其它」。"""
+    lenient=True（第二遍）：子类认不出就放「大类/其它」，大类也认不出就放「其它」。
+    v139：网页 AI 回成有序列表时，网页上的「1.」「2.」是画出来的，读回来常常没有编号 →
+          这时只要「标签｜分类」的行数正好等于篇数，就按顺序一行对一篇（行数对不上就不猜，算格式不对）。
+          info（可选的 dict）里写这次是按编号（num）还是按顺序（order）对的。"""
+    lines = _reply_lines(raw)
+    numbered = []
+    for ln in lines:
+        k, body = _num_line(ln)
+        if k is not None:
+            numbered.append((k - 1, body))
+    items = [ln for ln in lines if _is_item(ln)]
+    if len(numbered) >= max(2, len(items) // 2) or (len(batch) == 1 and numbered):
+        pairs, how = numbered, "num"
+    elif items and len(items) == len(batch):
+        pairs, how = list(enumerate(items)), "order"
+    else:
+        pairs, how = [], ""                   # 编号没几个（多半只是碰巧像编号）、行数又对不上：不猜
+    if isinstance(info, dict):
+        info["how"] = how
     out = {}
-    for ln in (raw or "").splitlines():
-        ln = ln.strip().strip("*").strip()
-        m = _LINE_RE.match(ln)
-        if not m:
-            continue
-        idx = int(m.group(1)) - 1
+    for idx, body in pairs:
         if not (0 <= idx < len(batch)) or idx in out:
             continue
-        parts = [x.strip() for x in re.split(r"[｜|]", m.group(2)) if x.strip()]
+        parts = [x.strip() for x in re.split(r"[｜|]", body) if x.strip()]
         if not parts:
             continue
         ci = max((i for i, x in enumerate(parts) if re.search(r"[/／]", x)), default=len(parts) - 1)   # 带「/」的是分类
@@ -756,6 +812,40 @@ def _parse_note_reply(raw, batch, lenient=False):
         kws = "、".join(re.sub(r"^(?:标签|关键词)\s*[:：]", "", x) for i, x in enumerate(parts) if i != ci)
         out[idx] = (cat, sub, _clean_kws(kws, avoid=(cat, sub, batch[idx].get("author") or ""), n=4))
     return out
+
+
+def _preview(s, n=120):
+    """v139：日志里给人看的 AI 原话：换行显示成「⏎」，看得出 AI 是一行一篇还是挤成了一行。"""
+    s = re.sub(r"[ \t\u00a0]+", " ", str(s or "")).strip()
+    return re.sub(r"\s*\n\s*", " ⏎ ", s)[:n]
+
+
+def _why_bad(raw, batch):
+    """v139：这一批为什么一篇都没认出来（说人话）。"""
+    if not (raw or "").strip():
+        return "AI 回的是空的"
+    lines = _reply_lines(raw)
+    items = [ln for ln in lines if _is_item(ln)]
+    if not items and not any(_num_line(ln)[0] is not None for ln in lines):
+        return "没看到「标签｜大类/子类」这样的行"
+    if items and not any(_num_line(ln)[0] is not None for ln in items) and len(items) != len(batch):
+        return "读到 %d 行、问的是 %d 篇，又没有编号，对不上是哪篇" % (len(items), len(batch))
+    return "分类名认不出来"
+
+
+def _dump_bad(raw, batch, why):
+    """v139：格式不对时把 AI 的原话存一份到 memory/web_model_diag/labels-时间.txt（推送到 GitHub 后能帮忙看原因），只留最近 5 份。"""
+    try:
+        d = _mem() / "web_model_diag"
+        d.mkdir(parents=True, exist_ok=True)
+        head = ["原因：%s" % why, "这一批 %d 篇：" % len(batch)]
+        head += ["  %d. %s" % (i, _short(n.get("title"), 40)) for i, n in enumerate(batch, 1)]
+        (d / ("labels-%s-%03d.txt" % (time.strftime("%Y%m%d-%H%M%S"), int(time.time() * 1000) % 1000))).write_text(
+            "\n".join(head) + "\n\n—— AI 原话 ——\n" + str(raw or ""), encoding="utf-8")
+        for old in sorted(d.glob("labels-*.txt"))[:-5]:
+            old.unlink()
+    except Exception:
+        pass
 
 
 def _author_prompt(ev):
@@ -979,7 +1069,7 @@ def start(full=True, notes=None, authors=None, auto=False):
         _job.update({"running": True, "stop": False, "auto": bool(auto), "phase": "", "mode": "",
                      "n_total": 0, "n_done": 0, "n_ok": 0, "n_fail": 0,
                      "a_total": 0, "a_done": 0, "a_ok": 0, "a_fail": 0, "a_local": 0, "a_cur": "", "a_stage": "",
-                     "started": time.time(), "finished": 0, "summary": "", "err": ""})
+                     "started": time.time(), "finished": 0, "summary": "", "err": "", "order_noted": False})
     if full and not auto:
         _flag(True)
     threading.Thread(target=_run, daemon=True, name="labels").start()
@@ -1027,9 +1117,10 @@ def _do_notes(todo, bs):
             pending, second = second, []
             bs, lenient = max(4, bs // 2), True
         batch, pending = pending[:bs], pending[bs:]
+        info = {}
         try:
             raw = _llm(_note_prompt(batch, rich=_job.get("mode") == "pool"))
-            got = _parse_note_reply(raw, batch, lenient=lenient)
+            got = _parse_note_reply(raw, batch, lenient=lenient, info=info)
         except Exception as e:
             if _job["stop"]:
                 break
@@ -1042,12 +1133,18 @@ def _do_notes(todo, bs):
             continue
         if not got:
             consec += 1
-            _log("文章分类这一批 AI 回的格式不对：%s" % _short(raw, 80))
+            why = _why_bad(raw, batch)
+            _log("文章分类这一批 AI 回的格式不对（%s）：%s" % (why, _preview(raw)))
+            _dump_bad(raw, batch, why)
             if consec >= 3:
-                raise RuntimeError("AI 连着 3 次回的格式不对，认不出分类")
+                raise RuntimeError("AI 连着 3 次回的格式不对，认不出分类（%s）" % why)
             pending = batch + pending
             continue
         consec = 0
+        if info.get("how") == "order" and not _job.get("order_noted"):
+            with _lock:
+                _job["order_noted"] = True
+            _log("AI 的回复里没读到编号（网页上的序号是画出来的），行数和篇数对得上，按顺序一行对一篇")
         for i, n in enumerate(batch):
             if i in got:
                 cat, sub, kw = got[i]
@@ -1215,5 +1312,5 @@ def _run():
             j.update({"running": False, "stop": False, "phase": "", "a_cur": "", "a_stage": "",
                       "finished": time.time(), "summary": s})
         _flag(False)                           # 贴完 / 你点了停止 / 出错停下：都不用再接着贴
-        if not _job["auto"]:
-            _log(s or ("没贴完：" + _job["err"]))
+        if not _job["auto"] and s:              # v139：出错停下的，上面已经打过「没贴完：…」，不再打第二遍
+            _log(s)

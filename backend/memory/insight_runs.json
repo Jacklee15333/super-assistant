@@ -1,5 +1,14 @@
 [
   {
+    "time": "2026-11-20 23:18",
+    "ok": true,
+    "source": "auto",
+    "files": 1304,
+    "learned": 9,
+    "model": "web",
+    "summary": "主人是一位以证据和商业现实为判断基础、持续观察技术与社会规则变化，正重点探索如何把AI Agent、个人知识系统和低成本创业机会转化为实际生产力与商业价值的跨领"
+  },
+  {
     "time": "2026-11-20 18:40",
     "ok": true,
     "source": "auto",
@@ -437,15 +446,6 @@
     "source": "auto",
     "files": 706,
     "learned": 12,
-    "model": "web",
-    "summary": "本轮没读到有效内容"
-  },
-  {
-    "time": "2026-07-08 12:02",
-    "ok": false,
-    "source": "auto",
-    "files": 694,
-    "learned": 20,
     "model": "web",
     "summary": "本轮没读到有效内容"
   }

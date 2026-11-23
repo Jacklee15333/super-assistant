@@ -1563,7 +1563,7 @@
   },
   "lizzie1993": {
     "key": "lizzie1993",
-    "auto_fail_at": 1794987322,
+    "auto_fail_at": 1795187383,
     "error": "自动找主页没成功：抖音没找到作者：这条视频已经删了或设成私密了（页面上写着「视频不存在」）"
   },
   "XY_Business": {
@@ -1619,7 +1619,7 @@
   },
   "laozhoubushuode": {
     "key": "laozhoubushuode",
-    "auto_fail_at": 1794987332,
+    "auto_fail_at": 1795187437,
     "error": "自动找主页没成功：抖音没找到作者：这条视频已经删了或设成私密了（页面上写着「视频不存在」）"
   },
   "吉豆茄": {
@@ -3245,5 +3245,39 @@
     "handle": "ixuzhaomeng",
     "avatar_src": "https://p3-pc.douyinpic.com/aweme/100x100/aweme-avatar/tos-cn-avt-0015_3269c58a14b93f186c49483914219a07.jpeg?from=327834062",
     "avatar_file": "3e6f25d3378f621a.jpg"
+  },
+  "Ange安久": {
+    "key": "Ange安久",
+    "url": "https://www.douyin.com/user/MS4wLjABAAAA9ELz_fQinVyTHnCNVV7jvAIglyX82pWruJN08HyWRDo3yW9KsPsVvn1LMbOqdG6Z",
+    "platform": "douyin",
+    "updated": 1795186520,
+    "auto": true,
+    "source_video": "https://www.douyin.com/video/7705757126655790346",
+    "found_via": "缓存",
+    "home": "https://www.douyin.com/user/MS4wLjABAAAA9ELz_fQinVyTHnCNVV7jvAIglyX82pWruJN08HyWRDo3yW9KsPsVvn1LMbOqdG6Z",
+    "name": "Ange安久",
+    "uid": "MS4wLjABAAAA9ELz_fQinVyTHnCNVV7jvAIglyX82pWruJN08HyWRDo3yW9KsPsVvn1LMbOqdG6Z",
+    "followers": 426853,
+    "signature": "一朝悟道见真我，\n何惧昔日旧枷锁。\n世间枷锁本是梦，\n无形无相亦无我！",
+    "handle": "anjiu1900",
+    "avatar_src": "https://p3-pc.douyinpic.com/aweme/100x100/aweme-avatar/tos-cn-i-0813_oIDQACFtQCjqDIEmuf9fA08Au7nSHgZwAKAAFq.jpeg?from=327834062",
+    "avatar_file": "310437bd1020941a.jpg"
+  },
+  "不嘚瑟都掉毛": {
+    "key": "不嘚瑟都掉毛",
+    "url": "https://www.douyin.com/user/MS4wLjABAAAAQgFH31vUTMkWO2_ANFZcwWHNvofNhwz2tdgaNNjzoC8",
+    "platform": "douyin",
+    "updated": 1795188696,
+    "auto": true,
+    "source_video": "https://www.douyin.com/video/7710233442608237875",
+    "found_via": "缓存",
+    "home": "https://www.douyin.com/user/MS4wLjABAAAAQgFH31vUTMkWO2_ANFZcwWHNvofNhwz2tdgaNNjzoC8",
+    "name": "不嘚瑟都掉毛",
+    "uid": "MS4wLjABAAAAQgFH31vUTMkWO2_ANFZcwWHNvofNhwz2tdgaNNjzoC8",
+    "followers": 5104587,
+    "signature": "每周5晚9点，和兄弟们搂点散白，唠唠嗑",
+    "handle": "bdsddm888",
+    "avatar_src": "https://p3-pc.douyinpic.com/aweme/100x100/aweme-avatar/tos-cn-i-0813_90e80e937d51475b9ac3fb0ad93623e8.jpeg?from=327834062",
+    "avatar_file": "04666d4702bf7bf8.jpg"
   }
 }

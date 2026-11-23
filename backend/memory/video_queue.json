@@ -1,22 +1,4 @@
 {
-  "current": {
-    "url": "https://v.douyin.com/KoNBVL_c74o/",
-    "level": "ultra",
-    "lang": "zh",
-    "vocal": false,
-    "use_local": true,
-    "model": "qwen3:14b",
-    "screenshot": false,
-    "link": false,
-    "mode": "auto",
-    "analyze": false,
-    "author": "",
-    "note_folder": "",
-    "creator_url": "",
-    "notify": null,
-    "id": "vj1795184060.8845532-0",
-    "fail_count": 1,
-    "title": "抖音视频 …177115"
-  },
+  "current": null,
   "pending": []
 }
