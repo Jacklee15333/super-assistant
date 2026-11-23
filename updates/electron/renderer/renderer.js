@@ -14466,6 +14466,8 @@ function vnCreatorVideos(g) {
   const st = cvSt(g.key);
   st.notes = g.items || [];
   st.home = !!(p.home || p.url);
+  st.plat = p.platform || "";
+  if (st.plat === "douyin" && (!_dyLg || Date.now() - _dyLgAt > 60000)) dyFetch();   // v146：抖音登录状态
   if (st.home && !st.data && !st.loading && !st.err) cvLoad(g.key, false);
   cvRender(box, g.key);
   return box;
@@ -14579,6 +14581,7 @@ function cvRender(box, key) {
   if (st.msg) note("cv-msg", st.msg);
   if (!st.home) note("cv-hint", "还没绑定他的主页：现在只列出你已有的笔记。点上面的「绑定博主主页」或「自动找主页」后，这里会列出他主页上的全部视频。");
   if (st.err) note("cv-err", (d ? "这次没读成功（下面是上次读到的）：" : "主页上的视频没列到（下面先列出你已有的笔记）：") + st.err);
+  if (st.plat === "douyin" && st.home) cvLoginNote(box, key, st);      // v146：抖音没登录只给看最新 18 个左右
   if (!st.open) return;
   // ── 按状态筛 ──
   if (rows.length) {
@@ -14661,3 +14664,113 @@ setInterval(() => {
   if (document.getElementById("viLbPop") || (typeof vnReaderIsOpen === "function" && vnReaderIsOpen())) return;
   loadVideoNotes();
 }, 20000);
+
+
+// ════════════════════ v146：抖音登录（列出博主的全部作品要用）════════════════════
+// 抖音不登录只给看每个博主最新的 18 个左右。博主页的视频表上面提示，点「登录抖音」弹出浏览器窗口扫码；
+// 也可以「粘贴 Cookie」。登录信息只存在这台电脑上（不在项目文件夹里，不会传到 GitHub）。
+let _dyLg = null, _dyLgAt = 0, _dyPolling = false, _dyMsg = "";
+function dyRerender() { document.querySelectorAll(".cv-box").forEach((b) => cvRender(b, b.dataset.key)); }
+async function dyFetch() {
+  try {
+    const d = await (await fetch(BACKEND + "/douyin/login")).json();
+    if (d && d.ok) { _dyLg = d; _dyLgAt = Date.now(); dyRerender(); if (d.login && d.login.state === "running") dyPoll(); }
+  } catch (_) {}
+}
+async function dyPoll() {
+  if (_dyPolling) return;
+  _dyPolling = true;
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 2000));
+    let d = null;
+    try { d = await (await fetch(BACKEND + "/douyin/login")).json(); } catch (_) {}
+    if (!d || !d.ok) continue;
+    _dyLg = d; _dyLgAt = Date.now();
+    const lg = d.login || {};
+    if (lg.state !== "running") {
+      _dyMsg = lg.msg || "";
+      if (lg.state === "ok") dyAfterLogin();
+      else dyRerender();
+      break;
+    }
+    dyRerender();
+  }
+  _dyPolling = false;
+}
+function dyAfterLogin() {                 // 登录好了：开着的抖音博主页重新列一遍主页
+  setTimeout(() => { _dyMsg = ""; dyRerender(); }, 15000);   // 「登录好了」显示一会儿就收起
+  dyRerender();
+  document.querySelectorAll(".cv-box").forEach((b) => {
+    const st = cvSt(b.dataset.key);
+    if (st.plat === "douyin" && st.home) {
+      const key = b.dataset.key;
+      st.msg = "抖音登录好了，正在重新列他的全部作品…";
+      cvLoad(key, true).then(() => {
+        if (st.msg.startsWith("抖音登录好了，正在")) {
+          st.msg = st.err ? "" : "抖音登录好了：他主页上列到 " + ((st.data && st.data.videos.length) || 0) + " 个作品";
+          cvRefresh(key);
+        }
+      });
+    }
+  });
+}
+async function dyAct(body) {
+  try {
+    const d = await (await fetch(BACKEND + "/douyin/login", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body) })).json();
+    return d || {};
+  } catch (e) { return { ok: false, error: "后端没连上：" + (e && e.message ? e.message : e) }; }
+}
+function cvLoginNote(box, key, st) {
+  const lg = _dyLg;
+  if (!lg) return;
+  const run = lg.login && lg.login.state === "running";
+  const bad = lg.state !== "ok";
+  const soon = !bad && lg.days_left != null && lg.days_left <= 7;
+  if (!run && !bad && !soon && !st.paste && !_dyMsg) return;
+  const w = document.createElement("div"); w.className = "cv-login" + (bad || run ? " warn" : "");
+  const t = document.createElement("div"); t.className = "cv-login-t";
+  if (run) t.textContent = (lg.login.msg || "正在打开浏览器窗口…");
+  else if (bad) t.textContent = (lg.state === "expired" ? "抖音登录已经过期了（" + lg.expire_at + " 到期）" : "抖音还没登录") +
+    "：抖音只给看每个博主最新的 18 个左右作品（主页上「看更多最新作品」要登录），所以这里列不全。登录一次就能列出他的全部作品。";
+  else if (soon) t.textContent = "抖音登录还有 " + Math.max(0, lg.days_left) + " 天到期（" + lg.expire_at + "），到时候点「登录抖音」重新扫一下码。";
+  else t.textContent = "抖音已经登录" + (lg.expire_at ? "（有效期到 " + lg.expire_at + "）" : "") + "。";
+  w.appendChild(t);
+  if (_dyMsg && !run) { const m = document.createElement("div"); m.className = "cv-login-m"; m.textContent = _dyMsg; w.appendChild(m); }
+  const acts = document.createElement("div"); acts.className = "cv-login-acts";
+  const btn = (text, tip, fn, cls) => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "vn-batch-stop" + (cls ? " " + cls : "");
+    b.textContent = text; b.title = tip; b.addEventListener("click", (e) => { e.stopPropagation(); fn(b); }); acts.appendChild(b); return b;
+  };
+  if (run) {
+    btn("取消", "关掉登录窗口", async () => { await dyAct({ action: "cancel" }); });
+  } else {
+    btn("登录抖音", "弹出一个浏览器窗口，用抖音 App 扫码登录；登录好窗口会自己关掉", async (b) => {
+      b.disabled = true; _dyMsg = "";
+      const d = await dyAct({ action: "start" });
+      if (d.ok) { _dyLg = d; _dyLgAt = Date.now(); dyRerender(); dyPoll(); }
+      else { _dyMsg = d.error || "没打开"; dyRerender(); }
+    }, "cv-primary");
+    btn(st.paste ? "收起" : "粘贴 Cookie", "扫码不方便时：从浏览器里复制一份登录后的抖音 Cookie 粘进来", () => { st.paste = !st.paste; dyRerender(); });
+  }
+  w.appendChild(acts);
+  if (st.paste && !run) {
+    const pb = document.createElement("div"); pb.className = "cv-paste";
+    const how = document.createElement("div"); how.className = "cv-login-m";
+    how.textContent = "怎么复制：在电脑浏览器里打开 douyin.com 并登录 → 按 F12 → 点「网络 / Network」→ 刷新页面 → 点任意一条 douyin.com 的请求 → " +
+      "在「请求标头 / Request Headers」里找到 Cookie，复制它后面那一长串，粘到下面。";
+    pb.appendChild(how);
+    const ta = document.createElement("textarea"); ta.className = "cv-paste-ta"; ta.placeholder = "粘贴 Cookie（一长串 xxx=yyy; ...）";
+    pb.appendChild(ta);
+    const ok = document.createElement("button"); ok.type = "button"; ok.className = "vn-batch-stop cv-primary"; ok.textContent = "保存";
+    ok.addEventListener("click", async () => {
+      ok.disabled = true;
+      const d = await dyAct({ action: "paste", cookie: ta.value });
+      if (d.ok) { _dyLg = Object.assign({}, _dyLg || {}, d); _dyLgAt = Date.now(); st.paste = false; _dyMsg = "存好了（有效期到 " + (d.expire_at || "?") + "）"; dyAfterLogin(); }
+      else { _dyMsg = d.error || "没存上"; ok.disabled = false; dyRerender(); }
+    });
+    pb.appendChild(ok);
+    w.appendChild(pb);
+  }
+  box.appendChild(w);
+}

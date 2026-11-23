@@ -79,7 +79,7 @@ def _clog(tag, msg):
 
 # 这些接口是前端**定时高频轮询**或页面加载时被动拉取的（查状态/进度/列表/配置），
 # 一旦打印就会把控制台刷爆、淹没真正有用的操作日志，所以一律静音、不记。
-_LOG_QUIET_PATHS = {"/intake_kind", 
+_LOG_QUIET_PATHS = {"/intake_kind", "/douyin/login", 
     "/ping", "/video_note_subs", "/x_note_rebuild_status", "/video_failed", "/video_note_tidy_status", "/phone_inbox/status", "/feishu_inbox/status", "/feishu_inbox/alive", "/feishu_inbox/incoming", "/video_progress", "/video_health", "/video_deps", "/video_notes", "/creator_profiles_batch", "/creator/avatars_status", "/creator/discover",
     "/video_note_analyze_progress", "/labels/job", "/labels/all", "/sniff/feed", "/sniff/discover", "/video_note_analyze_batch",
     "/chat_progress", "/heartbeat/status", "/lumi/status", "/lumi/evolve_status",
@@ -4457,6 +4457,11 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/video_notes":
             return self._handle_video_notes_list()
+        if path == "/douyin/login":                     # v146：抖音登录状态（列博主全部作品要用）
+            import douyin_resolver as _dr
+            st = _dr.cookie_status()
+            st.update(ok=True, login=_dr.login_state())
+            return self._send(st)
         if path == "/note_auto":                        # v142：「自动加工」开关
             st = _ap_state()
             st["ok"] = True
@@ -5109,6 +5114,24 @@ class Handler(BaseHTTPRequestHandler):
             return self._handle_web_model_test(body)
         if path == "/heartbeat":
             return self._handle_heartbeat(body)
+        if path == "/douyin/login":                   # v146：登录抖音（弹窗口扫码）/ 取消 / 粘贴 Cookie
+            import douyin_resolver as _dr
+            act = (body.get("action") or "").strip()
+            if act == "paste":
+                r = _dr.save_cookie_text(body.get("cookie") or "")
+                if r.get("ok"):
+                    _clog("抖音", "存好了你粘贴的抖音 Cookie（有效期到 %s）" % (r.get("expire_at") or "?"))
+                return self._send(r)
+            if act == "start":
+                _clog("抖音", "打开浏览器窗口登录抖音（用抖音 App 扫码）")
+                lg = _dr.login_start()
+            elif act == "cancel":
+                lg = _dr.login_cancel()
+            else:
+                return self._send({"ok": False, "error": "不认识的操作"})
+            st = _dr.cookie_status()
+            st.update(ok=True, login=lg)
+            return self._send(st)
         if path == "/note_auto":                      # v142：打开 / 关掉「自动加工」
             on = bool(body.get("on"))
             d = _ap_load()

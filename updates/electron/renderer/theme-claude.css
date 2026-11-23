@@ -1092,3 +1092,14 @@ body.dark .vn-kind.k-gh { background: #e6e6e3; color: #1f1e1a; }
 .cv-actc { flex: none; width: 52px; display: inline-flex; justify-content: flex-end; }
 .cv-x { flex: none; font-size: 11.5px; color: var(--text-dim); }
 .cv-s-done .cv-t, .cv-s-proc .cv-t, .cv-s-todo .cv-t { color: var(--text); }
+
+/* v146：抖音登录提示（博主页视频表上面） */
+.cv-login { margin-top: 8px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg-hover); font-size: 12.5px; line-height: 1.6; }
+.cv-login.warn { border-color: rgba(181, 83, 42, .45); background: rgba(181, 83, 42, .07); }
+.cv-login-t { color: var(--text); }
+.cv-login-m { margin-top: 4px; color: var(--text-dim); }
+.cv-login-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.cv-login .cv-primary { color: #fff; background: var(--accent); border-color: var(--accent); }
+.cv-paste { margin-top: 6px; }
+.cv-paste-ta { display: block; width: 100%; min-height: 64px; margin: 6px 0; padding: 6px 8px; box-sizing: border-box; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--bg); color: var(--text); font: 12px/1.5 Consolas, monospace; resize: vertical; }
