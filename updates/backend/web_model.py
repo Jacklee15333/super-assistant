@@ -2283,6 +2283,13 @@ class _WebWorker:
         # 只有和刚才确认过的回复是同一条时才用 Markdown 版（之前只比长度，旧的长消息会顶替掉正确回复）
         if md and len(md) >= max(40, int(len(reply or "") * 0.6)) and self._same_reply(md, reply):
             reply = md
+        elif len(reply or "") > 200:
+            # v149：带格式（Markdown）的版本没用上 → 只能交纯文字，## 小标题会丢（加工笔记那边会按小标题名补回）。
+            #       记一份两边的开头结尾（web_model_diag/…-md.json），下次能看出是哪种情况没对上
+            same = bool(md) and self._same_reply(md, reply)
+            self._log("⚠ 带格式的版本没用上（Markdown %d 字 / 纯文字 %d 字%s），先交纯文字"
+                      % (len(md), len(reply or ""), "" if not md else ("，太短" if same else "，开头对不上")))
+            self._dump_md_diag(md, reply)
         reply = _clean_reply_text(reply)          # v133：「ChatGPT 说：」「思考了 58s」「重置清单 复制清单」这类整行小字
         if imgs:
             prog("保存回复里的 %d 张图片…" % len(imgs))
@@ -2672,6 +2679,20 @@ class _WebWorker:
             self._log("已存一份页面结构到 %s（推送到 GitHub 后可以帮忙看原因）" % fn.name)
         except Exception as e:
             self._log("存页面结构没成功：%s" % e)
+
+    def _dump_md_diag(self, md, reply):
+        """v149：带格式的版本没用上时，存两边的开头和结尾（各几百字），方便找原因。"""
+        try:
+            d = MEMORY_DIR / "web_model_diag"
+            d.mkdir(parents=True, exist_ok=True)
+            fn = d / ("%s-md.json" % time.strftime("%Y%m%d-%H%M%S"))
+            fn.write_text(json.dumps({"md_len": len(md or ""), "reply_len": len(reply or ""),
+                                      "md_head": (md or "")[:400], "md_tail": (md or "")[-200:],
+                                      "reply_head": (reply or "")[:400], "reply_tail": (reply or "")[-200:],
+                                      "url": self._safe(lambda: self._page.url, "")},
+                                     ensure_ascii=False, indent=1), encoding="utf-8")
+        except Exception:
+            pass
 
     def _nudge_render(self):
         """v148：催网页刷新一下——截一张图（截图会逼浏览器画一帧），再看看网页的动画帧还走不走。
