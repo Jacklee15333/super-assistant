@@ -1,6 +1,6 @@
 {
   "current": {
-    "url": "https://www.douyin.com/video/7709075180156505382",
+    "url": "https://www.douyin.com/video/7708957903650082084",
     "level": "accurate",
     "use_local": true,
     "model": "qwen3:14b",
@@ -10,25 +10,11 @@
     "lang": "auto",
     "vocal": false,
     "tidy": false,
-    "id": "vj1795507201.055509-0",
-    "title": "抖音视频 …505382",
+    "id": "vj1795507201.0638387-0",
+    "title": "抖音视频 …082084",
     "fail_count": 1
   },
   "pending": [
-    {
-      "url": "https://www.douyin.com/video/7708957903650082084",
-      "level": "accurate",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "mode": "auto",
-      "lang": "auto",
-      "vocal": false,
-      "tidy": false,
-      "id": "vj1795507201.0638387-0",
-      "title": "抖音视频 …082084"
-    },
     {
       "url": "https://www.douyin.com/video/7708708619818159375",
       "level": "accurate",
