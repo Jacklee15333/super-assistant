@@ -63,10 +63,6 @@
     "mode": "browser",
     "at": "2026-11-20 17:47"
   },
-  "nber.org/papers": {
-    "mode": "fast",
-    "at": "2026-11-20 21:33"
-  },
   "sloanreview.mit.edu": {
     "mode": "fast",
     "at": "2026-11-20 21:33"
@@ -78,5 +74,9 @@
   "cninfo.com.cn": {
     "mode": "browser",
     "at": "2026-11-23 12:35"
+  },
+  "trends.google.com": {
+    "mode": "fast",
+    "at": "2026-11-24 00:13"
   }
 }
