@@ -1005,7 +1005,16 @@ def _fetch_douyin_cookiefile():
             if c.name and c.value:
                 jar[c.name] = c.value
     except Exception:
-        return None
+        pass     # v149：访客 cookie 没拿到，下面还能用你扫码登录的 Cookie（都没有才回退老方式）
+
+    # v149：你在「登录抖音」扫码登录过的 Cookie 也带上（登录的优先），yt-dlp 少报「Fresh cookies are needed」
+    try:
+        import douyin_resolver as _dr
+        for k, v in (_dr._load_user_cookie() or {}).items():
+            if k and v:
+                jar[k] = v
+    except Exception:
+        pass
 
     if not jar:
         return None
@@ -1041,6 +1050,23 @@ def _fetch_douyin_cookiefile():
     _douyin_cookie_cache["path"] = tmp_path
     _douyin_cookie_cache["ts"] = _time.time()
     return tmp_path
+
+
+# v149：抖音「分享页直链」那条路没成功的原因。以前出错时安静地换 yt-dlp，最后只报 yt-dlp 的
+#       「Fresh cookies are needed」——而 yt-dlp 本来就基本列不了抖音，真正的原因反而看不见。
+_DY_LAST_FAIL = {"why": "", "at": 0.0}
+
+
+def _dy_note_fail(why):
+    import time as _t
+    why = str(why or "").replace("\n", " ").strip()[:300]
+    _DY_LAST_FAIL.update(why=why, at=_t.time())
+    print("[抖音] 分享页直链没拿到视频：%s → 改用 yt-dlp 再试" % why, flush=True)
+
+
+def _dy_recent_fail():
+    import time as _t
+    return _DY_LAST_FAIL["why"] if _t.time() - _DY_LAST_FAIL["at"] < 900 else ""
 
 
 def _apply_douyin_opts(url, opts):
@@ -1841,8 +1867,9 @@ def _download_audio(url, outdir):
                 # ★顺手把抖音话题标签也带回去（之前这里漏带，导致数据库标签不同步）
                 return (dest, (r.get("title") or "").strip(),
                         (r.get("uploader") or "").strip(), r.get("tags") or [])
-        except Exception:
-            pass  # 任何问题都安静回退到下面的 yt-dlp 流程
+            _dy_note_fail(r.get("error") or "没拿到视频")
+        except Exception as _e:
+            _dy_note_fail("出错：%s" % _e)  # 回退到下面的 yt-dlp 流程
 
     opts = {
         "format": "bestaudio/best",
@@ -2481,7 +2508,9 @@ def extract(url, level="balanced", progress_cb=None, need_video=False, mode="aut
                                 or "render data" in low
                                 or "parse json" in low
                                 or "无法" in msg):
-            tip = ("\n\n提示：本软件已先尝试「抖音分享页直链解析」、再用 yt-dlp 兜底，仍未成功。"
+            _why = _dy_recent_fail()
+            tip = (("\n\n分享页直链那条路没成功的原因：" + _why) if _why else "") + (
+                   "\n\n提示：本软件已先尝试「抖音分享页直链解析」、再用 yt-dlp 兜底，仍未成功。"
                    "通常是这条视频被限制、链接已过期，或抖音又改了分享页结构。可以：\n"
                    "  1) 回抖音客户端重新「分享 → 复制链接」，拿一条最新短链再试；\n"
                    "  2) 在「视频」板块点一次「安装/更新依赖」把 yt-dlp 升到最新；\n"

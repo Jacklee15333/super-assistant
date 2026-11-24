@@ -1,126 +1,5 @@
 [
   {
-    "kind": "功能",
-    "title": "MemOnce：可扩展大模型记忆架构",
-    "summary": "MemOnce 通过一种可扩展的记忆体系结构，允许大语言模型在保持高效性的同时，拥有更大容量的上下文记忆。该方案据其标题定位在解决传统显存限制、提升长文本生成与对话稳定性方面具有重要意义。",
-    "importance": "高",
-    "source_title": "Hugging Face Papers",
-    "link": "https://huggingface.co/papers",
-    "category": "趋势瞭望台",
-    "key": "6a07d3f92442e310",
-    "ts": "2026-11-24 04:53"
-  },
-  {
-    "kind": "发布",
-    "title": "StereoVLM：双目视觉-语言模型用于3D空间推理",
-    "summary": "StereoVLM 结合双目相机获取的视觉信息与语言输入，形成面向度量3D空间推理的多模态模型。它的出现为机器人感知、增强现实与交互式导航等场景提供了更精准的空间理解能力。",
-    "importance": "中",
-    "source_title": "Hugging Face Papers",
-    "link": "https://huggingface.co/papers",
-    "category": "趋势瞭望台",
-    "key": "7e96aac929faab13",
-    "ts": "2026-11-24 04:53"
-  },
-  {
-    "kind": "概念",
-    "title": "Duopra：全双工对话到全双工代理",
-    "summary": "Duopra 提出了将全双工对话机制延伸至代理系统的概念，使代理能够同时接收与发送信息，从而实现更自然、实时的交互。此思路暗示了未来智能代理在自然语言交流及决策制定中的潜在革新。",
-    "importance": "中",
-    "source_title": "Hugging Face Papers",
-    "link": "https://huggingface.co/papers",
-    "category": "趋势瞭望台",
-    "key": "5c99a6d3794ba32d",
-    "ts": "2026-11-24 04:53"
-  },
-  {
-    "kind": "概念",
-    "title": "Intent Contracts：剥离工具使用的代理设计",
-    "summary": "Intent Contracts 提出了在代理系统中移除工具调用的设计理念，通过契约限制代理仅使用内部能力进行推理与决策。该概念挑战了当前依赖工具链的代理范式，为更自足、可解释的代理系统研究奠定基础。",
-    "importance": "中",
-    "source_title": "Hugging Face Papers",
-    "link": "https://huggingface.co/papers",
-    "category": "趋势瞭望台",
-    "key": "d8346ae5a7bc6ac4",
-    "ts": "2026-11-24 04:53"
-  },
-  {
-    "kind": "功能",
-    "title": "Search From the Start：搜索本地预训练语言模型",
-    "summary": "Search From the Start 介绍了一种在语言模型预训练阶段即融入搜索机制的方法，旨在提高模型在检索相关信息时的效率与准确度。此技术有望减少训练成本并提升模型在具备检索需求场景中的表现。",
-    "importance": "中",
-    "source_title": "Hugging Face Papers",
-    "link": "https://huggingface.co/papers",
-    "category": "趋势瞭望台",
-    "key": "dce89b597dc8809c",
-    "ts": "2026-11-24 04:53"
-  },
-  {
-    "kind": "发布",
-    "title": "GPT-6.2 Astra：新一代前沿 LLM",
-    "summary": "文章介绍 GPT-6.2 版本中的 Astra 模型，定位为前沿 LLM 之一，声称性能提升且成本更低，社区反馈参差不齐，预计 6.2 Sol 将成为主力工作horse。",
-    "importance": "高",
-    "source_title": "Latent Space",
-    "link": "https://www.latent.space",
-    "category": "趋势瞭望台",
-    "key": "ce25cc9a98b52478",
-    "ts": "2026-11-24 04:54"
-  },
-  {
-    "kind": "发布",
-    "title": "ArtCraft：复制 Photoshop 的 AI 工具",
-    "summary": "新 AI 工具 ArtCraft 通过复制 Photoshop 的功能并计划重建整个创作软件生态，可能对 Adobe 造成冲击。",
-    "importance": "高",
-    "source_title": "Latent Space",
-    "link": "https://www.latent.space",
-    "category": "趋势瞭望台",
-    "key": "d5483e5b604ba6ef",
-    "ts": "2026-11-24 04:54"
-  },
-  {
-    "kind": "发布",
-    "title": "Gemini 4 Neon：Google DeepMind 的新竞争者",
-    "summary": "Google DeepMind 推出的 Gemini 4 Neon 作为 Opus/Sol 的竞争者，标志着文本生成技术进一步演进。",
-    "importance": "高",
-    "source_title": "Latent Space",
-    "link": "https://www.latent.space",
-    "category": "趋势瞭望台",
-    "key": "d5bbf10e18027b51",
-    "ts": "2026-11-24 04:54"
-  },
-  {
-    "kind": "概念",
-    "title": "利用 AI 与 Lean 自动化形式化验证",
-    "summary": "文章讨论了用 AI 与 Lean 工具自动化形式化验证的技术，解决传统需要专家手工证明的软件正确性问题。",
-    "importance": "中",
-    "source_title": "Latent Space",
-    "link": "https://www.latent.space",
-    "category": "趋势瞭望台",
-    "key": "4e38f65966345327",
-    "ts": "2026-11-24 04:54"
-  },
-  {
-    "kind": "概念",
-    "title": "Cloudflare 变身 Neolab",
-    "summary": "Cloudflare 将自身定位为 Neolab，表明正转型为 AI 研究与服务平台，强调 AI 技术在其业务中的核心作用。",
-    "importance": "低",
-    "source_title": "Latent Space",
-    "link": "https://www.latent.space",
-    "category": "趋势瞭望台",
-    "key": "97b116e5224f819a",
-    "ts": "2026-11-24 04:54"
-  },
-  {
-    "kind": "发布",
-    "title": "Interconnects AI Substack 新闻通讯上线",
-    "summary": "Interconnects AI 是由 Nathan Lambert 主办的一份专注于前沿 AI 技术的 Substack 新闻通讯。该通讯聚焦高水平技术与业务思考，面向工程师、研究者与投资者，已拥有逾 89,000 名订阅者。其内容提供 AI 训练模型内部视角与业界趋势，填补了主流媒体与技术报告之间的信息空白，值得关注的专业人士可订阅获取最新洞见。",
-    "importance": "高",
-    "source_title": "Interconnects",
-    "link": "https://www.interconnects.ai",
-    "category": "趋势瞭望台",
-    "key": "a8d02d4b4875c719",
-    "ts": "2026-11-24 04:54"
-  },
-  {
     "kind": "发布",
     "title": "Auth.md：针对代理的签名工具",
     "summary": "Auth.md 发布了一个专门为 AI 代理（如 LLM 代理）设计的签名工具，使代理能够像普通用户一样完成注册和身份验证。该工具简化了多租户系统中的认证流程，降低了开发者在为代理集成身份验证时的复杂度。",
@@ -10998,5 +10877,126 @@
     "category": "趋势瞭望台",
     "key": "ecf73ddfb7f88c9a",
     "ts": "2026-11-24 09:21"
+  },
+  {
+    "kind": "发布",
+    "title": "OpenAI 与思科推出 Shirudo 安全防护",
+    "summary": "OpenAI 与思科合作推出的 Shirudo 是一项针对 AI 安全防护的新产品，旨在应对 AI 技术在现实应用中面临的潜在风险。该产品的推出反映了 AI 安全防护需求的快速增长，可能涉及数据加密、模型防护或威胁检测等方向，对 AI 企业及用户具有直接的安全价值。",
+    "importance": "高",
+    "source_title": "OpenAI 新闻",
+    "link": "https://openai.com/news/",
+    "category": "AI动态",
+    "key": "7706d723a319dcf2",
+    "ts": "2026-11-24 09:48"
+  },
+  {
+    "kind": "功能",
+    "title": "管控前沿 AI 风险：从训练到部署",
+    "summary": "OpenAI 介绍了管控 AI 风险的系统性方法，覆盖模型训练至实际部署的全流程。这表明其在 AI 安全性研究上持续深化，可能包含数据偏见控制、模型审计或防御性训练等技术，对提升 AI 产品的可靠性有指导意义。",
+    "importance": "中",
+    "source_title": "OpenAI 新闻",
+    "link": "https://openai.com/news/",
+    "category": "AI动态",
+    "key": "9c6ee03e6fa98d34",
+    "ts": "2026-11-24 09:48"
+  },
+  {
+    "kind": "发布",
+    "title": "费加罗集团与 OpenAI 合作引入《费加罗报》新闻",
+    "summary": "OpenAI 与法国费加罗集团达成合作，将《费加罗报》的新闻内容整合至 ChatGPT 产品中。此举可能扩展 ChatGPT 的多语言新闻知识库，提升其在法语区及全球用户的新闻问答与内容生成能力，属于内容生态扩展的重要动作。",
+    "importance": "中",
+    "source_title": "OpenAI 新闻",
+    "link": "https://openai.com/news/",
+    "category": "AI动态",
+    "key": "565761554bffa1ea",
+    "ts": "2026-11-24 09:48"
+  },
+  {
+    "kind": "功能",
+    "title": "OpenAI 的性能工厂优化 ChatGPT 响应速度",
+    "summary": "OpenAI 公开其用于优化 ChatGPT 响应速度的技术方案，可能涉及分布式计算、模型压缩或缓存机制等工程手段。这为大模型的性能优化提供了新思路，对追求低延迟场景（如实时对话）的开发者有借鉴价值。",
+    "importance": "中",
+    "source_title": "OpenAI 新闻",
+    "link": "https://openai.com/news/",
+    "category": "AI动态",
+    "key": "47603c39ba125f1d",
+    "ts": "2026-11-24 09:48"
+  },
+  {
+    "kind": "概念",
+    "title": "Inkling 2 Mini: Cutting-edge Performance for your Local Setup",
+    "summary": "Inkling 2 Mini 是一个针对本地部署的新型多模态模型，可能在性能和资源利用方面有所优化。该模型的发布标志着多模态模型在本地设备上的应用正在变得更加高效和实用，有助于推动本地 AI 在消费级设备上的普及。",
+    "importance": "中",
+    "source_title": "Hugging Face 博客",
+    "link": "https://huggingface.co/blog",
+    "category": "AI动态",
+    "key": "08c4e7b904027e0e",
+    "ts": "2026-11-24 09:49"
+  },
+  {
+    "kind": "发布",
+    "title": "NariQ: BF16-level Qwen3.8-27B in a 10 GB file",
+    "summary": "这是基于Qwen3.8-27B模型的轻量化版本，将大模型压缩至10GB文件大小。该成果属于大模型压缩与部署领域，通过优化模型参数存储方式，可降低大模型在边缘设备和资源受限场景下的部署门槛，对AI模型的普及应用具有实际意义。",
+    "importance": "高",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "335d181d235a77a7",
+    "ts": "2026-11-24 09:49"
+  },
+  {
+    "kind": "概念",
+    "title": "GLM-5.4: Toward generalized coding with our first loop transformer",
+    "summary": "GLM-5.4是首次提出基于Loop Transformer架构的通用编码模型，属于自然语言处理与编程语言交叉领域。该模型尝试通过循环机制增强代码生成能力，可能推动AI在跨语言、跨领域代码理解与生成方面的技术突破，属于值得关注的新方法。",
+    "importance": "中",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "de54326120af347b",
+    "ts": "2026-11-24 09:49"
+  },
+  {
+    "kind": "发布",
+    "title": "Kagi Mail (public beta)",
+    "summary": "Kagi Mail是新推出的电子邮件客户端，属于生产力工具领域。此类工具通过集成AI功能改进邮件管理，可能提升用户在信息处理、智能回复等场景的效率，属于具有实用价值的新型应用。",
+    "importance": "中",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "b6367cab257bc80e",
+    "ts": "2026-11-24 09:49"
+  },
+  {
+    "kind": "功能",
+    "title": "C++26 is done (again): ISO C++ meeting trip report",
+    "summary": "C++26标准最终确定，属于编程语言开发领域。本次更新可能引入新特性或语法改进，对开发者生态产生影响，是编程语言演进的重要里程碑，值得关注技术社区的后续讨论。",
+    "importance": "中",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "7b79a02acdd6363e",
+    "ts": "2026-11-24 09:49"
+  },
+  {
+    "kind": "功能",
+    "title": "Type-C – variants, options, generics and pattern matching for C",
+    "summary": "这是为C语言设计的扩展提案，属于编程语言工具链领域。通过引入泛型、选项类型等现代语言特性，可能提升C语言的代码安全性和开发效率，属于语言特性的创新尝试。",
+    "importance": "中",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "aa611bcc89dd925f",
+    "ts": "2026-11-24 09:49"
+  },
+  {
+    "kind": "发布",
+    "title": "Shirudo: OpenAI and Cisco's open-source runtime for shielding unpatched Linux",
+    "summary": "Shirudo是OpenAI与Cisco联合推出的开源运行时防护工具，属于网络安全领域。该工具旨在为未打补丁的Linux系统提供实时保护，属于新型安全防护技术，有助于提升系统安全性。",
+    "importance": "高",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "2ee620d02b163b7f",
+    "ts": "2026-11-24 09:49"
   }
 ]

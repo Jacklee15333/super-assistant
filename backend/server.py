@@ -1368,7 +1368,7 @@ def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None
         client = core.make_client_for(s_model, s_use_local, on_progress=on_progress)
         resp = client.chat.completions.create(
             model=s_model, messages=[{"role": "user", "content": prompt}], **_web_kw)
-        out = _clean_web_reply(resp.choices[0].message.content or "")
+        out = _clean_web_reply(_restore_md_headings(resp.choices[0].message.content or ""))     # v149：纯文字回复补回小标题
         if out:
             _miss = _analysis_missing(out)
             if _miss:      # v127：只写了开头（比如只到「背景与主题」）就断了 → 不收，换一张卡重来
@@ -1395,7 +1395,7 @@ def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None
             resp = client.chat.completions.create(
                 model="web", messages=[{"role": "user", "content": prompt}],
                 **dict(core.VIDEO_ANALYSIS_WEB_OPTS, saveImages=True, **_AN_DONE_OPTS))
-            out = _clean_web_reply(resp.choices[0].message.content or "")
+            out = _clean_web_reply(_restore_md_headings(resp.choices[0].message.content or ""))     # v149：纯文字回复补回小标题
             if out:
                 _miss = _analysis_missing(out)
                 if _miss:
@@ -1445,6 +1445,38 @@ def _clean_web_reply(text):
 # v148：加工笔记要写到最后的「我的点评」「分类标签」才算写完；AI 的停止键亮着时，文字停住最多等 5 分钟
 #       （没人看着时网页刷新会慢，字其实还在往外出），发送键回来了但还缺这几块，再等 1 分半看字补不补上。
 _AN_DONE_OPTS = dict(completeMarkers=["我的点评", "分类标签"], busyStallMs=300000, incompleteGraceMs=90000)
+
+
+_AN_SECTIONS = ["一句话概括", "背景与主题", "核心观点", "关键事实与数据", "金句摘录", "值得记住的点", "我的点评", "分类标签"]
+
+
+def _restore_md_headings(text):
+    """v149：网页读回来的是纯文字（一个 ## 小标题都没有）时，把单独成行的「核心观点」「我的点评」这类大标题补回 ##，
+    「核心观点」「值得记住的点」里「1. xxx」这种短的小标题补回 ###。不然整篇明明写完了，也会被判「没写完」。
+    已经有 # 小标题的不动；认出来的大标题不到 2 个也不动。"""
+    t = text or ""
+    if re.search(r"(?m)^#{1,4}\s", t):
+        return t
+    out, n, sec = [], 0, ""
+    for ln in t.split("\n"):
+        s = ln.strip()
+        core = re.sub(r"^(?:[一二三四五六七八九十]{1,3}[、.．]\s*|\d{1,2}[、.．)]\s*)", "", s).rstrip("：:").strip()
+        hit = ""
+        if s and len(s) <= 30:
+            for w in _AN_SECTIONS:
+                if core == w or re.match(re.escape(w) + r"\s*[/／]", core):
+                    hit = w
+                    break
+        if hit:
+            out.append("## " + s)
+            n += 1
+            sec = hit
+        elif sec in ("核心观点", "值得记住的点") and re.match(r"^\d{1,2}[.．、]\s*\S", s) and len(s) <= 40 \
+                and not s.endswith(("。", "；", ";", "，", ",")):
+            out.append("### " + s)
+        else:
+            out.append(ln)
+    return "\n".join(out) if n >= 2 else t
 
 
 def _analysis_missing(text):
