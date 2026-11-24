@@ -2,5 +2,5 @@
  "on": true,
  "at": 1795420914,
  "use_local": true,
- "model": "qwen3:14b"
+ "model": "gpt-oss:20b"
 }
