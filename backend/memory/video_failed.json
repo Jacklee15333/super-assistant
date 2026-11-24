@@ -1,21 +1,3 @@
 {
- "items": [
-  {
-   "id": "1a20b253460",
-   "tries": 2,
-   "url": "https://v.douyin.com/snPYIVghTZI/",
-   "title": "抖音视频 …280050",
-   "level": "accurate",
-   "lang": "auto",
-   "vocal": false,
-   "mode": "auto",
-   "use_local": true,
-   "model": "gpt-oss:20b",
-   "screenshot": false,
-   "link": false,
-   "analyze": false,
-   "error": "提取失败：ERROR: [Douyin] 7680884714613280050: Fresh cookies (not necessarily logged in) are needed; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U\n\n提示：本软件已先尝试「抖音分享页直链解析」、再用 yt-dlp 兜底，仍未成功。通常是这条视频被限制、链接已过期，或抖音又改了分享页结构。可以：\n  1) 回抖音客户端重新「分享 → 复制链接」，拿一条最新短链再试；\n  2) 在「视频」板块点一次「安装/更新",
-   "at": "2026-11-24 09:21"
-  }
- ]
+ "items": []
 }

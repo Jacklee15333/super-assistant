@@ -643,6 +643,18 @@
       "title": "🤖 自动 · 最新AI动态 · 11-24 09:00",
       "created_at": "2026-11-24T09:01:42",
       "seen": true
+    },
+    {
+      "id": "n-20261124092622617690",
+      "slug": "ai-intel-agent",
+      "agent_name": "情报员",
+      "agent_emoji": "🧠",
+      "task_id": "t-1782729748831-r8g7",
+      "conversation_id": "auto-20261124-092312-r8g7",
+      "task_name": "最新github开源项目",
+      "title": "🤖 自动 · 最新github开源项目 · 11-24 09:23",
+      "created_at": "2026-11-24T09:26:22",
+      "seen": true
     }
   ]
 }

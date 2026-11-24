@@ -88,7 +88,7 @@ _LOG_QUIET_PATHS = {"/intake_kind", "/douyin/login",
     "/sniff/config", "/skills/list", "/agents/list", "/agents/convos", "/agents/notifications", "/datadb/list", "/memory/list",
     "/creator/list", "/creator/findings", "/creator/videos_cached",
     "/creator/x_cookie_status",
-    "/logs", "/ai_live", "/ai_live_shot", "/version", "/gpu_status", "/creator_profiles", "/creator_avatar",
+    "/logs", "/ai_live", "/ai_live_shot", "/version", "/gpu_status", "/creator_profiles", "/creator_avatar", "/creator_scan_all",
     "/scrapling/status", "/sniff/sources",
 }
 
@@ -1363,7 +1363,7 @@ def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None
             and not os.environ.get("OPENAI_ADMIN_KEY"):
         s_use_local, s_model = False, "web"
 
-    _web_kw = dict(core.VIDEO_ANALYSIS_WEB_OPTS, saveImages=True) if core.is_web_model(s_model) else {}
+    _web_kw = dict(core.VIDEO_ANALYSIS_WEB_OPTS, saveImages=True, **_AN_DONE_OPTS) if core.is_web_model(s_model) else {}
     try:
         client = core.make_client_for(s_model, s_use_local, on_progress=on_progress)
         resp = client.chat.completions.create(
@@ -1394,7 +1394,7 @@ def _cx_analyze_transcript(transcript, title, use_local, model, on_progress=None
             client = core.make_client_for("web", False, on_progress=on_progress)
             resp = client.chat.completions.create(
                 model="web", messages=[{"role": "user", "content": prompt}],
-                **dict(core.VIDEO_ANALYSIS_WEB_OPTS, saveImages=True))
+                **dict(core.VIDEO_ANALYSIS_WEB_OPTS, saveImages=True, **_AN_DONE_OPTS))
             out = _clean_web_reply(resp.choices[0].message.content or "")
             if out:
                 _miss = _analysis_missing(out)
@@ -1440,6 +1440,11 @@ def _clean_web_reply(text):
         head = [ln for ln in t[:m.start()].split("\n") if ln.strip() and not _pre_heading_junk(ln)]
         t = ("\n".join(head) + "\n\n" if head else "") + t[m.start():]
     return re.sub(r"\n{3,}", "\n\n", t).strip()
+
+
+# v148：加工笔记要写到最后的「我的点评」「分类标签」才算写完；AI 的停止键亮着时，文字停住最多等 5 分钟
+#       （没人看着时网页刷新会慢，字其实还在往外出），发送键回来了但还缺这几块，再等 1 分半看字补不补上。
+_AN_DONE_OPTS = dict(completeMarkers=["我的点评", "分类标签"], busyStallMs=300000, incompleteGraceMs=90000)
 
 
 def _analysis_missing(text):
@@ -2689,6 +2694,21 @@ def _an_fail_set(name, why):
         pass
 
 
+def _keep_awake(on):
+    """v148：批量加工期间不让电脑睡眠、不关屏幕（屏幕关了 / 睡着了，AI 池的网页会停住，回复只抓到半截）。
+    这个设置跟着调用它的线程走：加工完调 _keep_awake(False)，或者线程结束，就恢复。只在 Windows 上有用；返回是否设上了。"""
+    if os.name != "nt":
+        return False
+    try:
+        import ctypes
+        f = ctypes.windll.kernel32.SetThreadExecutionState
+        f.restype = ctypes.c_uint
+        ES_CONTINUOUS, ES_SYSTEM_REQUIRED, ES_DISPLAY_REQUIRED = 0x80000000, 0x00000001, 0x00000002
+        return bool(f(ctypes.c_uint(ES_CONTINUOUS | ((ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED) if on else 0))))
+    except Exception:
+        return False
+
+
 def _note_batch_worker(names, use_local, model, tries0=None):
     """一条一条补分析。挂机友好：
     · 连续 2 条失败不再永久暂停，而是等 3 / 5 / 10 / 20 / 30 分钟后自动接着跑，接着跑之前先测 AI 池能不能连上；
@@ -2701,6 +2721,8 @@ def _note_batch_worker(names, use_local, model, tries0=None):
 
     def _persist(cur=None):            # v136：断点续传——每一步都记下还剩哪些（正在做的那条排最前）
         _batch_save(([cur] if cur else []) + [x for x in pending if x != cur], use_local, model, tries)
+    if _keep_awake(True):              # v148
+        _clog("视频", "加工期间不让电脑睡眠、也不关屏幕（屏幕关了网页会停住，回复只抓到半截）；加工完就恢复")
     try:
         while not _note_batch["stop"]:
             extra = _note_batch.get("extra") or []
@@ -2810,6 +2832,7 @@ def _note_batch_worker(names, use_local, model, tries0=None):
             _persist()
             _time.sleep(1)
     finally:
+        _keep_awake(False)
         # 没试满就被停掉的，计成失败，方便看
         for n in _note_batch.get("failed_names", []):
             _note_batch["done"] += 1
@@ -3106,6 +3129,172 @@ def _pv_note_map():
         if v:
             out.setdefault(v, p.name)
     return out
+
+
+_PV_LIST_LOCK = _threading.Lock()      # v148：一次只列一个博主（批量扫描和你点开博主不会同时开浏览器打架）
+
+
+def _pv_cid(key, home):
+    import hashlib as _hl
+    return "prof:" + _hl.md5((key + "|" + home).encode("utf-8")).hexdigest()[:16]
+
+
+def _pv_list_and_save(key, prof, limit=0):
+    """按绑定的主页列这个博主的全部视频，存进 creator_profile_videos.json。返回 (cid, 存下的那条)。列不到会抛异常。"""
+    import creator_watch
+    home = (prof.get("home") or prof.get("url") or "").strip()
+    cid = _pv_cid(key, home)
+    with _PV_LIST_LOCK:
+        _clog("博主", "列「%s」主页上的视频…" % key)
+        r = creator_watch.list_videos_url(prof.get("platform") or "", home, limit)
+    ent = {"key": key, "home": home, "platform": r["platform"], "platform_label": r["platform_label"],
+           "videos": r["videos"], "total": r["total"], "empty_reason": r.get("empty_reason") or "",
+           "note": r.get("note") or "", "ts": int(_time_now())}
+    _pv_save(cid, ent)
+    _clog("博主", "「%s」主页上列到 %d 个视频" % (key, len(ent["videos"])))
+    return cid, ent
+
+
+def _pv_totals():
+    """v148：每个博主主页上列到多少篇 {博主名: (篇数, 扫描时间, 主页)}；同一个博主列过几次的取最新的。"""
+    out = {}
+    for _cid, e in (_pv_load() or {}).items():
+        if not isinstance(e, dict) or not e.get("key"):
+            continue
+        k, ts = e["key"], e.get("ts") or 0
+        if k in out and out[k][1] >= ts:
+            continue
+        n = len(e.get("videos") or [])
+        try:
+            tot = max(int(e.get("total") or 0), n)
+        except Exception:
+            tot = n
+        out[k] = (tot, ts, (e.get("home") or "").strip())
+    return out
+
+
+def _pv_with_totals(profs):
+    """v148：博主资料里加上「主页上列到多少篇、什么时候扫的」（pv_total / pv_ts），头像右下角显示总数用。"""
+    try:
+        tots = _pv_totals()
+    except Exception:
+        return profs
+    out = {}
+    for k, v in (profs or {}).items():
+        t = tots.get(k)
+        if t and isinstance(v, dict) and (not t[2] or t[2] == (v.get("home") or v.get("url") or "").strip()):
+            v = dict(v, pv_total=t[0], pv_ts=t[1])
+        out[k] = v
+    return out
+
+
+# ════════ v148：批量扫描——把所有博主主页上的文章列表都列一遍 ════════
+# 「笔记 → 博主」标题行的「批量扫描」：一个接一个按绑定的主页列他的全部文章（和点进博主列的是同一套），
+# 存进 creator_profile_videos.json；头像右下角就显示他主页上一共多少篇。可以随时停，下次接着扫没扫的。
+_pvb_lock = _threading.Lock()
+_pvb = {"running": False, "stop": False, "total": 0, "done": 0, "ok": 0, "fail": 0, "skip": 0, "videos": 0,
+        "current": "", "started": 0, "finished": 0, "results": [], "note": "", "fresh": 0}
+_PVB_FRESH_H = 12          # 12 小时内扫过的先跳过
+_PVB_GAP = (2.0, 2.0)      # 每个博主之间歇 2~4 秒，别被平台限流
+
+
+def _pvb_sleep(sec):
+    """可被「停止」打断的等待。被停止返回 True。"""
+    import time as _t
+    end = _t.time() + sec
+    while _t.time() < end:
+        if _pvb["stop"]:
+            return True
+        _t.sleep(0.3)
+    return False
+
+
+def _pvb_order(keys, force=False):
+    """先扫从没扫过的，再扫扫得最早的；12 小时内扫过的（force 除外）跳过。返回 (要扫的, 跳过的个数)。"""
+    import creator_profiles as _cpf
+    profs = _cpf.list_profiles() or {}
+    tots = _pv_totals()
+    now = _time_now()
+    todo, fresh = [], 0
+    for k in keys:
+        p = profs.get(k) or {}
+        home = (p.get("home") or p.get("url") or "").strip() if isinstance(p, dict) else ""
+        if not home:
+            continue
+        t = tots.get(k)
+        ts = t[1] if t and (not t[2] or t[2] == home) else 0
+        if ts and not force and now - ts < _PVB_FRESH_H * 3600:
+            fresh += 1
+            continue
+        todo.append((ts, k))
+    todo.sort(key=lambda x: x[0])
+    return [k for _ts, k in todo], fresh
+
+
+def _pvb_worker(keys):
+    import time as _t
+    import random as _r
+    import creator_profiles as _cpf
+    streak = 0
+    sess = None
+    try:
+        try:
+            import douyin_resolver as _dr       # 和一键识别一样：整批共用一个后台浏览器
+            sess = _dr.browser_session()
+            sess.__enter__()
+        except Exception:
+            sess = None
+        for key in keys:
+            if _pvb["stop"]:
+                break
+            _pvb["current"] = key
+            prof = (_cpf.list_profiles() or {}).get(key) or {}
+            res = {"key": key}
+            if not (prof.get("home") or prof.get("url")):
+                res.update(status="skip", msg="还没绑定主页")
+            else:
+                try:
+                    _cid, ent = _pv_list_and_save(key, prof)
+                    n = len(ent.get("videos") or [])
+                    if n:
+                        res.update(status="ok", n=n, msg="列到 %d 篇" % n)
+                    else:
+                        res.update(status="fail", msg=(ent.get("empty_reason") or "一篇都没列到")[:200])
+                except Exception as e:
+                    res.update(status="fail", msg=str(e).split("\n")[0][:200])
+                streak = streak + 1 if res["status"] == "fail" else 0
+            with _pvb_lock:
+                _pvb["done"] += 1
+                _pvb[res["status"]] += 1
+                _pvb["videos"] += res.get("n") or 0
+                _pvb["results"] = (_pvb["results"] + [res])[-400:]
+            _clog("博主", "批量扫描 %d/%d：%s %s %s" % (_pvb["done"], _pvb["total"],
+                  {"ok": "✓", "fail": "✗", "skip": "－"}[res["status"]], key, res.get("msg") or ""))
+            if res["status"] == "skip":
+                continue
+            if streak >= 8:
+                _pvb["note"] = ("连续 %d 个都没列到，可能是网络有问题或被平台限流了，先停下。"
+                                "过一会儿再点「批量扫描」，会接着扫没扫的。" % streak)
+                break
+            if streak and streak % 4 == 0:
+                _pvb["note"] = "连续几个没列到，先歇一分钟再接着扫（防止被平台限流）"
+                if _pvb_sleep(60):
+                    break
+                _pvb["note"] = ""
+            if _pvb_sleep(_PVB_GAP[0] + _r.random() * _PVB_GAP[1]):
+                break
+    finally:
+        if sess is not None:
+            try:
+                sess.__exit__(None, None, None)
+            except Exception:
+                pass
+        with _pvb_lock:
+            _pvb["running"] = False
+            _pvb["current"] = ""
+            _pvb["finished"] = _t.time()
+        _clog("博主", "批量扫描结束：扫了 %d 个博主，列到 %d 篇（没列到 %d 个）%s" % (
+            _pvb["done"], _pvb["videos"], _pvb["fail"], "，已手动停止" if _pvb["stop"] else ""))
 
 
 def _parse_saved_note(text):
@@ -4522,7 +4711,7 @@ class Handler(BaseHTTPRequestHandler):
                                "at": h.get("at"), "n": h.get("n", 0)} for h in _vn_load_merged()["history"]]
                 except Exception:
                     merges = []
-                return self._send({"profiles": _cpf.list_profiles(), "merges": merges})
+                return self._send({"profiles": _pv_with_totals(_cpf.list_profiles()), "merges": merges})
             except Exception as e:
                 return self._send({"profiles": {}, "error": str(e)})
         if path == "/creator_avatar":
@@ -4589,6 +4778,16 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send({"douyin": {"status": "error", "detail": str(e)},
                                    "versions": {}, "ytdlp": {}, "diag": {}}, 200)
+        if path == "/creator_scan_all":
+            # v148：批量扫描博主文章列表的进度
+            with _pvb_lock:
+                b = {k: (list(v) if isinstance(v, list) else v) for k, v in _pvb.items()}
+            now = _time_now()
+            b["now"] = now
+            left = max(0, b["total"] - b["done"])
+            b["eta"] = int((now - b["started"]) / b["done"] * left) if b["running"] and b["done"] else 0
+            b["results"] = b["results"][-200:]
+            return self._send(b)
         if path == "/creator_profiles_batch":
             # v60：一键识别博主主页的进度
             with _cpb_lock:
@@ -5377,6 +5576,37 @@ class Handler(BaseHTTPRequestHandler):
             _clog("博主", "开始一键识别博主主页：%d 个" % len(keys))
             _threading.Thread(target=_cpb_worker, args=(keys,), daemon=True).start()
             return self._send({"ok": True, "total": len(keys)})
+        if path == "/creator_scan_all":
+            # v148：批量扫描所有博主的文章列表：{keys:[…]} 开始（force：12 小时内扫过的也扫）；{stop:true} 停止
+            b = body or {}
+            if b.get("stop"):
+                _pvb["stop"] = True
+                return self._send({"ok": True, "stopping": True})
+            seen, keys = set(), []
+            for k in b.get("keys") or []:
+                k = str(k or "").strip()
+                if k and k != "未填作者" and k not in seen:
+                    seen.add(k)
+                    keys.append(k)
+            if not keys:
+                import creator_profiles as _cpf
+                keys = [k for k, p in (_cpf.list_profiles() or {}).items()
+                        if isinstance(p, dict) and (p.get("home") or p.get("url"))]
+            todo, fresh = _pvb_order(keys, bool(b.get("force")))
+            if not todo:
+                return self._send({"ok": False, "fresh": fresh, "message":
+                                   ("都刚扫过（%d 个是 %d 小时内扫的），不用再扫" % (fresh, _PVB_FRESH_H)) if fresh
+                                   else "没有绑定了主页的博主可以扫（先点 🔍 一键识别博主主页）"})
+            with _pvb_lock:
+                if _pvb["running"]:
+                    return self._send({"ok": False, "message": "已经在扫了（%d/%d），等它扫完或先点「停止」"
+                                       % (_pvb["done"], _pvb["total"])})
+                _pvb.update(running=True, stop=False, total=len(todo), done=0, ok=0, fail=0, skip=0, videos=0,
+                            current="", started=_time_now(), finished=0, results=[], note="", fresh=fresh)
+            _clog("博主", "开始批量扫描博主的文章列表：%d 个%s" % (
+                len(todo), "（%d 个是 %d 小时内扫过的，先跳过）" % (fresh, _PVB_FRESH_H) if fresh else ""))
+            _threading.Thread(target=_pvb_worker, args=(todo,), daemon=True, name="creator-scan-all").start()
+            return self._send({"ok": True, "total": len(todo), "fresh": fresh})
         if path == "/creator_profile":
             # v58：博主主页（绑定链接取头像 / 刷新 / 手动上传头像 / 解除绑定）
             try:
@@ -5913,13 +6143,7 @@ class Handler(BaseHTTPRequestHandler):
                 cid = "prof:" + _hl.md5((key + "|" + home).encode("utf-8")).hexdigest()[:16]
                 ent = None if body.get("refresh") else _pv_load().get(cid)
                 if not ent:
-                    _clog("博主", "列「%s」主页上的视频…" % key)
-                    r = creator_watch.list_videos_url(prof.get("platform") or "", home, body.get("limit", 0))
-                    ent = {"key": key, "home": home, "platform": r["platform"], "platform_label": r["platform_label"],
-                           "videos": r["videos"], "total": r["total"], "empty_reason": r.get("empty_reason") or "",
-                           "note": r.get("note") or "", "ts": int(_time_now())}
-                    _pv_save(cid, ent)
-                    _clog("博主", "「%s」主页上列到 %d 个视频" % (key, len(ent["videos"])))
+                    _cid2, ent = _pv_list_and_save(key, prof, body.get("limit", 0))     # v148：和批量扫描共用（一次只列一个）
                     cached = False
                 else:
                     cached = True

@@ -2464,6 +2464,7 @@ function viPtabSync() {
   // 未加工清单要是之前被收起了，在标签下面总是展开
   const un = document.querySelector("#viProcessBars #vnUnList"), rows = un && un.querySelector(".vn-un-rows");
   if (t === "todo" && rows && rows.hidden) un.querySelector(".vn-un-head")?.click();
+  if (_viLiveCur) { try { viLivePlace(); } catch (_) {} }      // v148：换了标签，实时画面跟着挪到看得见的地方
 }
 document.addEventListener("click", (e) => {
   const b = e.target.closest && e.target.closest(".vi-ptab");
@@ -2500,14 +2501,26 @@ function viLivePlace() {
     const nm = row.querySelector(".vn-un-name");
     if (nm) nm.title = _viLiveOpen ? "点一下收起 AI 实时画面" : "正在加工：点一下看 AI 实时画面";
   }
-  if (row && _viLiveOpen) {
+  const rowVis = !!(row && row.offsetParent !== null);
+  if (rowVis && _viLiveOpen) {
     let slot = document.getElementById("viRowLive");
     if (!slot) { slot = document.createElement("div"); slot.id = "viRowLive"; slot.className = "vi-row-live"; }
     if (slot.previousElementSibling !== row) row.after(slot);
     if (lv.parentNode !== slot) slot.appendChild(lv);
+    document.getElementById("viLiveTop")?.remove();
+  } else if (!rowVis && _viLiveCur && document.getElementById("view-video")?.dataset.mode === "process") {
+    // v148：正在加工的那条在这里看不见（在「已加工」标签、清单收起了）→ 标签下面放一条「AI 实时画面」，点标题行展开。
+    //       以前只能点那一行的名字（进度卡片 v124 起就不显示了），看不见那一行就没法看实时画面。
+    let top = document.getElementById("viLiveTop");
+    if (!top) { top = document.createElement("div"); top.id = "viLiveTop"; top.className = "vi-row-live vi-live-top"; }
+    const anchor = viPtab() === "done" ? document.getElementById("viDone") : document.getElementById("viProcessBars");
+    if (anchor && top.nextElementSibling !== anchor) anchor.before(top);
+    if (lv.parentNode !== top) top.appendChild(lv);
+    document.getElementById("viRowLive")?.remove();
   } else {
     if (holder && lv.parentNode !== holder) holder.appendChild(lv);
     document.getElementById("viRowLive")?.remove();
+    document.getElementById("viLiveTop")?.remove();
   }
   if (!_vnLiveTimer && document.getElementById("vnLive")) vnLivePoll();   // 清单重画时轮询停了就接上
 }
@@ -5239,11 +5252,16 @@ function vnBuildUnList(todo) {
   box.appendChild(head);
   const rows = document.createElement("div"); rows.className = "vn-un-rows";
   box.appendChild(rows);
-  if (!todo.length) { caret.textContent = ""; return box; }
+  if (!todo.length) {
+    caret.textContent = "";
+    _vnUnRender = () => { rows.innerHTML = ""; vnUnView([]).forEach((x) => rows.appendChild(vnUnPinRow(x))); };   // v148
+    _vnUnRender();
+    return box;
+  }
   const render = () => {
     todo = _vnUnTodo;
     rows.innerHTML = "";
-    todo.slice(0, _vnUnShown).forEach((n, i) => rows.appendChild(vnUnRow(n, i + 1)));
+    vnUnView(todo).forEach((x) => rows.appendChild(vnUnPinRow(x)));      // v148：正在加工的那条顶到最上面
     const left = todo.length - Math.min(_vnUnShown, todo.length);
     if (left > 0) {
       const more = document.createElement("button");
@@ -5265,11 +5283,31 @@ function vnBuildUnList(todo) {
   return box;
 }
 
+// v148：正在加工的那条不在清单前面几条里（自动加工中途加进来的、回头补没成功的、清单是之前拉的），
+//       就把它顶到最上面——这样总能点它看 AI 实时画面
+function vnUnView(todo) {
+  const d = _vnUnLast || {};
+  const cur = d.running ? (d.current || "") : "";
+  const out = todo.slice(0, _vnUnShown).map((n, i) => ({ n, no: i + 1 }));
+  if (cur && !out.some((x) => x.n.name === cur)) {
+    const k = todo.findIndex((n) => n.name === cur);
+    const n = k >= 0 ? todo[k] : { name: cur, analyzed: false, author: d.cur_author || "",
+      title: d.cur_title || cur.replace(/\.md$/, "").replace(/^\d{8}-\d{6}-?/, "") };
+    out.unshift({ n, no: k >= 0 ? k + 1 : "▶", pin: true });
+  }
+  return out;
+}
+function vnUnPinRow(x) {
+  const r = vnUnRow(x.n, x.no);
+  if (x.pin) r.classList.add("vn-un-pin");
+  return r;
+}
+
 function vnUnRow(n, idx) {
   const r = document.createElement("div");
   r.className = "vn-un-row"; r.dataset.name = n.name || "";
   r.title = "点击打开这条笔记，看原文";
-  const no = document.createElement("span"); no.className = "vn-un-no"; no.textContent = idx + ".";
+  const no = document.createElement("span"); no.className = "vn-un-no"; no.textContent = typeof idx === "number" ? idx + "." : String(idx);
   r.appendChild(no);
   const when = vnNoteTime(n);
   const tm = document.createElement("span"); tm.className = "vn-un-time";
@@ -5319,6 +5357,11 @@ function vnUnMark(d) {
   if (d && d.ok_names && d.ok_names.length) vnUnDrop(d.ok_names);
   const box = document.getElementById("vnUnList");
   if (!box) return;
+  // v148：正在加工的那条没在清单里 → 重画一下把它顶上来；顶上来的那条做完了 / 换下一条了 → 放回原位
+  const shown = Array.from(box.querySelectorAll(".vn-un-row")).map((r) => r.dataset.name);
+  const pinned = box.querySelector(".vn-un-row.vn-un-pin");
+  if (_vnUnRender && ((d.running && d.current && !shown.includes(d.current)) ||
+      (pinned && (!d.running || pinned.dataset.name !== d.current)))) _vnUnRender();
   const errs = {};
   (d.errors || []).forEach((x) => { if (x && x.name) errs[x.name] = x.error || x.msg || x.reason || "没成功"; });
   box.querySelectorAll(".vn-un-row").forEach((r) => {
@@ -10996,6 +11039,7 @@ function vnBuildLive() {
     '<div class="vn-live-head" id="vnLiveHead">' +
       '<span class="vn-live-title">AI 实时画面</span>' +
       '<span class="vn-live-sum" id="vnLiveSum"></span>' +
+      '<button type="button" class="vn-live-tg" id="vnLiveTg" title="点开 / 收起 AI 实时画面">▸ 点开看</button>' +
     "</div>" +
     '<div class="vn-live-body" id="vnLiveBody">' +
       '<div class="vn-live-article" id="vnLiveArticle"></div>' +
@@ -11046,7 +11090,16 @@ function vnBuildLive() {
     setTimeout(vnLivePoll, 300);
   });
   box.querySelector("#vnLiveTermBtn").addEventListener("click", () => openTerminalWindow());
+  // v148：点标题行（「▸ 点开看」）展开 / 收起——正在加工的那条不在清单里、或者在「已加工」标签时，也能在这里看
+  box.querySelector("#vnLiveHead").addEventListener("click", (e) => { e.stopPropagation(); vnLiveToggle(); });
   return box;
+}
+
+function vnLiveToggle(force) {
+  _viLiveOpen = typeof force === "boolean" ? force : !_viLiveOpen;
+  viLivePlace();
+  clearTimeout(_vnLiveTimer); _vnLiveTimer = null;
+  vnLivePoll();
 }
 
 function vnLiveMsg(text) {
@@ -11109,6 +11162,8 @@ async function vnLivePoll() {
     return;
   }
   box.hidden = false;
+  const lbody = box.querySelector("#vnLiveBody"); if (lbody) lbody.hidden = !open;     // v148：没点开时只露一行标题
+  const ltg = box.querySelector("#vnLiveTg"); if (ltg) ltg.textContent = open ? "▾ 收起" : "▸ 点开看";
   const name = ((b.running ? b.current : _noteAnRunning) || "").replace(/\.md$/, "");
   const title = b.running ? (b.title || name) : viNoteTitle(_noteAnRunning);
   const idx = Math.min(b.total || 0, (b.done || 0) + 1);
@@ -11482,12 +11537,35 @@ let _vnCpbTimer = null;
 let _vnCpbSeen = -1;
 let _vnCpbRenamed = -1;     // v63：有博主改了名 → 整面墙按新名字重画
 
+// v148：头像右下角＝他主页上一共多少篇（扫描主页列到的篇数、平台上显示的作品数，取大的）；还没扫过就不显示。
+//       左上角绿色的「+N」照旧是近 30 天新提取的笔记数。文件夹的右下角还是里面的笔记数。
+function vnWorksTotal(key) {
+  const p = _vnProfiles[key] || {};
+  return Math.max(+p.pv_total || 0, +p.works || 0);
+}
+function vnFmtCount(n) {
+  return n >= 10000 ? (n / 10000).toFixed(n >= 100000 ? 0 : 1).replace(/\.0$/, "") + "万" : String(n);
+}
+function vnTileTitle(g) {
+  const p = _vnProfiles[g.key] || {};
+  const st = g.stats, tot = vnWorksTotal(g.key);
+  return (p.name && p.name !== g.name ? g.name + "（" + p.name + "）" : g.name) +
+    "\n笔记 " + st.total + " 条" + (st.recent ? "，近30天新增 " + st.recent + " 条" : "") +
+    (st.last ? "\n最近提取：" + new Date(st.last).toLocaleString() : "") +
+    (tot ? "\n主页上一共 " + tot + " 篇" + (p.pv_ts ? "（" + vnFmtWhen(p.pv_ts * 1000) + " 扫的）" : "")
+      : (p.url && g.kind !== "folder" ? "\n主页上的文章：还没扫（点上面的「批量扫描」，或者点进去列一次）" : "")) +
+    (p.followers ? "\n粉丝：" + vnFmtNum(p.followers) : "") + "\n\n点击进去看" + (p.url ? "" : "；点右上角 🔗 绑定博主主页，自动换成真头像");
+}
 function vnTileAvatar(g) {
   const st = g.stats;
   const av = vnAvatarEl(g);
-  const pill = document.createElement("span");
-  pill.className = "vn-av-pill"; pill.textContent = st.total;
-  av.appendChild(pill);
+  const tot = g.kind === "folder" ? st.total : vnWorksTotal(g.key);
+  if (tot) {
+    const pill = document.createElement("span");
+    pill.className = "vn-av-pill"; pill.textContent = vnFmtCount(tot);
+    pill.title = g.kind === "folder" ? "文件夹里 " + tot + " 条笔记" : "主页上一共 " + tot + " 篇";
+    av.appendChild(pill);
+  }
   if (st.recent) {
     const nw = document.createElement("span");
     nw.className = "vn-av-new"; nw.textContent = "+" + st.recent;
@@ -11499,7 +11577,7 @@ function vnTileAvatar(g) {
 
 function vnAvMarker(key) {
   const p = _vnProfiles[key] || {};
-  return [p.v || 0, p.has_avatar ? 1 : 0, p.platform || "", p.url || ""].join("|");
+  return [p.v || 0, p.has_avatar ? 1 : 0, p.platform || "", p.url || "", vnWorksTotal(key)].join("|");   // v148：总篇数变了也换
 }
 
 function vnRefreshTileAvatars() {
@@ -11511,6 +11589,7 @@ function vnRefreshTileAvatars() {
     t.dataset.avm = m;
     const old = t.querySelector(".vn-av");
     if (old) old.replaceWith(vnTileAvatar(g));
+    t.title = vnTileTitle(g);
     t.classList.remove("vn-av-pop"); void t.offsetWidth; t.classList.add("vn-av-pop");
   });
 }
@@ -11702,15 +11781,130 @@ async function vnCpbPoll() {
   if (d.running) _vnCpbTimer = setTimeout(vnCpbPoll, 2000);
 }
 
+// ════════════════════ v148：批量扫描——把所有博主主页上的文章列表都列一遍 ════════════════════
+// 博主标题行多一个「批量扫描」：一个接一个按绑定的主页列他的全部文章（和点进博主列的是同一套），
+// 下面显示进度，可以随时停；扫完一个，头像右下角马上换成他主页上的总篇数。
+let _vnPvbTimer = null, _vnPvbSeen = -1, _vnPvbHide = 0;
+function vnPvbKeys(groups) {
+  return (groups || []).filter((g) => g.kind !== "folder" && g.name !== "未填作者" && (_vnProfiles[g.key] || {}).url)
+    .map((g) => g.key);
+}
+function vnPvbBar(groups, head, sorts) {
+  const bar = document.createElement("div");
+  bar.className = "vn-cpb vn-pvb"; bar.id = "vnPvb"; bar.hidden = true;
+  bar._groups = groups; bar._head = head; bar._sorts = sorts;
+  const btn = document.createElement("button");
+  btn.type = "button"; btn.className = "vn-pvb-btn"; btn.textContent = "批量扫描";
+  btn.title = "把所有绑定了主页的博主，主页上的文章列表都扫一遍（一个接一个在后台扫，可以随时停）。\n扫完头像右下角就是他主页上一共多少篇";
+  btn.addEventListener("click", (e) => { e.stopPropagation(); vnPvbStart(bar); });
+  bar._btn = btn;
+  _vnPvbSeen = -1;
+  setTimeout(vnPvbPoll, 60);
+  return bar;
+}
+async function vnPvbStart(bar) {
+  const keys = vnPvbKeys(bar._groups);
+  if (!keys.length) { alert("还没有绑定了主页的博主。先点标题行的 🔍 一键识别博主主页。"); return; }
+  const now = Date.now() / 1000;
+  const fresh = keys.filter((k) => { const p = _vnProfiles[k] || {}; return p.pv_ts && now - p.pv_ts < 12 * 3600; }).length;
+  if (fresh < keys.length && !confirm("把 " + (keys.length - fresh) + " 个博主主页上的文章列表都扫一遍？\n\n" +
+      "· 一个接一个在后台扫，和点进博主列的是同一套；抖音的要开浏览器往下翻，一个要几秒到几分钟，整批会比较久；\n" +
+      "· 扫的时候软件照常用，可以随时点「停止」，下次接着扫没扫过的；\n" +
+      (fresh ? "· " + fresh + " 个是 12 小时内刚扫过的，这次先跳过；\n" : "") +
+      "· 扫完一个，头像右下角就换成他主页上一共多少篇；点进博主能看到全部文章，没提取的可以勾选批量提取。")) return;
+  try {
+    const d = await (await fetch(BACKEND + "/creator_scan_all", { method: "POST",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ keys }) })).json();
+    if (!d.ok) { alert(d.message || "没能开始"); return; }
+  } catch (e) { alert("出错：" + e.message); return; }
+  _vnPvbHide = 0;
+  vnPvbPoll();
+}
+async function vnPvbPoll() {
+  clearTimeout(_vnPvbTimer); _vnPvbTimer = null;
+  const bar = document.getElementById("vnPvb");
+  if (!bar) return;
+  let d;
+  try { d = await (await fetch(BACKEND + "/creator_scan_all", { cache: "no-store" })).json(); }
+  catch (e) { _vnPvbTimer = setTimeout(vnPvbPoll, 4000); return; }
+  if (document.getElementById("vnPvb") !== bar) return;
+  if (d.done !== _vnPvbSeen) {
+    if (_vnPvbSeen !== -1 && d.done) { await vnLoadProfiles(); vnRefreshTileAvatars(); }
+    _vnPvbSeen = d.done;
+  }
+  vnPvbRender(bar, d);
+  if (d.running) _vnPvbTimer = setTimeout(vnPvbPoll, 2000);
+}
+function vnPvbRender(bar, d) {
+  const head = bar._head, sorts = bar._sorts, btn = bar._btn;
+  if (head && sorts && btn && sorts.parentNode === head && btn.nextElementSibling !== sorts) head.insertBefore(btn, sorts);
+  const running = !!d.running;
+  btn.disabled = running;
+  btn.textContent = running ? "扫描中 " + d.done + " / " + d.total : "批量扫描";
+  const mode = running ? "run" : "idle";
+  if (bar.dataset.mode !== mode) {
+    bar.dataset.mode = mode;
+    bar.innerHTML = "";
+    if (running) {
+      bar.innerHTML = '<span class="vn-cpb-track"><i></i></span><span class="vn-cpb-txt"></span>';
+      const stop = document.createElement("button");
+      stop.type = "button"; stop.className = "vn-batch-stop vn-cpb-stop"; stop.textContent = "停止";
+      stop.title = "扫完当前这个就停；下次点「批量扫描」会接着扫没扫过的";
+      stop.addEventListener("click", async () => {
+        stop.disabled = true; stop.textContent = "停止中…";
+        try {
+          await fetch(BACKEND + "/creator_scan_all", { method: "POST",
+            headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stop: true }) });
+        } catch (_) {}
+      });
+      bar.appendChild(stop);
+      const note = document.createElement("div"); note.className = "vn-cpb-note"; note.hidden = true;
+      bar.appendChild(note);
+    }
+  }
+  if (running) {
+    bar.querySelector(".vn-cpb-track > i").style.width = (d.total ? Math.round(d.done * 100 / d.total) : 0) + "%";
+    const txt = "正在扫描博主的文章列表 " + d.done + " / " + d.total +
+      (d.current ? " · 正在扫「" + d.current + "」" : "") + " · 列到 " + (d.videos || 0) + " 篇" +
+      (d.fail ? " · 没列到 " + d.fail + " 个" : "") + (d.eta ? " · 预计还要 " + _vnFmtDur(d.eta) : "");
+    const el = bar.querySelector(".vn-cpb-txt"); el.textContent = txt; el.title = txt;
+    const note = bar.querySelector(".vn-cpb-note");
+    note.hidden = !d.note; note.textContent = d.note ? "⏸ " + d.note : "";
+    bar.hidden = false;
+    return;
+  }
+  bar.innerHTML = "";
+  if (!(d.finished && d.total) || _vnPvbHide === d.finished) { bar.hidden = true; return; }
+  const sum = document.createElement("span"); sum.className = "vn-cpb-sum";
+  sum.textContent = "批量扫描" + (d.stop ? "停了" : "扫完了") + "：扫了 " + d.done + " 个博主，列到 " + (d.videos || 0) + " 篇" +
+    (d.fail ? "，" + d.fail + " 个没列到" : "") + (d.fresh ? "（" + d.fresh + " 个 12 小时内扫过，跳过了）" : "") + "。" +
+    (d.note ? d.note : "");
+  bar.appendChild(sum);
+  const bad = (d.results || []).filter((r) => r.status === "fail");
+  if (bad.length) {
+    const more = document.createElement("a");
+    more.href = "#"; more.className = "vn-cpb-more"; more.textContent = "看看没列到的 ›";
+    const listEl = document.createElement("div"); listEl.className = "vn-cpb-list"; listEl.hidden = true;
+    bad.forEach((r) => { const row = document.createElement("div"); row.textContent = "✗ " + r.key + "：" + (r.msg || ""); listEl.appendChild(row); });
+    more.addEventListener("click", (e) => {
+      e.preventDefault(); listEl.hidden = !listEl.hidden; more.textContent = listEl.hidden ? "看看没列到的 ›" : "收起";
+    });
+    sum.appendChild(more);
+    bar.appendChild(listEl);
+  }
+  const x = document.createElement("a");
+  x.href = "#"; x.className = "vn-pvb-x"; x.textContent = "知道了";
+  x.addEventListener("click", (e) => { e.preventDefault(); _vnPvbHide = d.finished; bar.hidden = true; });
+  sum.appendChild(x);
+  bar.hidden = false;
+}
+
 function vnCreatorTile(g, sortKey) {
   const p = _vnProfiles[g.key] || {};
   const st = g.stats;
   const t = document.createElement("div");
   t.className = "vn-ctile";
-  t.title = (p.name && p.name !== g.name ? g.name + "（" + p.name + "）" : g.name) +
-    "\n笔记 " + st.total + " 条" + (st.recent ? "，近30天新增 " + st.recent + " 条" : "") +
-    (st.last ? "\n最近提取：" + new Date(st.last).toLocaleString() : "") +
-    (p.followers ? "\n粉丝：" + vnFmtNum(p.followers) : "") + "\n\n点击进去看" + (p.url ? "" : "；点右上角 🔗 绑定博主主页，自动换成真头像");
+  t.title = vnTileTitle(g);
   t.appendChild(vnTileAvatar(g));
   t._g = g; t.dataset.avm = vnAvMarker(g.key);     // v60：资料变了能原地换头像
   const nm = document.createElement("div");
@@ -12164,6 +12358,7 @@ function vnRenderIconView(list, notes, folders, byFolder, ungrouped) {
     cpb._head = head;
     vnCpbRender(cpb, cpb._last || null);
     wbody.appendChild(cpb);
+    wbody.appendChild(vnPvbBar(groups, head, sorts));     // v148：批量扫描所有博主的文章列表
     const tip = document.createElement("div");
     tip.className = "vn-auto-tip";
     tip.textContent = "圆角方形是你建的文件夹，圆形是按作者自动分的组。点头像进去看笔记。个别没找到主页的，" +

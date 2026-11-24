@@ -978,7 +978,8 @@ class _Completions:
                   "acceptStableMarkers", "expectsJson", "timeout",
                   "disableCardSwitch", "shortReply",
                   "bestModel", "thinkNoOutputMs", "stuckFatalMs", "newTaskCard",
-                  "saveImages", "imageWaitMs"):
+                  "saveImages", "imageWaitMs",
+                  "completeMarkers", "busyStallMs", "incompleteGraceMs"):      # v148：没写完不收
             if k in kwargs:
                 wait_opts[k] = kwargs[k]
         # 纯文本模式每次都带着完整历史，开新对话发送，避免和别的任务混在一个线程里

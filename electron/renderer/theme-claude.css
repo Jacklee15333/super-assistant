@@ -1103,3 +1103,19 @@ body.dark .vn-kind.k-gh { background: #e6e6e3; color: #1f1e1a; }
 .cv-paste { margin-top: 6px; }
 .cv-paste-ta { display: block; width: 100%; min-height: 64px; margin: 6px 0; padding: 6px 8px; box-sizing: border-box; border: 1px solid var(--line); border-radius: 7px;
   background: var(--bg); color: var(--text); font: 12px/1.5 Consolas, monospace; resize: vertical; }
+
+/* v148：实时画面的标题行可以点开 / 收起（正在加工的那条不在清单里、在「已加工」标签时，也能在上面的进度卡片里看） */
+#vnLiveHead { cursor: pointer; user-select: none; }
+.vn-live-tg { flex: 0 0 auto; border: 0; background: none; padding: 0 2px; color: var(--accent); font-size: 12px; cursor: pointer; white-space: nowrap; }
+.vn-live-tg:hover { text-decoration: underline; }
+/* v148：清单里顶上来的「正在加工」那一条 */
+#viProcessBars .vn-un-row.vn-un-pin { box-shadow: inset 3px 0 0 var(--accent); }
+/* v148：博主标题行的「批量扫描」 */
+.vn-pvb-btn { display: inline-flex; align-items: center; height: 26px; padding: 0 11px; margin-left: 4px; flex: 0 0 auto;
+  border: 1px solid var(--line); border-radius: 13px; background: var(--bg-elev, transparent); color: var(--text); cursor: pointer; font-size: 13px; }
+.vn-pvb-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.vn-pvb-btn:disabled { border-color: var(--accent); color: var(--accent); cursor: default; }
+.vn-pvb-x { margin-left: 10px; color: var(--text-dim); text-decoration: none; white-space: nowrap; }
+.vn-pvb-x:hover { color: var(--text); }
+/* v148：正在加工的那条看不见时（「已加工」标签、清单收起了），标签下面的一条「AI 实时画面」 */
+.vi-live-top { margin: 0 0 14px; border-top: 1px solid var(--accent); border-radius: 10px; }

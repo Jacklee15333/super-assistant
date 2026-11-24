@@ -603,6 +603,7 @@ class _WebWorker:
         self._headless = False
         self._in_tick = False
         self._quiet_shots = False   # 正在填字/发送时不截图，免得打乱节奏
+        self._keepalive = False     # v148：正在等 AI 回复：没人看实时画面也定时截图，让网页一直刷新
         self._last_shot = 0.0
         self._shot_backoff = 0.0
         self._cdp = None
@@ -697,6 +698,7 @@ class _WebWorker:
                 box["worker"] = self
                 self._cur_box = box
                 self._quiet_shots = False
+                self._keepalive = False
                 _live_set(busy=True, job=fn_name, started=box["started"], finished=0.0,
                           stage="开始处理…", stage_at=box["started"], reply="", reply_at=0.0)
                 ok_job = False
@@ -711,6 +713,7 @@ class _WebWorker:
                 finally:
                     self._cur_box = None
                     self._quiet_shots = False
+                    self._keepalive = False
                     _live_set(busy=False, finished=time.time(),
                               stage="这一条已完成" if ok_job else "这一条出错了（会自动重试）",
                               stage_at=time.time())
@@ -2670,6 +2673,27 @@ class _WebWorker:
         except Exception as e:
             self._log("存页面结构没成功：%s" % e)
 
+    def _nudge_render(self):
+        """v148：催网页刷新一下——截一张图（截图会逼浏览器画一帧），再看看网页的动画帧还走不走。
+        屏幕关了、锁屏时，网页有时会停止刷新，回复的字就停在半截（其实 AI 还在写）。"""
+        pg = self._page
+        if pg is None:
+            return
+        try:
+            data = pg.screenshot(type="jpeg", quality=55, timeout=4000, caret="initial", scale="css")
+            _live_set(shot=data, shot_ts=time.time(), shot_err="")
+            self._last_shot = time.time()
+        except Exception as e:
+            self._log("催网页刷新时截图没成功：%s" % str(e).split("\n")[0][:100])
+        try:
+            ok = pg.evaluate("() => new Promise(r => { let d = false; requestAnimationFrame(() => { d = true; r(true); });"
+                             " setTimeout(() => { if (!d) r(false); }, 1500); })")
+            if ok is False and not getattr(self, "_raf_noted", False):
+                self._raf_noted = True
+                self._log("⚠ 网页的画面停住了（多半是屏幕关了或锁屏了），回复的字可能出得慢；软件会接着等，不会把半截当成写完")
+        except Exception:
+            pass
+
     def _structural_reply(self, prompt_text):
         """v68：按页面结构读本轮回复（1.2 秒内重复调用直接用上次的结果，省得太频繁）。"""
         now = time.time()
@@ -2700,6 +2724,13 @@ class _WebWorker:
         # ★短回复模式：调用方明确这是个简短的确定性回复（如"起标题"），
         #   答完判定以「发送按钮恢复可发送」为准，按钮一稳定恢复就算完，不强求长时间空闲。
         short_reply = bool(opts.get("shortReply"))
+        # v148：回复里必须写到的最后几块（加工笔记是「我的点评」「分类标签」）：没出来之前，不靠「文字几秒没变」收尾
+        complete_markers = [m for m in (opts.get("completeMarkers") or []) if isinstance(m, str) and m]
+        busy_stall_ms = opts.get("busyStallMs") or 90000            # 停止键亮着、文字一直不动：最多等这么久才收下现有内容
+        incomplete_grace_ms = opts.get("incompleteGraceMs") or 90000   # 发送键回来了、但还缺最后几块：再等这么久看字补不补上
+        turn_busy = False         # 网页上这一轮对话还标着 in_progress
+        stall_noted = False
+        last_nudge = 0
 
         first_hold_at = 0
         td_baseline = -1
@@ -2734,6 +2765,7 @@ class _WebWorker:
         resends = 0
 
         self._quiet_shots = False
+        self._keepalive = True        # v148：等回复期间定时截图，让网页一直刷新（见 _tick）
         while (time.time() - start) * 1000 < timeout_ms:
             time.sleep(POLL)
             self._tick()
@@ -2742,6 +2774,8 @@ class _WebWorker:
             # 每 2 秒查一次：对比框 / 出错重试 / 额度用完 / 正在生成图片
             if time.time() - last_blk > 2:
                 last_blk = time.time()
+                ts_ = self._safe(lambda: self._page.evaluate(_TURN_STATE_JS), None) or {}
+                turn_busy = (ts_.get("st") or "").lower() in ("in_progress", "streaming", "generating", "pending", "running")
                 act = self._handle_blockers(prompt_text, blk_st)
                 if act:
                     last_change = time.time()
@@ -2903,6 +2937,7 @@ class _WebWorker:
                 stable = 0
                 last_text = current
                 first_hold_at = 0
+                stall_noted = False
                 if time.time() - last_log > 3:
                     self._log("内容增长中... %d 字" % len(current))
                     if time.time() - last_prog > 4:
@@ -2922,7 +2957,20 @@ class _WebWorker:
                         expects_json, min_expected, required_markers,
                         markers_min_hits, accept_stable, short_reply,
                         stable_secs=stable * POLL)
-                    if res["done"]:
+                    # v148：光凭「文字几秒没变」不能当成写完——AI 的停止键还亮着（或者网页上这一轮还标着 in_progress），
+                    #       或者要求的最后几块（completeMarkers）还没出来。没人看着时（屏幕关了 / 锁屏）网页刷新会慢下来，
+                    #       文字停几秒很正常，以前就这样把半截笔记当成写完了（加工失败「AI 回复没写完」）。
+                    btn_idle_ok = idle_confirm >= IDLE_CONFIRM_REPS
+                    gen_busy = ((probe or {}).get("genState") == "generating") or (turn_busy and not btn_idle_ok)
+                    norm_cur = current.replace("：", ":")
+                    missing_end = [m for m in complete_markers if m.replace("：", ":") not in norm_cur]
+                    hold_why, hold_cap = "", 0
+                    if not short_reply and not any(m in norm_cur for m in accept_stable):
+                        if gen_busy and len(_clean_reply_text(current)) >= 250:
+                            hold_why, hold_cap = "停止键还亮着，AI 还在写", busy_stall_ms
+                        elif missing_end and not gen_busy:
+                            hold_why, hold_cap = "还缺最后几块（%s）" % "、".join(missing_end), incomplete_grace_ms
+                    if res["done"] and not hold_why:
                         # 给出明确的完成报告：检查并说明发送按钮状态，让用户/开发者
                         # 清楚知道「AI 已答完、识别完成」，而不是只看到一句模糊的"内容稳定"。
                         gs = (probe or {}).get("genState", "unknown")
@@ -2937,6 +2985,28 @@ class _WebWorker:
                     if not first_hold_at:
                         first_hold_at = time.time()
                     held_ms = (time.time() - first_hold_at) * 1000
+                    if hold_why:
+                        # v148：只要文字还会变长就一直等；停住 20 多秒就催网页刷新一下，停太久才收下现有内容
+                        if held_ms > 20000 and time.time() - last_nudge > 30:
+                            last_nudge = time.time()
+                            if not stall_noted:
+                                stall_noted = True
+                                self._log("回复 %d 字，%d 秒没变长了，但%s → 接着等（不把半截当成写完），顺手催网页刷新一下"
+                                          % (len(current), round(held_ms / 1000) + 6, hold_why))
+                                prog("AI 还在写…（%d 字）" % len(current))
+                            self._nudge_render()
+                        if held_ms > hold_cap:
+                            self._log("⚠ %s，可是文字 %d 秒都没再变（%d 字）→ 先收下现有内容"
+                                      % (hold_why, round(held_ms / 1000) + 6, len(current)))
+                            self._dump_reply_diag(prompt_text, current, why="回复停住了：" + hold_why)
+                            return current
+                        last_change = time.time()
+                        warned = False
+                        stable = 0
+                        if time.time() - hold_log > 15:
+                            self._log("内容已稳定 %d 字，但%s，继续等…" % (len(current), hold_why))
+                            hold_log = time.time()
+                        continue
                     # ★逃生通道：按钮态识别可能因第三方站点的图标结构而失效（发送键被
                     #   误判成停止键 → genState 永远 generating → 死等）。所以只要回复
                     #   文本已经「持续稳定」足够久（默认 12 秒零增长），就判定 AI 答完，
@@ -3102,9 +3172,15 @@ class _WebWorker:
                 self._min_check = time.time()
                 self._unminimize_if_needed()
             now = time.time()
-            if self._quiet_shots or _LIVE["watch_until"] < now:
+            watched = _LIVE["watch_until"] >= now
+            # v148：等 AI 回复时，没人开着实时画面也每 3 秒截一张（截图会逼浏览器画一帧）。
+            #       以前只有你开着实时画面才截图：你在电脑前时网页一直在刷新，一离开（屏幕关了 / 锁屏）
+            #       网页就可能停住，回复只抓到半截。现在在不在都一样，实时画面点开也是新的。
+            keep = self._keepalive and not idle
+            if self._quiet_shots or not (watched or keep):
                 return
-            if now < self._shot_backoff or now - self._last_shot < (5.0 if idle else 2.0):
+            gap = (5.0 if idle else 2.0) if watched else 3.0
+            if now < self._shot_backoff or now - self._last_shot < gap:
                 return
             pg = self._page
             if pg is None or self._browser is None:
@@ -3872,6 +3948,24 @@ _DISPATCH_SEND_JS = r"""() => {
 
 
 # 探测 JS（_wait_for_reply 每轮调用）——思考态识别 + 发送/停止按钮态 + 回复块抓取
+# v148：新版网页每一轮对话外面有个 data-…-turn-state 属性（见过 data-talvt-turn-state="in_progress"）。
+#       还是 in_progress ＝ AI 这一轮还没写完。属性名前缀会变，所以按「…turn-state」结尾找，取最后一轮的。
+_TURN_STATE_JS = r"""() => {
+    const root = document.querySelector('main') || document.body;
+    let st = '', name = '';
+    const els = root.getElementsByTagName('div');
+    const n = Math.min(els.length, 8000);
+    for (let i = 0; i < n; i++) {
+        const at = els[i].attributes;
+        for (let j = 0; j < at.length; j++) {
+            const nm = at[j].name;
+            if (nm.length > 10 && nm.endsWith('turn-state')) { st = at[j].value || ''; name = nm; }
+        }
+    }
+    return {name, st};
+}"""
+
+
 _PROBE_JS = r"""() => {
     const __cxClimb = (el) => {
         if(!el) return el;
