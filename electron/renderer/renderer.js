@@ -11833,7 +11833,17 @@ async function vnPvbPoll() {
     _vnPvbSeen = d.done;
   }
   vnPvbRender(bar, d);
-  if (d.running) _vnPvbTimer = setTimeout(vnPvbPoll, 2000);
+  if (d.running) _vnPvbTimer = setTimeout(vnPvbPoll, 1200);
+}
+// v150：正在扫的那个博主，头像外面转一圈、头像上走一道扫描线，名字下面写「扫描中」
+function vnPvbMark(key) {
+  document.querySelectorAll(".vn-ctile.vn-scanning").forEach((t) => {
+    if (!t._g || t._g.key !== key) t.classList.remove("vn-scanning");
+  });
+  if (!key) return;
+  document.querySelectorAll(".vn-ctile").forEach((t) => {
+    if (t._g && t._g.key === key) t.classList.add("vn-scanning");
+  });
 }
 function vnPvbRender(bar, d) {
   const head = bar._head, sorts = bar._sorts, btn = bar._btn;
@@ -11862,6 +11872,7 @@ function vnPvbRender(bar, d) {
       bar.appendChild(note);
     }
   }
+  vnPvbMark(running ? (d.current || "") : "");
   if (running) {
     bar.querySelector(".vn-cpb-track > i").style.width = (d.total ? Math.round(d.done * 100 / d.total) : 0) + "%";
     const txt = "正在扫描博主的文章列表 " + d.done + " / " + d.total +

@@ -1119,3 +1119,28 @@ body.dark .vn-kind.k-gh { background: #e6e6e3; color: #1f1e1a; }
 .vn-pvb-x:hover { color: var(--text); }
 /* v148：正在加工的那条看不见时（「已加工」标签、清单收起了），标签下面的一条「AI 实时画面」 */
 .vi-live-top { margin: 0 0 14px; border-top: 1px solid var(--accent); border-radius: 10px; }
+
+/* v150：批量扫描时，正在扫的那个博主：头像外一圈转动的弧线 + 头像上从上往下的扫描线 + 名字下面「扫描中」 */
+.vn-ctile.vn-scanning .vn-av::before {
+  content: ""; position: absolute; inset: -6px; border-radius: 50%; pointer-events: none; z-index: 2;
+  background: conic-gradient(from 0deg, transparent 0 50%, var(--accent) 100%);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+          mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+  animation: vnScanSpin 1.1s linear infinite;
+}
+.vn-ctile.vn-scanning .vn-av::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 1;
+  background: linear-gradient(to bottom, transparent 0 40%, rgba(255, 255, 255, .55) 49%, rgba(255, 255, 255, .85) 50%, rgba(255, 255, 255, .55) 51%, transparent 60% 100%);
+  background-size: 100% 220%;
+  animation: vnScanLine 1.5s ease-in-out infinite;
+}
+.vn-ctile.vn-scanning .vn-av-pill, .vn-ctile.vn-scanning .vn-av-new, .vn-ctile.vn-scanning .vn-av-plat { z-index: 3; }
+.vn-ctile.vn-scanning .vn-cname { color: var(--accent); }
+.vn-ctile.vn-scanning .vn-csub { color: var(--accent); }
+.vn-ctile.vn-scanning .vn-csub::before { content: "扫描中 · "; }
+@keyframes vnScanSpin { to { transform: rotate(360deg); } }
+@keyframes vnScanLine { 0% { background-position: 0 100%; } 100% { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .vn-ctile.vn-scanning .vn-av::before { animation-duration: 3s; }
+  .vn-ctile.vn-scanning .vn-av::after { animation: none; background: rgba(255, 255, 255, .25); }
+}
