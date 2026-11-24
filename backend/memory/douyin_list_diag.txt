@@ -1,9 +1,9 @@
 {
-  "url": "https://www.douyin.com/user/MS4wLjABAAAAxmJlli2PpFbZoEwbMI3g_U66rVRBwiUrXECe_VyMyy3GorBDHXor6-ew86prXCKK",
+  "url": "https://www.douyin.com/user/MS4wLjABAAAA4ydyXxP-zJ2FXp4Rmw2Cp-j0hTPAoRea9inacm6sXgg",
   "curl_cffi": true,
   "abogus": true,
   "gmssl": true,
-  "sec_uid": "MS4wLjABAAAAxmJlli2PpFbZoEwbMI3g_U66rVRBwiUrXECe_VyMyy3GorBDHXor6-ew86prXCKK",
+  "sec_uid": "MS4wLjABAAAA4ydyXxP-zJ2FXp4Rmw2Cp-j0hTPAoRea9inacm6sXgg",
   "cookies_keys": [
     "DiscoverFeedExposedAd",
     "IsDouyinActive",
@@ -82,18 +82,18 @@
     }
   ],
   "stop": "none",
-  "html_len": 883202,
+  "html_len": 883034,
   "html_has_render": true,
   "browser_run": {
     "mode": "登录用的浏览器",
     "stop": "want",
-    "rounds": 1,
-    "responses": 1,
-    "got": 21,
+    "rounds": 2,
+    "responses": 3,
+    "got": 54,
     "has_more_last": true,
     "captcha": true
   },
   "browser": "ok:20",
   "result": "browser:20",
-  "time": "2026-11-24 01:03:28"
+  "time": "2026-11-24 08:39:56"
 }

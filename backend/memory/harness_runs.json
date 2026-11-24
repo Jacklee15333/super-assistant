@@ -1,125 +1,5 @@
 [
   {
-    "id": "video-1795184060890",
-    "ts": "11-20 22:14:20",
-    "kind": "video",
-    "title": "视频提取：https://v.douyin.com/KoNBVL_c74o/",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "加载语音模型",
-      "语音转文字"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1
-    },
-    "steps": 5,
-    "error": "",
-    "outcome": "",
-    "status": "running",
-    "tokens_est": 0,
-    "seconds": 0,
-    "_start": 1795184060.8900566
-  },
-  {
-    "id": "video-1795184124631",
-    "ts": "11-20 22:15:24",
-    "kind": "video",
-    "title": "关于董王输掉老美中期考试之后…",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "获取标题",
-      "加载语音模型",
-      "语音转文字",
-      "识别完成",
-      "保存"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "获取标题": 1,
-      "加载语音模型": 1,
-      "语音转文字": 1,
-      "识别完成": 1,
-      "保存": 1
-    },
-    "steps": 8,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 37,
-    "note": "✅ 已完成《关于董王输掉老美中期考试之后…》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795184281838",
-    "ts": "11-20 22:18:01",
-    "kind": "video",
-    "title": "女儿上小学了，AI时代，下一代学什么？ #AI #Agent #教育 #编程 #人工智能",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "识别完成",
-      "保存"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "识别完成": 1,
-      "保存": 1
-    },
-    "steps": 6,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 77,
-    "note": "✅ 已完成《女儿上小学了，AI时代，下一代学什么？ 》，队列已清空，等待新任务"
-  },
-  {
-    "id": "video-1795186448519",
-    "ts": "11-20 22:54:08",
-    "kind": "video",
-    "title": "如果它是未来的核心资产，能让你普通人大量拥有？ #趋势 #未来 #逻辑思维 #观点分享 #模式",
-    "tools": [
-      "解析链接",
-      "获取字幕",
-      "下载音频",
-      "语音转文字",
-      "识别完成",
-      "保存",
-      "博主主页"
-    ],
-    "tool_count": {
-      "解析链接": 1,
-      "获取字幕": 1,
-      "下载音频": 1,
-      "语音转文字": 1,
-      "识别完成": 1,
-      "保存": 1,
-      "博主主页": 1
-    },
-    "steps": 7,
-    "error": "",
-    "outcome": "done",
-    "status": "done",
-    "tokens_est": 0,
-    "seconds": 72,
-    "note": "✅ 已完成《如果它是未来的核心资产，能让你普通人大量》，队列已清空，等待新任务"
-  },
-  {
     "id": "video-1795188433743",
     "ts": "11-20 23:27:13",
     "kind": "video",
@@ -1550,5 +1430,115 @@
     "tokens_est": 0,
     "seconds": 18,
     "note": "✅ 已完成《不敢新建对话！智能体不能这么用！ #人工》，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1795479354614",
+    "ts": "11-24 08:15:54",
+    "kind": "video",
+    "title": "省杰青，如何用AI，在高水平期刊低水平造假？ #杰青 #论文造假 #科研 #ai \n#科普新锐扶持计划 @抖音科普",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "加载语音模型",
+      "语音转文字",
+      "识别完成",
+      "保存"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "加载语音模型": 1,
+      "语音转文字": 1,
+      "识别完成": 1,
+      "保存": 1
+    },
+    "steps": 7,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 33,
+    "note": "✅ 已完成《省杰青，如何用AI，在高水平期刊低水平造》，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1795480845188",
+    "ts": "11-24 08:40:45",
+    "kind": "video",
+    "title": "一个外卖员居然悟出了！",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频",
+      "获取标题",
+      "语音转文字",
+      "识别完成",
+      "保存",
+      "博主主页"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1,
+      "获取标题": 1,
+      "语音转文字": 1,
+      "识别完成": 1,
+      "保存": 1,
+      "博主主页": 1
+    },
+    "steps": 8,
+    "error": "",
+    "outcome": "done",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 28,
+    "note": "✅ 已完成《一个外卖员居然悟出了！》，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1795483249819",
+    "ts": "11-24 09:20:49",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/snPYIVghTZI/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1
+    },
+    "steps": 3,
+    "error": "提取失败：ERROR: [Douyin] 7680884714613280050: Fresh cookies (not necessarily logged in) are needed; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U\n\n提示：本软件已先尝试「抖音分享页直链解析」、再用 yt-dl",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 27,
+    "note": "⚠ 这条没成功，队列已清空，等待新任务"
+  },
+  {
+    "id": "video-1795483286870",
+    "ts": "11-24 09:21:26",
+    "kind": "video",
+    "title": "视频提取：https://v.douyin.com/snPYIVghTZI/",
+    "tools": [
+      "解析链接",
+      "获取字幕",
+      "下载音频"
+    ],
+    "tool_count": {
+      "解析链接": 1,
+      "获取字幕": 1,
+      "下载音频": 1
+    },
+    "steps": 3,
+    "error": "提取失败：ERROR: [Douyin] 7680884714613280050: Fresh cookies (not necessarily logged in) are needed; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U\n\n提示：本软件已先尝试「抖音分享页直链解析」、再用 yt-dl",
+    "outcome": "stopped",
+    "status": "done",
+    "tokens_est": 0,
+    "seconds": 30,
+    "note": "⚠ 这条没成功，队列已清空，等待新任务"
   }
 ]

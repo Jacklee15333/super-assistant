@@ -63,10 +63,6 @@
     "mode": "browser",
     "at": "2026-11-20 17:47"
   },
-  "sloanreview.mit.edu": {
-    "mode": "fast",
-    "at": "2026-11-20 21:33"
-  },
   "sspai.com": {
     "mode": "fast",
     "at": "2026-11-20 23:19"
@@ -78,5 +74,13 @@
   "trends.google.com": {
     "mode": "fast",
     "at": "2026-11-24 00:13"
+  },
+  "pingwest.com": {
+    "mode": "browser",
+    "at": "2026-11-24 09:14"
+  },
+  "ben-evans.com": {
+    "mode": "browser",
+    "at": "2026-11-24 09:18"
   }
 }

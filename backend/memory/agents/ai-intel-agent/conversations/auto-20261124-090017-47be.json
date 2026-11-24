@@ -1,0 +1,16 @@
+{
+  "id": "auto-20261124-090017-47be",
+  "title": "🤖 自动 · 最新AI动态 · 11-24 09:00",
+  "created_at": "2026-11-24T09:01:42",
+  "updated_at": "2026-11-24T09:01:42",
+  "messages": [
+    {
+      "role": "user",
+      "content": "查最新 OpenAI ； Anthropic； 英伟达的最新动态"
+    },
+    {
+      "role": "assistant",
+      "content": "# AI 产业最新情报简报｜2026 年 11 月 24 日\n重点追踪：OpenAI、Anthropic、NVIDIA（英伟达）｜主要覆盖 11 月 17 日—24 日动态｜优先采用官方公告、技术博客及路透社报道\n## 一、核心情报速览\n过去一周，三家公司的重要动态都具有较强的行业风向标意义。尤其是 Anthropic 正式完成 IPO、黄仁勋重返英伟达，以及 AI Agent 开始获得代码审批权限。\n\n| 公司 | 最新重要动态 | 重要程度 |\n| --- | --- | --- |\n| OpenAI | 联合 Cisco 推出 Shirudo 安全项目 | ★★★★★ |\n| OpenAI | 公开 AI 加速 AI 研发的研究成果 | ★★★★★ |\n| OpenAI | 公开 Codex 沙箱技术架构 | ★★★★★ |\n| OpenAI | 披露 ChatGPT 性能优化体系 | ★★★★ |\n| Anthropic | 发布 Claude Ship，实现代码审查、修复和审批自动化 | ★★★★★ |\n| Anthropic | 正式完成 IPO，进入公开资本市场 | ★★★★★ |\n| NVIDIA | 黄仁勋正式恢复 CEO 职务 | ★★★★★ |\n| NVIDIA | 最新季度营收达 1,158 亿美元，同比增长 103% | ★★★★★ |\n| NVIDIA | Vera Rubin 开始交付 | ★★★★★ |\n| NVIDIA | RTX Spark Windows 本地 AI 电脑上市 | ★★★★ |\n\n整体趋势判断：AI 行业的竞争正在从模型智力竞争，进一步转向自主执行能力、权限治理、实际任务成本、商业化收入以及算力基础设施竞争。\n下面分别展开。"
+    }
+  ]
+}
