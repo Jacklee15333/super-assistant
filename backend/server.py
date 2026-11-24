@@ -4143,17 +4143,24 @@ def _an_refetch_refs(refs, stage):
         return refs or ""
 
 
+_AN_FOREIGN = "A-Za-z\u00C0-\u024F\u0370-\u03FF\u0400-\u04FF\u0590-\u05FF\u0600-\u06FF\u0E00-\u0E7F"
+
+
 def _an_needs_zh(text):
-    """有成段的外文要翻成中文吗（网址、@用户名、#话题不算）。"""
-    t = re.sub(r"https?://\S+|@\w+|#\S+", " ", text or "")
-    latin = len(re.findall(r"[A-Za-z]", t))
-    cjk = len(re.findall(r"[\u4e00-\u9fff]", t))
-    if len(re.findall(r"[A-Za-z]{2,}", t)) < 6:
-        return False
-    if latin > cjk * 1.2:                        # 大部分是外文
+    """有成段的外文要翻成中文吗。v153：不只英文——法文、德文、西班牙文、俄文、阿拉伯文…都算；
+    日文（假名）、韩文有几个字就翻。网址、@用户名、#话题、图片不算。"""
+    t = re.sub(r"(?m)^#{1,6}\s.*$|原文[:：]", " ", text or "")        # 小标题（推文 / 引文 / 引用的帖子…）和「原文：」不算
+    t = re.sub(r"https?://\S+|@\w+|#\S+|!\[[^\]]*\]\([^)]*\)|〔图\d+〕", " ", t)
+    if len(re.findall(r"[\u3040-\u30ff]", t)) >= 3 or len(re.findall(r"[\uac00-\ud7af]", t)) >= 3:
         return True
-    # 中文为主：夹着的英文产品名、术语不算；有两句以上整句的英文（一口气 8 个以上英文词）才翻
-    return len(re.findall(r"(?:[A-Za-z][A-Za-z'’\-]*[ ,;:]+){7,}[A-Za-z][A-Za-z'’\-]*", t)) >= 2
+    fl = "[" + _AN_FOREIGN + "]"
+    fw = len(re.findall(fl + "{2,}", t))                       # 外文词数
+    if fw < 3:
+        return False
+    if fw > len(re.findall(r"[\u4e00-\u9fff]", t)) / 2:     # 外文词比汉字的一半还多＝大部分是外文（一个英文词大约顶两个汉字）
+        return True
+    # 中文为主：夹着的外文产品名、术语不算；有两句以上整句的外文（一口气 8 个以上外文词）才翻
+    return len(re.findall("(?:%s[%s'’\\-]*[ ,;:]+){7,}%s" % (fl, _AN_FOREIGN, fl), t)) >= 2
 
 
 def _an_chunks(text, size=8000):
@@ -4211,7 +4218,14 @@ def _an_web(prompt, markers, stage, what="翻译"):
 
 
 def _an_translate(content, title, stage):
-    """把外文翻成中文：只翻译、不改写不删减，结构排版照旧；第一块顺手写「中文标题」和「分类标签」。"""
+    """把外文翻成中文：只翻译、不改写不删减，结构排版照旧；第一块顺手写「中文标题」和「分类标签」。
+    v153：图片先换成「〔图1〕」这样的记号再翻，翻完放回原处（网页 AI 会把图片标记弄丢）。"""
+    imgs = []
+
+    def _hold(m):
+        imgs.append(m.group(0))
+        return "〔图%d〕" % len(imgs)
+    content = re.sub(r"!\[[^\]]*\]\([^)\s]+\)", _hold, content or "")
     chunks = _an_chunks(content, 8000)
     outs, tail = [], ""
     for i, ch in enumerate(chunks):
@@ -4220,7 +4234,8 @@ def _an_translate(content, title, stage):
         rules = ("请把下面这段内容翻译成简体中文。要求：\n"
                  "1. 只翻译：不要总结、不要改写、不要删减、不要加评论。已经是中文的句子原样照抄。\n"
                  "2. 结构和排版全部保留：# 开头的标题行、分段、列表、引用、表情符号、网址、@用户名、#话题都留在原来的位置；"
-                 "「原文：网址」这样的行原样照抄；标题行里的「推文」「引文」「引用的帖子」这些字也照抄。\n"
+                 "「原文：网址」这样的行原样照抄；标题行里的「推文」「引文」「引用的帖子」这些字也照抄；"
+                 "「〔图1〕」这样的图片记号、「🎬 视频：网址」这样的行也原样留在原来的位置。\n"
                  "3. 人名、公司名、产品名等专有名词，第一次出现时保留原文，在括号里附中文。\n")
         if first:
             rules += ("4. 最前面先单独写一行：中文标题：<把标题「%s」翻成中文；本来就是中文就原样照抄>\n" % (title or "")[:120] +
@@ -4238,7 +4253,16 @@ def _an_translate(content, title, stage):
             if m:
                 tail, out = out[m.start():].strip(), out[:m.start()].rstrip()
         outs.append(out)
-    return "\n\n".join(outs) + ("\n\n" + tail if tail else "")
+    body = "\n\n".join(outs)
+    lost = []
+    for i, im in enumerate(imgs, 1):                  # 图片放回原处；翻译时弄丢的补在最后
+        if "〔图%d〕" % i in body:
+            body = body.replace("〔图%d〕" % i, im)
+        else:
+            lost.append(im)
+    if lost:
+        body += "\n\n" + "\n\n".join(lost)
+    return body + ("\n\n" + tail if tail else "")
 
 
 def _an_quote_video(url, use_local, model, stage):
@@ -4255,7 +4279,7 @@ def _an_quote_video(url, use_local, model, stage):
             if _note_batch.get("stop") or _note_an_state.get("stop_req"):
                 raise RuntimeError("已按你的要求停止")
         if not got:
-            return ("### 🎬 引文视频\n\n原视频：%s\n\n（「提取」一直在忙，这次没提取这段视频。可以把链接贴到「提取」里单独提取）" % url,
+            return ("### 🎬 视频\n\n原视频：%s\n\n（「提取」一直在忙，这次没提取这段视频。可以把链接贴到「提取」里单独提取）" % url,
                     "", "", None)
         stage("引文视频", "提取视频的文字…")
         try:
@@ -4272,21 +4296,74 @@ def _an_quote_video(url, use_local, model, stage):
     if not r.get("ok") or not vtr:
         why = str(r.get("error") or "没拿到文字").split("\n")[0][:160]
         _clog("视频", "🎬 引文视频没提取成功：%s" % why)
-        return ("### 🎬 引文视频\n\n原视频：%s\n\n（这段视频没提取成功：%s。可以把链接贴到「提取」里单独提取）" % (url, why), "", "", None)
+        return ("### 🎬 视频\n\n原视频：%s\n\n（这段视频没提取成功：%s。可以把链接贴到「提取」里单独提取）" % (url, why), "", "", None)
     stage("引文视频", "AI 把视频的文字整理成笔记…")
     va = _cx_analyze_transcript(vtr, vtitle or "引文视频", use_local, model,
                                 on_progress=lambda m: stage("引文视频", m),
                                 segments=[], do_screenshot=False, do_link=False, src_noun=None)
     if (va or "").lstrip().startswith("（分析出错"):
-        return ("### 🎬 引文视频 ·《%s》\n\n原视频：%s\n\n（视频的文字提取到了，但 AI 整理没成功：%s。完整文字稿在「原文」里）"
+        return ("### 🎬 视频 ·《%s》\n\n原视频：%s\n\n（视频的文字提取到了，但 AI 整理没成功：%s。完整文字稿在「原文」里）"
                 % (vtitle or "视频", url, va.strip().strip("（）")[:120]), vtr, vtitle, None)
     vzh, va = _split_title_from_analysis(va)
     va, vc, vs, vt = _lb_split(va)
     va = re.sub(r"(?m)^(#{1,4})(\s)", lambda m: "#" * min(6, len(m.group(1)) + 2) + m.group(2), (va or "").strip())
-    return ("### 🎬 引文视频 ·《%s》\n\n原视频：%s\n\n%s" % (vzh or vtitle or "视频", url, va), vtr, vtitle, (vc, vs, vt))
+    return ("### 🎬 视频 ·《%s》\n\n原视频：%s\n\n%s" % (vzh or vtitle or "视频", url, va), vtr, vtitle, (vc, vs, vt))
 
 
-def _an_as_original(mode, title, transcript, use_local, model, stage):
+def _an_tweet_refresh(url, body, stage):
+    """v153：推文笔记以前提取时没带图片 / 视频：加工时按链接再取一次完整推文（和「重新抓取并整理」同一套），
+    新取到的有图片或视频才换上；取不到就用原来的。"""
+    if not url or "![" in (body or "") or "🎬 视频：" in (body or ""):
+        return body
+    try:
+        import tweet_parts
+        if not tweet_parts._STATUS.search(url):
+            return body
+        stage("加工", "再取一次完整推文（看有没有图片、视频）…")
+        md = tweet_parts.to_markdown(tweet_parts.build(url, deep=True))
+        if md and ("![" in md or "🎬 视频：" in md):
+            _clog("视频", "推文里有图片 / 视频：已重新取了完整推文")
+            return md
+    except Exception as e:
+        _clog("视频", "再取一次推文没成功（用原来的）：%s" % str(e)[:80])
+    return body
+
+
+def _an_localize_images(text, stem, cache):
+    """v153：推文里的图片（pbs.twimg.com）下载到这条笔记自己的图片文件夹，换成本机地址——国内直连 X 的图片常常打不开。
+    下不下来的保留原地址。cache：同一张图只下一次。"""
+    if not text or not stem or "](http" not in text:
+        return text
+    import hashlib as _hl
+
+    def one(m):
+        alt, u = m.group(1), m.group(2)
+        if "twimg.com" not in u:
+            return m.group(0)
+        if u not in cache:
+            cache[u] = ""
+            try:
+                import tweet_parts
+                ext = ".png" if ("format=png" in u or u.split("?")[0].endswith(".png")) else ".jpg"
+                fn = _hl.md5(u.encode("utf-8")).hexdigest()[:16] + ext
+                d = _cx_shots_dir() / stem
+                d.mkdir(parents=True, exist_ok=True)
+                if not (d / fn).exists():
+                    big = u if "name=" in u else (u + ("&" if "?" in u else "?") + "name=large")
+                    req = urllib.request.Request(big, headers={"User-Agent": "Mozilla/5.0"})
+                    with tweet_parts._opener(big).open(req, timeout=25) as r:
+                        data = r.read(15_000_000)
+                    if len(data) < 500:
+                        raise RuntimeError("下回来的不是图片")
+                    (d / fn).write_bytes(data)
+                cache[u] = "http://127.0.0.1:%d/video_shot?n=%s&f=%s" % (PORT, urllib.parse.quote(stem), fn)
+            except Exception as e:
+                _clog("视频", "推文图片没下载下来（先用原地址）：%s" % str(e)[:80])
+        return "![%s](%s)" % (alt, cache[u]) if cache[u] else m.group(0)
+    return re.sub(r"!\[([^\]]*)\]\((https?://[^)\s]+)\)", one, text)
+
+
+def _an_as_original(mode, title, transcript, use_local, model, stage, url="", stem=""):
     """按原样加工。返回 (放进「🤖 AI 分析」那一节的内容, 新的「完整文字稿」)。"""
     body = (transcript or "").strip()
     if mode != "tweet":
@@ -4294,6 +4371,7 @@ def _an_as_original(mode, title, transcript, use_local, model, stage):
             return _an_translate(body, title, stage), body
         stage("加工", "文章按原文保留…")
         return body, body
+    body = _an_tweet_refresh(url, body, stage)      # v153：以前提取时没带图片 / 视频的，再取一次完整推文
     own, refs0 = _an_tweet_split(body)
     refs = _an_refetch_refs(refs0, stage) if refs0 else ""
     if refs != refs0:
@@ -4304,7 +4382,7 @@ def _an_as_original(mode, title, transcript, use_local, model, stage):
         blk, vtr, vtitle, lab = _an_quote_video(vu, use_local, model, stage)
         vblocks.append(blk)
         if vtr:
-            extra.append("### 🎬 引文视频的文字稿 ·《%s》\n\n%s" % (vtitle or vu, vtr))
+            extra.append("### 🎬 视频的文字稿 ·《%s》\n\n%s" % (vtitle or vu, vtr))
         if lab and lab[0] and not vlabels:
             vlabels = lab
         if vtr:                                     # 引文里那条「没读到正文」的链接就是这个视频：换成下面的视频笔记，不重复
@@ -4318,7 +4396,7 @@ def _an_as_original(mode, title, transcript, use_local, model, stage):
         m = re.search(r"(?m)^#{1,4}\s*分类标签\s*$", text)
         head, tail = (text[:m.start()].rstrip(), text[m.start():].strip()) if m else (text, "")
         if not re.search(r"(?m)^#{1,3}\s*引文\s*$", head):
-            head += "\n\n## 引文"
+            head += "\n\n## 视频内容"
         head += "\n\n" + "\n\n".join(vblocks)
         if not tail and vlabels:
             c, sb, tg = vlabels
@@ -4409,7 +4487,11 @@ def _note_analyze_worker_inner(name, use_local, model):
         _an_mode = _an_mode_of(name, text)            # v151：文章 / 推文按原样加工（不写 AI 分析）
         if _an_mode:
             _clog("视频", "▶ 开始加工%s（按原样保留，外文翻成中文）：%s" % ("推文" if _an_mode == "tweet" else "文章", name[:50]))
-            analysis, transcript = _an_as_original(_an_mode, title, transcript, use_local, model, stage)
+            analysis, transcript = _an_as_original(_an_mode, title, transcript, use_local, model, stage,
+                                                   url=clean_url, stem=note_stem)
+            _imgc = {}                                  # v153：推文图片下到本机
+            analysis = _an_localize_images(analysis, note_stem, _imgc)
+            transcript = _an_localize_images(transcript, note_stem, _imgc)
         else:
             _clog("视频", "▶ 开始补做 AI 分析：%s" % name[:50])
             stage("AI 分析", "让模型把文字稿总结成笔记…")

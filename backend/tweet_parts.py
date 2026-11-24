@@ -47,6 +47,45 @@ def _g(d, *path):
     return d
 
 
+def _media_of(t, lg):
+    """v153：推文里的图片地址、有没有视频（X 接口 / fxtwitter / 官方嵌入接口三种格式都认）。"""
+    photos, seen, video = [], set(), False
+
+    def addp(u):
+        u = (u or "").strip()
+        if u.startswith("http") and u.split("?")[0] not in seen:
+            seen.add(u.split("?")[0])
+            photos.append(u)
+    for src in (_g(lg, "extended_entities", "media"), _g(lg, "entities", "media"), t.get("mediaDetails")):
+        if isinstance(src, list):
+            for m in src:
+                if isinstance(m, dict):
+                    if m.get("type") == "photo":
+                        addp(m.get("media_url_https") or m.get("media_url"))
+                    elif m.get("type") in ("video", "animated_gif"):
+                        video = True
+    md = t.get("media")
+    if isinstance(md, dict):
+        for p in md.get("photos") or []:
+            if isinstance(p, dict):
+                addp(p.get("url"))
+        if md.get("videos"):
+            video = True
+        for m in md.get("all") or []:
+            if isinstance(m, dict):
+                if m.get("type") == "photo":
+                    addp(m.get("url"))
+                elif m.get("type") in ("video", "gif"):
+                    video = True
+    if isinstance(t.get("photos"), list):            # 官方嵌入接口
+        for p in t["photos"]:
+            if isinstance(p, dict):
+                addp(p.get("url"))
+    if isinstance(t.get("video"), dict):
+        video = True
+    return photos[:8], video
+
+
 def _node(t, depth=0):
     """→ {id, name, handle, text, links:[真实地址], rt: 节点|None, quote: 节点|None, article: {title,text}|None}"""
     if not isinstance(t, dict) or depth > 3:
@@ -55,7 +94,7 @@ def _node(t, depth=0):
         return {"id": t.get("id") or "", "name": t.get("name") or "", "handle": t.get("handle") or "",
                 "text": t.get("text") or "", "links": list(t.get("links") or []),
                 "rt": _node(t.get("rt"), depth + 1), "quote": _node(t.get("quote"), depth + 1),
-                "article": t.get("article")}
+                "article": t.get("article"), "photos": list(t.get("photos") or []), "video": bool(t.get("video"))}
     if t.get("__typename") == "TweetWithVisibilityResults" and isinstance(t.get("tweet"), dict):
         t = t["tweet"]
     gql = isinstance(t.get("legacy"), dict)
@@ -87,8 +126,9 @@ def _node(t, depth=0):
     for short, exp in repl.items():
         text = text.replace(short, exp)
     tid = str(t.get("rest_id") or lg.get("id_str") or t.get("id_str") or t.get("id") or "")
+    photos, video = _media_of(t, lg)
     out = {"id": tid, "name": name, "handle": handle, "text": (text or "").strip(), "links": links,
-           "rt": None, "quote": None, "article": None}
+           "rt": None, "quote": None, "article": None, "photos": photos, "video": video}
     rt = (_g(lg, "retweeted_status_result", "result") or lg.get("retweeted_status")
           or t.get("retweeted_status") or t.get("retweeted_tweet"))
     if rt:
@@ -110,7 +150,7 @@ def _node(t, depth=0):
 def _compact(n):
     if not n:
         return None
-    out = {k: n[k] for k in ("id", "name", "handle", "text", "links") if n.get(k)}
+    out = {k: n[k] for k in ("id", "name", "handle", "text", "links", "photos", "video") if n.get(k)}
     out["_c"] = 1
     for k in ("rt", "quote"):
         if n.get(k):
@@ -293,8 +333,11 @@ def build(url, text="", snap=None, author="", deep=True, progress=None):
             return
         if key:
             seen.add(key)
+        media = n and label != "X 长文"                 # v153：帖子带的图片、视频
         refs.append({"label": label, "who": _who(n) if n else "", "url": link or _status_url(n),
-                     "title": title, "text": (body or "").strip(), "note": note})
+                     "title": title, "text": (body or "").strip(), "note": note,
+                     "photos": list(n.get("photos") or [])[:8] if media else [],
+                     "video": (_status_url(n) + "/video/1") if media and n.get("video") and _status_url(n) else ""})
 
     def walk_links(n, owner_text):
         """一条推文里的链接：X 帖子 → 取帖子；X 长文 → 取长文；别的 → 读网页文章。"""
@@ -358,10 +401,22 @@ def build(url, text="", snap=None, author="", deep=True, progress=None):
         # 博主原话里只剩一个指向引用帖子 / 长文的链接，删掉（内容已经在「链接原文」里了）
         drop = [u for u in (node.get("links") or []) if _STATUS.search(u) or _ARTICLE.search(u) or _MEDIA.search(u)]
         own = _strip_urls(own, drop) or own
-    return {"own": own, "kind": kind, "who": _who(node) or author, "rt_who": _who(rt) if rt else "", "refs": refs}
+    return {"own": own, "kind": kind, "who": _who(node) or author, "rt_who": _who(rt) if rt else "", "refs": refs,
+            "photos": [] if rt else list(node.get("photos") or [])[:8],
+            "video": "" if rt or not node.get("video") or not _status_url(node) else _status_url(node) + "/video/1"}
 
 
 _NUM = "①②③④⑤⑥⑦⑧⑨⑩"
+
+
+def _media_md(photos, video):
+    """v153：图片写成 ![图片N](地址)，视频写一行「🎬 视频：地址」（加工时会提取视频的文字）。"""
+    out = []
+    for i, u in enumerate(photos or []):
+        out += ["![图片%d](%s)" % (i + 1, u), ""]
+    if video:
+        out += ["🎬 视频：" + video, ""]
+    return out
 
 
 def to_markdown(p):
@@ -370,8 +425,9 @@ def to_markdown(p):
     if p["kind"] == "转发":
         lines.append("（这条是转发：博主自己没说话，转发了 %s 的帖子，内容在下面「链接原文」里）" % (p.get("rt_who") or "别人"))
     else:
-        lines.append(p["own"] or "（只有链接，没有文字）")
-    lines += ["", "### 🔗 链接原文", ""]
+        lines.append(p["own"] or ("（只有图片 / 视频，没有文字）" if p.get("photos") or p.get("video") else "（只有链接，没有文字）"))
+    lines += [""] + _media_md(p.get("photos"), p.get("video"))
+    lines += ["### 🔗 链接原文", ""]
     if not p["refs"]:
         lines.append("（这条推文里没有转发、引用或链接）")
     for i, r in enumerate(p["refs"]):
@@ -387,6 +443,7 @@ def to_markdown(p):
             lines += [r["text"], ""]
         elif r.get("note"):
             lines += ["（%s）" % r["note"], ""]
+        lines += _media_md(r.get("photos"), r.get("video"))
     return "\n".join(lines).strip()
 
 

@@ -4,12 +4,15 @@
 - 作者：Google
 - 平台：X（推特）
 - 提取时间：2026-11-20 09:13
-- 状态：未分析
 - 原文标题：Help Pegman make the crosswalk in @GoogleAIStudio: https://t.co/0toezNpnQd See w
+- 标签：应用创建、互动体验、模型应用
 
 ## 🤖 AI 分析
 
-（这条只存了推文原文，还没做 AI 分析。需要的时候点「🤖 AI 分析」就行：笔记列表里这一条的右边、或者打开笔记后的按钮都可以。）
+## 推文
+帮助 Pegman（街景小黄人）在 @GoogleAIStudio 中创建人行横道：https://neon-scramble.ai.studio
+
+看看 Gemini 4 Neon（双子座4霓虹）还能带你去哪里：https://goo.gle/4zWfhqv
 
 ---
 

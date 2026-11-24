@@ -1,9 +1,9 @@
 {
-  "url": "https://www.douyin.com/user/MS4wLjABAAAA_ygszDRK-qMWn_87MWCX19jqvAnt_ODAkUR6UHRB-1Q",
+  "url": "https://www.douyin.com/user/MS4wLjABAAAASqUbbZvP2znnPfTAFl9T2JDPQIdiY3-ONT7rA2pD6ptpukRD1hhkACE0RVJQWvXw",
   "curl_cffi": true,
   "abogus": true,
   "gmssl": true,
-  "sec_uid": "MS4wLjABAAAA_ygszDRK-qMWn_87MWCX19jqvAnt_ODAkUR6UHRB-1Q",
+  "sec_uid": "MS4wLjABAAAASqUbbZvP2znnPfTAFl9T2JDPQIdiY3-ONT7rA2pD6ptpukRD1hhkACE0RVJQWvXw",
   "cookies_keys": [
     "DiscoverFeedExposedAd",
     "IsDouyinActive",
@@ -82,18 +82,18 @@
     }
   ],
   "stop": "none",
-  "html_len": 880888,
+  "html_len": 881195,
   "html_has_render": true,
   "browser_run": {
     "mode": "登录用的浏览器",
-    "stop": "end",
-    "rounds": 2,
-    "responses": 2,
-    "got": 21,
-    "has_more_last": false,
+    "stop": "time",
+    "rounds": 24,
+    "responses": 0,
+    "got": 0,
+    "has_more_last": true,
     "captcha": true
   },
-  "browser": "ok:21",
-  "result": "browser:21",
-  "time": "2026-11-24 11:35:47"
+  "browser": "浏览器打开主页也没等到作品列表（可能要登录/出验证码；点「登录抖音」扫码登录后再试）",
+  "fail": "接口与主页都没解析到作品",
+  "time": "2026-11-24 12:05:58"
 }
