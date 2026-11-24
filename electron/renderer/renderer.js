@@ -11803,18 +11803,37 @@ function vnPvbBar(groups, head, sorts) {
   return bar;
 }
 async function vnPvbStart(bar) {
+  // v152：今天扫过的记住了：再点就按头像墙的顺序接着扫没扫过的；今天都扫完了，问要不要重试没列到的 / 从头再扫
   const keys = vnPvbKeys(bar._groups);
   if (!keys.length) { alert("还没有绑定了主页的博主。先点标题行的 🔍 一键识别博主主页。"); return; }
-  const now = Date.now() / 1000;
-  const fresh = keys.filter((k) => { const p = _vnProfiles[k] || {}; return p.pv_ts && now - p.pv_ts < 12 * 3600; }).length;
-  if (fresh < keys.length && !confirm("把 " + (keys.length - fresh) + " 个博主主页上的文章列表都扫一遍？\n\n" +
-      "· 一个接一个在后台扫，和点进博主列的是同一套；抖音的要开浏览器往下翻，一个要几秒到几分钟，整批会比较久；\n" +
-      "· 扫的时候软件照常用，可以随时点「停止」，下次接着扫没扫过的；\n" +
-      (fresh ? "· " + fresh + " 个是 12 小时内刚扫过的，这次先跳过；\n" : "") +
-      "· 扫完一个，头像右下角就换成他主页上一共多少篇；点进博主能看到全部文章，没提取的可以勾选批量提取。")) return;
+  const last = bar._last || {};
+  const doneSet = new Set(last.today_keys || []), failSet = new Set(last.today_failed || []);
+  const doneN = keys.filter((k) => doneSet.has(k)).length, leftN = keys.length - doneN;
+  const failN = keys.filter((k) => failSet.has(k)).length;
+  let body = { keys };
+  if (leftN > 0) {
+    if (!confirm((doneN ? "接着扫：今天已经扫了 " + doneN + " 个，还剩 " + leftN + " 个没扫，从没扫的开始。\n\n"
+        : "把 " + leftN + " 个博主主页上的文章列表都扫一遍？\n\n") +
+      "· 按头像墙的顺序一个接一个在后台扫；今天扫过谁会记住，停了再点会接着扫，不从头来；\n" +
+      "· 抖音的要开浏览器往下翻，一个要几秒到几分钟，整批会比较久；\n" +
+      "· 扫的时候软件照常用，可以随时点「停止」；\n" +
+      "· 扫完一个，头像右下角就换成他主页上一共多少篇。")) return;
+  } else if (failN) {
+    if (!confirm("今天这 " + keys.length + " 个博主都扫过了，其中 " + failN + " 个没列到。\n\n要再试一次这 " + failN + " 个吗？")) return;
+    body.retry_failed = true;
+  } else {
+    if (!confirm("今天这 " + keys.length + " 个博主都扫过了。\n\n要从头再扫一遍吗？（每个博主的文章列表都重新列）")) return;
+    body.force = true;
+  }
+  const post = async (b) => (await fetch(BACKEND + "/creator_scan_all", { method: "POST",
+    headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) })).json();
   try {
-    const d = await (await fetch(BACKEND + "/creator_scan_all", { method: "POST",
-      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ keys }) })).json();
+    let d = await post(body);
+    if (!d.ok && d.all_done_today && !body.force && !body.retry_failed) {      // 界面上的记录旧了：后台说今天都扫过了
+      if (d.failed_today && confirm(d.message + "。\n\n要再试一次没列到的 " + d.failed_today + " 个吗？")) d = await post({ keys, retry_failed: true });
+      else if (!d.failed_today && confirm(d.message + "。\n\n要从头再扫一遍吗？")) d = await post({ keys, force: true });
+      else return;
+    }
     if (!d.ok) { alert(d.message || "没能开始"); return; }
   } catch (e) { alert("出错：" + e.message); return; }
   _vnPvbHide = 0;
@@ -11849,8 +11868,15 @@ function vnPvbRender(bar, d) {
   const head = bar._head, sorts = bar._sorts, btn = bar._btn;
   if (head && sorts && btn && sorts.parentNode === head && btn.nextElementSibling !== sorts) head.insertBefore(btn, sorts);
   const running = !!d.running;
+  bar._last = d;
   btn.disabled = running;
-  btn.textContent = running ? "扫描中 " + d.done + " / " + d.total : "批量扫描";
+  const allK = vnPvbKeys(bar._groups), dset = new Set(d.today_keys || []);
+  const doneN = allK.filter((k) => dset.has(k)).length, leftN = allK.length - doneN;   // v152：今天扫了几个、还剩几个
+  btn.textContent = running ? "扫描中 " + d.done + " / " + d.total
+    : doneN && leftN ? "继续扫描（还剩 " + leftN + "）" : doneN ? "今天已扫完" : "批量扫描";
+  btn.title = running ? "正在扫描：进度在下面，可以随时点「停止」"
+    : doneN ? "今天已经扫了 " + doneN + " / " + allK.length + " 个博主。" + (leftN ? "点一下接着扫剩下的 " + leftN + " 个（不从头来）" : "点一下可以重试没列到的，或者从头再扫一遍")
+    : "把所有绑定了主页的博主，主页上的文章列表都扫一遍（一个接一个在后台扫，可以随时停）。\n扫完头像右下角就是他主页上一共多少篇";
   const mode = running ? "run" : "idle";
   if (bar.dataset.mode !== mode) {
     bar.dataset.mode = mode;
@@ -11888,7 +11914,7 @@ function vnPvbRender(bar, d) {
   if (!(d.finished && d.total) || _vnPvbHide === d.finished) { bar.hidden = true; return; }
   const sum = document.createElement("span"); sum.className = "vn-cpb-sum";
   sum.textContent = "批量扫描" + (d.stop ? "停了" : "扫完了") + "：扫了 " + d.done + " 个博主，列到 " + (d.videos || 0) + " 篇" +
-    (d.fail ? "，" + d.fail + " 个没列到" : "") + (d.fresh ? "（" + d.fresh + " 个 12 小时内扫过，跳过了）" : "") + "。" +
+    (d.fail ? "，" + d.fail + " 个没列到" : "") + (d.fresh ? "（今天已经扫过的 " + d.fresh + " 个没重扫）" : "") + "。" + (d.stop ? "下次点「继续扫描」会接着扫剩下的。" : "") +
     (d.note ? d.note : "");
   bar.appendChild(sum);
   const bad = (d.results || []).filter((r) => r.status === "fail");

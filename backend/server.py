@@ -3187,7 +3187,7 @@ def _pv_list_and_save(key, prof, limit=0):
     return cid, ent
 
 
-def _pv_totals():
+def _pv_totals_raw():
     """v148：每个博主主页上列到多少篇 {博主名: (篇数, 扫描时间, 主页)}；同一个博主列过几次的取最新的。"""
     out = {}
     for _cid, e in (_pv_load() or {}).items():
@@ -3203,6 +3203,20 @@ def _pv_totals():
             tot = n
         out[k] = (tot, ts, (e.get("home") or "").strip())
     return out
+
+
+_PV_TOT_CACHE = {"mt": None, "v": None}
+
+
+def _pv_totals():
+    """（v152：文件没变就用上次读的——扫描时进度每秒都要问，这个文件会很大）"""
+    try:
+        mt = _pv_file().stat().st_mtime
+    except Exception:
+        mt = 0
+    if _PV_TOT_CACHE["v"] is None or _PV_TOT_CACHE["mt"] != mt:
+        _PV_TOT_CACHE.update(v=_pv_totals_raw(), mt=mt)
+    return _PV_TOT_CACHE["v"]
 
 
 def _pv_with_totals(profs):
@@ -3241,26 +3255,86 @@ def _pvb_sleep(sec):
     return False
 
 
-def _pvb_order(keys, force=False):
-    """先扫从没扫过的，再扫扫得最早的；12 小时内扫过的（force 除外）跳过。返回 (要扫的, 跳过的个数)。"""
+# v152：批量扫描有记忆——今天扫过谁（列到的、没列到的）记在 memory/creator_scan_state.json，
+#       再点「批量扫描」就按头像墙的顺序接着扫今天还没扫的，不从头来。过了今天就重新算。
+_PVB_STATE_LOCK = _threading.Lock()
+
+
+def _pvb_state_file():
+    return core.MEMORY_DIR / "creator_scan_state.json"
+
+
+def _pvb_today():
+    import time as _t
+    return _t.strftime("%Y-%m-%d")
+
+
+def _pvb_state():
+    """{day, forced_at, done: {博主: {at, status, n, msg}}}；不是今天的就当今天还没扫过。"""
+    try:
+        d = json.loads(_pvb_state_file().read_text(encoding="utf-8"))
+        if isinstance(d, dict) and d.get("day") == _pvb_today() and isinstance(d.get("done"), dict):
+            return d
+    except Exception:
+        pass
+    return {"day": _pvb_today(), "forced_at": 0, "done": {}}
+
+
+def _pvb_state_write(d):
+    try:
+        p = _pvb_state_file()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        tmp = p.with_name(p.name + ".tmp")
+        tmp.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+        os.replace(str(tmp), str(p))
+    except Exception as e:
+        _clog("博主", "记今天扫过谁没成功：%s" % e)
+
+
+def _pvb_state_mark(key, res):
+    with _PVB_STATE_LOCK:
+        d = _pvb_state()
+        d["done"][key] = {"at": int(_time_now()), "status": res.get("status") or "ok",
+                          "n": res.get("n") or 0, "msg": (res.get("msg") or "")[:160]}
+        _pvb_state_write(d)
+
+
+def _pvb_state_restart():
+    """「从头再扫一遍」：今天扫过的记录清空（点进博主列过的也不算了）。"""
+    with _PVB_STATE_LOCK:
+        _pvb_state_write({"day": _pvb_today(), "forced_at": int(_time_now()), "done": {}})
+
+
+def _pvb_today_info():
+    """今天扫过的博主 {博主: "ok" / "fail"}：批量扫描记下的，加上今天点进博主列过的。"""
+    import time as _t
+    st = _pvb_state()
+    out = {k: ((v or {}).get("status") or "ok") for k, v in st["done"].items()}
+    today, since = _pvb_today(), st.get("forced_at") or 0
+    for k, (_tot, ts, _home) in _pv_totals().items():
+        if ts and ts > since and _t.strftime("%Y-%m-%d", _t.localtime(ts)) == today and out.get(k) != "ok":
+            out[k] = "ok"
+    return out
+
+
+def _pvb_order(keys, force=False, retry_failed=False):
+    """按给的顺序（头像墙的顺序）排，今天已经扫过的跳过——接着上次停下的地方扫。
+    retry_failed：只重试今天没列到的；force：全部重扫。返回 (要扫的, 今天已扫的个数, 其中没列到的个数)。"""
     import creator_profiles as _cpf
     profs = _cpf.list_profiles() or {}
-    tots = _pv_totals()
-    now = _time_now()
-    todo, fresh = [], 0
+    done = {} if force else _pvb_today_info()
+    todo, n_done, n_fail = [], 0, 0
     for k in keys:
         p = profs.get(k) or {}
-        home = (p.get("home") or p.get("url") or "").strip() if isinstance(p, dict) else ""
-        if not home:
+        if not (isinstance(p, dict) and (p.get("home") or p.get("url"))):
             continue
-        t = tots.get(k)
-        ts = t[1] if t and (not t[2] or t[2] == home) else 0
-        if ts and not force and now - ts < _PVB_FRESH_H * 3600:
-            fresh += 1
-            continue
-        todo.append((ts, k))
-    todo.sort(key=lambda x: x[0])
-    return [k for _ts, k in todo], fresh
+        stt = done.get(k)
+        if stt:
+            n_done += 1
+            n_fail += stt == "fail"
+        if force or (stt == "fail" if retry_failed else not stt):
+            todo.append(k)
+    return todo, n_done, n_fail
 
 
 def _pvb_worker(keys):
@@ -3295,6 +3369,8 @@ def _pvb_worker(keys):
                 except Exception as e:
                     res.update(status="fail", msg=str(e).split("\n")[0][:200])
                 streak = streak + 1 if res["status"] == "fail" else 0
+            if res["status"] != "skip":
+                _pvb_state_mark(key, res)              # v152：今天扫过谁
             with _pvb_lock:
                 _pvb["done"] += 1
                 _pvb[res["status"]] += 1
@@ -5089,6 +5165,12 @@ class Handler(BaseHTTPRequestHandler):
             left = max(0, b["total"] - b["done"])
             b["eta"] = int((now - b["started"]) / b["done"] * left) if b["running"] and b["done"] else 0
             b["results"] = b["results"][-200:]
+            try:
+                _ti = _pvb_today_info()
+                b["today_keys"] = list(_ti.keys())
+                b["today_failed"] = [k for k, v in _ti.items() if v == "fail"]
+            except Exception:
+                b["today_keys"], b["today_failed"] = [], []
             return self._send(b)
         if path == "/creator_profiles_batch":
             # v60：一键识别博主主页的进度
@@ -5894,11 +5976,14 @@ class Handler(BaseHTTPRequestHandler):
                 import creator_profiles as _cpf
                 keys = [k for k, p in (_cpf.list_profiles() or {}).items()
                         if isinstance(p, dict) and (p.get("home") or p.get("url"))]
-            todo, fresh = _pvb_order(keys, bool(b.get("force")))
+            if b.get("force") and not _pvb["running"]:
+                _pvb_state_restart()
+            todo, n_done, n_fail = _pvb_order(keys, bool(b.get("force")), bool(b.get("retry_failed")))
+            fresh = 0 if (b.get("force") or b.get("retry_failed")) else n_done
             if not todo:
-                return self._send({"ok": False, "fresh": fresh, "message":
-                                   ("都刚扫过（%d 个是 %d 小时内扫的），不用再扫" % (fresh, _PVB_FRESH_H)) if fresh
-                                   else "没有绑定了主页的博主可以扫（先点 🔍 一键识别博主主页）"})
+                return self._send({"ok": False, "all_done_today": bool(n_done), "done_today": n_done, "failed_today": n_fail,
+                                   "message": (("今天这 %d 个博主都扫过了" % n_done) + ("（其中 %d 个没列到）" % n_fail if n_fail else ""))
+                                   if n_done else "没有绑定了主页的博主可以扫（先点 🔍 一键识别博主主页）"})
             with _pvb_lock:
                 if _pvb["running"]:
                     return self._send({"ok": False, "message": "已经在扫了（%d/%d），等它扫完或先点「停止」"
@@ -5906,7 +5991,7 @@ class Handler(BaseHTTPRequestHandler):
                 _pvb.update(running=True, stop=False, total=len(todo), done=0, ok=0, fail=0, skip=0, videos=0,
                             current="", started=_time_now(), finished=0, results=[], note="", fresh=fresh)
             _clog("博主", "开始批量扫描博主的文章列表：%d 个%s" % (
-                len(todo), "（%d 个是 %d 小时内扫过的，先跳过）" % (fresh, _PVB_FRESH_H) if fresh else ""))
+                len(todo), "（今天已经扫过 %d 个，接着扫没扫的）" % fresh if fresh else ""))
             _threading.Thread(target=_pvb_worker, args=(todo,), daemon=True, name="creator-scan-all").start()
             return self._send({"ok": True, "total": len(todo), "fresh": fresh})
         if path == "/creator_profile":
