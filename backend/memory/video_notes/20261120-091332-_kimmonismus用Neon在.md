@@ -4,12 +4,23 @@
 - 作者：Google
 - 平台：X（推特）
 - 提取时间：2026-11-20 09:13
-- 状态：未分析
 - 原文标题：🌌 @kimmonismus used Neon in @Antigravity to build an interactive 3D black hole s
+- 标签：三维渲染、黑洞模拟、交互设计
 
 ## 🤖 AI 分析
 
-（这条只存了推文原文，还没做 AI 分析。需要的时候点「🤖 AI 分析」就行：笔记列表里这一条的右边、或者打开笔记后的按钮都可以。）
+## 推文
+🌌 @kimmonismus 使用 Neon（霓虹）在 @Antigravity（反重力）中构建了一个交互式 3D 黑洞着色器，支持切换相机视角，并通过滑块调节引力透镜的扭曲程度。
+
+🎬 视频：https://x.com/Google/status/2123517327119368675/video/1
+
+## 视频内容
+
+### 🎬 视频
+
+原视频：https://x.com/Google/status/2123517327119368675
+
+（这段视频没提取成功：提取失败：tuple index out of range。可以把链接贴到「提取」里单独提取）
 
 ---
 
@@ -18,12 +29,9 @@
 ### 🗣 博主原话
 
 🌌 @kimmonismus used Neon in @Antigravity to build an interactive 3D black hole shader with switchable camera viewpoints and lensing warp sliders
-https://t.co/wgfPtzzeMK
+
+🎬 视频：https://x.com/Google/status/2123517327119368675/video/1
 
 ### 🔗 链接原文
 
-#### ① 链接
-
-原文：https://t.co/wgfPtzzeMK
-
-（没打开这个短链接，原文见链接）
+（这条推文里没有转发、引用或链接）

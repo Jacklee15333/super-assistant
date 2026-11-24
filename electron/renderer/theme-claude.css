@@ -1144,3 +1144,7 @@ body.dark .vn-kind.k-gh { background: #e6e6e3; color: #1f1e1a; }
   .vn-ctile.vn-scanning .vn-av::before { animation-duration: 3s; }
   .vn-ctile.vn-scanning .vn-av::after { animation: none; background: rgba(255, 255, 255, .25); }
 }
+
+/* v154：点进度那一行跳到正在扫的博主 */
+.vn-pvb-jump { cursor: pointer; }
+.vn-pvb-jump:hover { color: var(--accent); }
