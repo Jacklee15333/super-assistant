@@ -625,9 +625,15 @@ function renderMarkdown(src) {
   // 链接 [text](url)
   s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
     '<a href="$2" target="_blank">$1</a>');
-  // 裸链接（行内直接出现的 http(s) 网址）也变成可点击
-  s = s.replace(/(^|[\s>])(https?:\/\/[^\s<）)]+)/g,
-    '$1<a href="$2" target="_blank">$2</a>');
+  // 裸链接（行内直接出现的 http(s) 网址）也变成可点击。
+  // v153：「原文：https://…」这种前面紧挨着中文冒号、汉字的也认（以前要前面有空格才认）；
+  //       网址后面紧跟的中文标点、句末的 . , 不算进网址；已经是链接 / 图片地址的不再套一层
+  s = s.replace(/(^|[^"'=\w\/.\->]|<(?:h[1-6]|b|i)>)(https?:\/\/[^\s<>"'）)\u3000-\u303f\uff00-\uffef\u4e00-\u9fff]+)/g,
+    (m0, pre, u) => {
+      const tail = (u.match(/[.,;:!?]+$/) || [""])[0];
+      u = u.slice(0, u.length - tail.length);
+      return pre + '<a href="' + u + '" target="_blank">' + u + "</a>" + tail;
+    });
   // 表格 | a | b |\n| --- | --- |\n| 1 | 2 |
   // 识别连续的表格行（含表头分隔行），渲染成 <table>
   s = s.replace(
