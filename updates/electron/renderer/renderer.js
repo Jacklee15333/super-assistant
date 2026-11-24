@@ -11860,6 +11860,20 @@ async function vnPvbPoll() {
   vnPvbRender(bar, d);
   if (d.running) _vnPvbTimer = setTimeout(vnPvbPoll, 1200);
 }
+// v154：扫到哪个博主，页面就滚到哪个（博主多，不用自己找）。你自己在滚页面时先不跟（停手 20 秒后再跟上），
+//       点进度那一行马上跳过去。
+let _vnPvbFollowKey = "", _vnPvbUserAt = 0;
+["wheel", "touchmove"].forEach((ev) => document.addEventListener(ev, () => { _vnPvbUserAt = Date.now(); }, { passive: true }));
+document.addEventListener("keydown", (e) => {
+  if (/^(PageUp|PageDown|ArrowUp|ArrowDown|Home|End)$/.test(e.key)) _vnPvbUserAt = Date.now();
+});
+function vnPvbFocus(key) {
+  const t = Array.from(document.querySelectorAll(".vn-ctile")).find((x) => x._g && x._g.key === key);
+  if (!t || !t.offsetParent) return false;            // 博主墙没在显示（别的页、收起来了）
+  t.scrollIntoView({ block: "center", behavior: "smooth" });
+  return true;
+}
+
 // v150：正在扫的那个博主，头像外面转一圈、头像上走一道扫描线，名字下面写「扫描中」
 function vnPvbMark(key) {
   document.querySelectorAll(".vn-ctile.vn-scanning").forEach((t) => {
@@ -11869,6 +11883,7 @@ function vnPvbMark(key) {
   document.querySelectorAll(".vn-ctile").forEach((t) => {
     if (t._g && t._g.key === key) t.classList.add("vn-scanning");
   });
+  if (key !== _vnPvbFollowKey && Date.now() - _vnPvbUserAt > 20000 && vnPvbFocus(key)) _vnPvbFollowKey = key;   // v154
 }
 function vnPvbRender(bar, d) {
   const head = bar._head, sorts = bar._sorts, btn = bar._btn;
@@ -11888,7 +11903,12 @@ function vnPvbRender(bar, d) {
     bar.dataset.mode = mode;
     bar.innerHTML = "";
     if (running) {
-      bar.innerHTML = '<span class="vn-cpb-track"><i></i></span><span class="vn-cpb-txt"></span>';
+      bar.innerHTML = '<span class="vn-cpb-track"><i></i></span><span class="vn-cpb-txt vn-pvb-jump"></span>';
+      bar.querySelector(".vn-cpb-txt").addEventListener("click", () => {      // v154：点一下跳到正在扫的博主
+        _vnPvbUserAt = 0;
+        const k = (bar._last || {}).current;
+        if (k && vnPvbFocus(k)) _vnPvbFollowKey = k;
+      });
       const stop = document.createElement("button");
       stop.type = "button"; stop.className = "vn-batch-stop vn-cpb-stop"; stop.textContent = "停止";
       stop.title = "扫完当前这个就停；下次点「批量扫描」会接着扫没扫过的";
@@ -11910,7 +11930,7 @@ function vnPvbRender(bar, d) {
     const txt = "正在扫描博主的文章列表 " + d.done + " / " + d.total +
       (d.current ? " · 正在扫「" + d.current + "」" : "") + " · 列到 " + (d.videos || 0) + " 篇" +
       (d.fail ? " · 没列到 " + d.fail + " 个" : "") + (d.eta ? " · 预计还要 " + _vnFmtDur(d.eta) : "");
-    const el = bar.querySelector(".vn-cpb-txt"); el.textContent = txt; el.title = txt;
+    const el = bar.querySelector(".vn-cpb-txt"); el.textContent = txt; el.title = txt + "\n点一下跳到正在扫的博主";
     const note = bar.querySelector(".vn-cpb-note");
     note.hidden = !d.note; note.textContent = d.note ? "⏸ " + d.note : "";
     bar.hidden = false;
