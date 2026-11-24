@@ -4484,7 +4484,8 @@
       "uploader": "The AI Daily Brief: Artificial Intelligence News",
       "text": "",
       "x": null,
-      "found_at": "2026-11-24 10:05"
+      "found_at": "2026-11-24 10:05",
+      "title_zh": "白宫希望 Jensen 重返英伟达"
     },
     {
       "creator_id": "cw1782303591400476",
@@ -4497,7 +4498,8 @@
       "uploader": "The AI Daily Brief: Artificial Intelligence News",
       "text": "",
       "x": null,
-      "found_at": "2026-11-24 10:05"
+      "found_at": "2026-11-24 10:05",
+      "title_zh": "有人声称 Gemini Neon 优于 Fable"
     },
     {
       "creator_id": "cw1782694091128612",
@@ -7877,7 +7879,8 @@
           "when": "20261124",
           "uploader": "The AI Daily Brief: Artificial Intelligence News",
           "when_human": "2026-11-24",
-          "days_ago": 0
+          "days_ago": 0,
+          "title_zh": "白宫希望 Jensen 重返英伟达"
         },
         {
           "vid": "3TH7QVL59V4",
@@ -7887,7 +7890,8 @@
           "when": "20261123",
           "uploader": "The AI Daily Brief: Artificial Intelligence News",
           "when_human": "2026-11-23",
-          "days_ago": 1
+          "days_ago": 1,
+          "title_zh": "有人声称 Gemini Neon 优于 Fable"
         },
         {
           "vid": "xskAzAc_0ws",
@@ -15653,7 +15657,9 @@
     "A more tailored Google Search that’s uniquely yours": "更加个性化的 Google 搜索，专属于你",
     "Organize and share your holiday memories with these five updates in Google Photos.": "使用 Google Photos 的五大更新，整理并分享你的节日回忆",
     "Introducing file slicing controls in the Gemini API": "在 Gemini API 中引入文件切片控制",
-    "Finding faster quantum algorithms with agents and formal verification": "使用代理和形式验证寻找更快的量子算法"
+    "Finding faster quantum algorithms with agents and formal verification": "使用代理和形式验证寻找更快的量子算法",
+    "Why the White House Wanted Jensen Back at Nvidia": "白宫希望 Jensen 重返英伟达",
+    "Why Some Are Claiming Gemini Neon is Better than Fable": "有人声称 Gemini Neon 优于 Fable"
   },
   "extracted": {
     "cw1782303553561476|P3KDebPTUrw": {

@@ -3986,6 +3986,271 @@ def _note_tidy_worker(name):
         _clog("整理原文", "没成功：%s" % e)
 
 
+# ════════════════ v151：文章、推文按原样加工 ════════════════
+# 你的要求：
+#   · 文章：按原版，不改写；原文是外文就翻成中文。
+#   · 推文（大佬常常只发一个表情、几个字、几张图）：按原样放，不用 AI 写分析；有外文就翻成中文。
+#   · 推文下面还有引用的帖子 / 链接的文章 / 视频：分成「推文」「引文」两部分。推文按原话；引文是文章就按原版排，
+#     外文翻成中文；引文是视频就先提取视频的文字，再像视频一样加工。
+# 加工结果照旧放在「🤖 AI 分析」那一节（阅读页的「详细」显示它），「📝 完整文字稿」里留着原文。
+_AN_VIDEO_RES = [
+    re.compile(r"https?://(?:www\.|m\.)?youtube\.com/(?:watch\?[^\s)\]]*v=[\w-]{6,}|shorts/[\w-]{6,}|live/[\w-]{6,})[^\s)\]]*", re.I),
+    re.compile(r"https?://youtu\.be/[\w-]{6,}[^\s)\]]*", re.I),
+    re.compile(r"https?://(?:www\.|m\.)?bilibili\.com/video/\w+[^\s)\]]*", re.I),
+    re.compile(r"https?://b23\.tv/\w+", re.I),
+    re.compile(r"https?://(?:www\.)?douyin\.com/video/\d+", re.I),
+    re.compile(r"https?://v\.douyin\.com/[\w-]+/?", re.I),
+    re.compile(r"https?://(?:www\.)?tiktok\.com/@[\w.]+/video/\d+", re.I),
+    re.compile(r"https?://(?:www\.)?(?:x|twitter)\.com/[^/\s]+/status/\d+/video/\d+", re.I),
+]
+
+
+def _an_mode_of(name, text):
+    """这条笔记按原样加工吗：推文 → "tweet"，文章 → "article"，其它（视频、文档…）→ ""（照旧写 AI 分析）。"""
+    try:
+        import tweet_parts
+        if tweet_parts.is_tweet_note(text):
+            return "tweet"
+    except Exception:
+        pass
+    try:
+        if _vn_src_noun_of_file(name) == "文章":
+            return "article"
+    except Exception:
+        pass
+    return ""
+
+
+def _an_tweet_split(body):
+    """推文笔记的文字稿 → (博主原话, 「链接原文」那一大块)。老笔记没分两块的：整篇当原话。"""
+    body = body or ""
+    m1 = re.search(r"(?m)^#{2,4}[^\n]*博主原话[^\n]*$", body)
+    if not m1:
+        return body.strip(), ""
+    m2 = re.search(r"(?m)^#{2,4}[^\n]*链接原文[^\n]*$", body[m1.end():])
+    if not m2:
+        return body[m1.end():].strip(), ""
+    own = body[m1.end():m1.end() + m2.start()].strip()
+    refs = body[m1.end() + m2.end():].strip()
+    return own, ("" if refs.startswith("（这条推文里没有") else refs)
+
+
+def _an_video_links(text):
+    out = []
+    for rx in _AN_VIDEO_RES:
+        for m in rx.finditer(text or ""):
+            u = m.group(0).rstrip(".,;:!?）)】」》'\"")
+            u = re.sub(r"(/status/\d+)/video/\d+$", r"\1", u)
+            if u not in out:
+                out.append(u)
+    return out
+
+
+def _an_refetch_refs(refs, stage):
+    """引文里的文章当初没读到正文（「没读到正文…原文见链接」）：再去读一次。"""
+    pat = re.compile(r"(原文：(https?://\S+)\n\n)（没读到正文[^\n]*）")
+
+    def fill(m):
+        url = m.group(2)
+        if any(rx.search(url) for rx in _AN_VIDEO_RES):
+            return m.group(0)
+        try:
+            import tweet_parts
+            stage("引文", "再读一次链接里的文章…")
+            _t, body = tweet_parts.fetch_article(url)
+        except Exception:
+            body = ""
+        return (m.group(1) + body.strip()) if (body or "").strip() else m.group(0)
+    try:
+        return pat.sub(fill, refs or "")
+    except Exception:
+        return refs or ""
+
+
+def _an_needs_zh(text):
+    """有成段的外文要翻成中文吗（网址、@用户名、#话题不算）。"""
+    t = re.sub(r"https?://\S+|@\w+|#\S+", " ", text or "")
+    latin = len(re.findall(r"[A-Za-z]", t))
+    cjk = len(re.findall(r"[\u4e00-\u9fff]", t))
+    if len(re.findall(r"[A-Za-z]{2,}", t)) < 6:
+        return False
+    if latin > cjk * 1.2:                        # 大部分是外文
+        return True
+    # 中文为主：夹着的英文产品名、术语不算；有两句以上整句的英文（一口气 8 个以上英文词）才翻
+    return len(re.findall(r"(?:[A-Za-z][A-Za-z'’\-]*[ ,;:]+){7,}[A-Za-z][A-Za-z'’\-]*", t)) >= 2
+
+
+def _an_chunks(text, size=8000):
+    """长文章按段落切成几块（每块不超过 size 字），一块一块翻。"""
+    out, cur = [], ""
+    for p in re.split(r"\n\s*\n", text or ""):
+        while len(p) > size:
+            cut = max(p.rfind("。", 0, size), p.rfind(". ", 0, size), p.rfind("\n", 0, size))
+            cut = cut + 1 if cut > size // 3 else size
+            if cur:
+                out.append(cur)
+                cur = ""
+            out.append(p[:cut])
+            p = p[cut:].lstrip()
+        if cur and len(cur) + len(p) + 2 > size:
+            out.append(cur)
+            cur = p
+        else:
+            cur = (cur + "\n\n" + p) if cur else p
+    if cur.strip():
+        out.append(cur)
+    return out or [text or ""]
+
+
+def _an_clean(text):
+    t = (text or "").strip()
+    t = re.sub(r"(?m)^\s*#{0,6}\s*ChatGPT\s*说[:：]?\s*$\n?", "", t)
+    t = re.sub(r"!\[[^\]]*\]\(https?://www\.google\.com/s2/favicons[^)]*\)\s*", "", t)
+    t = _WEB_UI_LINE_RE.sub("", t)
+    t = re.sub(r"(?m)^\s*(推文|引文|分类标签)\s*$", r"## \1", t)     # 读回来是纯文字时，补回这几个小标题
+    return t.replace("（译完）", "").strip()
+
+
+def _an_web(prompt, markers, stage, what="翻译"):
+    """交给网页 AI 池（换新卡、开新对话）；没成功换一张卡再试一次。"""
+    opts = dict(core.VIDEO_ANALYSIS_WEB_OPTS, completeMarkers=markers, busyStallMs=300000, incompleteGraceMs=90000)
+    last = ""
+    for _i in range(2):
+        try:
+            client = core.make_client_for("web", False, on_progress=lambda m: stage(what, m))
+            resp = client.chat.completions.create(model="web", messages=[{"role": "user", "content": prompt}], **opts)
+            out = _an_clean(resp.choices[0].message.content or "")
+            if out:
+                return out
+            last = "空回复"
+        except Exception as e:
+            last = str(e)[:160]
+        try:
+            import web_model as _wm
+            if _wm.was_cancelled():
+                raise RuntimeError("已按你的要求停止")
+        except ImportError:
+            pass
+    raise RuntimeError("%s没成功：%s" % (what, last))
+
+
+def _an_translate(content, title, stage):
+    """把外文翻成中文：只翻译、不改写不删减，结构排版照旧；第一块顺手写「中文标题」和「分类标签」。"""
+    chunks = _an_chunks(content, 8000)
+    outs, tail = [], ""
+    for i, ch in enumerate(chunks):
+        first = i == 0
+        stage("翻译", "把外文翻成中文…" if len(chunks) == 1 else "把外文翻成中文（第 %d / %d 块）…" % (i + 1, len(chunks)))
+        rules = ("请把下面这段内容翻译成简体中文。要求：\n"
+                 "1. 只翻译：不要总结、不要改写、不要删减、不要加评论。已经是中文的句子原样照抄。\n"
+                 "2. 结构和排版全部保留：# 开头的标题行、分段、列表、引用、表情符号、网址、@用户名、#话题都留在原来的位置；"
+                 "「原文：网址」这样的行原样照抄；标题行里的「推文」「引文」「引用的帖子」这些字也照抄。\n"
+                 "3. 人名、公司名、产品名等专有名词，第一次出现时保留原文，在括号里附中文。\n")
+        if first:
+            rules += ("4. 最前面先单独写一行：中文标题：<把标题「%s」翻成中文；本来就是中文就原样照抄>\n" % (title or "")[:120] +
+                      "5. 译文全部写完后，单独写一节：\n## 分类标签\n"
+                      "标签：先总结 3～5 个标签，每个 2～6 个字，说清楚这篇讲的什么（不要写作者名、账号名）\n"
+                      "分类：大类/子类（从下面的分类表里选：先选大类，再选这个大类下面的子类）\n" + _lb_guide() +
+                      "\n6. 最后单独写一行：（译完）\n")
+        else:
+            rules += "4. 写完后最后单独写一行：（译完）\n"
+        out = _an_web(rules + "\n=== 要翻译的内容 ===\n" + ch + "\n", ["分类标签", "（译完）"] if first else ["（译完）"], stage)
+        if not re.search(r"[\u4e00-\u9fff]", out) or len(out) < len(ch) * 0.2:
+            raise RuntimeError("翻译回来的内容不对（原文 %d 字，回来 %d 字）" % (len(ch), len(out)))
+        if first:
+            m = re.search(r"(?m)^#{1,4}\s*分类标签\s*$", out)
+            if m:
+                tail, out = out[m.start():].strip(), out[:m.start()].rstrip()
+        outs.append(out)
+    return "\n\n".join(outs) + ("\n\n" + tail if tail else "")
+
+
+def _an_quote_video(url, use_local, model, stage):
+    """引文是视频：先提取视频的文字，再像视频一样加工。返回 (放进「引文」的一块, 文字稿, 标题, (大类, 子类, 标签) 或 None)。"""
+    import video_transcribe as _vt
+    _clog("视频", "🎬 引文里有视频，先提取它的文字：%s" % url[:90])
+    stage("引文视频", "等「提取」那边忙完…" if _vt.extract_busy() else "提取视频的文字…")
+    got, r = False, {}
+    try:
+        for _w in range(3600):                   # 「提取」正在提取别的视频：等它做完（一次只提取一个，最多等 1 小时）
+            if _vt.extract_gate.acquire(timeout=1):
+                got = True
+                break
+            if _note_batch.get("stop") or _note_an_state.get("stop_req"):
+                raise RuntimeError("已按你的要求停止")
+        if not got:
+            return ("### 🎬 引文视频\n\n原视频：%s\n\n（「提取」一直在忙，这次没提取这段视频。可以把链接贴到「提取」里单独提取）" % url,
+                    "", "", None)
+        stage("引文视频", "提取视频的文字…")
+        try:
+            r = _vt.extract(url, progress_cb=lambda st, d="": stage("引文视频", (str(st) + ("：" + str(d) if d else ""))[:80]))
+        except Exception as e:
+            r = {"ok": False, "error": str(e)}
+    finally:
+        if got:
+            try:
+                _vt.extract_gate.release()
+            except Exception:
+                pass
+    vtr, vtitle = (r.get("transcript") or "").strip(), (r.get("title") or "").strip()
+    if not r.get("ok") or not vtr:
+        why = str(r.get("error") or "没拿到文字").split("\n")[0][:160]
+        _clog("视频", "🎬 引文视频没提取成功：%s" % why)
+        return ("### 🎬 引文视频\n\n原视频：%s\n\n（这段视频没提取成功：%s。可以把链接贴到「提取」里单独提取）" % (url, why), "", "", None)
+    stage("引文视频", "AI 把视频的文字整理成笔记…")
+    va = _cx_analyze_transcript(vtr, vtitle or "引文视频", use_local, model,
+                                on_progress=lambda m: stage("引文视频", m),
+                                segments=[], do_screenshot=False, do_link=False, src_noun=None)
+    if (va or "").lstrip().startswith("（分析出错"):
+        return ("### 🎬 引文视频 ·《%s》\n\n原视频：%s\n\n（视频的文字提取到了，但 AI 整理没成功：%s。完整文字稿在「原文」里）"
+                % (vtitle or "视频", url, va.strip().strip("（）")[:120]), vtr, vtitle, None)
+    vzh, va = _split_title_from_analysis(va)
+    va, vc, vs, vt = _lb_split(va)
+    va = re.sub(r"(?m)^(#{1,4})(\s)", lambda m: "#" * min(6, len(m.group(1)) + 2) + m.group(2), (va or "").strip())
+    return ("### 🎬 引文视频 ·《%s》\n\n原视频：%s\n\n%s" % (vzh or vtitle or "视频", url, va), vtr, vtitle, (vc, vs, vt))
+
+
+def _an_as_original(mode, title, transcript, use_local, model, stage):
+    """按原样加工。返回 (放进「🤖 AI 分析」那一节的内容, 新的「完整文字稿」)。"""
+    body = (transcript or "").strip()
+    if mode != "tweet":
+        if _an_needs_zh(body):
+            return _an_translate(body, title, stage), body
+        stage("加工", "文章按原文保留…")
+        return body, body
+    own, refs0 = _an_tweet_split(body)
+    refs = _an_refetch_refs(refs0, stage) if refs0 else ""
+    if refs != refs0:
+        body = body.replace(refs0, refs)            # 补读到的文章也放进原文
+    text = "## 推文\n\n" + (own or "（只有图片或链接，没有文字）") + ("\n\n## 引文\n\n" + refs if refs else "")
+    vblocks, extra, vlabels = [], [], None
+    for vu in _an_video_links(body)[:2]:
+        blk, vtr, vtitle, lab = _an_quote_video(vu, use_local, model, stage)
+        vblocks.append(blk)
+        if vtr:
+            extra.append("### 🎬 引文视频的文字稿 ·《%s》\n\n%s" % (vtitle or vu, vtr))
+        if lab and lab[0] and not vlabels:
+            vlabels = lab
+        if vtr:                                     # 引文里那条「没读到正文」的链接就是这个视频：换成下面的视频笔记，不重复
+            text = re.sub(r"(?m)^#{3,5} [^\n]*\n\n原文：" + re.escape(vu) + r"\S*\n\n（没读到正文[^\n]*）\n*", "", text).rstrip()
+            text = re.sub(r"\n\n## 引文$", "", text)
+    if _an_needs_zh(text):
+        text = _an_translate(text, title, stage)
+    else:
+        stage("加工", "推文按原样保留…")
+    if vblocks:
+        m = re.search(r"(?m)^#{1,4}\s*分类标签\s*$", text)
+        head, tail = (text[:m.start()].rstrip(), text[m.start():].strip()) if m else (text, "")
+        if not re.search(r"(?m)^#{1,3}\s*引文\s*$", head):
+            head += "\n\n## 引文"
+        head += "\n\n" + "\n\n".join(vblocks)
+        if not tail and vlabels:
+            c, sb, tg = vlabels
+            tail = "## 分类标签\n标签：%s\n分类：%s" % ("、".join(tg or []), c + ("/" + sb if sb else ""))
+        text = head + ("\n\n" + tail if tail else "")
+    return text, body + ("\n\n" + "\n\n".join(extra) if extra else "")
+
+
 def _note_analyze_worker(name, use_local, model):
     """v67：批量分析的每一篇、单条「AI 分析」都走这里：先排队等 AI 池（一次只做一件事），轮到了再分析。"""
     in_batch = bool(_note_batch.get("running")) and _note_batch.get("current") == name
@@ -4065,14 +4330,19 @@ def _note_analyze_worker_inner(name, use_local, model):
                     clean_url = m.group(1).strip()
                     break
 
-        _clog("视频", "▶ 开始补做 AI 分析：%s" % name[:50])
-        stage("AI 分析", "让模型把文字稿总结成笔记…")
-        analysis = _cx_analyze_transcript(
-            transcript, title, use_local, model,
-            on_progress=lambda m: stage("AI 分析", m),
-            segments=segments, do_screenshot=False,
-            do_link=bool(want_link and segments),
-            src_noun=_vn_src_noun_of_file(name))
+        _an_mode = _an_mode_of(name, text)            # v151：文章 / 推文按原样加工（不写 AI 分析）
+        if _an_mode:
+            _clog("视频", "▶ 开始加工%s（按原样保留，外文翻成中文）：%s" % ("推文" if _an_mode == "tweet" else "文章", name[:50]))
+            analysis, transcript = _an_as_original(_an_mode, title, transcript, use_local, model, stage)
+        else:
+            _clog("视频", "▶ 开始补做 AI 分析：%s" % name[:50])
+            stage("AI 分析", "让模型把文字稿总结成笔记…")
+            analysis = _cx_analyze_transcript(
+                transcript, title, use_local, model,
+                on_progress=lambda m: stage("AI 分析", m),
+                segments=segments, do_screenshot=False,
+                do_link=bool(want_link and segments),
+                src_noun=_vn_src_noun_of_file(name))
         if (analysis or "").lstrip().startswith("（分析出错"):
             # AI 池没成功：不把报错当分析结果存进笔记（保持「未分析」，以后还能再补）
             raise RuntimeError((analysis or "").strip().strip("（）")[:200])
