@@ -70,7 +70,7 @@
     tax: null, byId: {}, taxErr: "",
     ovm: null, ovmErr: "", ov: null, ovErr: "", mdays: store.get("mdays", 3),
     rfeed: null, rgrp: "all", rq: "", rlimit: 80, rpage: 1, rsize: store.get("rsize", 20), rtotal: 0, rsince: 0, rseq: 0,
-    artOpen: {}, art: {}, artItems: {},
+    artSel: "", art: {}, artTr: {}, artLang: "zh", artItems: {}, trTitle: {},
     plan: null, updOpen: false, updDone: "", updRes: null, briefOpen: false, bf: null, briefInfo: null,
     lens: store.get("lens", "market") === "mine" ? "mine" : "market", days: 30,
     indView: store.get("indView", "map"), indSel: store.get("indSel", ""), indQ: "", indItems: null, openL1: {},
@@ -143,7 +143,7 @@
           '<button type="button" class="bz-big primary" id="bzUpdBtn" aria-haspopup="dialog"><span class="bz-big-t"><b id="bzUpdBtnT">现在更新</b><small id="bzUpdBtnS">让爬虫马上去抓最新新闻</small></span></button>' +
           '<button type="button" class="bz-big" id="bzBriefRun" aria-haspopup="dialog"><span class="bz-big-t"><b>生成简报</b><small id="bzBriefBtnS">AI 写一份文档，存在你电脑上</small></span></button></div>' +
         '<div class="bz-strip" id="bzStripR"></div>' +
-        '<div class="bz-cols">' +
+        '<div class="bz-cols" id="bzCols">' +
           '<div class="bz-main"><section class="bz-card" id="bzFeedCard"><div class="bz-card-h"><h3>最新新闻</h3>' +
             seg("rgrp", [["all", "全部"], ["news", "财经媒体"], ["corp,corpkw", "大公司"], ["media,indkw", "行业媒体"], ["policy", "政策数据"], ["global", "海外"], ["mine", "我加的"]]) + "</div>" +
             '<p class="bz-filter" id="bzFeedFilter" hidden></p><div class="bz-feed" id="bzFeed"></div>' +
@@ -154,6 +154,7 @@
             '<section class="bz-card"><div class="bz-card-h"><h3>最近的简报</h3></div><div class="bz-reps" id="bzBriefs"></div></section>' +
             '<p class="bz-note" id="bzCounts"></p>' +
           "</aside>" +
+          '<section class="bz-readp" id="bzReadP" aria-label="新闻内容" hidden></section>' +
         "</div>" +
       "</div>" +
 
@@ -272,62 +273,164 @@
   // ───────── 公共小块 ─────────
   function itemRow(it) {
     const tags = it.ind.concat(it.trk).slice(0, 3).map((id) => '<span class="bz-tag">' + esc(nameOf(id)) + "</span>").join("");
-    const open = !!S.artOpen[it.id];
+    const sel = S.artSel === it.id;
     if (it.url && it.src !== "note") S.artItems[it.id] = it;
-    // v160：点标题在这里展开正文，不再跳网页；原文链接放在展开内容的底部
+    const zh = S.trTitle[it.title];
+    // v160/v161：点标题在右边的阅读栏里看正文（不跳网页）；外文标题显示中文译名，原文写在下面
     const t = it.src === "note"
       ? '<button type="button" class="bz-item-t" data-note="' + esc(it.id) + '">' + esc(it.title) + "</button>"
-      : (it.url ? '<button type="button" class="bz-item-t bz-art-t" data-art="' + esc(it.id) + '" aria-expanded="' + open + '" title="' + (open ? "点一下收起" : "点一下展开看内容") + '">' +
-          esc(it.title) + '<i class="bz-caret" aria-hidden="true"></i></button>'
+      : (it.url ? '<button type="button" class="bz-item-t bz-art-t" data-art="' + esc(it.id) + '"' + (sel ? ' aria-current="true"' : "") + ' title="点一下在右边看内容">' +
+          esc(zh || it.title) + "</button>" + (zh ? '<span class="bz-orig">' + esc(it.title) + "</span>" : "")
         : '<span class="bz-item-t">' + esc(it.title) + "</span>");
     const isR = it.src === "radar";
     const when = isR ? (it.approx ? "时间不详" : ago(it.ts)) : it.date;
     const fresh = isR && it.seen && S.newCut && it.seen >= S.newCut;
-    return '<div class="bz-item' + (fresh ? " fresh" : "") + (open ? " open" : "") + '" data-row="' + esc(it.id) + '"><span class="bz-src s-' + it.src + '">' + (isR ? (GRP[it.grp] || SRC.radar) : SRC[it.src]) + "</span>" +
+    return '<div class="bz-item' + (fresh ? " fresh" : "") + (sel ? " sel" : "") + '" data-row="' + esc(it.id) + '"><span class="bz-src s-' + it.src + '">' + (isR ? (GRP[it.grp] || SRC.radar) : SRC[it.src]) + "</span>" +
       '<div class="bz-item-b">' + (fresh ? '<span class="bz-new" title="上一轮更新时新抓到的">新</span>' : "") + t +
-      (it.text && !open ? "<p>" + esc(it.text) + "</p>" : "") +
+      (it.text && !zh ? "<p>" + esc(it.text) + "</p>" : "") +
       '<div class="bz-item-m">' + (it.who ? "<span>" + esc(it.who) + (isR && it.from && it.from !== it.who ? "·" + esc(it.from) : "") + "</span>" : "") + (when ? "<span>" + esc(when) + "</span>" : "") +
-      (it.todo ? '<span class="bz-warn">还没加工</span>' : "") + tags + "</div>" + (open ? artHTML(it) : "") + "</div></div>";
+      (it.todo ? '<span class="bz-warn">还没加工</span>' : "") + tags + "</div></div></div>";
   }
-  function artHTML(it) {
-    const a = S.art[it.url];
-    let body;
+
+  // ───────── v161：右边的阅读栏（正文 + 翻译） ─────────
+  const isForeign = (t) => {
+    t = String(t || "").replace(/\s+/g, "").slice(0, 3000);
+    if (t.length < 6) return false;
+    if (/[\u3040-\u30ff\uac00-\ud7af]/.test(t)) return true;
+    const han = (t.match(/[\u4e00-\u9fff]/g) || []).length, all = (t.match(/\p{L}/gu) || []).length;
+    return all - han >= 6 && han < (all - han) * 0.1;
+  };
+  async function translateTitles(list) {
+    const todo = Array.from(new Set((list || []).map((x) => x.title).filter((t) => t && !(t in S.trTitle) && isForeign(t))));
+    if (!todo.length) return;
+    todo.forEach((t) => { S.trTitle[t] = ""; });              // 正在翻，别重复请求
+    let r;
+    try { r = await api("/biz/translate", { lines: todo }); } catch (e) { r = null; }
+    if (!r || !r.items) { todo.forEach((t) => { delete S.trTitle[t]; }); return; }
+    todo.forEach((t, i) => { S.trTitle[t] = r.items[i] || ""; });
+    if (r.items.some(Boolean)) { renderFeed(); if (S.artSel) renderReadP(); }
+  }
+  function readBodyHTML(it) {
+    const a = S.art[it.url], tr = S.artTr[it.url];
+    const useZh = a && a.foreign && S.artLang === "zh" && tr && tr.ok;
+    const src = useZh ? tr : a;
     if (!a || a.loading) {
-      body = (it.text ? '<p class="bz-art-sum">' + esc(it.text) + "</p>" : "") + '<p class="bz-art-wait">正在读取正文…</p>';
-    } else if (a.paras && a.paras.length) {
-      body = a.paras.map((x) => "<p>" + esc(x) + "</p>").join("");
-    } else {
-      const sum = a.desc || a.summary || it.text || "";
-      body = (sum ? '<p class="bz-art-sum">' + esc(sum) + "</p>" : "") +
+      return (it.text ? '<p class="bz-art-sum">' + esc(it.text) + "</p>" : "") + '<p class="bz-art-wait">正在读取正文…</p>';
+    }
+    let h = "";
+    if (a.foreign && S.artLang === "zh" && !(tr && tr.ok)) {
+      h += '<p class="bz-art-tip">' + (tr && tr.error ? "翻译没成功：" + esc(tr.error) + ' <button type="button" class="bz-link" data-act="art-retr">再试一次</button>' : "正在翻译成中文…先显示原文。") + "</p>";
+    }
+    if (src.paras && src.paras.length) h += src.paras.map((x) => "<p>" + esc(x) + "</p>").join("");
+    else {
+      const sum = src.desc || a.summary || it.text || "";
+      h += (sum ? '<p class="bz-art-sum">' + esc(sum) + "</p>" : "") +
         '<p class="bz-art-miss">没读出正文' + (a.error ? "：" + esc(a.error) : "") + "。想看全文，可以点下面的原文链接。</p>";
     }
-    const meta = [it.who ? "来源：" + esc(it.who) + (it.from && it.from !== it.who ? "·" + esc(it.from) : "") : "",
-      a && a.pub ? "发布：" + esc(a.pub.replace("T", " ").slice(0, 16)) : (it.ts && !it.approx ? "发布：" + esc(fmtTime(it.ts)) : ""),
-      a && a.chars ? "正文约 " + a.chars + " 字" : ""].filter(Boolean).map((x) => "<span>" + x + "</span>").join("");
-    return '<div class="bz-art" role="region" aria-label="新闻内容">' + '<div class="bz-art-body">' + body + "</div>" +
-      '<div class="bz-art-f"><div class="bz-art-src">原文链接：<a href="' + esc(it.url) + '" target="_blank" rel="noopener">' + esc(it.url) + "</a></div>" +
-      '<div class="bz-art-m">' + meta + '<button type="button" class="bz-link" data-art="' + esc(it.id) + '">收起</button></div></div></div>';
+    return h;
   }
-  function rerow(id) {
-    const it = S.artItems[id];
-    if (!it) return;
-    root.querySelectorAll('.bz-item[data-row="' + CSS.escape(id) + '"]').forEach((el) => { el.outerHTML = itemRow(it); });
+  function readMetaHTML(it) {
+    const a = S.art[it.url] || {}, tr = S.artTr[it.url];
+    return [it.who ? "来源：" + esc(it.who) + (it.from && it.from !== it.who ? "·" + esc(it.from) : "") : "",
+      a.pub ? "发布：" + esc(a.pub.replace("T", " ").slice(0, 16)) : (it.ts && !it.approx ? "发布：" + esc(fmtTime(it.ts)) : ""),
+      a.chars ? "原文约 " + a.chars + " 字" : "",
+      a.foreign && tr && tr.ok && S.artLang === "zh" ? "翻译：" + esc(tr.via) : ""].filter(Boolean).map((x) => "<span>" + x + "</span>").join("");
   }
-  async function toggleArt(id) {
-    const it = S.artItems[id];
-    if (!it) return;
-    if (S.artOpen[id]) { delete S.artOpen[id]; rerow(id); return; }
-    S.artOpen[id] = true;
-    const need = !S.art[it.url] || (!S.art[it.url].loading && S.art[it.url].failed);
-    if (need) S.art[it.url] = { loading: true };
-    rerow(id);
-    if (!need) return;
+  function readTitle(it) {
+    const tr = S.artTr[it.url], a = S.art[it.url] || {};
+    const zh = (a.foreign && tr && tr.ok && tr.title) || S.trTitle[it.title] || "";
+    return S.artLang === "zh" && zh && zh !== it.title ? { main: zh, orig: it.title } : { main: it.title, orig: "" };
+  }
+  function renderReadP() {
+    const el = $("bzReadP"), cols = $("bzCols");
+    if (!el) return;
+    const it = S.artItems[S.artSel];
+    cols.classList.toggle("reading", !!it);
+    el.hidden = !it;
+    if (!it) { el.innerHTML = ""; return; }
+    const a = S.art[it.url] || {}, ti = readTitle(it);
+    const list = S.rfeed || [], i = list.findIndex((x) => x.id === it.id);
+    const prev = i > 0 ? list[i - 1].id : "", next = i >= 0 && i < list.length - 1 ? list[i + 1].id : "";
+    const isR = it.src === "radar";
+    const keepTop = el.dataset.id === it.id ? (el.querySelector(".bz-rp-body") || {}).scrollTop || 0 : 0;
+    el.dataset.id = it.id;
+    el.innerHTML =
+      '<div class="bz-rp-h"><span class="bz-src s-' + it.src + '">' + esc(isR ? (GRP[it.grp] || SRC.radar) : SRC[it.src]) + "</span>" +
+        (a.foreign ? '<div class="bz-tog" role="group" aria-label="看译文还是原文">' +
+          '<button type="button" data-act="art-lang" data-v="zh" aria-pressed="' + (S.artLang === "zh") + '">中文</button>' +
+          '<button type="button" data-act="art-lang" data-v="orig" aria-pressed="' + (S.artLang !== "zh") + '">原文</button></div>' : "") +
+        '<span class="sp"></span>' +
+        '<button type="button" class="bz-rp-nav" data-art="' + esc(prev) + '"' + (prev ? "" : " disabled") + ' aria-label="上一条">‹ 上一条</button>' +
+        '<button type="button" class="bz-rp-nav" data-art="' + esc(next) + '"' + (next ? "" : " disabled") + ' aria-label="下一条">下一条 ›</button>' +
+        '<button type="button" class="bz-x" data-act="art-close" aria-label="关闭阅读栏（Esc）" title="关闭（Esc）">×</button></div>' +
+      '<div class="bz-rp-body" tabindex="-1"><h2 class="bz-rp-t">' + esc(ti.main) + "</h2>" + (ti.orig ? '<p class="bz-rp-orig">' + esc(ti.orig) + "</p>" : "") +
+        '<div class="bz-rp-m">' + readMetaHTML(it) + "</div>" +
+        '<div class="bz-art-body">' + readBodyHTML(it) + "</div>" +
+        '<div class="bz-art-f"><div class="bz-art-src">原文链接：<a href="' + esc(it.url) + '" target="_blank" rel="noopener">' + esc(it.url) + "</a></div></div>" +
+      "</div>";
+    if (keepTop) el.querySelector(".bz-rp-body").scrollTop = keepTop;
+  }
+  function closeArt() {
+    const id = S.artSel;
+    S.artSel = "";
+    renderReadP();
+    if (id) {
+      root.querySelectorAll(".bz-item.sel").forEach((e) => { e.classList.remove("sel"); const b = e.querySelector("[aria-current]"); if (b) b.removeAttribute("aria-current"); });
+      const b = root.querySelector('#bzFeed [data-art="' + CSS.escape(id) + '"]');
+      if (b) b.focus();
+    }
+  }
+  async function loadArt(it) {
+    const url = it.url;
+    if (!S.art[url] || (S.art[url].failed && !S.art[url].loading)) {
+      S.art[url] = { loading: true };
+      let r;
+      try { r = await api("/biz/article?url=" + enc(url)); } catch (e) { r = { ok: false, error: "连不上后台" }; }
+      if (!r || r.ok === false) r = { paras: [], error: (r && r.error) || "读取失败", failed: true };
+      else if (!(r.paras && r.paras.length) && !r.desc) r.failed = true;
+      if (!r.foreign && isForeign(it.title) && !(r.paras && r.paras.length)) r.foreign = true;
+      S.art[url] = r;
+      refreshArt(it);
+    }
+    const a = S.art[url];
+    if (a.foreign && !S.artTr[url]) await loadTr(it);
+  }
+  async function loadTr(it) {
+    S.artTr[it.url] = { loading: true };
+    refreshArt(it);
     let r;
-    try { r = await api("/biz/article?url=" + enc(it.url)); } catch (e) { r = { ok: false, error: "连不上后台" }; }
-    if (!r || r.ok === false) r = { paras: [], error: (r && r.error) || "读取失败", failed: true };
-    else if (!(r.paras && r.paras.length) && !r.desc) r.failed = true;
-    S.art[it.url] = r;
-    Object.keys(S.artOpen).forEach((k) => { if (S.artItems[k] && S.artItems[k].url === it.url) rerow(k); });
+    try { r = await api("/biz/article_tr?url=" + enc(it.url)); } catch (e) { r = { ok: false, error: "连不上后台" }; }
+    S.artTr[it.url] = r && r.ok ? r : { ok: false, error: (r && r.error) || "翻译失败" };
+    refreshArt(it);
+  }
+  function refreshArt(it) {
+    const pg = S.artItems[S.readerArt];
+    if (pg && pg.url === it.url && !$("bzReader").hidden) openArtPage(pg);
+    const cur = S.artItems[S.artSel];
+    if (cur && cur.url === it.url) renderReadP();
+  }
+  const curArt = () => S.artItems[!$("bzReader").hidden && S.readerArt ? S.readerArt : S.artSel];
+  function openArt(id, inFeed) {
+    const it = S.artItems[id];
+    if (!it) return;
+    if (!inFeed) { S.readerArt = id; openArtPage(it); loadArt(it); return; }
+    S.artSel = id;
+    root.querySelectorAll("#bzFeed .bz-item").forEach((e) => {
+      const on = e.dataset.row === id;
+      e.classList.toggle("sel", on);
+      const b = e.querySelector(".bz-art-t");
+      if (b) { if (on) b.setAttribute("aria-current", "true"); else b.removeAttribute("aria-current"); }
+    });
+    renderReadP();
+    const row = root.querySelector('#bzFeed .bz-item[data-row="' + CSS.escape(id) + '"]');
+    if (row) row.scrollIntoView({ block: "nearest" });
+    loadArt(it);
+  }
+  function openArtPage(it) {                 // 不在新闻列表里（行业地图、爬虫管理）点的：用整页阅读
+    const ti = readTitle(it), a = S.art[it.url] || {};
+    openReader(ti.main, readMetaHTML(it) + (a.foreign ? '<button type="button" class="bz-link" data-act="art-lang" data-v="' + (S.artLang === "zh" ? "orig" : "zh") + '">' + (S.artLang === "zh" ? "看原文" : "看中文") + "</button>" : ""),
+      (ti.orig ? '<p class="bz-rp-orig">' + esc(ti.orig) + "</p>" : "") + '<div class="bz-art-body">' + readBodyHTML(it) + "</div>" +
+      '<div class="bz-art-f"><div class="bz-art-src">原文链接：<a href="' + esc(it.url) + '" target="_blank" rel="noopener">' + esc(it.url) + "</a></div></div>", "");
   }
   function repRow(r) {
     return '<button type="button" class="bz-rep" data-rep="' + esc(r.id) + '"><span class="bz-rep-top"><span class="bz-kind k-' + esc(r.kind) + '">' +
@@ -448,6 +551,7 @@
     if (seq !== S.rseq) return;
     S.rfeed = (r && r.items) || [];
     S.rtotal = (r && r.total) || 0;
+    translateTitles(S.rfeed);
     if (!S.rfeed.length && S.rtotal && S.rpage > 1) { S.rpage = Math.ceil(S.rtotal / S.rsize); return loadRadarFeed(true); }
     renderFeed();
     renderBigBtns();
@@ -1438,6 +1542,9 @@
         else if (act === "clearsince") { S.rsince = 0; loadRadarFeed(); }
         else if (act === "rd-run") radarRun();
         else if (act === "upd-open") openUpd();
+        else if (act === "art-close") closeArt();
+        else if (act === "art-lang") { S.artLang = b.dataset.v === "orig" ? "orig" : "zh"; const it = curArt(); if (it) refreshArt(it); }
+        else if (act === "art-retr") { const it = curArt(); if (it) loadTr(it); }
         else if (act === "upd-start") { b.disabled = true; updStart(); }
         else if (act === "upd-shownew") {
           const run = S.updRes && S.updRes.run;
@@ -1550,7 +1657,7 @@
         if (r.ok) { toast("加进去 " + r.added + " 个，下一轮就会抓。"); loadRadarSources(); } else toast(r.error || "没加上");
         return;
       }
-      if ((b = t.closest("[data-art]"))) { toggleArt(b.dataset.art); return; }
+      if ((b = t.closest("[data-art]"))) { if (b.dataset.art && !b.disabled) openArt(b.dataset.art, !!b.closest("#bzFeed, #bzReadP")); return; }
       if ((b = t.closest("[data-page]"))) { if (!b.disabled) goPage(+b.dataset.page); return; }
       if (t.closest("#bzUpdBtn")) { openUpd(); return; }
       if (t.closest("#bzBriefRun")) { openBrief(); return; }
@@ -1618,6 +1725,7 @@
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape" || !root.classList.contains("active")) return;
       if (!$("bzBrief").hidden) closeModal("bzBrief");
+      else if (S.artSel && $("bzReader").hidden && !$("bzReadP").hidden) closeArt();
       else if (!$("bzUpd").hidden) closeModal("bzUpd");
       else if (!$("bzReader").hidden) closeReader();
     });

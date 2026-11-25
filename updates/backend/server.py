@@ -5637,6 +5637,9 @@ class Handler(BaseHTTPRequestHandler):
                 if path == "/biz/article":                           # v160：点开新闻，在软件里看正文
                     import biz_crawler as _bc
                     return self._send(_bc.article(q1("url")))
+                if path == "/biz/article_tr":                        # v161：外文新闻翻译成中文
+                    import biz_crawler as _bc
+                    return self._send(_bc.translate_article(q1("url")))
                 if path == "/biz/radar/plan":                        # v158：「现在更新」面板
                     import biz_crawler as _bc
                     return self._send(_bc.plan())
@@ -6566,6 +6569,9 @@ class Handler(BaseHTTPRequestHandler):
                                                lens=body.get("lens", "mine"), grp=body.get("grp", ""), q=body.get("q", ""),
                                                size=body.get("size", ""), notes=bool(body.get("notes", True)),
                                                focus=body.get("focus", "")))
+                if path == "/biz/translate":                         # v161：外文标题翻成中文
+                    import biz_crawler as _bc
+                    return self._send(_bc.translate_lines(body.get("lines") or []))
                 if path == "/biz/open_folder":                       # v158：在资源管理器里打开报告所在的文件夹
                     return self._send(_biz_open_folder(bz.report_path(body.get("id", ""))))
                 if path == "/biz/stop":
