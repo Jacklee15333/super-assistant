@@ -20,8 +20,8 @@
         "time": "09:00",
         "use_local": false,
         "model": "web",
-        "last_run_date": "2026-11-24",
-        "last_result_id": "auto-20261124-090017-47be"
+        "last_run_date": "2026-11-25",
+        "last_result_id": "auto-20261125-090017-47be"
       },
       {
         "id": "t-1782729748831-r8g7",
@@ -31,8 +31,8 @@
         "time": "09:21",
         "use_local": false,
         "model": "web",
-        "last_run_date": "2026-11-24",
-        "last_result_id": "auto-20261124-092312-r8g7"
+        "last_run_date": "2026-11-25",
+        "last_result_id": "auto-20261125-092109-r8g7"
       },
       {
         "id": "t-1782732670790-st6b",
@@ -48,9 +48,9 @@
     ]
   },
   "created_at": "2026-06-29T17:00:43",
-  "updated_at": "2026-11-24T09:31:56",
+  "updated_at": "2026-11-25T09:24:13",
   "stats": {
-    "runs": 71,
-    "last_used": "2026-11-24T09:31:56"
+    "runs": 73,
+    "last_used": "2026-11-25T09:24:13"
   }
 }

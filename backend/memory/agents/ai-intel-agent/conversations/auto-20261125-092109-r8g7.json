@@ -1,0 +1,16 @@
+{
+  "id": "auto-20261125-092109-r8g7",
+  "title": "🤖 自动 · 最新github开源项目 · 11-25 09:21",
+  "created_at": "2026-11-25T09:24:13",
+  "updated_at": "2026-11-25T09:24:13",
+  "messages": [
+    {
+      "role": "user",
+      "content": "查最新 github 最新的，最热门的开源项目"
+    },
+    {
+      "role": "assistant",
+      "content": "# GitHub 最新热门开源项目情报\n实时趋势已检索\n2026-11-25\n\n先说结论：目前 GitHub 最明显的热点是 AI Agent、Coding Agent、Agent Skills 和 AI 自动化工具。\n这轮值得关注的不只是大模型项目，而是围绕 AI 编程助手形成的新生态：让 AI 能操作软件、执行任务、审查代码、设计界面，甚至自主完成开发流程。\n我把情报分成三个层次：\n\n数据以目前能检索到的 GitHub Trending 和 11 月 24 日趋势快照为基础。Star 数和每日排名会继续变化。"
+    }
+  ]
+}
