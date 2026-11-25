@@ -650,3 +650,8 @@ body.dark .view-biz { --bz-up: #6cc08b; --bz-warn: #e0a24a; --bz-bad: #e5907a; }
   .view-biz .bz-cols.reading { grid-template-columns: 1fr; }
   .view-biz .bz-readp { position: fixed; top: 60px; right: 12px; bottom: 12px; left: 12px; height: auto; z-index: 40; box-shadow: var(--shadow-pop, 0 12px 40px rgba(0, 0, 0, .25)); }
 }
+
+/* v162：收进知识库 */
+.view-biz .bz-rp-nav.kb { border-color: var(--accent); color: var(--accent); }
+.view-biz .bz-rp-nav.kb:hover:not(:disabled) { background: var(--bz-soft); }
+.view-biz .bz-kb-ok { font-size: 12px; color: var(--bz-up); white-space: nowrap; }

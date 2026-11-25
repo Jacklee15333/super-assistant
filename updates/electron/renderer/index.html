@@ -1,0 +1,2165 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>超能小助</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="crawler.css" />
+  <!-- 视频页：把同类功能分区框起来的卡片样式（自包含，深浅色自适应） -->
+  <style>
+    /* 每个功能区是一张卡片；标题骑在上边框线上 → 用 padding-top 给标题让位，
+       卡片本身 position:relative，标题绝对定位压在边框线上。 */
+    .v-card{
+      position:relative;
+      border:1px solid var(--border,#e2e2e6);
+      border-radius:12px;
+      background:var(--bg-card,var(--card-bg,rgba(127,127,127,.04)));
+      padding:20px 16px 14px;
+      margin-bottom:16px;
+    }
+    /* 骑在边框线上的标题：绝对定位到卡片左上，背景盖住边框线形成「穿插」效果 */
+    .v-card-head{
+      position:absolute;
+      top:-11px;            /* 约等于半个标题高度，让它压在上边框线中间 */
+      left:14px;
+      display:flex;
+      align-items:center;
+      gap:6px;
+      padding:0 8px;
+      background:var(--bg,var(--app-bg,#fff));  /* 盖住下面的边框线 */
+      line-height:1;
+    }
+    .v-card-title{
+      font-size:14px;
+      font-weight:600;
+      color:var(--text,#1b1b1f);
+      display:flex;align-items:center;gap:5px;
+      white-space:nowrap;
+    }
+    /* 小小的 ⓘ 信息按钮：放标题右上角，点了弹说明 */
+    .v-info-btn{
+      width:15px;height:15px;line-height:15px;
+      font-size:11px;text-align:center;
+      border-radius:50%;
+      border:1px solid var(--border,#c9c9d0);
+      color:var(--text-dim,#8a8a93);
+      background:transparent;
+      cursor:pointer;padding:0;
+      display:inline-flex;align-items:center;justify-content:center;
+      flex:0 0 auto;
+      transform:translateY(-5px);   /* 微微上提，贴近「右上角」 */
+    }
+    .v-info-btn:hover{
+      color:var(--text,#1b1b1f);
+      border-color:var(--text-dim,#8a8a93);
+    }
+    /* ⓘ 点开后的说明气泡 */
+    .v-info-pop{
+      display:none;
+      position:absolute;top:14px;left:14px;z-index:20;
+      max-width:340px;
+      padding:8px 11px;
+      font-size:12px;font-weight:400;line-height:1.6;
+      color:var(--text,#333);
+      background:var(--bg,#fff);
+      border:1px solid var(--border,#d8d8de);
+      border-radius:8px;
+      box-shadow:0 4px 16px rgba(0,0,0,.12);
+    }
+    .v-info-pop.show{display:block}
+
+    /* 处理进度区在没有任何任务时整张收起，不占地方 */
+    .v-card.is-empty{display:none}
+    .v-card .video-input-row,
+    .v-card .video-opts,
+    .v-card .video-mode-row{margin-top:0}
+
+    /* ── 高级选项折叠区（插图 / 跳转原片 / 字幕模式）──
+       外观和「维护工具」保持一致：一条可点的标题行 + 展开体。 */
+    .v-adv{
+      margin-top:12px;
+      border:0.5px solid var(--border,#3a3a3a);
+      border-radius:8px;overflow:hidden;
+    }
+    .v-adv-head{
+      display:flex;align-items:center;gap:6px;
+      padding:8px 10px;cursor:pointer;
+      font-size:13px;color:var(--text-dim,#9aa);
+    }
+    .v-adv-body{display:none;padding:4px 10px 10px;border-top:0.5px solid var(--border,#3a3a3a)}
+    /* 每个高级选项一行：勾选/标签 + ⓘ + 检测按钮 + 检测结果徽章 */
+    .v-opt-row{
+      display:flex;align-items:center;flex-wrap:wrap;gap:8px;
+      padding:8px 0;
+      border-bottom:0.5px dashed var(--border,#e5e5e9);
+    }
+    .v-opt-row:last-child{border-bottom:0}
+    .v-opt-main{display:flex;align-items:center;gap:6px;min-width:0}
+    .v-test-btn{
+      font-size:12px;padding:3px 10px;
+      border:0.5px solid var(--border,#c9c9d0);
+      border-radius:6px;background:transparent;
+      color:var(--text-dim,#8a8a93);cursor:pointer;
+    }
+    .v-test-btn:hover{color:var(--text,#1b1b1f);border-color:var(--text-dim,#8a8a93)}
+    .v-badge{
+      font-size:12px;padding:2px 8px;border-radius:10px;
+      display:none;align-items:center;gap:4px;
+    }
+    .v-badge.show{display:inline-flex}
+    .v-badge.ok{background:rgba(46,160,90,.12);color:#2ea05a}
+    .v-badge.no{background:rgba(200,60,60,.12);color:#c83c3c}
+    .v-badge.maybe{background:rgba(200,150,30,.14);color:#b0851e}
+    .v-badge.testing{background:rgba(120,120,130,.12);color:var(--text-dim,#8a8a93)}
+  </style>
+  <link rel="stylesheet" href="theme-claude.css" />
+  <link rel="stylesheet" href="trendwatch.css" />
+<link rel="stylesheet" href="biz.css" />
+<link rel="stylesheet" href="kb.css" />
+</head>
+<body class="on-chat">
+  <div class="app">
+    <!-- 左侧栏 -->
+    <aside class="sidebar">
+      <div class="sb-top">
+        <button type="button" class="sb-iconbtn" id="appMenuBtn" title="菜单（设置 / 编辑 / 视图 / 窗口）">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <div class="brand">
+          <div class="brand-mark">🦞</div>
+          <div class="brand-text">
+            <div class="brand-name">超能小助</div>
+            <div class="brand-sub" id="statusLine">连接中…</div>
+          </div>
+        </div>
+        <button type="button" class="sb-iconbtn sb-collapse" id="sbCollapseBtn" title="折叠侧栏">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9.5 4.5v15"/><path class="sb-col-arrow" d="m16 9.5-2.5 2.5 2.5 2.5"/></svg>
+        </button>
+      </div>
+      <button type="button" class="sb-new" id="newConvoBtn" title="新建会话">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        <span>新对话</span>
+      </button>
+
+      <nav class="nav">
+        <button class="nav-item nav-item-chat active" data-view="chat" title="回到当前对话"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 0 1 3 11.5 8.5 8.5 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z"/></svg><span>对话</span></button>
+        <button class="nav-item" data-view="video" title="什么都能放进来，先提取出内容：视频出文字稿、文章出正文、GitHub 项目出说明"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 13.5h4.8l1.6 2.8h4.2l1.6-2.8h4.8"/><path d="M5.8 5h12.4l2.3 8.5v4.6a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2v-4.6z"/><path d="M12 3.5v6m-2.6-2.4L12 9.7l2.6-2.6"/></svg><span>提取</span></button>
+        <button class="nav-item" data-view="video" data-video-mode="process" title="提取出来的半成品交给 AI 分析：总结要点、打标签分类"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m11 4 1.8 4.7L17.5 10.5l-4.7 1.8L11 17l-1.8-4.7L4.5 10.5l4.7-1.8z"/><path d="M18.5 15v5M16 17.5h5"/></svg><span>加工</span></button>
+        <button class="nav-item" data-view="video" data-video-mode="notes" title="加工好的东西：最新提取、博主、文件夹"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5h11a1.5 1.5 0 0 1 1.5 1.5v14a1.5 1.5 0 0 1-1.5 1.5h-11z"/><path d="M6.5 3.5v17M5 7.5h3M5 12h3M5 16.5h3M10.5 8h5M10.5 11.5h5"/></svg><span>笔记</span></button>
+        <button class="nav-item" data-nav-group="sniff"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.5M7.8 16.2a6 6 0 0 1 0-8.5M19.1 4.9a10 10 0 0 1 0 14.2M4.9 19.1a10 10 0 0 1 0-14.2"/></svg><span>嗅探</span></button>
+        <button class="nav-item" data-nav-group="biz" title="市场雷达、行业地图、研究分析、机会看板、爬虫管理"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 20.5h17"/><path d="m4.5 15.5 4.5-4.5 3.5 3.5 6.5-7"/><path d="M15 7.5h4v4"/></svg><span>商业</span></button>
+        <button class="nav-item" data-nav-group="data" title="知识库、资料列表、云图"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13"/><path d="M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8"/></svg><span>资料库</span></button>
+        <button class="nav-item" data-nav-group="lab" title="暂时用不上、还没想好怎么用的功能"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6"/><path d="M10 3v6.2l-5.3 8.9A1.9 1.9 0 0 0 6.3 21h11.4a1.9 1.9 0 0 0 1.6-2.9L14 9.2V3"/><path d="M7.2 15h9.6"/></svg><span>待开发</span></button>
+
+        <!-- v110：每一页原来的入口都留着但不显示。别处代码会 .click() 它们来跳页
+             （比如对话里一键去技能页），点它们照旧切页，左栏高亮会自动落到对应的组上。 -->
+        <div class="nav-legacy" hidden aria-hidden="true">
+          <button class="nav-item" data-view="sniff" tabindex="-1"><span>嗅探</span></button>
+          <button class="nav-item" data-view="trendwatch" tabindex="-1"><span>趋势瞭望台</span></button>
+          <button class="nav-item" data-view="biz" tabindex="-1"><span>商业</span></button>
+          <button class="nav-item" data-view="kb" tabindex="-1"><span>知识库</span></button>
+          <button class="nav-item" data-view="datadb" tabindex="-1"><span>数据库</span></button>
+          <button class="nav-item" data-view="knowledge" tabindex="-1"><span>知识云图</span></button>
+          <button class="nav-item" data-view="lumi" data-lumi-sub="profile" tabindex="-1"><span>画像</span></button>
+          <button class="nav-item" data-view="lumi" data-lumi-sub="insight" tabindex="-1"><span>洞察</span></button>
+          <button class="nav-item" data-view="lumi" data-lumi-sub="evolution" tabindex="-1"><span>人格</span></button>
+          <button class="nav-item" data-view="memory" tabindex="-1"><span>记忆</span></button>
+          <button class="nav-item" data-view="agents" tabindex="-1"><span>分身</span></button>
+          <button class="nav-item" data-view="skills" tabindex="-1"><span>技能</span></button>
+          <button class="nav-item" data-view="lab" tabindex="-1"><span>待开发</span></button>
+          <button class="nav-item" data-view="loop" tabindex="-1"><span>目标循环</span></button>
+          <button class="nav-item" data-view="harness" tabindex="-1"><span>运行台</span></button>
+          <button class="nav-item" data-view="pet" tabindex="-1"><span>桌宠</span></button>
+          <button class="nav-item" data-view="study" tabindex="-1"><span>英语学习</span></button>
+          <button class="nav-item" data-view="dashboard" tabindex="-1"><span>情报看板</span></button>
+          <button class="nav-item" data-view="library" tabindex="-1"><span>成长库</span></button>
+        </div>
+
+        <!-- 隐藏的旧子菜单：仅供 crawler.js / evolution.js 的切页逻辑复用，不显示给用户 -->
+        <div class="nav-sub nav-sub-hidden" id="lumiSubNav">
+          <button class="nav-subitem active" data-lumi="profile">画像</button>
+          <button class="nav-subitem" data-lumi="insight">洞察</button>
+          <button class="nav-subitem" data-lumi="evolution">人格</button>
+        </div>
+      </nav>
+
+      <div class="convo-section">
+        <div class="convo-head">
+          <span>最近对话</span>
+        </div>
+        <div class="convo-list" id="convoList"></div>
+      </div>
+
+      <div class="sidebar-foot">
+        <button class="ghost-btn" id="termToggleBtn" title="显示 / 收起终端（后台日志，和启动时的黑窗口内容一样）"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="m7 9.5 3 2.5-3 2.5M12.5 15h4.5"/></svg><span>终端</span></button>
+        <button class="nav-item foot-item" title="设置" data-view="settings"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>设置</span></button>
+      </div>
+    </aside>
+
+    <!-- v55：终端抽屉（后台日志，和启动时的黑窗口内容一样），贴在主区底部 -->
+    <div class="term-drawer" id="termDrawer" hidden>
+      <div class="term-drawer-resize" id="termDrawerResize" title="上下拖动调整高度"></div>
+      <div class="term-drawer-head">
+        <span class="term-drawer-title">终端</span>
+        <span class="term-drawer-sub">后台日志，和启动时的黑窗口内容一样</span>
+        <span class="term-drawer-sp"></span>
+        <span class="term-drawer-msg" id="termDrawerMsg"></span>
+        <button class="term-drawer-btn" id="termPopBtn" title="在单独的窗口里看终端，可以拖到一边">单独窗口打开</button>
+        <button class="term-drawer-btn" id="termConsoleBtn" title="把启动时的那个黑窗口重新显示出来">显示原来的黑窗口</button>
+        <button class="term-drawer-btn" id="termCloseBtn" title="收起终端">✕</button>
+      </div>
+      <div class="term-drawer-body" id="termDrawerBody"></div>
+    </div>
+
+    <!-- 主区 -->
+    <main class="main">
+      <!-- 对话视图 -->
+      <section class="view view-chat active" id="view-chat">
+        <header class="topbar">
+          <span id="chatTitle">对话</span>
+          <span class="topbar-actions">
+            <button type="button" class="ghost-btn small chat-end-btn" id="endConvoBtn" title="结束这段对话：记住要点、存为历史会话，或提炼成技能">结束对话</button>
+            <span class="model-status" id="modelStatus" title="模型状态">
+              <span class="status-dot" id="statusDot"></span>
+              <span class="topbar-hint" id="modelHint"></span>
+            </span>
+          </span>
+        </header>
+        <div class="messages" id="messages"></div>
+        <div class="composer">
+          <div class="composer-box">
+            <textarea id="input" rows="1"
+              placeholder="和超能小助说点什么…（Enter 发送，Shift+Enter 换行）"></textarea>
+            <div class="composer-bar">
+              <div class="composer-bar-left">
+                <div class="plus-menu" id="plusMenu" style="display:none">
+                  <button type="button" class="composer-plus" id="plusBtn" title="更多">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  </button>
+                  <div class="plus-menu-pop" id="plusPop" hidden>
+                    <button type="button" class="plus-item" id="rememberBtn" title="把这次对话提炼进长期记忆，下次还记得">🧠 结束并记住</button>
+                  </div>
+                </div>
+                <button type="button" id="routeModeBtn" class="route-mode-btn" title="智能模式：按任务自动选模型；常规模式：只用你选的模型">
+                  <span id="routeModeLabel">智能</span>
+                </button>
+              </div>
+              <div class="composer-bar-right">
+                <div class="model-picker" id="modelPicker">
+                  <button type="button" class="model-picker-btn" id="modelPickerBtn" title="选择模型 · 随时可切换">
+                    <span id="modelPickerLabel">模型</span>
+                    <svg class="mp-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                  </button>
+                  <div class="model-picker-menu" id="modelPickerMenu" hidden></div>
+                </div>
+                <button type="button" id="micBtn" class="composer-icon-btn" title="语音输入（点一下开始说话，再点停止）">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+                </button>
+                <button id="sendBtn" class="send-btn" title="发送（Enter）" aria-label="发送"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/></svg></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 学习视图 -->
+      <section class="view view-study" id="view-study">
+        <header class="topbar"><span>英语学习</span></header>
+        <div class="study-pane">
+          <div class="study-row">
+            <label>学生：</label>
+            <input type="text" id="studentName" class="text-input"
+                   placeholder="输入学生名（如 小明）" value="default" />
+          </div>
+          <div class="study-actions">
+            <button class="send-btn" id="dailyTaskBtn">📋 生成今日任务</button>
+            <button class="ghost-btn" id="startTutorBtn">开始辅导对话</button>
+            <button class="ghost-btn" id="viewStudentBtn">查看学习档案</button>
+          </div>
+          <div class="study-output" id="studyOutput">
+            <div class="study-hint">
+              选好学生，点「生成今日任务」让它根据老师的教材出一份今天的练习；
+              或点「开始辅导对话」直接进入学习模式（出题、背单词、讲语法、答疑）。
+              <br><br>
+              老师把教材放在 backend/教材/ 文件夹里（支持 .md / .txt）。
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 看板视图 -->
+      <section class="view view-dashboard" id="view-dashboard">
+        <header class="topbar">
+          <span>情报看板</span>
+          <button class="ghost-btn small" id="refreshDashBtn">刷新</button>
+        </header>
+        <div class="dash-pane" id="dashPane">
+          <div class="dash-loading">点「刷新」加载看板…</div>
+        </div>
+      </section>
+
+      <!-- 视频内容提取视图 -->
+      <section class="view view-video" id="view-video">
+        <header class="topbar">
+          <span style="display:flex;align-items:center"><span id="videoPageTitle">提取</span>
+            <button id="videoInfoBtn" class="info-btn" title="使用说明">ⓘ</button>
+          </span>
+        </header>
+        <div class="video-pane">
+          <div class="video-intro" id="videoIntro" style="display:none">
+            把视频的<b>分享文案整段粘进来就行</b>（抖音那种「标题…复制此链接打开Dou音…」一大段也可以，
+            它会自动从里面认出链接）。提取后会<b>自动保存</b>到下面的「加工好的」，以后随时点开看。
+            <b>第一次用需要装一次小工具</b>，并下载一次语音模型（存到 D 盘的 models and tools 文件夹，不占 C 盘）。
+            <br>💡 复制视频链接后，屏幕光标右上方会弹出超能小助的小按钮，点一下会把链接填进来，再点「提取并分析」即可。
+            可以连续点多个视频，会<b>自动排队</b>逐个处理。模型的下载位置和搬运，在「设置」里管理。
+          </div>
+
+          <!-- ① 开始提取：所有「发起一个新任务」要填的东西都在这张卡片里 -->
+          <div class="v-card v-card-extract">
+            <div class="v-card-head">
+              <span class="v-card-title">提取</span>
+              <button type="button" class="vi-gear" id="viGearBtn" title="设置" aria-label="设置" aria-expanded="false"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+              <button type="button" class="v-info-btn" data-info="info-extract" title="说明">ⓘ</button>
+            </div>
+            <div class="v-info-pop" id="info-extract">什么都能放：视频或文章链接、GitHub 项目、一段文字，或者电脑里文件的完整路径。软件会认出是什么，用对应的办法处理、分好类。可以连续放好几个，会自动排队。</div>
+
+            <!-- v117：工具卡片重新排：① 放东西 + 开始提取 ② 认出来是什么 ③ 别的放法 ④ 视频设置（收起） -->
+            <div class="vi-main">
+              <div class="vi-input-wrap">
+                <textarea id="videoUrl" class="text-input vi-input" rows="2"
+                placeholder="什么都能放：一段文字、链接、GitHub 项目、本地文件或文件夹（拖进来、粘贴路径，或点右下角的📎）。想找值得关注的博主和网站，就写「搜：领域」。按 Enter 开始，Shift+Enter 换行"></textarea>
+                <button type="button" class="vi-attach" id="viAttachBtn" title="选电脑里的文件或文件夹">📎</button>
+                <div class="vi-attach-menu" id="viAttachMenu" hidden>
+                  <button id="videoLocalBtn" class="vi-attach-item" title="从电脑里选文件导入：音频、视频会提取文字稿；PDF、Word、Excel、PPT、TXT、Markdown 等文档直接读出全文">选文件…</button>
+                  <button id="videoFolderBtn" class="vi-attach-item" title="选一个文件夹，自动找出里面所有音视频和文档（包括子文件夹），逐个导入；还可以顺手统一填作者、把笔记归进同名文件夹">选文件夹…</button>
+                </div>
+              </div>
+              <button id="videoGoBtn" class="send-btn">开始提取</button>
+            </div>
+            <div id="viKind" class="vi-kind" hidden></div>
+            <!-- v122：在这里直接聊（本地模型）；聊到「提取 / 加工」的事，小助会自己交给它们 -->
+            <div class="vi-chat" id="viChat" hidden>
+              <div class="vi-chat-msgs" id="viChatMsgs"></div>
+              <div class="vi-chat-foot">
+                <span class="vi-chat-model" id="viChatModel"></span>
+                <button type="button" class="vi-chat-link" id="viChatMore" title="把这段聊天搬到「对话」页接着聊">到对话页接着聊</button>
+                <button type="button" class="vi-chat-link" id="viChatClear">清空</button>
+              </div>
+            </div>
+            <div class="vi-sec" id="viVideoSec">
+              <div class="vi-sec-head" role="button" tabindex="0" title="视频识别（质量、语言、博主主页、整理原文、分离人声）和维护工具（依赖安装、抖音自检、诊断）">
+                <span class="vi-sec-caret">▸</span><span>设置</span><span class="vi-sec-sum" id="viVideoSum"></span>
+              </div>
+              <div class="vi-sec-body" hidden>
+                <div class="vi-sec-row vi-phone-row"></div>
+                <div class="vi-sec-row"><span class="vi-sec-label">识别质量</span><select id="videoLevel" class="text-input">
+                <option value="speed">快速（糙）</option>
+                <option value="balanced">均衡（推荐）</option>
+                <option value="accurate" selected>精准（慢）</option>
+              </select></div>
+                <div class="video-creator-row">
+              <span class="vc-label" title="填了就按这个主页建博主板块；不填，软件会根据视频自动找博主主页">👤 博主主页</span>
+              <input type="text" id="videoCreatorUrl" class="text-input"
+                placeholder="选填：博主主页链接（抖音 / B站 / YouTube…）。不填也行，软件会根据视频自动找" />
+            </div>
+            <div class="video-tools" style="margin-top:2px;border:0.5px solid var(--border,#3a3a3a);border-radius:8px;overflow:hidden">
+                  <div id="videoToolsHead" class="video-tools-head" role="button" tabindex="0"
+                       style="display:flex;align-items:center;gap:6px;padding:7px 10px;cursor:pointer;font-size:13px;color:var(--text-dim,#9aa)">
+                    <span id="videoToolsCaret">▸</span>
+                    <span>🛠 维护工具</span>
+                    <span style="color:var(--text-dim,#9aa);font-weight:400">（依赖安装 · 抖音自检 · 诊断）</span>
+                    <span id="videoDepBadge" class="vdep-badge" hidden></span>
+                  </div>
+                  <div id="videoToolsBody" style="display:none;padding:10px;border-top:0.5px solid var(--border,#3a3a3a)">
+                    <div id="videoDepStatus" class="vdep-status"></div>
+                    <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px">
+                      <button id="videoDepBtn" class="send-btn" style="font-size:13px;padding:6px 12px">🔧 安装/更新依赖</button>
+                      <button id="videoHealthBtn" class="send-btn" style="font-size:13px;padding:6px 12px">🩺 检测抖音是否正常</button>
+                      <button id="videoDiagCopyBtn2" class="send-btn" style="font-size:13px;padding:6px 12px">📋 复制诊断信息</button>
+                    </div>
+                    <div class="video-mode-tip" style="margin-top:6px">软件会自己查这几个依赖有没有新版：有新版时「更新依赖」按钮才亮起来，已是最新时按钮是灰的。抖音提取一直失败时，先更新一下往往就好了。</div>
+                    <div class="video-install-log" id="videoDepLog" style="margin-top:6px"></div>
+                    <div id="videoHealthBanner" class="video-health-banner" style="display:none;margin-top:8px;padding:8px 10px;border-radius:8px;font-size:13px;line-height:1.5"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div id="videoSubHint" class="video-sub-hint" style="display:none"></div>
+
+            <!-- 出问题时才出现的细提示条（不自动展开抽屉，给个链接让用户自己点开） -->
+            <div id="videoNotice" class="video-notice" style="display:none;margin-top:8px;padding:7px 10px;border-radius:8px;font-size:13px;line-height:1.5"></div>
+
+            <!-- 维护工具：默认收起，点标题行展开/收起 -->
+          </div>
+
+          <!-- ② 处理进度：任务跑起来后的状态、队列与结果。没有任务时整张卡片自动收起。 -->
+          <div class="v-card v-card-progress" id="videoProgressCard">
+            <div class="v-card-head">
+              <span class="v-card-title">⏳ 处理进度</span>
+              <button type="button" class="v-info-btn" data-info="info-progress" title="说明">ⓘ</button>
+            </div>
+            <div class="v-info-pop" id="info-progress">当前任务的状态、排队情况与提取结果。没有任务在跑时这块会自动收起。</div>
+            <div id="videoStatus" class="video-status"></div>
+            <div id="videoTasks" class="video-tasks"></div>
+            <div id="videoResult" class="dash-content video-result"></div>
+          </div>
+
+          <!-- v116：提取 → 加工 → 笔记。「提取失败」「历史」在提取页，「批量 AI 分析」在加工页
+               （这几块还是在笔记列表里画，画完由 renderer.js 搬过来） -->
+          <div class="vi-extract-extras" id="viExtractExtras"></div>
+          <div class="vi-next vi-to-process">提取出来的是半成品，到「加工」里让 AI 分析成成品。<button type="button" class="ghost-btn small" data-video-goto="process">去加工</button></div>
+          <div class="vi-process" id="viProcess">
+            <!-- v120：加工的处理进度（单条 / 批量 AI 分析）和 AI 实时画面都在这里 -->
+            <div class="v-card vi-an-card" id="viAnCard" hidden>
+              <div class="v-card-head"><span class="v-card-title">⏳ 处理进度</span></div>
+              <div class="vi-an-row">
+                <div id="viAnStatus" class="vi-an-status">现在没有在分析的内容。点下面「批量 AI 分析」，或者单条的「AI 分析」开始。</div>
+                <button type="button" class="ghost-btn small vi-an-stop" id="viAnStop" hidden>停止</button>
+              </div>
+              <div id="viAnLive" class="vi-an-live"></div>
+            </div>
+            <!-- v126：两个标签：未加工 / 已加工，点哪个显示哪个 -->
+            <div class="vi-ptabs" role="tablist">
+              <button type="button" class="vi-ptab" data-ptab="todo" role="tab">未加工 <span class="vi-ptab-n" id="viPtabTodoN"></span></button>
+              <button type="button" class="vi-ptab" data-ptab="done" role="tab">已加工 <span class="vi-ptab-n" id="viPtabDoneN"></span></button>
+              <span class="vi-ptab-acts" id="viPtabActs"></span>
+              <span class="vi-ptab-acts" id="viPtabDoneActs"></span>
+            </div>
+            <div class="vi-process-bars" id="viProcessBars"></div>
+            <!-- v125：已加工——加工好的都在这里，以后在这里分类、筛选 -->
+            <div class="vn-done" id="viDone"></div>
+          </div>
+
+          <!-- ③ 已存笔记：历史记录 -->
+          <div class="v-card v-card-saved">
+            <div class="v-card-head">
+              <span class="v-card-title">📚 加工好的</span>
+              <button type="button" class="v-info-btn" data-info="info-saved" title="说明">ⓘ</button>
+            </div>
+            <div class="v-info-pop" id="info-saved">提取过的视频都自动存这里，随时点开看。</div>
+            <div class="video-saved">
+              <div id="videoNotesList" class="video-notes-list"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 成长库视图 -->
+      <section class="view view-library" id="view-library">
+        <header class="topbar"><span>📚 成长库 · 软件帮你积累的知识</span></header>
+        <div class="lib-pane">
+          <div class="lib-tabs">
+            <button class="lib-tab active" data-cat="video">🎬 视频内容库 <span class="lib-count" id="libCntVideo">·</span></button>
+            <button class="lib-tab" data-cat="learning">📚 学习管理库 <span class="lib-count" id="libCntLearning">·</span></button>
+            <button class="lib-tab" data-cat="info">📰 信息管理库 <span class="lib-count" id="libCntInfo">·</span></button>
+            <button class="lib-tab" data-cat="sniff">📡 嗅探简报 <span class="lib-count" id="libCntSniff">·</span></button>
+          </div>
+          <div class="lib-body" id="libBody"><div class="lib-empty">加载中…</div></div>
+        </div>
+      </section>
+
+      <!-- 懂你视图（独立页，左侧子菜单切换画像/关系/环境）-->
+      <section class="view view-lumi" id="view-lumi">
+        <header class="topbar">
+          <span>💗 懂你 · 小助越用越懂你</span>
+          <span class="lumi-topbar-actions">
+            <button id="lumiScanBtn" class="lumi-btn2" title="扫描本机软件、推断职业（只读、不上传）">🖥️ 扫描环境</button>
+            <button id="crwRunBtn" class="crw-run-btn" title="立刻爬一遍成长库，交给 AI 分析" style="display:none"><span class="crw-run-dot"></span> 立即分析</button>
+            <button id="lumiRefreshBtn" class="lumi-btn2" title="刷新">🔄 刷新</button>
+          </span>
+        </header>
+        <div class="lumi-pane">
+          <div id="lumiStatus" class="lumi-status"></div>
+          <div class="lumi-page" id="lumiPageProfile">
+            <div class="lumi-page-head">
+              <span class="lumi-page-title">👤 你的画像</span>
+              <span class="lumi-page-sub">小助从你历次对话里总结的「你」——说话风格、关注点、偏好</span>
+            </div>
+            <div class="lumi-page-body" id="lumiProfile"><div class="lumi-empty">还没生成。点下面「人格演化」里的「立即演化一次」，小助会从你的对话里总结出你的说话风格、关注点和偏好。</div></div>
+
+          </div>
+          <div class="lumi-page" id="lumiPageInsight" style="display:none">
+            <div class="lumi-page-head">
+              <span class="lumi-page-title">🔍 洞察与研究</span>
+              <span class="lumi-page-sub">爬你自己的成长库逐篇精读 → 看懂你 → 还能主动上网替你搜相关内容存进成长库。下面有爬取设置、实时进度、研究详情与每篇理解。</span>
+            </div>
+            <div class="lumi-page-body">
+              <div id="crwStatus" class="crw-status"></div>
+              <div id="crwBody"><div class="crw-runs-empty">加载中…</div></div>
+            </div>
+          </div>
+          <div class="lumi-page" id="lumiPageEvolution" style="display:none">
+            <div class="lumi-page-head">
+              <span class="lumi-page-title">🌱 人格演化</span>
+              <span class="lumi-page-sub">小助是怎么一步步变得更懂你的——演化原理、历次快照时间线、当前画像来源</span>
+            </div>
+            <div class="lumi-page-body" id="lumiEvolutionBody"><div class="lumi-empty">加载中…</div></div>
+          </div>
+          <div class="lumi-foot">这些内容都存在本地 memory 文件夹里（OWNER_PROFILE.md / relationships.md / ENVIRONMENT.md），你随时能在「记忆文件」里编辑或删除。</div>
+        </div>
+      </section>
+
+      <!-- 记忆视图 -->
+      <section class="view view-memory" id="view-memory">
+        <header class="topbar"><span>🧠 记忆 · AI 对你的理解</span></header>
+        <div class="memory-pane">
+          <div class="memory-tabs" id="memoryTabs"></div>
+          <div class="memory-desc" id="memoryDesc"></div>
+          <div class="memory-mode-bar" id="memoryModeBar" style="display:none">
+            <button class="mem-mode-btn active" id="memModeStruct" data-mode="struct">🧩 结构化</button>
+            <button class="mem-mode-btn" id="memModeRaw" data-mode="raw">⚙️ 原始文本</button>
+            <span class="mem-mode-tip" id="memModeTip"></span>
+          </div>
+          <div class="memory-body" id="memoryBody"></div>
+          <textarea id="memoryEditor" class="memory-editor" style="display:none"
+            placeholder="选择一个文件编辑…"></textarea>
+          <div class="memory-actions">
+            <span class="save-hint" id="saveHint"></span>
+            <button id="saveMemoryBtn" class="send-btn">保存</button>
+          </div>
+        </div>
+
+        <div class="lumi-modal" id="lumiModal" hidden>
+          <div class="lumi-modal-card">
+            <div class="lumi-modal-head">
+              <span class="lumi-modal-title" id="lumiModalTitle">详情</span>
+              <button class="lumi-modal-close" id="lumiModalClose" title="关闭">✕</button>
+            </div>
+            <div class="lumi-modal-body" id="lumiModalBody"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 技能视图（工具区）-->
+      <section class="view view-skills" id="view-skills">
+        <header class="topbar">
+          <span>🧩 技能 · 让小助掌握一套套做事方法</span>
+          <span class="skills-topbar-actions">
+            <button id="skillNewBtn" class="lumi-btn2" title="自己写一个新技能">✏️ 新建技能</button>
+            <button id="skillGuideBtn" class="lumi-btn2" title="怎么写技能">📖 怎么写技能</button>
+            <button id="skillRefreshBtn" class="lumi-btn2" title="刷新">🔄 刷新</button>
+          </span>
+        </header>
+        <div class="skills-pane">
+          <div class="skills-intro">
+            「技能」是一套针对特定任务的做事方法。开了的技能，小助在遇到匹配的活儿时会自动按它的步骤去做。
+            你也可以<b>自己写技能</b>——点右上角「✏️ 新建技能」，写好它就学会了。技能都存在本地 <code>backend/skills/</code> 里。
+          </div>
+          <div class="skills-grid" id="skillsGrid"><div class="skills-empty">加载中…</div></div>
+        </div>
+
+        <!-- 技能详情/编辑弹层 -->
+        <div class="skill-modal" id="skillModal" style="display:none">
+          <div class="skill-modal-card">
+            <div class="skill-modal-head">
+              <span class="skill-modal-title" id="skillModalTitle">技能</span>
+              <button class="skill-modal-close" id="skillModalClose" title="关闭">✕</button>
+            </div>
+            <div class="skill-modal-body" id="skillModalBody">
+              <!-- 编辑态：表单 -->
+              <div class="skill-edit" id="skillEdit" style="display:none">
+                <label class="skill-field">
+                  <span class="skill-field-label">技能名（中文，给人看）</span>
+                  <input type="text" id="skillName" class="text-input" placeholder="例如：周报生成" />
+                </label>
+                <label class="skill-field">
+                  <span class="skill-field-label">英文 slug（文件夹名，只用小写字母/数字/连字符）</span>
+                  <input type="text" id="skillSlug" class="text-input" placeholder="例如：weekly-report" />
+                </label>
+                <label class="skill-field">
+                  <span class="skill-field-label">什么时候用（关键！写清「遇到哪类任务就用它」）</span>
+                  <textarea id="skillDesc" class="text-input" rows="2"
+                    placeholder="例如：用户想把这周做的零散事项整理成一篇条理清楚的周报时用。不适用：只是随口提一句某件事。"></textarea>
+                </label>
+                <label class="skill-field">
+                  <span class="skill-field-label">具体步骤（正文 · Markdown）</span>
+                  <textarea id="skillBody" class="text-input skill-body-input" rows="14"
+                    placeholder="一步步写清楚遇到这类任务该怎么做。可以分「## 第一步 / ## 第二步」，写成可执行的清单，越具体越好。"></textarea>
+                </label>
+                <div class="skill-edit-actions">
+                  <button class="send-btn" id="skillSaveBtn">保存技能</button>
+                  <button class="ghost-btn" id="skillCancelBtn">取消</button>
+                </div>
+              </div>
+              <!-- 查看态：渲染好的内容 -->
+              <div class="skill-view" id="skillView" style="display:none"></div>
+              <!-- 指南态：怎么写技能 -->
+              <div class="skill-guide" id="skillGuide" style="display:none"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 分身工坊（Agents）视图（工具区）。外壳极薄：所有 UI 由 agents.js 渲染进 #agentsRoot -->
+      <section class="view view-agents" id="view-agents">
+        <div id="agentsRoot" class="agents-root"><div class="ag-empty">加载中…</div></div>
+      </section>
+
+      <!-- 目标循环（Loop）视图（工具区）-->
+      <section class="view view-loop" id="view-loop">
+        <header class="topbar">
+          <span>🔁 目标循环 · 定目标 + 定验收，让小助自己一圈圈跑到达标</span>
+        </header>
+        <div class="loop-pane">
+          <div class="loop-intro">
+            把一件<b>复杂、要反复验证</b>的事交给小助自己跑：你写清<b>目标</b>和<b>验收标准</b>（怎样算干完），
+            它就一轮轮地「做 → 对照验收自检 → 没达标就接着修」，直到全部达标或到达最多轮数。
+            <span class="loop-warn">提示：循环会反复调用模型，比较费 token；简单的事（10 分钟能搞定）直接在「对话」里做更划算。</span>
+          </div>
+
+          <div class="loop-presets" id="loopPresets">
+            <span class="loop-presets-label">不会写？挑个模板改改：</span>
+            <div class="loop-presets-btns" id="loopPresetBtns"></div>
+          </div>
+
+          <div class="loop-form" id="loopForm">
+            <label class="loop-field">
+              <span class="loop-field-label">🎯 目标（想达成什么）</span>
+              <textarea id="loopGoal" class="text-input" rows="2"
+                placeholder="例如：把 D:\项目\report 文件夹里这周的零散记录，整理成一份结构清晰的项目周报，存成 周报.md"></textarea>
+            </label>
+            <label class="loop-field">
+              <span class="loop-field-label">✅ 验收标准（怎样算干完 · 每行一条，越具体越好）</span>
+              <textarea id="loopCriteria" class="text-input" rows="5"
+                placeholder="周报.md 文件已生成&#10;包含「本周完成 / 进行中 / 下周计划」三个部分&#10;每条都引用了原始记录里的真实内容，没有编造&#10;通读一遍语句通顺、没有明显错别字"></textarea>
+            </label>
+            <div class="loop-options">
+              <label class="loop-inline">
+                <span>最多轮数</span>
+                <input type="number" id="loopMaxRounds" class="text-input loop-num" value="5" min="1" max="12" />
+              </label>
+              <label class="loop-inline loop-check" title="勾选后，循环里遇到需确认的操作会自动放行（仍受右上角「电脑操作权限」总开关约束）。不勾则只跑只读/安全操作。">
+                <input type="checkbox" id="loopAllowActions" />
+                <span>允许自动执行操作（含需确认的操作）</span>
+              </label>
+            </div>
+            <div class="loop-actions">
+              <button class="send-btn" id="loopStartBtn">▶ 开始循环</button>
+              <button class="ghost-btn" id="loopStopBtn" style="display:none">⏹ 停止</button>
+            </div>
+          </div>
+
+          <div class="loop-run" id="loopRun" style="display:none">
+            <div class="loop-stage" id="loopStage"></div>
+            <div class="loop-criteria" id="loopCriteriaStatus"></div>
+            <div class="loop-rounds" id="loopRounds"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 运行台（Harness）视图（工具区）-->
+      <section class="view view-harness" id="view-harness">
+        <header class="topbar">
+          <span>🛠️ 运行台（Harness）· 给「大脑」套上工程的壳</span>
+        </header>
+        <div class="harness-pane">
+          <div class="harness-intro">
+            一句话：<b>Agent = 模型 + Harness</b>。模型只是「大脑」，它天生<b>没记性、会跑偏、会卡死循环、会半途自以为做完</b>。
+            Harness 就是套在大脑外面那层工程系统——管上下文、调度工具、出错能恢复、危险操作要审批、还能把每次运行记下来复盘。
+            你的超能小助其实<b>已经是一个 Harness</b>：危险操作要你点确认（安全控制）、记忆越用越懂你（状态）、目标循环会自检（错误恢复+验收）。
+            这一页把这些「壳」的旋钮交到你手里。
+          </div>
+
+          <!-- 运行设置 -->
+          <div class="harness-card">
+            <div class="harness-card-title">运行设置 · 几个真正生效的旋钮</div>
+            <div class="harness-setting">
+              <div class="harness-setting-head">
+                <span class="harness-setting-name">🧠 长期记忆注入量</span>
+                <span class="harness-setting-val" id="hCtxVal">4000 字</span>
+              </div>
+              <input type="range" id="hCtxBudget" min="500" max="20000" step="500" value="4000" class="harness-range" />
+              <div class="harness-setting-hint">每次对话注入多少长期记忆。塞太多会「上下文腐烂」——模型反而忘了当前要做的事。一般 4000 够用。</div>
+            </div>
+            <div class="harness-setting">
+              <div class="harness-setting-head">
+                <span class="harness-setting-name">🔁 单次最多步数</span>
+                <span class="harness-setting-val" id="hStepsVal">8 步</span>
+              </div>
+              <input type="range" id="hMaxSteps" min="2" max="20" step="1" value="8" class="harness-range" />
+              <div class="harness-setting-hint">一次任务里最多连续调用几次工具。到顶就停，防止「工具死循环」一直空转烧 token。（主要作用于目标循环每一轮）</div>
+            </div>
+            <div class="harness-setting">
+              <div class="harness-setting-head">
+                <span class="harness-setting-name">🛡️ 危险操作策略</span>
+              </div>
+              <select id="hSafety" class="text-input harness-select">
+                <option value="ask">每次都问我（最稳）—— 删文件/写文件/跑命令都弹确认</option>
+                <option value="readonly_auto">只读自动、危险仍问 —— 读取/搜索放行，动手的要确认</option>
+                <option value="auto">全自动（含危险操作）—— 目标循环里不再逐个确认，最快但要小心</option>
+              </select>
+              <div class="harness-setting-hint">安全控制是 Harness 的生死线。「全自动」只影响目标循环；普通对话里的危险操作始终受右上角「电脑操作权限」总开关约束。</div>
+            </div>
+            <div class="harness-setting harness-setting-row">
+              <label class="harness-check">
+                <input type="checkbox" id="hKeepLog" checked /> <span>记录运行日志（下面的复盘表）</span>
+              </label>
+              <button class="send-btn" id="hSaveBtn">保存设置</button>
+              <span class="harness-save-status" id="hSaveStatus"></span>
+            </div>
+          </div>
+
+          <!-- 评估指标 -->
+          <div class="harness-card">
+            <div class="harness-card-title">评估度量 · 把「好像不太稳」变成硬指标</div>
+            <div class="harness-metrics" id="hMetrics"><div class="harness-empty">还没有运行记录。去「目标循环」跑一个任务，这里就会出数据。</div></div>
+          </div>
+
+          <!-- 运行日志 -->
+          <div class="harness-card">
+            <div class="harness-card-title">
+              运行日志 · 复盘每次都做了什么
+              <button class="harness-mini-btn" id="hClearBtn" title="清空日志">清空</button>
+              <button class="harness-mini-btn" id="hRefreshBtn" title="刷新">刷新</button>
+            </div>
+            <div class="harness-runs" id="hRuns"><div class="harness-empty">暂无记录。目前记录「目标循环」的运行。</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 嗅探视图（工具区）：① 博主视频更新监控 ② 网站动态嗅探 两个并列标签 -->
+      <section class="view view-sniff" id="view-sniff">
+        <header class="topbar"><span>嗅探</span><span class="topbar-hint">盯住你关心的博主和网站，有新视频、新动态就告诉你</span></header>
+        <div class="sniff-pane">
+          <style>
+            /* ============================================================
+               嗅探页样式 v2 —— 接入全局设计系统（styles.css 的 CSS 变量）
+               · 颜色全部走 var(--bg-elev/--line/--accent/--text…)，自动跟随深浅色
+               · 字号收敛为 4 档（标题/正文/次要/标注），统一 var(--sans)
+               · 修复：两个 tab 等宽等高 / checkbox 一致 / 博主列表折叠头不再断开
+               scoped 到 .view-sniff，不影响别处
+               ============================================================ */
+
+            /* —— 局部令牌：基于全局变量派生，浅深两色都成立 —— */
+            .view-sniff{
+              --sn-fz-title: 15px;   /* 标题/卡片标题 */
+              --sn-fz-base:  13px;   /* 正文/按钮/输入 */
+              --sn-fz-sec:   12px;   /* 次要说明 */
+              --sn-fz-cap:   11px;   /* 标注/元信息 */
+              --sn-radius:   12px;   /* 卡片圆角 */
+              --sn-radius-sm:9px;    /* 控件圆角 */
+              /* 下沉轨道（分段控件底）：在卡片上轻微下凹，深浅都自适应 */
+              --sn-track: color-mix(in srgb, var(--text) 7%, transparent);
+              /* 柔和强调底（pill / tag / 选中）*/
+              --sn-soft:  color-mix(in srgb, var(--accent) 12%, transparent);
+              /* 极浅悬停底 */
+              --sn-hover: color-mix(in srgb, var(--text) 4%, transparent);
+              /* 行卡描边（比分隔线略柔）*/
+              --sn-line:  var(--line);
+              /* 虚线分隔 */
+              --sn-dash:  color-mix(in srgb, var(--text) 9%, transparent);
+              font-family: var(--sans);
+            }
+
+            /* ===== 页面容器 ===== */
+            .view-sniff .sniff-pane{max-width:1180px;margin:0 auto;padding:18px 22px 48px;font-family:var(--sans)}
+
+            /* ===== 顶部并列标签（博主更新 / 网站动态）===== */
+            .view-sniff .sn-tabs{display:inline-flex;background:var(--sn-track);border-radius:var(--sn-radius);padding:4px;gap:4px;margin-bottom:18px}
+            .view-sniff .sn-tab{border:0;background:transparent;padding:9px 20px;border-radius:var(--sn-radius-sm);font-size:var(--sn-fz-base);font-weight:600;color:var(--text-dim);cursor:pointer;transition:all .15s;font-family:inherit}
+            .view-sniff .sn-tab:hover{color:var(--text)}
+            .view-sniff .sn-tab.active{background:var(--bg-elev);color:var(--text);box-shadow:var(--shadow-card)}
+
+            /* ===== 两个 tab 的内容容器：统一为块级、同宽（修复问题1：两 tab 不一样大）===== */
+            .view-sniff .sn-tabpane{display:block;width:100%}
+            .view-sniff .sn-tabpane[hidden]{display:none!important}
+
+            /* ===== 主栅格：左窄右宽 ===== */
+            .view-sniff .sn-grid{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:18px;align-items:start}
+            @media (max-width:920px){.view-sniff .sn-grid{grid-template-columns:1fr}}
+
+            /* ===== 卡片 ===== */
+            .view-sniff .sn-card{background:var(--bg-elev);border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow-card)}
+            .view-sniff .sn-card + .sn-card{margin-top:16px}
+            .view-sniff .sn-card-head{display:flex;align-items:center;gap:10px;margin-bottom:2px;flex-wrap:wrap}
+            .view-sniff .sn-card-title{font-size:var(--sn-fz-title);font-weight:700;color:var(--text)}
+            .view-sniff .sn-pill{background:var(--sn-soft);color:var(--accent);border-radius:20px;padding:1px 10px;font-size:var(--sn-fz-cap);font-weight:700}
+            .view-sniff .sn-hint{font-size:var(--sn-fz-sec);color:var(--text-dim);line-height:1.65;margin:6px 0 14px}
+            .view-sniff .sn-hint b{color:var(--text)}
+            .view-sniff .sn-spacer{flex:1}
+            .view-sniff .sn-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+            /* ===== 按钮 ===== */
+            .view-sniff .sn-btn{border:1px solid var(--line-strong);background:var(--bg-elev);color:var(--text);border-radius:var(--sn-radius-sm);padding:7px 14px;font-size:var(--sn-fz-base);font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;font-family:inherit}
+            .view-sniff .sn-btn:hover{background:var(--sn-hover);border-color:var(--text-dim)}
+            .view-sniff .sn-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+            .view-sniff .sn-btn.primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+            .view-sniff .sn-btn.sm{padding:5px 11px;font-size:var(--sn-fz-sec);border-radius:8px}
+            .view-sniff .sn-btn:disabled{opacity:.5;cursor:default}
+
+            /* ===== 输入 ===== */
+            .view-sniff .sn-input{border:1px solid var(--line-strong);border-radius:var(--sn-radius-sm);padding:8px 11px;font-size:var(--sn-fz-base);background:var(--bg-elev);color:var(--text);font-family:inherit}
+            .view-sniff .sn-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
+            .view-sniff select.sn-input{cursor:pointer}
+            .view-sniff .sn-num{width:60px;text-align:center}
+            .view-sniff .sn-field{display:flex;align-items:center;gap:6px;font-size:var(--sn-fz-base);color:var(--text-dim)}
+
+            /* ===== 统一勾选框（修复问题3：方框时有时无）=====
+               注意：排除 .sniff-switch 里的隐藏 checkbox（那是开关，不能显示成方框）*/
+            .view-sniff input[type=checkbox]:not(.sniff-switch input){
+              appearance:none;-webkit-appearance:none;
+              width:16px;height:16px;flex:0 0 auto;margin:0;
+              border:1.5px solid var(--line-strong);border-radius:5px;
+              background:var(--bg-elev);cursor:pointer;position:relative;
+              transition:border-color .12s,background .12s;
+            }
+            .view-sniff input[type=checkbox]:not(.sniff-switch input):hover{border-color:var(--accent)}
+            .view-sniff input[type=checkbox]:not(.sniff-switch input):checked{background:var(--accent);border-color:var(--accent)}
+            .view-sniff input[type=checkbox]:not(.sniff-switch input):checked::after{
+              content:"";position:absolute;left:4.5px;top:1.5px;
+              width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;
+              transform:rotate(45deg);
+            }
+            .view-sniff input[type=checkbox]:not(.sniff-switch input):focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+
+            /* ===== 博主行 ===== */
+            .view-sniff .cw-creator{display:flex;align-items:center;gap:11px;padding:10px 12px;border:1px solid var(--line);border-radius:11px;margin-bottom:8px;background:var(--bg-elev);transition:border-color .15s,background .15s}
+            .view-sniff .cw-creator:hover{border-color:var(--line-strong);background:var(--sn-hover)}
+            .view-sniff .cw-creator.off{opacity:.5}
+            .view-sniff .cw-creator.sel{border-color:var(--accent);background:var(--accent-soft)}
+            .view-sniff .cw-ava{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;background:var(--sn-soft);flex:0 0 auto}
+            .view-sniff .cw-c-main{flex:1;min-width:0;cursor:pointer}
+            .view-sniff .cw-c-title{font-weight:600;font-size:var(--sn-fz-base);color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+            .view-sniff .cw-c-sub{font-size:var(--sn-fz-cap);color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+            .view-sniff .cw-c-err{font-size:var(--sn-fz-cap);color:#e5484d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+            .view-sniff .cw-iconbtn{border:0;background:transparent;cursor:pointer;font-size:14px;color:var(--text-dim);padding:5px;border-radius:7px;line-height:1}
+            .view-sniff .cw-iconbtn:hover{background:var(--sn-hover);color:var(--text)}
+
+            /* ===== 视频清单（行卡）===== */
+            .view-sniff .cw-toolbar{display:flex;gap:7px;flex-wrap:wrap;align-items:center;padding-bottom:12px;border-bottom:1px dashed var(--sn-dash);margin-bottom:12px}
+            .view-sniff .cw-video{display:flex;align-items:flex-start;gap:11px;padding:10px 11px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:var(--bg-elev);transition:border-color .15s,background .15s}
+            .view-sniff .cw-video:hover{background:var(--sn-hover);border-color:var(--line-strong)}
+            .view-sniff .cw-video input[type=checkbox]{margin-top:2px}
+            .view-sniff .cw-v-main{flex:1;min-width:0}
+            .view-sniff .cw-v-title{font-size:var(--sn-fz-base);color:var(--text);line-height:1.45}
+            .view-sniff .cw-v-meta{font-size:var(--sn-fz-cap);color:var(--text-dim);margin-top:4px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+            .view-sniff .cw-v-zh{font-size:var(--sn-fz-sec);color:var(--accent);margin-top:3px;line-height:1.4;min-height:16px}
+            .view-sniff .cw-v-zh:empty{min-height:0}
+            .view-sniff .cw-date{background:var(--sn-track);border-radius:5px;padding:0 7px;color:var(--text-dim)}
+            .view-sniff .cw-vlink{color:var(--text-dim);text-decoration:none}
+            .view-sniff .cw-vlink:hover{color:var(--accent)}
+            .view-sniff .cw-tag{display:inline-block;font-size:10.5px;border-radius:5px;padding:1px 7px;background:var(--sn-soft);color:var(--accent)}
+            .view-sniff .cw-empty{color:var(--text-dim);font-size:var(--sn-fz-sec);padding:22px 8px;text-align:center;opacity:.85}
+            .view-sniff .cw-back{display:inline-flex;align-items:center;gap:5px;cursor:pointer;color:var(--accent);font-weight:600;font-size:var(--sn-fz-base);border:0;background:transparent;padding:0}
+            .view-sniff .cw-state{font-size:var(--sn-fz-sec);color:var(--text-dim)}
+            .view-sniff .cw-scroll{max-height:560px;overflow:auto;padding-right:4px}
+            .view-sniff .sn-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+
+            /* ===== 批量扫描明细 ===== */
+            .view-sniff .cw-scanlog{margin:8px 0 4px;max-height:200px;overflow:auto;border:1px solid var(--line);border-radius:10px;background:var(--sn-hover);padding:6px 8px}
+            .view-sniff .cw-scanlog-row{display:flex;align-items:center;gap:8px;font-size:var(--sn-fz-sec);padding:4px 4px;border-bottom:1px solid var(--line);line-height:1.4}
+            .view-sniff .cw-scanlog-row:last-child{border-bottom:0}
+            .view-sniff .cw-scanlog-ico{flex:0 0 auto;width:16px;text-align:center}
+            .view-sniff .cw-scanlog-name{flex:1;min-width:0;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+            .view-sniff .cw-scanlog-res{flex:0 0 auto;color:var(--text-dim)}
+            .view-sniff .cw-scanlog-res.ok{color:#2f9e44}
+            .view-sniff .cw-scanlog-res.err{color:#e5484d}
+            .view-sniff .cw-scanlog-cur{font-size:var(--sn-fz-sec);color:var(--accent);padding:4px 4px 2px;font-weight:600}
+
+            /* ===== 分页条 ===== */
+            .view-sniff .cw-pager{display:flex;align-items:center;gap:10px;margin-top:12px;padding-top:10px;border-top:1px dashed var(--sn-dash);font-size:var(--sn-fz-sec);color:var(--text-dim);flex-wrap:wrap}
+            .view-sniff .cw-pager-info b{color:var(--text)}
+            .view-sniff .cw-pager-count{color:var(--text-dim);margin-left:auto}
+
+            /* ===== 加载骨架 ===== */
+            .view-sniff .cw-skel{display:flex;align-items:flex-start;gap:11px;padding:10px 11px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:var(--bg-elev)}
+            .view-sniff .cw-skel-box{width:16px;height:16px;border-radius:5px;background:var(--sn-track);flex:0 0 auto;margin-top:2px}
+            .view-sniff .cw-skel-main{flex:1;min-width:0}
+            .view-sniff .cw-skel-line{height:11px;border-radius:5px;background:linear-gradient(90deg,var(--sn-track) 25%,var(--sn-hover) 37%,var(--sn-track) 63%);background-size:400% 100%;animation:cwShimmer 1.3s ease-in-out infinite}
+            .view-sniff .cw-skel-line.short{width:42%;margin-top:7px;height:9px}
+            @keyframes cwShimmer{0%{background-position:100% 0}100%{background-position:0 0}}
+
+            /* ===== 稳定布局：左右两卡等高、右侧两个子标签切换尺寸不变 =====
+               （修复问题1：右卡高度由两 tab 共用、不再写死一个值；小屏自适应）*/
+            .view-sniff .cw-rightcard{height:calc(100vh - 130px);min-height:600px;display:flex;flex-direction:column;overflow:hidden}
+            .view-sniff .cw-worktab-pane{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+            .view-sniff .cw-worktab-pane[hidden]{display:none!important}
+            .view-sniff #cwDigestView,.view-sniff #cwVideoView{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+            .view-sniff #cwDigestView[hidden],.view-sniff #cwVideoView[hidden]{display:none!important}
+            .view-sniff .cw-rightcard .cw-scroll{flex:1 1 auto;min-height:0;max-height:none;overflow-y:auto;overflow-x:hidden;padding-right:4px}
+            @media (max-height:820px){.view-sniff .cw-rightcard{height:calc(100vh - 130px);min-height:480px}}
+
+            /* ===== 「按时间看全部」每个博主分组：可点击折叠/展开 ===== */
+            .view-sniff .dg-group-head{cursor:pointer;user-select:none}
+            .view-sniff .dg-group-head:hover{background:var(--sn-hover)}
+            .view-sniff .dg-group-caret{margin-left:auto;font-size:11px;color:var(--text-dim);transition:transform .2s;flex:0 0 auto;padding-left:8px}
+            .view-sniff .dg-group.collapsed .dg-group-caret{transform:rotate(-90deg)}
+            .view-sniff .dg-group.collapsed .dg-group-body{display:none}
+            .view-sniff .dg-group-cnt{flex:0 0 auto}
+            .view-sniff .dg-group-cnt-none{background:transparent;border:1px solid var(--line);color:var(--text-dim);font-weight:400}
+
+            /* ===== 左侧「博主列表」折叠卡（修复问题4：折叠头与列表断开）=====
+               把折叠头 + 列表包成一张连续的卡，头在上、体在下，视觉连为一体 */
+            .view-sniff .cw-collapse-head{
+              display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;
+              padding:10px 12px;margin-top:6px;
+              background:var(--sn-hover);
+              border:1px solid var(--line);
+              border-radius:10px 10px 0 0;border-bottom:0;
+              font-size:var(--sn-fz-base);font-weight:700;color:var(--text);
+              transition:background .15s;
+            }
+            .view-sniff .cw-collapse-head:hover{background:var(--sn-track)}
+            .view-sniff .cw-collapse-caret{font-size:10px;color:var(--text-dim);transition:transform .2s;display:inline-block}
+            .view-sniff .cw-collapse-head.collapsed{border-radius:10px;border-bottom:1px solid var(--line)}
+            .view-sniff .cw-collapse-head.collapsed .cw-collapse-caret{transform:rotate(-90deg)}
+            .view-sniff .cw-collapse-title{flex:0 0 auto}
+            .view-sniff .cw-collapse-head .sn-pill{background:var(--sn-track);color:var(--text-dim);margin-left:2px}
+            .view-sniff .cw-collapse-body{
+              overflow:hidden;transition:max-height .24s ease;
+              border:1px solid var(--line);border-top:0;
+              border-radius:0 0 10px 10px;
+              background:var(--bg-elev);
+              padding:0 10px;
+            }
+            .view-sniff .cw-collapse-body.collapsed{border-width:0 1px;padding-top:0;padding-bottom:0}
+            .view-sniff #cwList{max-height:520px}
+
+            /* ===== ⓘ 信息按钮 + 浮动说明气泡 ===== */
+            .view-sniff .sn-info{position:relative;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;border:1px solid var(--line-strong);background:var(--bg-elev);color:var(--text-dim);font-size:11px;font-weight:700;font-style:normal;cursor:pointer;line-height:1;flex:0 0 auto;transition:all .15s;font-family:Georgia,'Times New Roman',serif}
+            .view-sniff .sn-info:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+            .view-sniff .sn-info.on{border-color:var(--accent);color:#fff;background:var(--accent)}
+            .view-sniff .sn-pop{position:absolute;z-index:50;top:24px;left:0;width:320px;max-width:80vw;background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-pop);padding:13px 15px;font-size:var(--sn-fz-sec);color:var(--text-dim);line-height:1.72;font-weight:400;text-align:left;cursor:default}
+            .view-sniff .sn-pop[hidden]{display:none}
+            .view-sniff .sn-pop.right{left:auto;right:0}
+            .view-sniff .sn-pop b{color:var(--text)}
+            .view-sniff .sn-pop .k{display:inline-block;background:var(--sn-soft);color:var(--accent);border-radius:5px;padding:0 6px;font-weight:700;font-size:11.5px}
+            .view-sniff .sn-pop::before{content:"";position:absolute;top:-7px;left:14px;width:12px;height:12px;background:var(--bg-elev);border-left:1px solid var(--line);border-top:1px solid var(--line);transform:rotate(45deg)}
+            .view-sniff .sn-pop.right::before{left:auto;right:14px}
+            .view-sniff .sn-pop-title{font-size:var(--sn-fz-base);font-weight:700;color:var(--text);margin-bottom:6px}
+            .view-sniff .sn-pop-close{position:absolute;top:7px;right:10px;color:var(--text-dim);cursor:pointer;font-size:15px;line-height:1}
+            .view-sniff .sn-pop-close:hover{color:var(--text)}
+            .view-sniff .sn-q{position:relative;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;border:1px solid var(--line-strong);background:var(--bg-elev);color:var(--text-dim);font-size:10px;font-weight:700;font-style:normal;cursor:pointer;line-height:1;flex:0 0 auto;margin-left:1px}
+            .view-sniff .sn-q:hover{border-color:var(--accent);color:var(--accent)}
+
+            /* ===== 右侧工作区两个子标签 ===== */
+            .view-sniff .cw-subtabs{display:inline-flex;background:var(--sn-track);border-radius:11px;padding:3px;gap:3px;margin-bottom:14px;flex:0 0 auto;align-self:flex-start}
+            .view-sniff .cw-subtab{position:relative;border:0;background:transparent;padding:8px 16px;border-radius:8px;font-size:var(--sn-fz-base);font-weight:600;color:var(--text-dim);cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:6px;font-family:inherit}
+            .view-sniff .cw-subtab:hover{color:var(--text)}
+            .view-sniff .cw-subtab.active{background:var(--bg-elev);color:var(--text);box-shadow:var(--shadow-card)}
+            .view-sniff .cw-subtab .sn-pill{font-size:11.5px}
+
+            /* ===== 「按时间看全部」digest 面板 ===== */
+            .view-sniff .dg-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+            .view-sniff .dg-inline-note{font-size:var(--sn-fz-sec);color:var(--text-dim);background:var(--sn-hover);border:1px solid var(--line);border-radius:8px;padding:7px 11px;margin-bottom:10px;display:flex;align-items:center;gap:7px}
+            .view-sniff .dg-inline-note.loading::before{content:"";width:12px;height:12px;border-radius:50%;border:2px solid color-mix(in srgb,var(--accent) 35%,transparent);border-top-color:var(--accent);animation:dgSpin .7s linear infinite;flex:0 0 auto}
+            @keyframes dgSpin{to{transform:rotate(360deg)}}
+            .view-sniff .dg-seg{display:inline-flex;background:var(--sn-track);border-radius:10px;padding:3px;gap:2px}
+            .view-sniff .dg-seg button{border:0;background:transparent;padding:7px 16px;border-radius:8px;font-size:var(--sn-fz-base);font-weight:600;color:var(--text-dim);cursor:pointer;transition:all .15s;font-family:inherit}
+            .view-sniff .dg-seg button:hover{color:var(--text)}
+            .view-sniff .dg-seg button.active{background:var(--bg-elev);color:var(--text);box-shadow:var(--shadow-card)}
+            .view-sniff .dg-stat{font-size:var(--sn-fz-base);color:var(--text-dim)}
+            .view-sniff .dg-stat b{color:var(--text)}
+            .view-sniff .dg-group{margin-bottom:18px}
+            .view-sniff .dg-group-head{display:flex;align-items:center;gap:9px;margin:0 0 9px;padding-bottom:7px;border-bottom:1px solid var(--line)}
+            .view-sniff .dg-group-ava{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;background:var(--sn-soft);flex:0 0 auto}
+            .view-sniff .dg-group-name{font-size:var(--sn-fz-base);font-weight:700;color:var(--text)}
+            .view-sniff .dg-group-meta{font-size:var(--sn-fz-cap);color:var(--text-dim)}
+            .view-sniff .dg-group-cnt{margin-left:auto;background:var(--sn-soft);color:var(--accent);border-radius:20px;padding:1px 11px;font-size:var(--sn-fz-sec);font-weight:700}
+            /* —— 博主分组头（让它一眼就是「博主」，不再像一条视频）—— */
+            .view-sniff .dg-group-head{display:flex;align-items:center;gap:10px;margin:0 0 10px;padding:8px 10px;border-bottom:0;background:var(--sn-hover);border:1px solid var(--line);border-radius:10px}
+            .view-sniff .dg-group-info{min-width:0;flex:1}
+            /* 字母头像：博主名首字，圆角方块，强调色 —— 明确表示这是博主/频道而非视频 */
+            .view-sniff .dg-creator-ava{width:34px;height:34px;border-radius:50%;font-size:15px;font-weight:700;color:#fff;background:var(--accent);letter-spacing:0;text-transform:uppercase}
+            /* 「博主」小标签：跟在头像后、名字前，进一步消除「这是视频」的误解 */
+            .view-sniff .dg-creator-tag{display:inline-block;font-size:10px;font-weight:700;line-height:1;color:var(--accent);background:var(--sn-soft);border-radius:5px;padding:3px 6px;margin-right:7px;vertical-align:middle;letter-spacing:.3px}
+            .view-sniff .dg-group-name{font-size:var(--sn-fz-base);font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+            .view-sniff .dg-group-meta{font-size:var(--sn-fz-cap);color:var(--text-dim);margin-top:2px}
+            .view-sniff .dg-group-cnt{margin-left:auto;flex:0 0 auto;background:var(--accent);color:#fff;border-radius:20px;padding:2px 11px;font-size:var(--sn-fz-cap);font-weight:700;white-space:nowrap}
+            .view-sniff .dg-empty{color:var(--text-dim);font-size:var(--sn-fz-base);padding:40px 8px;text-align:center;opacity:.85}
+            .view-sniff .dg-err{background:color-mix(in srgb,#e5484d 10%,transparent);border:1px solid color-mix(in srgb,#e5484d 30%,transparent);border-radius:9px;padding:8px 11px;font-size:var(--sn-fz-sec);color:#e5484d;margin-bottom:10px;line-height:1.5}
+
+            /* ===== 「新」角标 ===== */
+            .view-sniff .cw-new-badge{display:inline-block;background:#fa5252;color:#fff;font-size:10px;font-weight:700;line-height:1;border-radius:5px;padding:2px 5px;margin-right:6px;vertical-align:middle;flex:0 0 auto}
+            /* ===== 「已提取」角标 + 置灰的提取按钮 ===== */
+            .view-sniff .cw-done-badge{display:inline-block;background:#16a34a;color:#fff;font-size:10px;font-weight:700;line-height:1;border-radius:5px;padding:2px 5px;margin-right:6px;vertical-align:middle;flex:0 0 auto}
+            .view-sniff .cw-video.is-extracted{opacity:.7}
+            .view-sniff .sn-btn.cw-vget.is-done,.view-sniff .sn-btn.dg-get.is-done{background:color-mix(in srgb,#16a34a 14%,transparent);border-color:color-mix(in srgb,#16a34a 45%,transparent);color:#16a34a;cursor:default}
+          </style>
+
+          <!-- 顶部并列标签：博主更新 / 网站动态 -->
+          <div class="sn-tabs" id="snTabs">
+            <button class="sn-tab active" data-sntab="creators">博主新视频</button>
+            <button class="sn-tab" data-sntab="web">网站新动态</button>
+          </div>
+
+          <!-- ══════════ 标签①：关注的博主（视频更新监控）══════════ -->
+          <div class="sn-tabpane" data-pane="creators">
+
+            <div class="sn-grid">
+              <!-- 左：我关注的博主 -->
+              <div>
+                <div class="sn-card">
+                  <div class="sn-card-head">
+                    <span class="sn-card-title">关注的博主</span>
+                    <span class="sn-pill" id="cwCount">0</span>
+                    <span class="sn-info-wrap" style="position:relative;display:inline-flex">
+                      <button class="sn-info" id="cwInfoBtn" title="点开看说明">i</button>
+                      <div class="sn-pop" id="cwInfoPanel" hidden>
+                        <span class="sn-pop-close" data-popclose="cwInfoPanel">×</span>
+                        <div class="sn-pop-title">这块怎么用</div>
+                        加你常看的抖音 / B站 / YouTube 博主主页，点某个博主可<b>列出他的视频</b>挑着提取；开「每天自动扫」后软件会把<b>新发的视频</b>攒到右侧「扫出来的新视频」。<br>
+                        · <b>YouTube</b> 需先在「设置 → 联网与代理」连上<span class="k">代理</span>，否则列不到。<br>
+                        · <b>抖音</b> 作品列表可能受签名限制取不到，这时把视频链接手动贴到「视频」页即可。<br>
+                        · 第一次加某个博主<b>只记录现状、不报新增</b>，第二次扫起才报新视频。
+                      </div>
+                    </span>
+                    <span class="sn-spacer"></span>
+                    <button class="sn-btn sm primary" id="cwScanAll" title="一键扫描所有博主，找出各自的新视频，攒到右侧「扫出来的新视频」">⚡ 批量扫描</button>
+                  </div>
+                  <div class="cw-state" id="cwScanState"></div>
+                  <div id="cwScanLog" class="cw-scanlog" hidden></div>
+                  <details class="sn-fold"><summary><svg class="sn-fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>添加博主</summary>
+<div class="sn-fold-body">
+<div class="sn-row" style="margin-bottom:10px;margin-top:12px">
+                    <select id="cwAddPlatform" class="sn-input" style="flex:0 0 auto">
+                      <option value="auto">自动识别</option>
+                      <option value="douyin">抖音</option>
+                      <option value="bilibili">B站</option>
+                      <option value="youtube">YouTube</option>
+                      <option value="x">X（推特）</option>
+                        <option value="web">网站 / 博客</option>
+                    </select>
+                    <input type="text" id="cwAddUrl" class="sn-input" style="flex:1;min-width:150px" placeholder="博主主页链接，或者任何网站 / 博客 / 新闻页的网址（比如 https://blog.google）" />
+                  </div>
+                  <div class="sn-row" style="margin-bottom:12px">
+                    <input type="text" id="cwAddTitle" class="sn-input" style="flex:1;min-width:120px" placeholder="备注名（可留空）" />
+                    <button class="sn-btn primary" id="cwAddBtn">添加博主</button>
+                  </div>
+                  </div></details>
+                  <!-- v78：搜索推荐：想看什么 → AI 池联网找前 N 个网站 / 博主，勾选后一键加进来 -->
+                  <details class="sn-fold cwf-panel" id="cwFindFold"><summary><svg class="sn-fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>搜索推荐</summary>
+                    <div class="sn-fold-body">
+                      <div class="cw-find-tip">输入你想看的领域，AI 池会联网找出这个行业最值得关注的网站和博主（官方博客、新闻页、YouTube、B站、抖音、X 都有），勾选后一键加进「关注的博主」。</div>
+                      <div class="sn-row" style="margin:10px 0">
+                        <input type="text" id="cwFindKw" class="sn-input cwf-kw" style="flex:1;min-width:150px" placeholder="想看什么？比如：AI 芯片、跨境电商、新能源汽车" />
+                        <select id="cwFindN" class="sn-input cwf-n" style="flex:0 0 auto">
+                          <option value="5">前 5 个</option><option value="10" selected>前 10 个</option>
+                          <option value="15">前 15 个</option><option value="20">前 20 个</option>
+                        </select>
+                        <button class="sn-btn primary cwf-btn" id="cwFindBtn">搜索</button>
+                      </div>
+                      <div id="cwFindStage" class="cw-find-stage cwf-stage" hidden></div>
+                      <div class="cwf-live" hidden></div>
+                      <div id="cwFindList" class="cw-find-list cwf-list"></div>
+                      <div class="sn-row cw-find-acts cwf-acts" id="cwFindActs" hidden>
+                        <label class="cw-find-all"><input type="checkbox" id="cwFindAll" class="cwf-all" /> 全选能用的</label>
+                        <span class="sn-spacer"></span>
+                        <button class="sn-btn primary cwf-add" id="cwFindAdd">加入关注的博主</button>
+                      </div>
+                    </div></details>
+<details class="sn-fold"><summary><svg class="sn-fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>自动扫描设置</summary>
+<div class="sn-fold-body">
+<div class="sn-row" style="gap:14px;padding:10px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-bottom:6px">
+                    <label class="sniff-switch"><input type="checkbox" id="cwAuto" /><span class="sniff-switch-track"></span><span class="sniff-switch-label">每天自动扫</span></label>
+                    <span class="sn-field">每天 <input type="number" id="cwHour" class="sn-input sn-num" value="9" min="0" max="23" /> 点</span>
+                    <span class="sn-field">每次最多 <input type="number" id="cwPerScan" class="sn-input sn-num" value="15" min="1" max="50" /> 条<span class="sn-info-wrap" style="position:relative;display:inline-flex"><span class="sn-q" id="cwPerScanQ" title="点看说明">?</span><div class="sn-pop" id="cwPerScanPanel" hidden style="width:300px"><span class="sn-pop-close" data-popclose="cwPerScanPanel">×</span><div class="sn-pop-title">「每次最多 N 条」是什么</div><b>每个博主每次扫描时，最多往回看他最近的 N 个视频。</b><br>比如设 15，软件只看每个博主<b>最新的 15 条</b>，从里面挑出还没见过的当「新增」。<br>· 调大（如 30）：博主更新很频繁、怕漏，但每次扫得稍慢。<br>· 调小（如 5）：扫得快、省流量，适合更新慢的博主。<br>它<b>只影响扫描找新增</b>；点进某个博主想看更多，用右侧的「重置 / 每页」可单独列更多。</div></span></span>
+                    <button class="sn-btn sm" id="cwCfgSave">保存</button>
+                  </div>
+
+                  </div></details>
+<!-- 改动2：「我关注的博主」列表可折叠 -->
+                  <div class="cw-collapse-head" id="cwListToggle" title="点这里展开 / 折叠博主列表">
+                    <span class="cw-collapse-caret">▼</span>
+                    <span class="cw-collapse-title">博主列表</span>
+                    <span class="sn-pill" id="cwListCount">0</span>
+                  </div>
+                  <div class="cw-collapse-body" id="cwListBody">
+                    <div id="cwList" class="cw-scroll" style="padding-top:6px"><div class="cw-empty">还没有博主。上面填主页链接，点「添加博主」。</div></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 右：工作区。两个同级子标签：① 扫出来的新视频 ② 按时间看全部 -->
+              <div style="display:flex">
+                <div class="sn-card cw-rightcard" style="flex:1">
+                  <!-- 子标签条 -->
+                  <div class="cw-subtabs" id="cwWorkTabs">
+                    <div class="cw-subtab active" data-worktab="new" role="button" tabindex="0">扫出来的新视频 <span class="sn-pill" id="cwFindCount">0</span>
+                      <span class="sn-info-wrap" style="position:relative;display:inline-flex" onclick="event.stopPropagation()">
+                        <button class="sn-info" id="cwNewInfoBtn" title="点看说明">i</button>
+                        <div class="sn-pop" id="cwNewInfoPanel" hidden>
+                          <span class="sn-pop-close" data-popclose="cwNewInfoPanel">×</span>
+                          <div class="sn-pop-title">🆕 扫出来的新视频</div>
+                          这里是软件<b>扫描后挑出来的、你还没处理过的新视频</b>。点「批量扫描」或某个博主的「扫一遍」，软件会和上次对比，把<b>新发布的</b>攒到这里。<br>
+                          · 勾选后点「提取选中」批量转成文字稿；不想要的「忽略选中」。<br>
+                          · 和②的区别：这里只放<b>扫描发现的「新」视频</b>（去过重的待办）；②是<b>按时间浏览所有博主的全部视频</b>。
+                        </div>
+                      </span>
+                    </div>
+                    <div class="cw-subtab" data-worktab="digest" role="button" tabindex="0">📅 按时间看全部
+                      <span class="sn-info-wrap" style="position:relative;display:inline-flex" onclick="event.stopPropagation()">
+                        <button class="sn-info" id="dgInfoBtn" title="点看说明">i</button>
+                        <div class="sn-pop right" id="dgInfoPanel" hidden>
+                          <span class="sn-pop-close" data-popclose="dgInfoPanel">×</span>
+                          <div class="sn-pop-title">📅 按时间看全部</div>
+                          把<b>所有关注博主</b>近几天发布的视频<b>汇总在一起</b>，按时间倒序排好，一眼看完「这几天大家一共发了啥、有哪些能提取」。<br>
+                          · 默认读<b>已缓存</b>的列表，<b>秒出</b>；想要最新的点「联网刷新」。<br>
+                          · 只统计<b>带发布日期</b>的视频（抖音 / 部分油管旧片没日期，可勾「显示无日期」看）。<br>
+                          · 和①的区别：①只放<b>扫描发现的「新」视频</b>；这里是<b>按时间浏览全部</b>，不论看没看过。<br>
+                          · <b>提示：</b>新加的、或从没点开过的博主，先在左边点它一下（或点本页「联网刷新」），它的视频才会进汇总。
+                        </div>
+                      </span>
+                    </div>
+                  </div>
+
+                  <!-- 子标签①：扫出来的新视频（含「本次新增」与点博主后的「视频清单」）-->
+                  <div class="cw-worktab-pane" data-workpane="new">
+                    <!-- 默认：本次新增（自动扫攒下的新视频）-->
+                    <div id="cwDigestView">
+                      <div class="sn-card-head">
+                        <span class="cw-state" style="margin-left:0">⚠ 第一次添加某个博主只记录现状、<b>不报新增</b>；第二次起才报新视频</span>
+                      </div>
+                      <div class="sn-toolbar">
+                        <label class="sniff-switch sniff-switch-sm" title="全选/全不选"><input type="checkbox" id="cwSelAll" /><span class="sniff-switch-track"></span><span class="sniff-switch-label">全选</span></label>
+                        <button class="sn-btn sm primary" id="cwExtractBtn">提取选中</button>
+                        <button class="sn-btn sm" id="cwDismissBtn">忽略选中</button>
+                        <span class="sn-spacer"></span>
+                        <button class="sn-btn sm" id="cwClearBtn">清空</button>
+                      </div>
+                      <div id="cwFindings" class="cw-scroll"><div class="cw-empty">暂无新视频。点左边某个博主「查看视频」，或点「批量扫描」。</div></div>
+                    </div>
+
+                    <!-- 切换：单个博主的视频清单 -->
+                    <div id="cwVideoView" hidden>
+                      <div class="sn-card-head">
+                        <button class="cw-back" id="cwBack">← 返回新视频列表</button>
+                        <span class="sn-spacer"></span>
+                        <button class="sn-btn sm" id="cwVideoRefresh">刷新</button>
+                      </div>
+                      <div class="sn-card-title" id="cwVideoTitle" style="margin:8px 0 2px;font-size:15px">视频清单</div>
+                      <div class="cw-state" id="cwVideoState"></div>
+                      <div class="cw-toolbar">
+                        <span class="sn-field">显示
+                          <input type="text" id="cwVideoLimit" class="sn-input sn-num" value="" placeholder="全部" style="width:56px" /> 条
+                          <button class="sn-btn sm" id="cwShowAll" title="把抓取条数重置为「全部」并重新列出">重置</button>
+                        </span>
+                        <span class="sn-field">每页
+                          <input type="number" id="cwPageSize" class="sn-input sn-num" value="20" min="1" max="500" style="width:56px" /> 条
+                        </span>
+                        <span class="sn-spacer"></span>
+                        <button class="sn-btn sm" id="cwSelAllV">全选</button>
+                        <button class="sn-btn sm" id="cwPick7">最近7天</button>
+                        <button class="sn-btn sm" id="cwPick30">最近30天</button>
+                        <button class="sn-btn sm" id="cwClearSelV">清空勾选</button>
+                      </div>
+                      <div id="cwVideos" class="cw-scroll"><div class="cw-empty">加载中…</div></div>
+                      <div id="cwPager" class="cw-pager" hidden>
+                        <button class="sn-btn sm" id="cwPagePrev">‹ 上一页</button>
+                        <span class="cw-pager-info">第 <b id="cwPageCur">1</b> / 共 <b id="cwPageTotal">1</b> 页</span>
+                        <button class="sn-btn sm" id="cwPageNext">下一页 ›</button>
+                        <span class="cw-pager-count" id="cwPagerCount"></span>
+                      </div>
+                      <div class="sn-row" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">
+                        <button class="sn-btn primary" id="cwExtractV">提取选中（0）</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 子标签②：按时间看全部（原近期汇总）-->
+                  <div class="cw-worktab-pane" data-workpane="digest" hidden>
+                    <div class="dg-bar">
+                      <div class="dg-seg" id="dgSeg">
+                        <button data-days="1">近 1 天</button>
+                        <button data-days="3" class="active">近 3 天</button>
+                        <button data-days="7">近 7 天</button>
+                      </div>
+                      <span class="sn-field">自定义
+                        <input type="number" id="dgDaysInput" class="sn-input sn-num" value="3" min="1" max="365" style="width:60px" /> 天
+                        <button class="sn-btn sm" id="dgDaysGo">看</button>
+                      </span>
+                      <span class="sn-spacer"></span>
+                      <button class="sn-btn sm" id="dgRefreshBtn" title="重新联网，把每个博主的最新视频都拉一遍（慢一点）">🔄 联网刷新</button>
+                    </div>
+                    <div class="dg-stat" id="dgStat" style="margin-bottom:6px"></div>
+                    <div class="dg-inline-note" id="dgInlineNote" hidden></div>
+                    <div class="sn-toolbar">
+                      <label class="sniff-switch sniff-switch-sm" title="全选/全不选"><input type="checkbox" id="dgSelAll" /><span class="sniff-switch-track"></span><span class="sniff-switch-label">全选</span></label>
+                      <button class="sn-btn sm primary" id="dgExtractBtn">提取选中（0）</button>
+                      <span class="sn-spacer"></span>
+                      <label class="sniff-switch sniff-switch-sm" title="一并显示没有发布日期、无法按天数判断的视频"><input type="checkbox" id="dgShowUndated" /><span class="sniff-switch-track"></span><span class="sniff-switch-label">显示无日期</span></label>
+                    </div>
+                    <div id="dgList" class="cw-scroll"><div class="dg-empty">选上面的天数，看这几天所有博主发的新视频。</div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ══════════ 标签②：网站动态嗅探（原 AI 雷达）══════════ -->
+          <div class="sn-tabpane" data-pane="web" hidden>
+            <!-- 概览条 -->
+            <div class="sniff-overview">
+              <div class="sniff-ov-text">
+                <div class="sniff-ov-title">盯着 AI 圈，有新东西第一时间告诉你</div>
+                <div class="sniff-ov-sub">抓取你关心的网站 · 和上次对比 · 只把新的「发布 / 功能 / 概念」提炼给你，已报过的不重复</div>
+              </div>
+              <div class="sniff-ov-stats" id="sniffStats"></div>
+            </div>
+
+            <!-- 操作条：快速嗅探 / 深度嗅探 / 刷新 -->
+            <div class="sn-toolbar">
+              <button id="sniffRunBtn" class="sn-btn primary" title="① 快速盯梢：扫一遍所有网站，把新变化列到时间线（很快）">⚡ 快速嗅探</button>
+              <button id="sniffBriefBtn" class="sn-btn" title="② 深度调研：让网页模型 AI 逐站搜+读+总结，生成一份带来源的报告（较慢）">📄 深度嗅探</button>
+              <span class="sn-spacer"></span>
+              <button id="sniffRefreshBtn" class="sn-btn sm" title="刷新时间线">刷新</button>
+            </div>
+
+            <!-- 怎么用：两种玩法 -->
+            <details class="sn-fold sn-fold-guide"><summary><svg class="sn-fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>两种嗅探有什么区别？</summary>
+<div class="sn-fold-body">
+<div class="sniff-guide">
+              <div class="sniff-guide-cards">
+                <div class="sniff-guide-card">
+                  <div class="sniff-guide-icon">🔍</div>
+                  <div class="sniff-guide-body">
+                    <div class="sniff-guide-title">① 快速嗅探 · 快速盯梢</div>
+                    <div class="sniff-guide-desc">软件飞快扫一遍你清单里的网站，和上次对比，把<b>新变化</b>列到下面「新动向」时间线里。每天看一眼有什么新东西。
+                      <span class="sniff-guide-tip">⚠ 第一次只记快照、不出内容；<b>第二次起</b>才会报新增。</span></div>
+                  </div>
+                </div>
+                <div class="sniff-guide-card">
+                  <div class="sniff-guide-icon">📄</div>
+                  <div class="sniff-guide-body">
+                    <div class="sniff-guide-title">② 深度嗅探 · 深度调研</div>
+                    <div class="sniff-guide-desc">让<b>网页模型 AI</b> 一个个站点自己去搜索、读取、总结，出一份<b>带原文链接的中文报告</b>（和「生成情报简报」同一套）。慢一点，适合要一份能存、能发的报告。</div>
+                  </div>
+                </div>
+              </div>
+              <div class="sniff-guide-note">两种用法<b>互相独立</b>，不用先点谁：想快速看变化点「快速嗅探」；想要成文报告点「深度嗅探」。</div>
+            </div>
+
+            </div></details>
+<!-- 实时嗅探进度（运行时显示）-->
+            <div class="sniff-progress" id="sniffProgress" hidden>
+              <div class="sniff-prog-head">
+                <span class="sniff-prog-spin"></span>
+                <span class="sniff-prog-stage" id="sniffProgStage">正在嗅探…</span>
+                <span class="sniff-prog-count" id="sniffProgCount"></span>
+              </div>
+              <div class="sniff-prog-list" id="sniffProgList"></div>
+            </div>
+
+            <div class="sn-grid">
+              <!-- 左：嗅探源管理 -->
+              <div>
+                <div class="sn-card">
+                  <div class="sn-card-head">
+                    <span class="sn-card-title">盯着的网站</span>
+                    <span class="sn-pill" id="sniffSrcCount">·</span>
+                  </div>
+                  <div class="sn-hint">你想盯哪些网站，在这里加/删/开关。上面两种用法都用这份清单。</div>
+                  <details class="sn-fold sn-kw" open><summary><svg class="sn-fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>按关键词找信息源</summary>
+<div class="sn-fold-body">
+<div class="sn-hint" style="margin:0 0 8px">输入一个领域或关键词，让 AI 池联网找出这个行业最值得盯的信息源网站，检查能不能打开，勾选后一键加入下面的清单。</div>
+<div class="sn-row" style="margin-bottom:8px">
+<input type="text" id="sniffKw" class="sn-input" style="flex:1;min-width:140px" placeholder="如：AI 芯片 / 新能源汽车 / 跨境电商" />
+<select id="sniffKwN" class="sn-input" style="flex:0 0 auto" title="要找几个">
+<option value="10">前 10 个</option><option value="15" selected>前 15 个</option><option value="20">前 20 个</option>
+</select>
+<button class="sn-btn primary" id="sniffKwBtn">查找</button>
+</div>
+<div class="kw-state" id="sniffKwState" hidden></div>
+<div class="kw-list" id="sniffKwList" hidden></div>
+<div class="kw-actions" id="sniffKwActions" hidden>
+<label class="kw-all"><input type="checkbox" id="sniffKwAll" checked /> 全选可用的</label>
+<span class="sn-field" style="flex:1">归到类别 <input type="text" id="sniffKwCat" class="sn-input" style="flex:1;min-width:90px" /></span>
+<button class="sn-btn primary" id="sniffKwAdd">加入嗅探清单</button>
+</div>
+</div></details>
+<details class="sn-fold"><summary><svg class="sn-fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>添加网站</summary>
+<div class="sn-fold-body">
+<div class="sniff-add">
+                    <input type="text" id="sniffAddTitle" class="sn-input" style="width:100%;margin-bottom:8px" placeholder="名称，如 OpenAI 新闻" />
+                    <div class="sn-row" style="margin-bottom:8px">
+                      <input type="text" id="sniffAddUrl" class="sn-input" style="flex:1;min-width:140px" placeholder="https://…" />
+                      <button class="sn-btn primary" id="sniffAddBtn" title="添加到清单">添加</button>
+                    </div>
+                    <div class="sn-field" style="margin-bottom:10px">
+                      <span style="white-space:nowrap">归到类别</span>
+                      <input type="text" id="sniffAddCat" class="sn-input" style="flex:1" list="sniffCatList" value="AI动态" placeholder="如 AI动态 / 竞品" />
+                      <datalist id="sniffCatList"></datalist>
+                    </div>
+                  </div>
+                  </div></details>
+<details class="sn-fold"><summary><svg class="sn-fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>嗅探设置（模型 · 自动嗅探）</summary>
+<div class="sn-fold-body">
+<div class="sn-field" style="margin-bottom:6px">
+                    <span style="white-space:nowrap">快速嗅探模型</span>
+                    <select id="sniffEngine" class="sn-input" style="flex:1">
+                      <option value="follow">本地模型（快，推荐）</option>
+                      <option value="web">网页模型（更强·更慢）</option>
+                      <option value="claude">Claude（若已配·更强）</option>
+                    </select>
+                  </div>
+                  <div class="sn-hint" style="margin:0 0 10px">只影响「快速嗅探」：本地模型最快；网页模型 / Claude 总结更好但慢很多。「深度嗅探」固定用网页模型。改完点下面「保存」生效。</div>
+                  <div class="sn-row" style="gap:12px;padding:10px 0;border-top:1px solid var(--line);margin-bottom:12px">
+                    <label class="sniff-switch"><input type="checkbox" id="sniffAuto" /><span class="sniff-switch-track"></span><span class="sniff-switch-label">自动嗅探</span></label>
+                    <span class="sn-field">每 <input type="number" id="sniffEvery" class="sn-input sn-num" value="6" min="1" max="288" /> 次心跳<span style="color:var(--text-dim);font-size:11px;margin-left:6px">（1 次≈5 分钟：6＝每半小时，12＝每小时，288＝每天一次）</span></span>
+                    <button class="sn-btn sm" id="sniffAutoSave">保存</button>
+                  </div>
+                  </div></details>
+<div class="sniff-sources cw-scroll" id="sniffSources"><div class="sniff-empty">加载中…</div></div>
+                </div>
+              </div>
+
+              <!-- 右：dashboard（类别概览 + 动向）-->
+              <div>
+                <div class="sniff-cat-tiles" id="sniffCatTiles"></div>
+                <div class="sn-card">
+                  <div class="sn-card-head">
+                    <span class="sn-card-title">新动向</span>
+                    <span class="sniff-cat-active" id="sniffCatActive"></span>
+                    <span class="sn-spacer"></span>
+                    <div class="sniff-filters" id="sniffFilters">
+                      <button class="sniff-chip active" data-k="all">全部</button>
+                      <button class="sniff-chip" data-k="发布">🆕 发布</button>
+                      <button class="sniff-chip" data-k="功能">🧩 功能</button>
+                      <button class="sniff-chip" data-k="概念">💡 概念</button>
+                    </div>
+                    <button class="sn-btn sm" id="sniffClearBtn" title="清空时间线">清空</button>
+                  </div>
+                  <div class="sn-hint">这条时间线来自①「快速嗅探」。点上面的类别卡或上面的标签可筛选。</div>
+                  <div class="sniff-feed cw-scroll" id="sniffFeed"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 简报弹窗 -->
+        <div class="sniff-brief-mask" id="sniffBriefMask" hidden>
+          <div class="sniff-brief-card">
+            <div class="sniff-brief-head">
+              <span class="sniff-brief-title">📄 AI 嗅探简报</span>
+              <span class="sniff-brief-actions">
+                <button class="sniff-mini-btn" id="sniffBriefCopy">复制全文</button>
+                <button class="sniff-mini-btn" id="sniffBriefClose">关闭</button>
+              </span>
+            </div>
+            <div class="sniff-brief-body" id="sniffBriefBody"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 数据库管理视图（功能区）：统一管理软件产生的所有数据 -->
+      <!-- 趋势瞭望台视图（v106）：内容由 trendwatch.js 生成 -->
+      <section class="view view-trendwatch" id="view-trendwatch"></section>
+
+    <!-- v155/v157：商业（市场雷达 / 行业地图 / 研究分析 / 机会看板 / 爬虫管理），内容由 biz.js 画 -->
+    <section class="view view-biz" id="view-biz"></section>
+    <!-- v162：资料库 → 知识库（AI 把资料整理成互相链接的主题页），内容由 kb.js 画 -->
+    <section class="view view-kb" id="view-kb"></section>
+
+      <section class="view view-datadb" id="view-datadb">
+        <header class="topbar">
+          <span>🗄️ 数据库 · 管理小助产生的所有数据</span>
+          <span class="ddb-topbar-actions">
+            <button id="ddbRefreshBtn" class="lumi-btn2" title="刷新">🔄 刷新</button>
+          </span>
+        </header>
+        <div class="ddb-pane">
+          <div id="ddbStatus" class="ddb-status"></div>
+          <div id="ddbBody"><div class="ddb-empty">加载中…</div></div>
+        </div>
+      </section>
+
+      <!-- 🌌 知识云图视图 -->
+      <section class="view view-knowledge" id="view-knowledge">
+        <style>
+          .view-knowledge { padding: 0; overflow: hidden; }
+          #kgWrap { position: relative; width: 100%; height: 100%; background:
+            radial-gradient(ellipse at 30% 20%, #1a1d3a 0%, #0d0f24 45%, #07081a 100%); }
+          #kgCanvas { display: block; width: 100%; height: 100%; cursor: grab; }
+          #kgCanvas.grabbing { cursor: grabbing; }
+          #kgTop {
+            position: absolute; top: 14px; left: 16px; right: 16px; z-index: 5;
+            display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+            pointer-events: none;
+          }
+          #kgTop > * { pointer-events: auto; }
+          #kgTitle { color: #eef0ff; font-size: 17px; font-weight: 700;
+            text-shadow: 0 1px 8px rgba(0,0,0,.5); display: flex; align-items: center; gap: 8px; }
+          #kgStat { color: #9aa0cc; font-size: 12.5px; }
+          #kgSearch {
+            margin-left: auto; width: 220px; padding: 8px 12px; border-radius: 20px;
+            border: 1px solid rgba(255,255,255,.18); background: rgba(20,22,46,.7);
+            color: #eef0ff; font-size: 13px; outline: none; backdrop-filter: blur(8px);
+          }
+          #kgSearch::placeholder { color: #7e84b0; }
+          .kg-btn {
+            padding: 8px 13px; border-radius: 20px; border: 1px solid rgba(255,255,255,.18);
+            background: rgba(20,22,46,.7); color: #cfd2f0; font-size: 13px; cursor: pointer;
+            backdrop-filter: blur(8px); transition: all .15s;
+          }
+          .kg-btn:hover { background: rgba(40,44,86,.9); color: #fff; }
+          #kgScopes { display: flex; gap: 6px; background: rgba(20,22,46,.55); padding: 4px; border-radius: 22px; backdrop-filter: blur(8px); }
+          .kg-scope {
+            padding: 6px 13px; border-radius: 18px; border: none; background: transparent;
+            color: #aab0dd; font-size: 12.5px; cursor: pointer; transition: all .15s; white-space: nowrap;
+          }
+          .kg-scope:hover { color: #fff; }
+          .kg-scope.active { background: rgba(123,104,238,.9); color: #fff; box-shadow: 0 2px 10px rgba(123,104,238,.4); }
+          #kgScopeLegend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 6px; }
+          #kgScopeLegend .sl { display: inline-flex; align-items: center; gap: 5px; }
+          #kgScopeLegend .sl i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+          #kgTip {
+            position: absolute; z-index: 6; max-width: 280px; padding: 11px 13px;
+            background: rgba(14,16,38,.96); border: 1px solid rgba(123,104,238,.5);
+            border-radius: 12px; color: #e8eaff; font-size: 12.5px; line-height: 1.5;
+            box-shadow: 0 10px 30px rgba(0,0,0,.5); display: none; pointer-events: none;
+          }
+          #kgTip .kt-title { font-weight: 700; margin-bottom: 4px; color: #fff; }
+          #kgTip .kt-meta { color: #9aa0cc; font-size: 11.5px; margin-bottom: 6px; }
+          #kgTip .kt-prev { color: #c3c7ea; font-size: 11.5px; }
+          #kgTip .kt-hint { color: #7e84b0; font-size: 11px; margin-top: 7px; }
+          #kgEmpty {
+            position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+            color: #9aa0cc; font-size: 15px; text-align: center; line-height: 1.7; padding: 40px;
+          }
+          #kgLegend {
+            position: absolute; bottom: 14px; left: 16px; z-index: 5; color: #7e84b0;
+            font-size: 11.5px; line-height: 1.6; background: rgba(14,16,38,.6);
+            padding: 8px 12px; border-radius: 10px; backdrop-filter: blur(6px);
+          }
+        </style>
+        <div id="kgWrap">
+          <canvas id="kgCanvas"></canvas>
+          <div id="kgTop">
+            <span id="kgTitle">🌌 知识云图 <span id="kgStat"></span></span>
+            <div id="kgScopes">
+              <button class="kg-scope active" data-scope="all">🌐 全部</button>
+              <button class="kg-scope" data-scope="chat">💬 对话</button>
+              <button class="kg-scope" data-scope="sniff">📡 嗅探</button>
+              <button class="kg-scope" data-scope="video">🎬 视频</button>
+            </div>
+            <button class="kg-btn" id="kgReload" title="重新读取并布局">🔄 刷新</button>
+            <input id="kgSearch" type="text" placeholder="搜…（标题/关键词）" />
+          </div>
+          <div id="kgTip"></div>
+          <div id="kgLegend">星 = 一条内容 · 越亮越近期 · 相近主题聚成星团<br>滚轮缩放 · 拖动平移 · 点星打开<div id="kgScopeLegend"></div></div>
+          <div id="kgEmpty"></div>
+        </div>
+      </section>
+
+      <!-- 🦊 桌宠视图 -->
+      <section class="view view-pet" id="view-pet">
+        <header class="topbar"><span>🦊 桌宠</span></header>
+        <div class="pet-pane" style="padding:20px 24px;max-width:760px;">
+          <div class="pet-card" style="background:var(--card,#fff);border:1px solid var(--border,#e5e5e5);border-radius:14px;padding:18px 20px;margin-bottom:16px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+              <div>
+                <div style="font-size:16px;font-weight:700;margin-bottom:4px;">桌面伙伴</div>
+                <div style="font-size:13px;color:var(--text-dim,#888);line-height:1.5;">
+                  一只住在你桌面上的小家伙，会自己溜达。<b>点它</b>有菜单，<b>拖它</b>换位置，
+                  <b>把视频链接或文件拖给它</b>会自动帮你处理（视频去提取，其它进对话）。
+                </div>
+              </div>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;white-space:nowrap;">
+                <input type="checkbox" id="petEnabled" style="width:18px;height:18px;cursor:pointer;" />
+                <span>显示桌宠</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="pet-card" style="background:var(--card,#fff);border:1px solid var(--border,#e5e5e5);border-radius:14px;padding:18px 20px;">
+            <div style="font-size:15px;font-weight:700;margin-bottom:4px;">选择形象</div>
+            <div style="font-size:12.5px;color:var(--text-dim,#888);margin-bottom:14px;">点一下即可切换，桌宠会立刻变身。以后还能加入更多角色。</div>
+            <div id="petSkinGrid" style="display:flex;flex-wrap:wrap;gap:12px;"></div>
+          </div>
+
+          <div style="font-size:12px;color:var(--text-dim,#999);margin-top:14px;line-height:1.6;">
+            💡 小提示：菜单栏「视图 → 显示/隐藏桌宠」也能快速开关。关闭主窗口会一并退出桌宠。
+          </div>
+        </div>
+      </section>
+
+      <!-- v110：待开发——暂时用不上、还没想好怎么用的功能都收在这里，都还能正常打开 -->
+      <section class="view view-lab" id="view-lab">
+        <header class="topbar"><span>待开发</span></header>
+        <div class="lab-pane">
+          <p class="lab-intro">暂时用不上、或者还没想好怎么用的功能先收在这里，都还能正常打开和使用。哪个用起来了、想放回左边，跟我说一声就行。</p>
+
+          <div class="lab-section">收集资料</div>
+          <div class="lab-row">
+            <div class="lab-main">
+              <div class="lab-name">情报简报</div>
+              <div class="lab-desc">按你填的关注关键词联网搜索、读网页，汇总成一份简报；配了 Server酱 会推到微信。</div>
+              <div class="lab-note">和「嗅探」里网站动态的简报、分身「情报员」做的事很像，以后可以并到一起。</div>
+            </div>
+            <div class="lab-acts"><button type="button" class="send-btn small" id="briefingBtn">生成一份简报</button><button type="button" class="ghost-btn small" data-open-cfg="watchlist.md">改关键词</button></div>
+          </div>
+          <div class="lab-row">
+            <div class="lab-main">
+              <div class="lab-name">竞品检查</div>
+              <div class="lab-desc">定期打开你填的竞品网页，和上次对比，有新品、调价、公告就提醒你。</div>
+              <div class="lab-note">和「嗅探 → 网站新动态」做的是同一件事；要盯某个网站，直接加进嗅探更省事。</div>
+            </div>
+            <div class="lab-acts"><button type="button" class="send-btn small" id="watchBtn">立即检查</button><button type="button" class="ghost-btn small" data-open-cfg="competitors.md">改竞品网址</button></div>
+          </div>
+          <div class="lab-row">
+            <div class="lab-main">
+              <div class="lab-name">情报看板</div>
+              <div class="lab-desc">把情报关键词和竞品监控的结果放在一页上看。</div>
+            </div>
+            <div class="lab-acts"><button type="button" class="ghost-btn small" data-lab-open="dashboard">打开</button></div>
+          </div>
+
+          <div class="lab-section">小助</div>
+          <div class="lab-row">
+            <div class="lab-main">
+              <div class="lab-name">懂你</div>
+              <div class="lab-desc">小助对你的了解：画像（含人格演化）、洞察报告，和它记住的东西（性格设定、行为准则、关于你、长期记忆）。</div>
+            </div>
+            <div class="lab-acts"><button type="button" class="ghost-btn small" data-lab-group="you">打开</button></div>
+          </div>
+          <div class="lab-row">
+            <div class="lab-main">
+              <div class="lab-name">分身与技能</div>
+              <div class="lab-desc">教给小助的分身（比如「情报员」「行动教练」）和做事方法（技能）。</div>
+            </div>
+            <div class="lab-acts"><button type="button" class="ghost-btn small" data-lab-group="crew">打开</button></div>
+          </div>
+          <div class="lab-row">
+            <div class="lab-main">
+              <div class="lab-name">关系网络</div>
+              <div class="lab-desc">聊天时提到的人（同事、朋友、客户），小助自动记下谁、什么关系、聊过什么。</div>
+            </div>
+            <div class="lab-acts"><button type="button" class="ghost-btn small" data-lab-toggle="rel">展开</button></div>
+            <div class="lab-body" hidden><div class="lumi-page-body" id="lumiRelations"><div class="lumi-empty">还没记录到人。聊天时提到具体的人（同事、朋友、客户…），小助会自动记下来。</div></div></div>
+          </div>
+          <div class="lab-row">
+            <div class="lab-main">
+              <div class="lab-name">环境画像</div>
+              <div class="lab-desc">扫描电脑上装了哪些软件，推断你是做什么的，让回答更贴近你的情况。只读、不上传。</div>
+            </div>
+            <div class="lab-acts"><button id="lumiScanInline" class="ghost-btn small" title="扫描本机软件、推断职业（只读、不上传）">扫描</button><button type="button" class="ghost-btn small" data-lab-toggle="env">展开</button></div>
+            <div class="lab-body" hidden><div class="lumi-page-body" id="lumiEnv"><div class="lumi-empty">还没扫描。点上方「🖥️ 扫描环境」，小助会看你装了什么软件、推断你的职业方向。</div></div></div>
+          </div>
+
+          <div class="lab-section">让小助自己干活</div>
+          <div class="lab-row">
+            <div class="lab-main">
+              <div class="lab-name">目标循环</div>
+              <div class="lab-desc">写下目标和验收标准，小助自己一轮轮做、一轮轮检查，直到达标。适合复杂、要反复验证的事。</div>
+            </div>
+            <div class="lab-acts"><button type="button" class="ghost-btn small" data-lab-open="loop">打开</button></div>
+          </div>
+          <div class="lab-row">
+            <div class="lab-main">
+              <div class="lab-name">心跳</div>
+              <div class="lab-desc">让小助每隔一段时间自己醒来，看「心跳待办」和「定时提醒」里有没有到点的事，有就做、就提醒你。</div>
+              <div class="lab-note">自动心跳的开关在「设置 → 自动化」。</div>
+            </div>
+            <div class="lab-acts"><button type="button" class="send-btn small" id="heartbeatBtn">现在触发一次</button><button type="button" class="ghost-btn small" data-open-cfg="heartbeat.md">改心跳待办</button><button type="button" class="ghost-btn small" data-open-cfg="reminders.md">改定时提醒</button></div>
+          </div>
+          <div class="lab-row">
+            <div class="lab-main">
+              <div class="lab-name">运行台</div>
+              <div class="lab-desc">调小助干活的几个参数：每次带多少长期记忆、一次最多做几步、危险操作要不要先问你；也能看每次运行的记录。</div>
+              <div class="lab-note">这里的参数一直在生效，平时不用管。</div>
+            </div>
+            <div class="lab-acts"><button type="button" class="ghost-btn small" data-lab-open="harness">打开</button></div>
+          </div>
+
+          <div class="lab-section">其它</div>
+          <div class="lab-row">
+            <div class="lab-main">
+              <div class="lab-name">英语学习</div>
+              <div class="lab-desc">按老师放在 backend\教材 里的教材，给学生出每日练习、做辅导对话。</div>
+            </div>
+            <div class="lab-acts"><button type="button" class="ghost-btn small" data-lab-open="study">打开</button></div>
+          </div>
+          <div class="lab-row">
+            <div class="lab-main">
+              <div class="lab-name">桌宠</div>
+              <div class="lab-desc">桌面上的小伙伴，可以把视频链接或文件拖给它处理。</div>
+            </div>
+            <div class="lab-acts"><button type="button" class="ghost-btn small" data-lab-open="pet">打开</button></div>
+          </div>
+          <div class="lab-row">
+            <div class="lab-main">
+              <div class="lab-name">成长库（旧版）</div>
+              <div class="lab-desc">以前的资料汇总页，里面的东西「资料库」都有，留着备查。</div>
+            </div>
+            <div class="lab-acts"><button type="button" class="ghost-btn small" data-lab-open="library">打开</button></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 设置视图 -->
+      <section class="view view-settings" id="view-settings">
+        <header class="topbar"><span>设置</span></header>
+        <div class="settings-pane">
+          <div class="settings-tabs" id="settingsTabs">
+            <button class="settings-tab-btn active" data-tab="tab-general">常规</button>
+            <button class="settings-tab-btn" data-tab="tab-model">模型</button>
+            <button class="settings-tab-btn" data-tab="tab-net">联网与代理</button>
+            <button class="settings-tab-btn" data-tab="tab-pc">电脑 · 语音</button>
+            <button class="settings-tab-btn" data-tab="tab-auto">自动化</button>
+            <button class="settings-tab-btn" data-tab="tab-notify">通知</button>
+            <button class="settings-tab-btn" data-tab="tab-config">配置</button>
+          </div>
+
+          <div class="settings-tab active" id="tab-general">
+          <div class="settings-section">外观</div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-title">皮肤</div>
+              <div class="setting-desc">深色护眼，浅色清爽，按喜好切换</div>
+            </div>
+            <select id="themeSelect" class="text-input" style="width:140px">
+              <option value="light">浅色（清爽）</option>
+              <option value="dark">深色（护眼）</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-title">启动后自动隐藏黑窗口</div>
+              <div class="setting-desc">黑窗口里的内容在软件左下角「终端」里都能看到；隐藏后任务栏里也不显示。需要时在终端面板点「显示原来的黑窗口」，关软件时会自动显示回来</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="autoMinConsole" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+          </div><!-- /tab-general -->
+
+          <div class="settings-tab" id="tab-pc">
+          <div class="settings-section">电脑操作 · 语音</div>
+          <div class="setting-row danger">
+            <div>
+              <div class="setting-title">🖥️ 电脑操作权限
+                <button id="accessInfoBtn" class="info-btn" title="这个功能是干什么的？">ⓘ</button>
+              </div>
+              <div class="setting-desc">开启后超能小助可整理真实文件、调系统、操作其它程序、看屏幕；关闭则只在沙箱里活动。破坏性动作仍会逐次弹窗确认。</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="systemAccess" />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-title">语音引擎</div>
+              <div class="setting-desc">
+                <b>在线·高音质</b>：微软神经网络音色，效果接近 ChatGPT，但要连微软服务器，国内可能要等几秒（配了代理会快）。<br>
+                <b>本地·极速</b>：用你电脑系统自带的语音，<b>瞬间出声、完全离线</b>，音质一般、音色按系统而定。嫌慢就选这个。
+              </div>
+            </div>
+            <select id="ttsEngine" class="text-input" style="width:200px">
+              <option value="online">在线·高音质（edge-tts）</option>
+              <option value="local">本地·极速（瞬间出声）</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-title">语音播报音色</div>
+              <div class="setting-desc">每段话末尾的小喇叭用它朗读。仅「在线·高音质」生效；本地极速用系统自带音色。</div>
+            </div>
+            <span class="picker-row" style="display:flex;gap:8px;align-items:center">
+              <select id="ttsVoice" class="text-input" style="width:200px">
+                <option value="zh-CN-YunxiNeural">云希 · 男声（活泼，推荐）</option>
+                <option value="zh-CN-YunjianNeural">云健 · 男声（浑厚）</option>
+                <option value="zh-CN-YunyangNeural">云扬 · 男声（播报腔）</option>
+                <option value="zh-CN-XiaoxiaoNeural">晓晓 · 女声（亲切）</option>
+                <option value="zh-CN-XiaoyiNeural">晓伊 · 女声（甜美）</option>
+                <option value="en-US-GuyNeural">Guy · 英文男声</option>
+                <option value="en-US-AriaNeural">Aria · 英文女声</option>
+              </select>
+              <button id="ttsTestBtn" class="ghost-btn small">试听</button>
+            </span>
+          </div>
+
+          <div class="setting-row danger">
+            <div>
+              <div class="setting-title">⚠️ 允许执行 shell 命令</div>
+              <div class="setting-desc">有风险，用完建议关掉</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="shellEnabled" />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          </div><!-- /tab-pc -->
+
+          <div class="settings-tab" id="tab-model">
+
+          <!-- 顶部：这页是干嘛的 -->
+          <div class="model-intro">
+            <div class="model-intro-title">超能小助能用哪些模型？</div>
+            <div class="model-intro-grid">
+              <div class="model-intro-item"><b>💻 本地模型</b><span>装在你电脑里（Ollama，如 qwen3:14b）。免费、私密、断网也能用，要先装。日常首选。</span></div>
+              <div class="model-intro-item"><b>☁ 网页 / 云端模型</b><span>更强、自带联网。查资料、写长文、深度分析用它更好。</span></div>
+              <div class="model-intro-item"><b>✦ Claude</b><span>最强，需要你自己的 key。在下方配好后，也会出现在选项里。</span></div>
+            </div>
+            <div class="model-intro-tip">💡 不想折腾就一句话：把下面第一项「默认模型」选成你常用的（比如 qwen3:14b），其余全留「跟随默认」，就能用了。想精细分工再往下调。</div>
+          </div>
+
+          <!-- 各任务分工 -->
+            <div class="settings-section">对话默认用的模型</div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-title">使用本地模型</div>
+              <div class="setting-desc">本地 Ollama，数据不出本机（推荐）</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="useLocal" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-title">模型名</div>
+              <div class="setting-desc">下拉里分「本地模型」和「☁ 云端模型」两组。
+                云端模型需先在命令行 ollama signin 登录后才能用；
+                找不到想要的可点「手动输入」直接打名字</div>
+            </div>
+            <div class="model-picker">
+              <select id="modelSelect" class="text-input"></select>
+              <input type="text" id="modelName" class="text-input"
+                     value="qwen2.5" style="display:none" />
+              <div class="picker-row">
+                <button id="refreshModelsBtn" class="ghost-btn small">刷新</button>
+                <button id="manualModelBtn" class="ghost-btn small">手动输入</button>
+              </div>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-title">默认启动模型</div>
+              <div class="setting-desc">软件每次启动时自动用这个模型，省得忘了换、误用了不想用的。
+                设为「跟随上次」则用你上次手动选的。</div>
+            </div>
+            <div class="model-picker">
+              <select id="defaultModelSelect" class="text-input"></select>
+              <div class="picker-row">
+                <button id="setDefaultNowBtn" class="ghost-btn small" title="把当前正在用的模型设为默认">用当前模型</button>
+              </div>
+            </div>
+          </div>
+          <div class="settings-section">谁来干哪类活 · 任务分工</div>
+          <p class="settings-note" style="margin-top:8px">
+            超能小助会按你要做的事自动挑模型。每类活儿都能单独指定；选「跟随默认」就用第一项的默认模型。改完别忘了点最下面「保存任务配置」。
+          </p>
+
+          <div class="tm-card tm-card-master">
+            <div class="tm-card-icon">⭐</div>
+            <div class="tm-card-body">
+              <div class="tm-card-name">默认模型（先设这个）</div>
+              <div class="tm-card-when">所有没单独指定的活儿都用它。把它设好，下面几项就都能省事。</div>
+              <div class="tm-card-tip">建议：选你已装好的本地模型，比如 <code>qwen3:14b</code>。</div>
+            </div>
+            <select id="tmDefault" class="text-input tm-select"></select>
+          </div>
+
+          <div class="tm-card">
+            <div class="tm-card-icon">🔎</div>
+            <div class="tm-card-body">
+              <div class="tm-card-name">查资料 · 写长文 · 深度分析 · 总结</div>
+              <div class="tm-card-when">例：让它上网查最新信息、写一篇文章、把长文总结成要点。</div>
+              <div class="tm-card-tip">建议：选更强、能联网的「网页模型」或 Claude；没有就「跟随默认」。</div>
+            </div>
+            <select id="tm_chat" class="text-input tm-select"></select>
+          </div>
+
+          <div class="tm-card">
+            <div class="tm-card-icon">🎬</div>
+            <div class="tm-card-body">
+              <div class="tm-card-name">视频总结</div>
+              <div class="tm-card-when">视频会先在本地听写成文字，再用这个模型整理成总结。</div>
+              <div class="tm-card-tip">建议：和上面一类，选强一点的；没有就「跟随默认」。</div>
+            </div>
+            <select id="tm_video_summary" class="text-input tm-select"></select>
+          </div>
+
+          <div class="tm-card">
+            <div class="tm-card-icon">🛠️</div>
+            <div class="tm-card-body">
+              <div class="tm-card-name">动手干活：记笔记 · 提醒 · 读写文件</div>
+              <div class="tm-card-when">例：「记住…」「提醒我…」、整理桌面文件，这类要真正调用工具的动作。</div>
+              <div class="tm-card-tip">⚠ 这一项<b>只能选本地模型</b>，而且要支持工具调用（如 <code>qwen3:14b</code>）。网页模型干不了这个。</div>
+            </div>
+            <select id="tm_local_action" class="text-input tm-select"></select>
+          </div>
+
+          <div class="tm-card">
+            <div class="tm-card-icon">💬</div>
+            <div class="tm-card-body">
+              <div class="tm-card-name">随便聊两句</div>
+              <div class="tm-card-when">「在吗」「你好」这种短招呼，用快的小模型秒回。</div>
+              <div class="tm-card-tip">建议：选个小而快的本地模型；不在意就「跟随默认」。</div>
+            </div>
+            <select id="tm_quick_chat" class="text-input tm-select"></select>
+          </div>
+
+          <div class="tm-save-row">
+            <button id="tmSaveBtn" class="send-btn">保存任务配置</button>
+            <span class="settings-note" id="tmHint" style="margin:0"></span>
+          </div>
+
+          <!-- Claude 配置 -->
+          <div class="settings-section">Claude 配置 · 可选（有 key 才需要）</div>
+          <p class="settings-note" style="margin-top:8px">
+            有 Claude 的 key（或中转站 key）就在这加。配好后，它会出现在上面任务分工的下拉选项里，随时切。
+            可加多个，每个用不同 key / 地址 / 模型。key 明文存在本机 <code>backend/memory/claude_config.json</code>。
+          </p>
+          <div id="claudeProfileList"></div>
+          <div class="setting-row" style="margin-top:12px">
+            <div><div class="setting-title">添加一个 Claude 配置</div>
+              <div class="setting-desc">一个配置 = 一个模型 + 一个 key，互不影响</div></div>
+            <button id="claudeAddBtn" class="send-btn">＋ 添加</button>
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-title">用 Claude 代替网页模型</div>
+              <div class="setting-desc">开了之后，本来要走「网页模型」的活儿（分析/搜索/写作/总结/视频总结）改用你的第一个 Claude 配置——更稳、不弹浏览器。<b>有 Claude key 的话推荐开。</b></div></div>
+            <label class="switch"><input type="checkbox" id="claudePreferWeb" /><span class="slider"></span></label>
+          </div>
+          <p class="settings-note" id="claudeHint"></p>
+
+          <!-- 网页模型 -->
+          <div class="settings-section">网页模型 · 可选（借网页版 ChatGPT）</div>
+          <p class="settings-note" style="margin-top:8px">
+            把<b>查资料 / 写作 / 总结</b>这类活儿交给网页版 ChatGPT（sorryios 账号，自带联网）；<b>动手干活</b>（记忆/提醒/文件）仍由本地模型做。
+            任何一步失败会<b>自动回退本地</b>，不会卡住。需先装依赖：<code>pip install playwright</code> 再 <code>python -m playwright install chromium</code>。
+            <br>提示：如果你已经配了 Claude，更推荐用上面那个「Claude 代替网页模型」，省得弹浏览器。
+          </p>
+          <div class="setting-row">
+            <div><div class="setting-title">sorryios 账号</div>
+              <div class="setting-desc">登录 sorryios.ai 用的账号</div></div>
+            <input type="text" id="wmUser" class="text-input" style="width:200px" placeholder="账号" />
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-title">sorryios 密码</div>
+              <div class="setting-desc">明文存在本机，注意安全；留空＝不修改</div></div>
+            <input type="password" id="wmPass" class="text-input" style="width:200px" placeholder="密码" />
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-title">显示浏览器窗口</div>
+              <div class="setting-desc">开：看得到自动化过程；关：后台静默运行</div></div>
+            <label class="switch">
+              <input type="checkbox" id="wmHeadful" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-title">联网搜索开关</div>
+              <div class="setting-desc">ChatGPT 一般会自动联网；个别情况要手动开时再勾</div></div>
+            <label class="switch">
+              <input type="checkbox" id="wmSearch" />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-title">保存 & 测试</div>
+              <div class="setting-desc">保存配置；测试会弹浏览器 → 登录 → 存登录态 → 发一句测试</div></div>
+            <span class="picker-row" style="display:flex;gap:8px">
+              <button id="wmSaveBtn" class="ghost-btn small">保存</button>
+              <button id="wmTestBtn" class="send-btn">测试网页模型</button>
+            </span>
+          </div>
+          <p class="settings-note" id="wmHint"></p>
+
+          <!-- 下载/搬家 -->
+          <div class="settings-section">模型存储与搬家</div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-title">模型下载位置</div>
+              <div class="setting-desc">语音等模型默认下到这里，不占 C 盘：<br>
+                <span id="modelsDirText" class="mono-path">加载中…</span></div>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-title">已下载的模型</div>
+              <div class="setting-desc"><span id="modelsListText">—</span><br>
+                点右边按钮，可把 <b>C 盘</b> 上的语音模型 <b>和 Ollama 大模型</b>（qwen3、deepseek 等，通常才是占 C 盘的大头）安全搬到 D 盘并自动改好路径。搬之前建议先退出 Ollama。</div>
+            </div>
+            <button id="moveModelsBtn" class="vbtn">把 C 盘已下载模型搬到 D 盘</button>
+          </div>
+          <div class="setting-desc" id="moveModelsMsg" style="margin-top:-6px"></div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-title">语音识别加速（GPU）</div>
+              <div class="setting-desc"><span id="gpuStatusText">检测中…</span><br>
+                有 NVIDIA 显卡时，提取视频/音频文字会自动用显卡，比 CPU 快很多。第一次会自动下载约 1GB 的显卡运行库（只需一次）；没有显卡或出错时自动退回 CPU。</div>
+            </div>
+          </div>
+
+          </div><!-- /tab-model -->
+
+          <div class="settings-tab" id="tab-net">
+            <div class="settings-section">联网与代理</div>
+            <p class="settings-note" style="margin-top:8px">
+              软件抓取/搜索<b>境外网站</b>（OpenAI、DeepMind、Hugging Face、嗅探等）时走这个代理。
+              填你科学上网工具的<b>本地端口</b>地址；不填则只能访问国内可直连的站点。
+            </p>
+            <div class="setting-row">
+              <div>
+                <div class="setting-title">代理地址</div>
+                <div class="setting-desc">格式 <code>http://127.0.0.1:端口</code>。
+                  小麦加速：设置里的 SOCKS5/HTTP 端口（如 7897）→ 填 <code>http://127.0.0.1:7897</code>；
+                  Clash 一般是 7890。改了端口记得对应改这里。</div>
+              </div>
+              <input type="text" id="proxyInput" class="text-input" style="width:230px"
+                     placeholder="http://127.0.0.1:7897" />
+            </div>
+            <div class="setting-row">
+              <div>
+                <div class="setting-title">测试代理</div>
+                <div class="setting-desc">保存后点这里，试着用代理打开一个境外站，看通不通。</div>
+              </div>
+              <span class="picker-row" style="display:flex;gap:8px;align-items:center">
+                <button id="proxySaveBtn" class="send-btn">保存</button>
+                <button id="proxyTestBtn" class="ghost-btn small">保存并测试</button>
+              </span>
+            </div>
+            <p class="settings-note" id="proxyHint"></p>
+          </div><!-- /tab-net -->
+
+          <div class="settings-tab" id="tab-auto">
+          <div class="settings-section">自动心跳</div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-title">开启自动心跳</div>
+              <div class="setting-desc">开了之后，软件开着期间它会定时自己醒来，
+                看「心跳待办」和「定时提醒」里有没有到点的事，有就做、就提醒你。
+                关掉软件或关掉这个开关就停。</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="heartbeatToggle" />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-title">多久醒一次</div>
+              <div class="setting-desc">间隔越短越勤快，但越耗电脑算力</div>
+            </div>
+            <select id="hbInterval" class="text-input" style="width:140px">
+              <option value="60">1 分钟</option>
+              <option value="300" selected>5 分钟</option>
+              <option value="900">15 分钟</option>
+              <option value="1800">30 分钟</option>
+              <option value="3600">1 小时</option>
+            </select>
+          </div>
+          <p class="settings-note" id="hbHint"></p>
+          <p class="settings-note">
+            云端模型需先在系统里设好环境变量 OPENAI_API_KEY。
+            本地模型模式下完全不联网（联网搜索工具除外）。
+          </p>
+
+          </div><!-- /tab-auto -->
+
+          <div class="settings-tab" id="tab-notify">
+          <div class="settings-section">手机遥控</div>
+          <p class="settings-note" style="margin-top:10px">
+            在手机上指挥超能小助。中国推荐<b>企业微信</b>（合规免费）或<b>飞书</b>（体验顺）；
+            <b>Server酱</b>只能单向给你的微信发提醒、最简单。各渠道的密钥点下面对应的按钮填。回调地址：你的公网域名 + /wecom/callback 或 /feishu/callback。
+            企业微信和飞书需要公网回调，本机请配合内网穿透（见 README）。
+          </p>
+
+          <div class="setting-row">
+            <div><div class="setting-title">Server酱（单向推送）</div>
+              <div class="setting-desc">先填好 SendKey，再点「测试推送」看能不能推到微信</div></div>
+            <span class="picker-row" style="display:flex;gap:8px;align-items:center">
+              <button type="button" class="ghost-btn small" data-open-cfg="push.md">填 SendKey</button>
+              <button id="pushTestBtn" class="send-btn">测试推送</button>
+            </span>
+          </div>
+          <p class="settings-note" id="pushHint"></p>
+
+          <div class="setting-row">
+            <div><div class="setting-title">企业微信 / 飞书（双向）</div>
+              <div class="setting-desc">配好密钥并打通公网回调后，直接在对应 App 里和超能小助聊</div></div>
+            <span class="picker-row" style="display:flex;gap:8px;align-items:center">
+              <button type="button" class="ghost-btn small" data-open-cfg="wecom.md">填企业微信密钥</button>
+              <button type="button" class="ghost-btn small" data-open-cfg="feishu.md">填飞书密钥</button>
+            </span>
+          </div>
+
+          <div class="settings-section">Telegram（海外）</div>
+          <div class="setting-row">
+            <div><div class="setting-title">Bot Token</div>
+              <div class="setting-desc">找 @BotFather 用 /newbot 获取</div></div>
+            <input type="text" id="tgToken" class="text-input" placeholder="粘贴 token" />
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-title">你的 Chat ID</div>
+              <div class="setting-desc">找 @userinfobot 获取（只服务你一人）</div></div>
+            <input type="text" id="tgChatId" class="text-input" placeholder="数字 id" />
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-title">启动 Telegram</div>
+              <div class="setting-desc">跑起来后，手机 Telegram 直接发消息</div></div>
+            <button id="tgStartBtn" class="send-btn">保存并启动</button>
+          </div>
+          <p class="settings-note" id="tgHint"></p>
+          </div><!-- /tab-notify -->
+
+          <div class="settings-tab" id="tab-config">
+            <div class="settings-section">配置 · 推送 / 代理 / 任务</div>
+            <p class="settings-note" style="margin-top:8px">
+              这些是功能配置：心跳待办、情报关键词、竞品网址、定时提醒、各推送渠道密钥。代理在「联网与代理」里填，Telegram 在「通知」里填。
+              选上面的项编辑，改完点「保存」。
+            </p>
+            <div class="memory-tabs" id="setMemTabs" style="margin-top:12px"></div>
+            <div class="memory-desc" id="setMemDesc" style="margin-top:10px"></div>
+            <div class="memory-mode-bar" id="setMemModeBar" style="display:none"></div>
+            <div class="memory-body" id="setMemBody" style="margin-top:12px"></div>
+            <textarea id="setMemEditor" class="memory-editor" style="display:none"></textarea>
+            <div class="memory-actions" style="margin-top:14px">
+              <span class="save-hint" id="setMemSaveHint"></span>
+              <button id="setMemSaveBtn" class="send-btn">保存</button>
+            </div>
+          </div><!-- /tab-config -->
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="end-dialog" id="endDialog" hidden>
+    <div class="end-dialog-card">
+      <div class="end-dialog-title">结束当前对话</div>
+      <div class="end-dialog-desc">这段对话要怎么处理？</div>
+      <div class="end-dialog-actions">
+        <button class="end-opt end-opt-primary" id="endOptRemember">
+          <span class="end-opt-main">🧠 结束并记住</span>
+          <span class="end-opt-sub">提炼要点进长期记忆，下次还记得 + 存为历史会话</span>
+        </button>
+        <button class="end-opt" id="endOptSave">
+          <span class="end-opt-main">💾 清空并保存</span>
+          <span class="end-opt-sub">存为历史会话（侧边栏能回查），但不提炼长期记忆</span>
+        </button>
+        <button class="end-opt" id="endOptSkill">
+          <span class="end-opt-main">🧩 提炼成技能</span>
+          <span class="end-opt-sub">解析这段对话做了什么、怎么操作的，总结成一个可复用技能，下次同类任务能照着做</span>
+        </button>
+        <button class="end-opt end-opt-cancel" id="endOptCancel">
+          <span class="end-opt-main">取消</span>
+        </button>
+      </div>
+      <div class="end-dialog-status" id="endDialogStatus"></div>
+    </div>
+  </div>
+
+  <script src="pet-characters.js"></script>
+  <script src="knowledge.js"></script>
+  <script src="logview.js"></script>
+  <script src="renderer.js"></script>
+  <script src="crawler.js"></script>
+  <script src="evolution.js"></script>
+  <script src="datadb.js"></script>
+  <script src="agents.js"></script>
+  <script src="theme-claude.js"></script>
+  <script src="sniff-discover.js"></script>
+  <script src="line-icons.js"></script>
+  <script src="trendwatch.js"></script>
+<script src="biz.js"></script>
+<script src="kb.js"></script>
+  <!-- 视频页「处理进度」卡片：内部三个容器都空时整张收起，不占地方；
+       一旦有任务/结果/状态文字就自动显示。独立运行，不依赖 renderer.js。 -->
+  <script>
+    (function () {
+      function syncProgressCard() {
+        var card = document.getElementById("videoProgressCard");
+        if (!card) return;
+        var ids = ["videoStatus", "videoTasks", "videoResult"];
+        var hasContent = ids.some(function (id) {
+          var el = document.getElementById(id);
+          if (!el) return false;
+          // 有文字、或有子元素（任务条/结果卡）都算「有内容」
+          return (el.textContent || "").trim().length > 0 || el.children.length > 0;
+        });
+        card.classList.toggle("is-empty", !hasContent);
+      }
+      function start() {
+        syncProgressCard();
+        // 观察三个容器的内容变化，变了就重算显隐
+        var targets = ["videoStatus", "videoTasks", "videoResult"]
+          .map(function (id) { return document.getElementById(id); })
+          .filter(Boolean);
+        if (!targets.length) return;
+        var mo = new MutationObserver(syncProgressCard);
+        targets.forEach(function (t) {
+          mo.observe(t, { childList: true, characterData: true, subtree: true });
+        });
+        // 兜底：低频轮询，防止个别更新方式漏掉
+        setInterval(syncProgressCard, 1200);
+      }
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", start);
+      } else {
+        start();
+      }
+    })();
+  </script>
+  <!-- 视频页：ⓘ 信息按钮弹窗（v59 去掉了高级选项和「测一下」） -->
+  <script>
+    (function () {
+      function backend() {
+        // 复用 renderer.js 里的全局 BACKEND；它在 window 上不一定可见，兜底用默认地址
+        try { if (typeof BACKEND === "string" && BACKEND) return BACKEND; } catch (e) {}
+        return "http://127.0.0.1:8756";
+      }
+      function getUrl() {
+        var el = document.getElementById("videoUrl");
+        return (el && el.value || "").trim();
+      }
+      function platformOf(url) {
+        var u = (url || "").toLowerCase();
+        if (/douyin\.com|iesdouyin|v\.douyin/.test(u)) return "douyin";
+        if (/bilibili\.com|b23\.tv|bili/.test(u)) return "bilibili";
+        if (/youtube\.com|youtu\.be/.test(u)) return "youtube";
+        if (u) return "other";
+        return "";
+      }
+      function setBadge(key, cls, text) {
+        var b = document.getElementById("badge-" + key);
+        if (!b) return;
+        b.className = "v-badge show " + cls;
+        b.textContent = text;
+      }
+
+      function start() {
+        // —— ⓘ 信息按钮：点一下切换对应说明气泡 ——
+        document.addEventListener("click", function (e) {
+          var btn = e.target.closest && e.target.closest(".v-info-btn");
+          if (btn) {
+            var id = btn.getAttribute("data-info");
+            var pop = document.getElementById(id);
+            if (pop) {
+              var showing = pop.classList.contains("show") || pop.style.display === "block";
+              // 先收起同卡片里其它浮层式气泡（绝对定位那种），静态的只切自己
+              if (pop.style.position !== "static") {
+                document.querySelectorAll(".v-info-pop.show").forEach(function (p) {
+                  if (p !== pop) p.classList.remove("show");
+                });
+                pop.classList.toggle("show", !showing);
+              } else {
+                pop.style.display = showing ? "none" : "block";
+              }
+            }
+            e.stopPropagation();
+            return;
+          }
+          // 点空白处收起浮层式气泡
+          if (!(e.target.closest && e.target.closest(".v-info-pop"))) {
+            document.querySelectorAll(".v-info-pop.show").forEach(function (p) {
+              p.classList.remove("show");
+            });
+          }
+        });
+      }
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", start);
+      } else {
+        start();
+      }
+    })();
+  </script>
+</body>
+</html>
