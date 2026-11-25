@@ -4010,5 +4010,22 @@
     "handle": "andrew1006",
     "avatar_src": "https://p3-pc.douyinpic.com/aweme/100x100/aweme-avatar/tos-cn-avt-0015_86adccccb5b7059e9bfed7193b6181b9.jpeg?from=327834062",
     "avatar_file": "dc680bfe3b39a70f.jpg"
+  },
+  "央视频": {
+    "key": "央视频",
+    "url": "https://www.douyin.com/user/MS4wLjABAAAAhV8-lz-QOUpkk492RbeuOM4c1ocosD_DPY9IQiE6iQJR7YW87fECiUQk55QhDXHU",
+    "platform": "douyin",
+    "updated": 1795574305,
+    "auto": true,
+    "source_video": "https://www.douyin.com/video/7711757488466447650",
+    "found_via": "缓存",
+    "home": "https://www.douyin.com/user/MS4wLjABAAAAhV8-lz-QOUpkk492RbeuOM4c1ocosD_DPY9IQiE6iQJR7YW87fECiUQk55QhDXHU",
+    "name": "央视频",
+    "uid": "MS4wLjABAAAAhV8-lz-QOUpkk492RbeuOM4c1ocosD_DPY9IQiE6iQJR7YW87fECiUQk55QhDXHU",
+    "followers": 31201543,
+    "signature": "中央广播电视总台央视频官方账号",
+    "handle": "CMG_yangshipin",
+    "avatar_src": "https://p3-pc.douyinpic.com/aweme/100x100/aweme-avatar/douyin-user-private-image_d3bd1f1f37aab2648c3983977878aa84_1129948451452958.jpeg?from=327834062",
+    "avatar_file": "18fb04b28caee5af.jpg"
   }
 }

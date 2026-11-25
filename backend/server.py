@@ -91,7 +91,7 @@ _LOG_QUIET_PATHS = {"/intake_kind", "/douyin/login",
     "/logs", "/ai_live", "/ai_live_shot", "/version", "/gpu_status", "/creator_profiles", "/creator_avatar", "/creator_scan_all",
     "/scrapling/status", "/sniff/sources",
     "/biz/job", "/biz/overview", "/biz/taxonomy", "/biz/items", "/biz/reports", "/biz/report", "/biz/opps", "/biz/topics",
-    "/biz/radar/status", "/biz/radar/sources",
+    "/biz/radar/status", "/biz/radar/sources", "/biz/radar/engines", "/biz/radar/runs", "/biz/radar/report",
 }
 
 # 给少数关键路径配一句「人话」描述，让日志一眼能看懂用户在干嘛。
@@ -5594,7 +5594,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(bz.items(ind=q1("ind"), trk=q1("trk"), mdl=q1("mdl"), q=q1("q"),
                                                src=q1("src", "all"), days=int(q1("days", "0") or 0),
                                                limit=int(q1("limit", "60") or 60), biz=q1("biz") == "1",
-                                               lens=q1("lens", "mine"), sid=q1("sid")))
+                                               lens=q1("lens", "mine"), sid=q1("sid"), grp=q1("grp")))
                 if path == "/biz/reports":
                     return self._send(bz.list_reports(q1("kind")))
                 if path == "/biz/report":
@@ -5605,9 +5605,12 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(bz.job_status())
                 if path == "/biz/topics":
                     return self._send(bz.get_topics())
-                if path in ("/biz/radar/status", "/biz/radar/sources"):     # v156：市场雷达
+                if path in ("/biz/radar/status", "/biz/radar/sources", "/biz/radar/engines", "/biz/radar/runs"):  # v156/v157：爬虫
                     import biz_crawler as _bc
-                    return self._send(_bc.status() if path == "/biz/radar/status" else _bc.list_sources())
+                    return self._send({"/biz/radar/status": _bc.status, "/biz/radar/sources": _bc.list_sources,
+                                       "/biz/radar/engines": _bc.engines, "/biz/radar/runs": _bc.list_runs}[path]())
+                if path == "/biz/radar/report":
+                    return self._send(bz.radar_run(q1("id")))
             except Exception as e:
                 return self._send({"ok": False, "error": str(e)})
 

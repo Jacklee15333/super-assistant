@@ -40,6 +40,7 @@ SRC_FILE = BIZ_DIR / "radar_sources.json"
 FEED_FILE = BIZ_DIR / "radar_feed.json"
 SEEN_FILE = BIZ_DIR / "radar_seen.json"
 CFG_FILE = BIZ_DIR / "radar_config.json"
+RUNS_FILE = BIZ_DIR / "radar_runs.json"      # v157：每一轮的抓取记录（结果报告用），留最近 40 轮
 KEEP_DAYS = 45
 MAX_ITEMS = 8000
 PER_SOURCE = 40
@@ -158,9 +159,10 @@ CATALOG = [
 _CAT_BY_ID = {c[0]: c for c in CATALOG}
 
 _LOCK = threading.RLock()
-_ST = {"sources": None, "feed": None, "seen": None, "ver": 0, "dirty": False, "flushed": 0.0, "sc": (0.0, False)}
+_ST = {"sources": None, "feed": None, "seen": None, "ver": 0, "dirty": False, "flushed": 0.0, "sc": (0.0, False),
+       "runs": None}
 _run = {"running": False, "stop": False, "total": 0, "done": 0, "new": 0, "fail": 0, "current": [],
-        "started": 0, "ended": 0, "trigger": ""}
+        "started": 0, "ended": 0, "trigger": "", "rid": "", "recs": [], "log": []}
 _sched = {"started": False}
 
 
@@ -393,13 +395,27 @@ def _from_links(h, base):
     return out
 
 
-def _fetch_site(src):
-    """一个网站 → (内容, 怎么抓到的)。RSS → 网页链接 → Scrapling（快速 → 浏览器）。"""
+def _step(trace, m, t0, ok, n=0, why=""):
+    """记一步：用了哪个爬虫、成没成、抓到几条、花了多久、为什么。结果报告里一步一步列出来。"""
+    trace.append({"m": m, "ok": bool(ok), "n": int(n or 0), "ms": int((time.time() - t0) * 1000), "why": str(why or "")[:140]})
+
+
+def _runlog(msg):
+    with _LOCK:
+        _run["log"].append([int(time.time()), msg[:200]])
+        del _run["log"][:-300]
+
+
+SC_NAME = {"fast": "Scrapling 快速", "browser": "Scrapling 浏览器"}
+
+
+def _fetch_site(src, trace):
+    """一个网站 → (内容, 用的哪个爬虫)。顺序：RSS → 网页解析 → Scrapling 快速 → Scrapling 浏览器；管用的记住，下次先用。"""
     import site_watch as SW
     url = src["url"]
+    name = src.get("name", "")
     pref = src.get("pref") if src.get("pref") in ("fast", "browser") else ""
     use_sc = _scrapling_ok()
-    errs = []
 
     def via_sc(mode):
         import scrapling_fetch as SF
@@ -420,52 +436,66 @@ def _fetch_site(src):
                 pass
         return _from_links(h, url)
 
-    if pref and use_sc:
+    def try_sc(mode, why=""):
+        t0 = time.time()
+        _runlog("%s：%s换用 %s…" % (name, why, SC_NAME[mode]))
         try:
-            items = via_sc(pref)
+            items = via_sc(mode)
             if len(items) >= 3:
-                return items, "Scrapling·" + ("浏览器" if pref == "browser" else "快速")
+                _step(trace, SC_NAME[mode], t0, True, len(items))
+                return items
+            _step(trace, SC_NAME[mode], t0, False, len(items), "只找到 %d 条，太少" % len(items))
         except Exception as e:
-            errs.append("Scrapling：" + str(e)[:60])
+            _step(trace, SC_NAME[mode], t0, False, 0, _human(e))
+        return None
+
+    if pref and use_sc:
+        items = try_sc(pref, "上次是它管用，")
+        if items:
+            return items, SC_NAME[pref]
+    t0 = time.time()
     try:
         b, final = _get(url, timeout=18)
         base = final or url
         if _looks_feed(b):
             items = _parse_feed(b)
             if items:
+                _step(trace, "RSS", t0, True, len(items))
                 src.pop("pref", None)
                 return items, "RSS"
         h = _P()._text(b)
         for f in SW._feeds(h, base)[:2]:
+            t1 = time.time()
             try:
                 fb, _u = _get(f, timeout=12, accept=FEED_ACCEPT)
                 items = _parse_feed(fb)
                 if items:
+                    _step(trace, "RSS", t1, True, len(items), "网页里找到的订阅地址")
                     src.pop("pref", None)
                     return items, "RSS"
-            except Exception:
-                continue
+                _step(trace, "RSS", t1, False, 0, "订阅地址里是空的")
+            except Exception as e:
+                _step(trace, "RSS", t1, False, 0, _human(e))
         items = _from_links(h, base)
         if len(items) >= 5:
+            _step(trace, "网页解析", t0, True, len(items))
             src.pop("pref", None)
-            return items, "网页"
-        errs.append("网页里没找到文章列表（多半是动态网页）")
+            return items, "网页解析"
+        _step(trace, "网页解析", t0, False, len(items), "网页里只找到 %d 条文章链接（多半是动态网页）" % len(items))
     except Exception as e:
-        errs.append(str(e)[:100])
+        _step(trace, "网页解析", t0, False, 0, _human(e))
     if use_sc:
         for mode in ("fast", "browser"):
             if mode == pref:
                 continue
-            try:
-                items = via_sc(mode)
-                if len(items) >= 3:
-                    src["pref"] = mode
-                    return items, "Scrapling·" + ("浏览器" if mode == "browser" else "快速")
-            except Exception as e:
-                errs.append("Scrapling：" + str(e)[:60])
-    elif not use_sc and errs:
-        errs.append("网页抓取增强（Scrapling）还没装好，装好后会自动补救")
-    raise RuntimeError("；".join(errs[-2:]))
+            items = try_sc(mode)
+            if items:
+                src["pref"] = mode
+                return items, SC_NAME[mode]
+    else:
+        trace.append({"m": "Scrapling", "ok": False, "n": 0, "ms": 0, "why": "网页抓取增强还没装好，没法补救"})
+    bad = [x for x in trace if not x["ok"]]
+    raise RuntimeError("；".join("%s：%s" % (x["m"], x["why"]) for x in bad[-2:]) or "没抓到")
 
 
 def _baidu_news(h):
@@ -478,7 +508,7 @@ def _baidu_news(h):
     return out
 
 
-def _fetch_kw(src):
+def _fetch_kw(src, trace):
     """一个关键词 → 新闻搜索的最新报道。Google 新闻（有代理时）→ 必应新闻 → 百度资讯。"""
     kw = src.get("kw") or src.get("name") or ""
     q = urllib.parse.quote(kw)
@@ -488,26 +518,34 @@ def _fetch_kw(src):
             tries.append(("Google 新闻", "https://news.google.com/rss/search?q=%s&hl=zh-CN&gl=CN&ceid=CN:zh-Hans" % q))
     except Exception:
         pass
+    if not tries:
+        trace.append({"m": "Google 新闻", "ok": False, "n": 0, "ms": 0, "why": "没配代理，跳过"})
     tries.append(("必应新闻", "https://www.bing.com/news/search?q=%s&format=rss&setlang=zh-Hans&cc=CN" % q))
-    errs = []
     for name, u in tries:
+        t0 = time.time()
         try:
             b, _f = _get(u, timeout=15, accept=FEED_ACCEPT)
             items = _parse_feed(b)
             if items:
+                _step(trace, name, t0, True, len(items))
                 return items, name
-            errs.append(name + "没搜到")
+            _step(trace, name, t0, False, 0, "没搜到")
         except Exception as e:
-            errs.append(name + "：" + str(e)[:60])
+            _step(trace, name, t0, False, 0, _human(e, "site"))
+    t0 = time.time()
     try:
         b, _f = _get("https://www.baidu.com/s?tn=news&rtt=4&bsst=1&cl=2&wd=" + q, timeout=15)
         items = _baidu_news(_P()._text(b))
         if items:
+            _step(trace, "百度资讯", t0, True, len(items))
             return items, "百度资讯"
-        errs.append("百度资讯没搜到（可能要人工验证）")
+        _step(trace, "百度资讯", t0, False, 0, "没搜到（可能要人工验证）")
     except Exception as e:
-        errs.append("百度资讯：" + str(e)[:60])
-    raise RuntimeError("；".join(errs[-3:]))
+        _step(trace, "百度资讯", t0, False, 0, _human(e, "site"))
+    bad = [x for x in trace if not x["ok"]]
+    if bad and all(re.search(r"连不上|找不到这个网站|超时|没配代理|SSL", x["why"]) for x in bad):
+        raise RuntimeError("新闻搜索都连不上：Google 新闻要代理（看代理软件开没开），必应、百度连不上多半是网络问题")
+    raise RuntimeError("；".join("%s：%s" % (x["m"], x["why"]) for x in bad[-2:]))
 
 
 def _norm_url(u):
@@ -520,6 +558,7 @@ def _norm_url(u):
 
 
 def _merge(src, items, first):
+    """去重后放进内容库，返回 (新的条数, 新内容的编号)。"""
     now = time.time()
     new = []
     with _LOCK:
@@ -550,7 +589,7 @@ def _merge(src, items, first):
                 feed.pop()
             _ST["ver"] += 1
             _ST["dirty"] = True
-    return len(new)
+    return len(new), [x["key"] for x in new]
 
 
 def _human(e, kind="site"):
@@ -567,7 +606,7 @@ def _human(e, kind="site"):
     if dns:
         return "找不到这个网站：网络没连上，或者网址写错了"
     if "403" in s:
-        return "被网站拦了（403）" + ("，Scrapling 装好后会自动换浏览器方式再试" if "Scrapling" in s else "")
+        return "被网站拦了（403）"
     if "404" in s:
         return "网址不对（404），换成它的新闻页网址试试"
     if re.search(r"SSL|certificate|handshake", s, re.I):
@@ -578,28 +617,47 @@ def _human(e, kind="site"):
 def _crawl_src(src):
     if _run["stop"]:
         return
+    name = src.get("name", "")
     with _LOCK:
-        _run["current"].append(src.get("name", ""))
+        _run["current"].append(name)
+    _runlog("开始抓：%s" % name)
     first = not src.get("ok_at")
+    trace, t0 = [], time.time()
+    rec = {"id": src["id"], "name": name, "kind": src.get("kind", "site"), "group": src.get("group", ""),
+           "target": src.get("kw") if src.get("kind") == "kw" else src.get("url", "")}
     try:
-        items, via = _fetch_kw(src) if src.get("kind") == "kw" else _fetch_site(src)
-        n = _merge(src, items, first)
+        items, via = _fetch_kw(src, trace) if src.get("kind") == "kw" else _fetch_site(src, trace)
+        n, keys = _merge(src, items, first)
         now = int(time.time())
         with _LOCK:
-            src.update(at=now, ok_at=now, n=len(items), new=n, err="", via=via, fails=0)
+            src.update(at=now, ok_at=now, n=len(items), new=n, err="", via=via, fails=0, trace=trace)
             _run["new"] += n
+        rec.update(ok=True, via=via, n=len(items), new=n, keys=keys[:120])
+        _runlog("%s：用「%s」抓到 %d 条，新的 %d 条（%.1f 秒）" % (name, via, len(items), n, time.time() - t0))
     except Exception as e:
+        err = _human(e, src.get("kind"))
         with _LOCK:
-            src.update(at=int(time.time()), err=_human(e, src.get("kind")), fails=int(src.get("fails") or 0) + 1)
+            src.update(at=int(time.time()), err=err, fails=int(src.get("fails") or 0) + 1, trace=trace)
             _run["fail"] += 1
+        rec.update(ok=False, err=err, n=0, new=0)
+        _runlog("%s：没抓成（%s）" % (name, err[:80]))
     finally:
+        rec.update(ms=int((time.time() - t0) * 1000), trace=trace)
         with _LOCK:
             try:
-                _run["current"].remove(src.get("name", ""))
+                _run["current"].remove(name)
             except ValueError:
                 pass
             _run["done"] += 1
+            _run["recs"].append(rec)
         _flush()
+
+
+def _runs():
+    if _ST["runs"] is None:
+        d = _read_json(RUNS_FILE, [])
+        _ST["runs"] = d if isinstance(d, list) else []
+    return _ST["runs"]
 
 
 def _crawl_all(srcs):
@@ -607,40 +665,61 @@ def _crawl_all(srcs):
         with ThreadPoolExecutor(max_workers=WORKERS) as ex:
             list(ex.map(_crawl_src, srcs))
     except Exception as e:
-        _log("这一轮出错：%s" % e)
+        _runlog("这一轮出错：%s" % e)
     finally:
         _flush(force=True)
         with _LOCK:
             _save_sources()
-            _run.update(running=False, ended=int(time.time()), current=[])
-        _log("这一轮抓完：%d 个信息源，新抓到 %d 条，%d 个没抓成%s" % (
-            _run["total"], _run["new"], _run["fail"], "（中途停止）" if _run["stop"] else ""))
+            now = int(time.time())
+            _run.update(running=False, ended=now, current=[])
+            recs = list(_run["recs"])
+            via = {}
+            for r in recs:
+                if r.get("ok"):
+                    via[r["via"]] = via.get(r["via"], 0) + 1
+            msg = "这一轮抓完：%d 个信息源，成功 %d 个，新抓到 %d 条%s" % (
+                _run["total"], sum(1 for r in recs if r.get("ok")), _run["new"], "（中途停止）" if _run["stop"] else "")
+            _run["log"].append([now, msg])
+            rec = {"id": _run["rid"], "started": _run["started"], "ended": now, "trigger": _run["trigger"],
+                   "total": _run["total"], "done": len(recs), "ok": sum(1 for r in recs if r.get("ok")),
+                   "fail": sum(1 for r in recs if not r.get("ok")), "new": _run["new"], "stopped": bool(_run["stop"]),
+                   "via": via, "sources": recs, "log": list(_run["log"])[-300:]}
+            runs = _runs()
+            runs.insert(0, rec)
+            del runs[40:]
+            _write_json(RUNS_FILE, runs)
+        _log(msg)
 
 
 def start(sids=None, trigger="manual"):
     with _LOCK:
         if _run["running"]:
             return {"ok": False, "error": "正在抓，等这一轮抓完再说"}
-        srcs = [s for s in _sources() if s.get("enabled") and (not sids or s["id"] in sids)]
         if sids:
             srcs = [s for s in _sources() if s["id"] in sids]
+            trigger = "single" if trigger == "manual" else trigger
+        else:
+            srcs = [s for s in _sources() if s.get("enabled")]
         if not srcs:
             return {"ok": False, "error": "清单里没有打开的信息源"}
-        _run.update(running=True, stop=False, total=len(srcs), done=0, new=0, fail=0, current=[],
-                    started=int(time.time()), ended=0, trigger=trigger)
+        now = int(time.time())
+        _run.update(running=True, stop=False, total=len(srcs), done=0, new=0, fail=0, current=[], started=now,
+                    ended=0, trigger=trigger, rid=datetime.datetime.now().strftime("%Y%m%d-%H%M%S"), recs=[],
+                    log=[[now, "开始抓（%s）：%d 个信息源" % ({"auto": "自动", "single": "单个"}.get(trigger, "手动"), len(srcs))]])
     if not sids:
         c = get_config()
         c["last_run"] = int(time.time())
         _write_json(CFG_FILE, c)
     threading.Thread(target=_crawl_all, args=(srcs,), daemon=True, name="biz-radar-run").start()
-    _log("开始抓（%s）：%d 个信息源" % ("自动" if trigger == "auto" else "手动", len(srcs)))
-    return {"ok": True, "total": len(srcs)}
+    _log("开始抓（%s）：%d 个信息源" % ({"auto": "自动", "single": "单个"}.get(trigger, "手动"), len(srcs)))
+    return {"ok": True, "total": len(srcs), "rid": _run["rid"]}
 
 
 def stop():
     with _LOCK:
         if _run["running"]:
             _run["stop"] = True
+            _run["log"].append([int(time.time()), "你点了停止：正在抓的这几个抓完就停"])
     return {"ok": True}
 
 
@@ -648,7 +727,8 @@ def status():
     cfg = get_config()
     now = time.time()
     with _LOCK:
-        r = {k: (list(v) if isinstance(v, list) else v) for k, v in _run.items()}
+        r = {k: (list(v) if isinstance(v, list) else v) for k, v in _run.items() if k not in ("recs", "log")}
+        r["log"] = list(_run["log"])[-16:]
         srcs = _sources()
         feed = _feed()
         n24 = sum(1 for x in feed if x.get("ts", 0) >= now - 86400)
@@ -660,6 +740,69 @@ def status():
              sources=len(srcs), enabled=en, failing=bad, items=len(feed), items_24h=n24, items_7d=n7,
              scrapling=_scrapling_ok(), now=int(now))
     return r
+
+
+def engines():
+    """v157：用的是哪些爬虫、能不能用、上一轮各抓成了几个信息源。"""
+    import importlib.util
+    try:
+        import scrapling_fetch as SF
+        st = SF.status() or {}
+    except Exception as e:
+        st = {"error": str(e)}
+    sc_ok = _scrapling_ok()
+    curl = importlib.util.find_spec("curl_cffi") is not None
+    try:
+        px = bool(_P()._proxy())
+    except Exception:
+        px = False
+    with _LOCK:
+        runs = _runs()
+        last = runs[0] if runs else None
+        srcs = list(_sources())
+    used = dict((last or {}).get("via") or {})
+    now_use = {}
+    for s in srcs:
+        if s.get("enabled") and s.get("via") and not s.get("err"):
+            now_use[s["via"]] = now_use.get(s["via"], 0) + 1
+    sc_state = ("已装好" + ("（Scrapling %s）" % st.get("version") if st.get("version") else "") if sc_ok
+                else "正在安装…" if st.get("installing") else "还没装好" + ("：" + str(st.get("error"))[:60] if st.get("error") else "（后台第一次启动时会自动装）"))
+    rows = [
+        ("rss", "RSS 订阅读取", ["RSS"], True, "内置，一直能用", "网站自己提供的订阅源。最准，带发布时间。"),
+        ("page", "网页解析", ["网页解析", "网页"], True, "用 curl_cffi 模拟浏览器的网络指纹" if curl else "普通方式（没装 curl_cffi，容易被拦）",
+         "打开网页，挑出像文章的链接；日期从网址里认。没有 RSS 的网站靠它。"),
+        ("sc_fast", "Scrapling 快速模式", ["Scrapling 快速"], sc_ok, sc_state,
+         "开源爬虫 Scrapling：模拟真 Chrome 的网络指纹和请求头，过一般的反爬拦截。普通方式被拦时用它。"),
+        ("sc_browser", "Scrapling 浏览器模式", ["Scrapling 浏览器"], sc_ok, sc_state,
+         "用电脑上的 Chrome 真正打开网页（不弹窗口），等动态内容加载完，能过 Cloudflare 验证。最慢，但最能打。"),
+        ("news", "新闻搜索", ["Google 新闻", "必应新闻", "百度资讯"], True,
+         "代理已配置：先用 Google 新闻" if px else "没配代理：用必应新闻，再不行用百度资讯",
+         "「关键词」类信息源用它：拿公司名、行业名去新闻搜索里找各家媒体的最新报道。"),
+    ]
+    out = []
+    for key, name, vias, ok, state, desc in rows:
+        out.append({"key": key, "name": name, "ok": bool(ok), "state": state, "desc": desc,
+                    "last": sum(used.get(v, 0) for v in vias), "now": sum(now_use.get(v, 0) for v in vias)})
+    return {"ok": True, "engines": out, "order": "网站：先试 RSS，没有就网页解析；打不开、被拦或者是动态网页，换 Scrapling 快速，再不行用浏览器模式。"
+            "关键词：Google 新闻 → 必应新闻 → 百度资讯。哪种管用会记住，下次直接用。",
+            "last_run": (last or {}).get("id", "")}
+
+
+def list_runs():
+    with _LOCK:
+        runs = list(_runs())
+    keep = ("id", "started", "ended", "trigger", "total", "done", "ok", "fail", "new", "stopped", "via")
+    return {"ok": True, "runs": [{k: r.get(k) for k in keep} for r in runs]}
+
+
+def get_run(rid):
+    with _LOCK:
+        if _run["running"] and rid == _run["rid"]:
+            return {"id": rid, "started": _run["started"], "ended": 0, "trigger": _run["trigger"], "total": _run["total"],
+                    "done": _run["done"], "ok": sum(1 for r in _run["recs"] if r.get("ok")), "running": True,
+                    "fail": sum(1 for r in _run["recs"] if not r.get("ok")), "new": _run["new"], "via": {},
+                    "sources": list(_run["recs"]), "log": list(_run["log"])}
+        return next((dict(r) for r in _runs() if r.get("id") == rid), None)
 
 
 def list_sources():
