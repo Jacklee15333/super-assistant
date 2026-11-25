@@ -5634,6 +5634,9 @@ class Handler(BaseHTTPRequestHandler):
                                        "/biz/radar/engines": _bc.engines, "/biz/radar/runs": _bc.list_runs}[path]())
                 if path == "/biz/radar/report":
                     return self._send(bz.radar_run(q1("id")))
+                if path == "/biz/article":                           # v160：点开新闻，在软件里看正文
+                    import biz_crawler as _bc
+                    return self._send(_bc.article(q1("url")))
                 if path == "/biz/radar/plan":                        # v158：「现在更新」面板
                     import biz_crawler as _bc
                     return self._send(_bc.plan())

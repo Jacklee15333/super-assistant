@@ -70,6 +70,7 @@
     tax: null, byId: {}, taxErr: "",
     ovm: null, ovmErr: "", ov: null, ovErr: "", mdays: store.get("mdays", 3),
     rfeed: null, rgrp: "all", rq: "", rlimit: 80, rpage: 1, rsize: store.get("rsize", 20), rtotal: 0, rsince: 0, rseq: 0,
+    artOpen: {}, art: {}, artItems: {},
     plan: null, updOpen: false, updDone: "", updRes: null, briefOpen: false, bf: null, briefInfo: null,
     lens: store.get("lens", "market") === "mine" ? "mine" : "market", days: 30,
     indView: store.get("indView", "map"), indSel: store.get("indSel", ""), indQ: "", indItems: null, openL1: {},
@@ -271,18 +272,62 @@
   // ───────── 公共小块 ─────────
   function itemRow(it) {
     const tags = it.ind.concat(it.trk).slice(0, 3).map((id) => '<span class="bz-tag">' + esc(nameOf(id)) + "</span>").join("");
+    const open = !!S.artOpen[it.id];
+    if (it.url && it.src !== "note") S.artItems[it.id] = it;
+    // v160：点标题在这里展开正文，不再跳网页；原文链接放在展开内容的底部
     const t = it.src === "note"
       ? '<button type="button" class="bz-item-t" data-note="' + esc(it.id) + '">' + esc(it.title) + "</button>"
-      : (it.url ? '<a class="bz-item-t" href="' + esc(it.url) + '" target="_blank" rel="noopener">' + esc(it.title) + "</a>"
+      : (it.url ? '<button type="button" class="bz-item-t bz-art-t" data-art="' + esc(it.id) + '" aria-expanded="' + open + '" title="' + (open ? "点一下收起" : "点一下展开看内容") + '">' +
+          esc(it.title) + '<i class="bz-caret" aria-hidden="true"></i></button>'
         : '<span class="bz-item-t">' + esc(it.title) + "</span>");
     const isR = it.src === "radar";
     const when = isR ? (it.approx ? "时间不详" : ago(it.ts)) : it.date;
     const fresh = isR && it.seen && S.newCut && it.seen >= S.newCut;
-    return '<div class="bz-item' + (fresh ? " fresh" : "") + '"><span class="bz-src s-' + it.src + '">' + (isR ? (GRP[it.grp] || SRC.radar) : SRC[it.src]) + "</span>" +
+    return '<div class="bz-item' + (fresh ? " fresh" : "") + (open ? " open" : "") + '" data-row="' + esc(it.id) + '"><span class="bz-src s-' + it.src + '">' + (isR ? (GRP[it.grp] || SRC.radar) : SRC[it.src]) + "</span>" +
       '<div class="bz-item-b">' + (fresh ? '<span class="bz-new" title="上一轮更新时新抓到的">新</span>' : "") + t +
-      (it.text ? "<p>" + esc(it.text) + "</p>" : "") +
+      (it.text && !open ? "<p>" + esc(it.text) + "</p>" : "") +
       '<div class="bz-item-m">' + (it.who ? "<span>" + esc(it.who) + (isR && it.from && it.from !== it.who ? "·" + esc(it.from) : "") + "</span>" : "") + (when ? "<span>" + esc(when) + "</span>" : "") +
-      (it.todo ? '<span class="bz-warn">还没加工</span>' : "") + tags + "</div></div></div>";
+      (it.todo ? '<span class="bz-warn">还没加工</span>' : "") + tags + "</div>" + (open ? artHTML(it) : "") + "</div></div>";
+  }
+  function artHTML(it) {
+    const a = S.art[it.url];
+    let body;
+    if (!a || a.loading) {
+      body = (it.text ? '<p class="bz-art-sum">' + esc(it.text) + "</p>" : "") + '<p class="bz-art-wait">正在读取正文…</p>';
+    } else if (a.paras && a.paras.length) {
+      body = a.paras.map((x) => "<p>" + esc(x) + "</p>").join("");
+    } else {
+      const sum = a.desc || a.summary || it.text || "";
+      body = (sum ? '<p class="bz-art-sum">' + esc(sum) + "</p>" : "") +
+        '<p class="bz-art-miss">没读出正文' + (a.error ? "：" + esc(a.error) : "") + "。想看全文，可以点下面的原文链接。</p>";
+    }
+    const meta = [it.who ? "来源：" + esc(it.who) + (it.from && it.from !== it.who ? "·" + esc(it.from) : "") : "",
+      a && a.pub ? "发布：" + esc(a.pub.replace("T", " ").slice(0, 16)) : (it.ts && !it.approx ? "发布：" + esc(fmtTime(it.ts)) : ""),
+      a && a.chars ? "正文约 " + a.chars + " 字" : ""].filter(Boolean).map((x) => "<span>" + x + "</span>").join("");
+    return '<div class="bz-art" role="region" aria-label="新闻内容">' + '<div class="bz-art-body">' + body + "</div>" +
+      '<div class="bz-art-f"><div class="bz-art-src">原文链接：<a href="' + esc(it.url) + '" target="_blank" rel="noopener">' + esc(it.url) + "</a></div>" +
+      '<div class="bz-art-m">' + meta + '<button type="button" class="bz-link" data-art="' + esc(it.id) + '">收起</button></div></div></div>';
+  }
+  function rerow(id) {
+    const it = S.artItems[id];
+    if (!it) return;
+    root.querySelectorAll('.bz-item[data-row="' + CSS.escape(id) + '"]').forEach((el) => { el.outerHTML = itemRow(it); });
+  }
+  async function toggleArt(id) {
+    const it = S.artItems[id];
+    if (!it) return;
+    if (S.artOpen[id]) { delete S.artOpen[id]; rerow(id); return; }
+    S.artOpen[id] = true;
+    const need = !S.art[it.url] || (!S.art[it.url].loading && S.art[it.url].failed);
+    if (need) S.art[it.url] = { loading: true };
+    rerow(id);
+    if (!need) return;
+    let r;
+    try { r = await api("/biz/article?url=" + enc(it.url)); } catch (e) { r = { ok: false, error: "连不上后台" }; }
+    if (!r || r.ok === false) r = { paras: [], error: (r && r.error) || "读取失败", failed: true };
+    else if (!(r.paras && r.paras.length) && !r.desc) r.failed = true;
+    S.art[it.url] = r;
+    Object.keys(S.artOpen).forEach((k) => { if (S.artItems[k] && S.artItems[k].url === it.url) rerow(k); });
   }
   function repRow(r) {
     return '<button type="button" class="bz-rep" data-rep="' + esc(r.id) + '"><span class="bz-rep-top"><span class="bz-kind k-' + esc(r.kind) + '">' +
@@ -1505,6 +1550,7 @@
         if (r.ok) { toast("加进去 " + r.added + " 个，下一轮就会抓。"); loadRadarSources(); } else toast(r.error || "没加上");
         return;
       }
+      if ((b = t.closest("[data-art]"))) { toggleArt(b.dataset.art); return; }
       if ((b = t.closest("[data-page]"))) { if (!b.disabled) goPage(+b.dataset.page); return; }
       if (t.closest("#bzUpdBtn")) { openUpd(); return; }
       if (t.closest("#bzBriefRun")) { openBrief(); return; }
