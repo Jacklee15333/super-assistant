@@ -1,0 +1,767 @@
+"""超能小助 · 商业 · 市场雷达（v156 新增）
+
+「商业」里「市场实时」那一面的数据从这里来：小助的爬虫按一张信息源清单，定时去网上抓最新的内容——
+  · 网站：财经商业媒体、大公司官网的新闻页、各行业头部媒体、政策和统计数据发布页。
+    有 RSS 就读 RSS（带发布时间）；没有就从网页里挑「像文章」的链接（site_watch 的办法）；
+    普通方式打不开、被拦、或只抓到空壳（动态网页）时，用 Scrapling 补救（快速模式 → 真浏览器模式），哪种管用记下来。
+  · 关键词：公司名、行业、话题。去新闻搜索抓最新报道（Google 新闻 / 必应新闻的 RSS，都不行再用百度资讯）。
+不用 AI：抓到的标题由 biz_intel 按行业分类表归类，所以可以一直开着、不占 AI 池。
+
+数据都在 memory/biz/：
+  radar_sources.json  信息源清单（第一次用时按推荐清单放进一批常用的）
+  radar_feed.json     抓到的内容（留 45 天，最多 8000 条）
+  radar_seen.json     抓过的链接（去重用）
+  radar_config.json   {auto, every, last_run}：自动更新开关、每隔几分钟
+"""
+from __future__ import annotations
+
+import datetime
+import email.utils
+import hashlib
+import html as _html
+import json
+import os
+import re
+import threading
+import time
+import urllib.parse
+import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+try:
+    import agent_core as _core
+    MEM = Path(_core.MEMORY_DIR)
+except Exception:
+    MEM = Path(__file__).resolve().parent / "memory"
+
+BIZ_DIR = MEM / "biz"
+SRC_FILE = BIZ_DIR / "radar_sources.json"
+FEED_FILE = BIZ_DIR / "radar_feed.json"
+SEEN_FILE = BIZ_DIR / "radar_seen.json"
+CFG_FILE = BIZ_DIR / "radar_config.json"
+KEEP_DAYS = 45
+MAX_ITEMS = 8000
+PER_SOURCE = 40
+WORKERS = 4
+FEED_ACCEPT = "application/rss+xml, application/atom+xml, application/xml, text/xml, */*"
+
+GROUPS = [
+    ("news", "财经商业媒体", "综合报道各行各业的新闻和快讯"),
+    ("corp", "大公司官网", "大公司自己发的新闻稿和博客"),
+    ("corpkw", "大公司动态", "按公司名搜新闻：别人怎么报道它"),
+    ("media", "行业头部媒体", "各个行业的专业媒体"),
+    ("indkw", "行业热词", "按行业或话题搜最新新闻"),
+    ("policy", "政策与数据", "政府政策和统计数据发布"),
+    ("global", "海外科技商业", "国外的科技和商业新闻（多半要代理）"),
+    ("mine", "我自己加的", "你自己加进来的网站和关键词"),
+]
+GROUP_NAME = {k: n for k, n, _d in GROUPS}
+
+# 推荐清单：(编号, 名字, 类型 site/kw, 网址或关键词, 分组, 相关行业, 一句话, 第一次就放进清单)
+CATALOG = [
+    ("36kr", "36氪", "site", "https://36kr.com/", "news", [], "创投、科技公司和新经济，快讯多", True),
+    ("wallstreetcn", "华尔街见闻", "site", "https://wallstreetcn.com/news/global", "news", [], "全球市场、宏观和公司要闻", True),
+    ("cls", "财联社电报", "site", "https://www.cls.cn/telegraph", "news", [], "上市公司和产业快讯，更新最快", True),
+    ("yicai", "第一财经", "site", "https://www.yicai.com/news/", "news", [], "宏观、产业和公司新闻", True),
+    ("jiemian", "界面新闻", "site", "https://www.jiemian.com/", "news", [], "商业和公司报道", True),
+    ("huxiu", "虎嗅", "site", "https://www.huxiu.com/", "news", [], "商业科技评论和公司深度稿", True),
+    ("tmtpost", "钛媒体", "site", "https://www.tmtpost.com/", "news", [], "科技产业资讯", True),
+    ("ithome", "IT之家", "site", "https://www.ithome.com/", "news", ["电子/消费电子"], "数码、互联网和科技快讯", True),
+    ("thepaper", "澎湃新闻", "site", "https://www.thepaper.cn/", "news", [], "时政、财经综合新闻", False),
+    ("21jingji", "21世纪经济报道", "site", "https://www.21jingji.com/", "news", [], "产业和区域经济", False),
+    ("sinafin", "新浪财经", "site", "https://finance.sina.com.cn/", "news", [], "财经综合门户", False),
+    ("stcn", "证券时报网", "site", "https://www.stcn.com/", "news", ["非银金融/证券"], "资本市场和上市公司", False),
+    ("eeo", "经济观察网", "site", "https://www.eeo.com.cn/", "news", [], "商业深度报道", False),
+    ("nbd", "每日经济新闻", "site", "https://www.nbd.com.cn/", "news", [], "财经和公司新闻", False),
+    ("latepost", "晚点 LatePost", "site", "https://www.latepost.com/", "news", [], "大公司内幕和深度报道", False),
+
+    ("huawei", "华为新闻", "site", "https://www.huawei.com/cn/news", "corp", ["通信/通信设备", "t:chip"], "华为官方发布", True),
+    ("apple", "Apple Newsroom", "site", "https://www.apple.com/newsroom/", "corp", ["电子/消费电子"], "苹果官方新闻稿", True),
+    ("nvidia", "NVIDIA 新闻", "site", "https://nvidianews.nvidia.com/", "corp", ["电子/半导体", "t:compute"], "英伟达官方新闻稿", True),
+    ("microsoft", "微软新闻", "site", "https://news.microsoft.com/", "corp", ["计算机/软件开发"], "微软官方新闻", True),
+    ("google", "Google 博客", "site", "https://blog.google/", "corp", ["t:ai"], "谷歌官方博客", True),
+    ("openai", "OpenAI 新闻", "site", "https://openai.com/news/", "corp", ["t:ai"], "OpenAI 官方发布（要代理）", False),
+    ("anthropic", "Anthropic 新闻", "site", "https://www.anthropic.com/news", "corp", ["t:ai"], "Anthropic 官方发布", False),
+    ("meta", "Meta 新闻", "site", "https://about.fb.com/news/", "corp", ["传媒/社交"], "Meta 官方新闻", False),
+    ("amazon", "亚马逊新闻", "site", "https://www.aboutamazon.com/news", "corp", ["商贸零售/互联网电商"], "亚马逊官方新闻", False),
+    ("samsung", "三星新闻", "site", "https://news.samsung.com/global/", "corp", ["电子/消费电子", "电子/半导体"], "三星官方新闻", False),
+
+    ("k-byd", "比亚迪", "kw", "比亚迪", "corpkw", ["汽车/乘用车", "t:ev"], "", True),
+    ("k-catl", "宁德时代", "kw", "宁德时代", "corpkw", ["电力设备/电池"], "", True),
+    ("k-xiaomi", "小米", "kw", "小米集团", "corpkw", ["电子/消费电子", "汽车/乘用车"], "", True),
+    ("k-alibaba", "阿里巴巴", "kw", "阿里巴巴", "corpkw", ["商贸零售/互联网电商", "计算机/IT服务"], "", True),
+    ("k-tencent", "腾讯", "kw", "腾讯", "corpkw", ["传媒/游戏", "传媒/社交"], "", True),
+    ("k-bytedance", "字节跳动", "kw", "字节跳动", "corpkw", ["传媒/数字媒体"], "", True),
+    ("k-meituan", "美团", "kw", "美团", "corpkw", ["社会服务/本地生活服务"], "", True),
+    ("k-nvidia", "英伟达", "kw", "英伟达", "corpkw", ["电子/半导体", "t:compute"], "", True),
+    ("k-huawei", "华为", "kw", "华为", "corpkw", ["通信/通信设备"], "", False),
+    ("k-jd", "京东", "kw", "京东", "corpkw", ["商贸零售/互联网电商"], "", False),
+    ("k-pdd", "拼多多", "kw", "拼多多 Temu", "corpkw", ["商贸零售/互联网电商"], "", False),
+    ("k-baidu", "百度", "kw", "百度", "corpkw", ["t:ai"], "", False),
+    ("k-apple", "苹果公司", "kw", "苹果公司", "corpkw", ["电子/消费电子"], "", False),
+    ("k-tesla", "特斯拉", "kw", "特斯拉", "corpkw", ["汽车/乘用车", "t:ev"], "", False),
+    ("k-tsmc", "台积电", "kw", "台积电", "corpkw", ["电子/半导体"], "", False),
+
+    ("jiqizhixin", "机器之心", "site", "https://www.jiqizhixin.com/", "media", ["t:ai"], "AI 技术和产业", True),
+    ("qbitai", "量子位", "site", "https://www.qbitai.com/", "media", ["t:ai"], "AI 新闻和前沿", True),
+    ("leiphone", "雷峰网", "site", "https://www.leiphone.com/", "media", ["t:ai"], "AI、智能驾驶和硬科技", False),
+    ("zhidx", "智东西", "site", "https://zhidx.com/", "media", ["t:ai", "电子/半导体"], "AI、芯片和智能硬件产业链", False),
+    ("laoyaoba", "爱集微", "site", "https://www.laoyaoba.com/", "media", ["电子/半导体"], "半导体和芯片产业", True),
+    ("eetchina", "电子工程专辑", "site", "https://www.eet-china.com/", "media", ["电子/半导体"], "电子和半导体技术产业", False),
+    ("gasgoo", "盖世汽车", "site", "https://auto.gasgoo.com/", "media", ["汽车/汽车零部件", "汽车/乘用车"], "汽车产业链新闻", True),
+    ("d1ev", "第一电动网", "site", "https://www.d1ev.com/", "media", ["t:ev"], "新能源汽车", False),
+    ("bjx", "北极星电力网", "site", "https://news.bjx.com.cn/", "media", ["公用事业/电力", "t:energy"], "电力、光伏和储能", True),
+    ("linkshop", "联商网", "site", "http://www.linkshop.com/news/", "media", ["商贸零售/一般零售"], "零售和消费", True),
+    ("winshang", "赢商网", "site", "https://news.winshang.com/", "media", ["房地产/房地产服务", "商贸零售/一般零售"], "商业地产和连锁品牌", False),
+    ("ebrun", "亿邦动力", "site", "https://www.ebrun.com/", "media", ["商贸零售/互联网电商"], "电商和品牌", True),
+    ("cifnews", "雨果跨境", "site", "https://www.cifnews.com/", "media", ["t:crossborder"], "跨境电商", False),
+    ("vcbeat", "动脉网", "site", "https://vcbeat.top/", "media", ["医药生物/医疗服务"], "医疗健康产业和投融资", True),
+    ("cnhealthcare", "健康界", "site", "https://www.cn-healthcare.com/", "media", ["医药生物/医疗服务"], "医院和医药产业", False),
+    ("youxiputao", "游戏葡萄", "site", "https://youxiputao.com/", "media", ["传媒/游戏"], "游戏产业", True),
+    ("digitaling", "数英", "site", "https://www.digitaling.com/", "media", ["传媒/广告营销"], "广告、品牌和营销案例", False),
+    ("ggrobot", "高工机器人", "site", "https://www.gg-robot.com/", "media", ["机械设备/自动化设备", "t:robot"], "机器人产业", False),
+    ("duozhi", "多知", "site", "https://www.duozhi.com/", "media", ["社会服务/教育"], "教育行业", False),
+    ("pedaily", "投资界", "site", "https://news.pedaily.cn/", "media", [], "创投和融资", False),
+    ("guandian", "观点地产网", "site", "https://www.guandian.cn/", "media", ["房地产/房地产开发"], "房地产行业", False),
+    ("cs", "中国证券报", "site", "https://www.cs.com.cn/", "media", ["非银金融/证券"], "证券和上市公司", False),
+
+    ("k-canyin", "餐饮行业", "kw", "餐饮行业", "indkw", ["社会服务/酒店餐饮"], "", True),
+    ("k-lowalt", "低空经济", "kw", "低空经济", "indkw", ["t:lowalt"], "", True),
+    ("k-robot", "人形机器人", "kw", "人形机器人", "indkw", ["t:robot"], "", True),
+    ("k-tea", "新茶饮", "kw", "新茶饮", "indkw", ["t:tea"], "", False),
+    ("k-yuzhicai", "预制菜", "kw", "预制菜", "indkw", ["食品饮料/食品加工"], "", False),
+    ("k-space", "商业航天", "kw", "商业航天", "indkw", ["t:space"], "", False),
+    ("k-cross", "跨境电商", "kw", "跨境电商", "indkw", ["t:crossborder"], "", False),
+    ("k-pet", "宠物经济", "kw", "宠物经济", "indkw", ["t:pet"], "", False),
+    ("k-silver", "银发经济", "kw", "银发经济", "indkw", ["t:silver"], "", False),
+    ("k-storage", "储能", "kw", "储能 行业", "indkw", ["t:energy"], "", False),
+    ("k-drug", "创新药", "kw", "创新药", "indkw", ["t:biotech"], "", False),
+    ("k-baijiu", "白酒行业", "kw", "白酒行业", "indkw", ["食品饮料/白酒"], "", False),
+    ("k-house", "楼市", "kw", "楼市 房价", "indkw", ["房地产/房地产开发"], "", False),
+    ("k-consume", "新消费", "kw", "新消费 品牌", "indkw", ["t:newcons"], "", False),
+
+    ("gov", "中国政府网", "site", "https://www.gov.cn/", "policy", [], "国务院政策文件和要闻", True),
+    ("stats", "国家统计局·最新发布", "site", "https://www.stats.gov.cn/sj/zxfb/", "policy", [], "宏观经济数据（CPI、GDP、工业、消费）", True),
+    ("ndrc", "国家发展改革委", "site", "https://www.ndrc.gov.cn/", "policy", [], "产业政策和发展规划", False),
+    ("miit", "工业和信息化部", "site", "https://www.miit.gov.cn/", "policy", [], "制造业、通信和 AI 产业政策", False),
+    ("mofcom", "商务部", "site", "http://www.mofcom.gov.cn/", "policy", ["商贸零售/贸易"], "外贸、消费和商务政策", False),
+    ("pbc", "中国人民银行", "site", "http://www.pbc.gov.cn/", "policy", ["银行/国有大型银行"], "货币政策和金融数据", False),
+    ("csrc", "中国证监会", "site", "http://www.csrc.gov.cn/", "policy", ["非银金融/证券"], "资本市场监管", False),
+
+    ("techcrunch", "TechCrunch", "site", "https://techcrunch.com/", "global", [], "创业融资和科技公司", False),
+    ("theverge", "The Verge", "site", "https://www.theverge.com/", "global", [], "科技产品和平台", False),
+    ("hn", "Hacker News", "site", "https://news.ycombinator.com/", "global", [], "硅谷工程师和创业者在讨论什么", False),
+    ("cnbctech", "CNBC 科技", "site", "https://www.cnbc.com/technology/", "global", [], "美股科技公司新闻", False),
+    ("arstechnica", "Ars Technica", "site", "https://arstechnica.com/", "global", [], "技术细节扎实的科技新闻", False),
+]
+_CAT_BY_ID = {c[0]: c for c in CATALOG}
+
+_LOCK = threading.RLock()
+_ST = {"sources": None, "feed": None, "seen": None, "ver": 0, "dirty": False, "flushed": 0.0, "sc": (0.0, False)}
+_run = {"running": False, "stop": False, "total": 0, "done": 0, "new": 0, "fail": 0, "current": [],
+        "started": 0, "ended": 0, "trigger": ""}
+_sched = {"started": False}
+
+
+def _log(msg):
+    print("[市场雷达] " + msg, flush=True)
+
+
+def _read_json(p, default):
+    try:
+        return json.loads(Path(p).read_text(encoding="utf-8"))
+    except Exception:
+        return default
+
+
+def _write_json(p, data):
+    p = Path(p)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_name(p.name + ".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=None, separators=(",", ":")), encoding="utf-8")
+    os.replace(str(tmp), str(p))
+
+
+def _from_catalog(c):
+    cid, name, kind, target, group, hint, desc, _on = c
+    s = {"id": cid, "name": name, "kind": kind, "group": group, "hint": list(hint), "desc": desc,
+         "enabled": True, "added": int(time.time())}
+    if kind == "kw":
+        s["kw"] = target
+    else:
+        s["url"] = target
+    return s
+
+
+# ───────────────────────── 清单 / 设置 ─────────────────────────
+def _sources():
+    """内存里的信息源清单（第一次用：按推荐清单放进一批常用的）。调用方要拿着 _LOCK。"""
+    if _ST["sources"] is None:
+        data = _read_json(SRC_FILE, None)
+        if not isinstance(data, list):
+            data = [_from_catalog(c) for c in CATALOG if c[7]]
+            _write_json(SRC_FILE, data)
+        _ST["sources"] = data
+    return _ST["sources"]
+
+
+def _save_sources():
+    _write_json(SRC_FILE, _ST["sources"] or [])
+
+
+def get_config():
+    c = _read_json(CFG_FILE, {})
+    c = c if isinstance(c, dict) else {}
+    c.setdefault("auto", True)
+    c.setdefault("every", 60)
+    c.setdefault("last_run", 0)
+    return c
+
+
+def save_config(auto=None, every=None):
+    c = get_config()
+    if auto is not None:
+        c["auto"] = bool(auto)
+    if every is not None:
+        c["every"] = max(15, min(int(every), 24 * 60))
+    _write_json(CFG_FILE, c)
+    return {"ok": True, "config": c}
+
+
+def _feed():
+    if _ST["feed"] is None:
+        d = _read_json(FEED_FILE, [])
+        _ST["feed"] = d if isinstance(d, list) else []
+        s = _read_json(SEEN_FILE, [])
+        _ST["seen"] = set(s if isinstance(s, list) else [])
+    return _ST["feed"]
+
+
+def _flush(force=False):
+    with _LOCK:
+        if not _ST["dirty"] or (not force and time.time() - _ST["flushed"] < 8):
+            return
+        _write_json(FEED_FILE, _ST["feed"] or [])
+        _write_json(SEEN_FILE, list(_ST["seen"] or [])[-30000:])
+        _ST["dirty"] = False
+        _ST["flushed"] = time.time()
+
+
+def snapshot():
+    """给 biz_intel：(版本号, 抓到的内容, {信息源编号: 信息源})。版本号变了才需要重新归类。"""
+    with _LOCK:
+        feed = list(_feed())
+        srcs = {s["id"]: s for s in _sources()}
+        return _ST["ver"], feed, srcs
+
+
+def _scrapling_ok():
+    t, v = _ST["sc"]
+    if time.time() - t < 120:
+        return v
+    try:
+        import scrapling_fetch as SF
+        v = bool(SF.available())
+    except Exception:
+        v = False
+    _ST["sc"] = (time.time(), v)
+    return v
+
+
+# ───────────────────────── 抓取 ─────────────────────────
+def _P():
+    import creator_profiles
+    return creator_profiles
+
+
+def _get(url, timeout=15, accept=None):
+    """下载：境外站走代理、国内站直连；不行再换另一种。返回 (字节, 最终网址)。"""
+    P = _P()
+    hdr = {"User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+                          "Chrome/124.0 Safari/537.36")}
+    if accept:
+        hdr["Accept"] = accept
+    px = ""
+    try:
+        import web_tools as W
+        px = W.proxy_for(url) or ""
+    except Exception:
+        pass
+    any_px = ""
+    try:
+        any_px = P._proxy() or ""
+    except Exception:
+        pass
+    tries = [px] if px else [""]
+    for t in ("", any_px):
+        if t not in tries and (t or not px):
+            tries.append(t)
+    errs = []
+    for p in tries:
+        try:
+            return P._http(url, headers=hdr, proxy=p, timeout=timeout)
+        except Exception as e:
+            errs.append(str(e).split("\n")[0][:90])
+    raise RuntimeError("；".join(errs) or "打不开")
+
+
+def _clean(s):
+    s = _html.unescape(re.sub(r"<[^>]+>", " ", s or ""))
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def _ts_of(s):
+    s = (s or "").strip()
+    if not s:
+        return 0
+    try:
+        return email.utils.parsedate_to_datetime(s).timestamp()
+    except Exception:
+        pass
+    try:
+        return datetime.datetime.fromisoformat(s.replace("Z", "+00:00")[:32]).timestamp()
+    except Exception:
+        pass
+    m = re.match(r"(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[ T](\d{1,2}):(\d{2}))?", s)
+    if m:
+        try:
+            return datetime.datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)),
+                                     int(m.group(4) or 12), int(m.group(5) or 0)).timestamp()
+        except Exception:
+            return 0
+    return 0
+
+
+def _looks_feed(b):
+    head = (b or b"")[:2000].lstrip(b"\xef\xbb\xbf \r\n\t").lower()
+    return head.startswith(b"<?xml") and (b"<rss" in head or b"<feed" in head or b"<rdf" in head) \
+        or head.startswith(b"<rss") or head.startswith(b"<feed")
+
+
+def _parse_feed(b):
+    """RSS / Atom → [{title, url, ts, summary, source}]。"""
+    try:
+        root = ET.fromstring((b or b"").lstrip(b"\xef\xbb\xbf \r\n\t"))
+    except Exception:
+        return []
+    tag = lambda e: (e.tag.split("}")[-1] if isinstance(e.tag, str) else "").lower()
+    out = []
+    for e in root.iter():
+        if tag(e) not in ("item", "entry"):
+            continue
+        d = {"title": "", "url": "", "ts": 0, "summary": "", "source": ""}
+        for c in e:
+            ct = tag(c)
+            if ct == "title":
+                d["title"] = "".join(c.itertext())
+            elif ct == "link":
+                href = c.get("href")
+                if href:
+                    if (c.get("rel") or "alternate") == "alternate" or not d["url"]:
+                        d["url"] = href
+                elif (c.text or "").strip():
+                    d["url"] = c.text.strip()
+            elif ct in ("pubdate", "published", "updated", "date", "issued") and not d["ts"]:
+                d["ts"] = _ts_of("".join(c.itertext()))
+            elif ct in ("description", "summary", "content", "encoded") and not d["summary"]:
+                d["summary"] = _clean("".join(c.itertext()))[:300]
+            elif ct == "source" and not d["source"]:
+                d["source"] = _clean("".join(c.itertext()))[:40]
+            elif ct in ("guid", "id") and not d["url"] and (c.text or "").strip().startswith("http"):
+                d["url"] = c.text.strip()
+        d["title"] = _clean(d["title"])
+        if d["source"] and d["title"].endswith(" - " + d["source"]):
+            d["title"] = d["title"][:-len(" - " + d["source"])].strip()
+        if d["url"].startswith("http") and len(d["title"]) >= 4:
+            out.append(d)
+    return out
+
+
+def _from_links(h, base):
+    import site_watch as SW
+    out = []
+    for it in SW._links(h or "", base, 0):
+        w = it.get("when") or ""
+        ts = 0
+        if len(w) == 8:
+            try:
+                ts = datetime.datetime.strptime(w, "%Y%m%d").replace(hour=12).timestamp()
+            except Exception:
+                ts = 0
+        out.append({"title": it["title"], "url": it["url"], "ts": ts, "summary": "", "source": ""})
+    return out
+
+
+def _fetch_site(src):
+    """一个网站 → (内容, 怎么抓到的)。RSS → 网页链接 → Scrapling（快速 → 浏览器）。"""
+    import site_watch as SW
+    url = src["url"]
+    pref = src.get("pref") if src.get("pref") in ("fast", "browser") else ""
+    use_sc = _scrapling_ok()
+    errs = []
+
+    def via_sc(mode):
+        import scrapling_fetch as SF
+        px = None
+        try:
+            import web_tools as W
+            px = W.proxy_for(url) or None
+        except Exception:
+            pass
+        h = SF.fetch(url, mode=mode, proxy=px)
+        for f in SW._feeds(h, url)[:1]:
+            try:
+                fb, _u = _get(f, timeout=12, accept=FEED_ACCEPT)
+                items = _parse_feed(fb)
+                if items:
+                    return items
+            except Exception:
+                pass
+        return _from_links(h, url)
+
+    if pref and use_sc:
+        try:
+            items = via_sc(pref)
+            if len(items) >= 3:
+                return items, "Scrapling·" + ("浏览器" if pref == "browser" else "快速")
+        except Exception as e:
+            errs.append("Scrapling：" + str(e)[:60])
+    try:
+        b, final = _get(url, timeout=18)
+        base = final or url
+        if _looks_feed(b):
+            items = _parse_feed(b)
+            if items:
+                src.pop("pref", None)
+                return items, "RSS"
+        h = _P()._text(b)
+        for f in SW._feeds(h, base)[:2]:
+            try:
+                fb, _u = _get(f, timeout=12, accept=FEED_ACCEPT)
+                items = _parse_feed(fb)
+                if items:
+                    src.pop("pref", None)
+                    return items, "RSS"
+            except Exception:
+                continue
+        items = _from_links(h, base)
+        if len(items) >= 5:
+            src.pop("pref", None)
+            return items, "网页"
+        errs.append("网页里没找到文章列表（多半是动态网页）")
+    except Exception as e:
+        errs.append(str(e)[:100])
+    if use_sc:
+        for mode in ("fast", "browser"):
+            if mode == pref:
+                continue
+            try:
+                items = via_sc(mode)
+                if len(items) >= 3:
+                    src["pref"] = mode
+                    return items, "Scrapling·" + ("浏览器" if mode == "browser" else "快速")
+            except Exception as e:
+                errs.append("Scrapling：" + str(e)[:60])
+    elif not use_sc and errs:
+        errs.append("网页抓取增强（Scrapling）还没装好，装好后会自动补救")
+    raise RuntimeError("；".join(errs[-2:]))
+
+
+def _baidu_news(h):
+    out = []
+    for m in re.finditer(r"<h3[^>]*>\s*<a\b([^>]*)>(.*?)</a>", h or "", re.S | re.I):
+        hm = re.search(r'href\s*=\s*"([^"]+)"', m.group(1))
+        t = _clean(m.group(2))
+        if hm and len(t) >= 6:
+            out.append({"title": t[:200], "url": _html.unescape(hm.group(1)), "ts": 0, "summary": "", "source": ""})
+    return out
+
+
+def _fetch_kw(src):
+    """一个关键词 → 新闻搜索的最新报道。Google 新闻（有代理时）→ 必应新闻 → 百度资讯。"""
+    kw = src.get("kw") or src.get("name") or ""
+    q = urllib.parse.quote(kw)
+    tries = []
+    try:
+        if _P()._proxy():
+            tries.append(("Google 新闻", "https://news.google.com/rss/search?q=%s&hl=zh-CN&gl=CN&ceid=CN:zh-Hans" % q))
+    except Exception:
+        pass
+    tries.append(("必应新闻", "https://www.bing.com/news/search?q=%s&format=rss&setlang=zh-Hans&cc=CN" % q))
+    errs = []
+    for name, u in tries:
+        try:
+            b, _f = _get(u, timeout=15, accept=FEED_ACCEPT)
+            items = _parse_feed(b)
+            if items:
+                return items, name
+            errs.append(name + "没搜到")
+        except Exception as e:
+            errs.append(name + "：" + str(e)[:60])
+    try:
+        b, _f = _get("https://www.baidu.com/s?tn=news&rtt=4&bsst=1&cl=2&wd=" + q, timeout=15)
+        items = _baidu_news(_P()._text(b))
+        if items:
+            return items, "百度资讯"
+        errs.append("百度资讯没搜到（可能要人工验证）")
+    except Exception as e:
+        errs.append("百度资讯：" + str(e)[:60])
+    raise RuntimeError("；".join(errs[-3:]))
+
+
+def _norm_url(u):
+    try:
+        p = urllib.parse.urlsplit(u.strip())
+        q = "&".join(x for x in p.query.split("&") if x and not x.lower().startswith(("utm_", "spm=", "from=", "source=")))
+        return urllib.parse.urlunsplit((p.scheme.lower(), p.netloc.lower(), p.path.rstrip("/"), q, ""))
+    except Exception:
+        return u
+
+
+def _merge(src, items, first):
+    now = time.time()
+    new = []
+    with _LOCK:
+        feed = _feed()
+        seen = _ST["seen"]
+        for it in items[:PER_SOURCE]:
+            key = hashlib.sha1(_norm_url(it["url"]).encode("utf-8")).hexdigest()[:16]
+            if key in seen:
+                continue
+            seen.add(key)
+            ts = it.get("ts") or 0
+            dated = bool(ts)
+            if dated and ts < now - KEEP_DAYS * 86400:
+                continue
+            if ts > now:
+                ts = now
+            if not dated:
+                ts = now - 3 * 86400 if first else now       # 第一次抓到的旧文章不算「刚发生」
+            new.append({"key": key, "sid": src["id"], "sname": src.get("name", ""), "grp": src.get("group", ""),
+                        "title": it["title"][:200], "url": it["url"], "summary": (it.get("summary") or "")[:300],
+                        "from": it.get("source", ""), "ts": int(ts), "seen": int(now), "dated": dated})
+        if new:
+            feed.extend(new)
+            feed.sort(key=lambda x: -x.get("ts", 0))
+            cut = now - KEEP_DAYS * 86400
+            del feed[MAX_ITEMS:]
+            while feed and feed[-1].get("ts", 0) < cut:
+                feed.pop()
+            _ST["ver"] += 1
+            _ST["dirty"] = True
+    return len(new)
+
+
+def _human(e, kind="site"):
+    """把出错原因翻成人话。"""
+    s = str(e)
+    net = re.search(r"Errno 111|Connection refused|actively refused|10061", s, re.I)
+    dns = re.search(r"Name or service not known|getaddrinfo|Errno -2|Errno 11001|nodename nor servname", s, re.I)
+    if kind == "kw" and (net or dns or re.search(r"timed? ?out|超时", s, re.I)):
+        return "新闻搜索都连不上：Google 新闻要代理（看代理软件开没开），必应、百度连不上多半是网络问题"
+    if re.search(r"timed? ?out|超时|Timeout", s, re.I):
+        return "打不开（超时）：网站很慢，或者要代理"
+    if net:
+        return "连不上：代理软件没开，或者网络不通"
+    if dns:
+        return "找不到这个网站：网络没连上，或者网址写错了"
+    if "403" in s:
+        return "被网站拦了（403）" + ("，Scrapling 装好后会自动换浏览器方式再试" if "Scrapling" in s else "")
+    if "404" in s:
+        return "网址不对（404），换成它的新闻页网址试试"
+    if re.search(r"SSL|certificate|handshake", s, re.I):
+        return "安全连接失败（SSL），可能要代理"
+    return s[:160]
+
+
+def _crawl_src(src):
+    if _run["stop"]:
+        return
+    with _LOCK:
+        _run["current"].append(src.get("name", ""))
+    first = not src.get("ok_at")
+    try:
+        items, via = _fetch_kw(src) if src.get("kind") == "kw" else _fetch_site(src)
+        n = _merge(src, items, first)
+        now = int(time.time())
+        with _LOCK:
+            src.update(at=now, ok_at=now, n=len(items), new=n, err="", via=via, fails=0)
+            _run["new"] += n
+    except Exception as e:
+        with _LOCK:
+            src.update(at=int(time.time()), err=_human(e, src.get("kind")), fails=int(src.get("fails") or 0) + 1)
+            _run["fail"] += 1
+    finally:
+        with _LOCK:
+            try:
+                _run["current"].remove(src.get("name", ""))
+            except ValueError:
+                pass
+            _run["done"] += 1
+        _flush()
+
+
+def _crawl_all(srcs):
+    try:
+        with ThreadPoolExecutor(max_workers=WORKERS) as ex:
+            list(ex.map(_crawl_src, srcs))
+    except Exception as e:
+        _log("这一轮出错：%s" % e)
+    finally:
+        _flush(force=True)
+        with _LOCK:
+            _save_sources()
+            _run.update(running=False, ended=int(time.time()), current=[])
+        _log("这一轮抓完：%d 个信息源，新抓到 %d 条，%d 个没抓成%s" % (
+            _run["total"], _run["new"], _run["fail"], "（中途停止）" if _run["stop"] else ""))
+
+
+def start(sids=None, trigger="manual"):
+    with _LOCK:
+        if _run["running"]:
+            return {"ok": False, "error": "正在抓，等这一轮抓完再说"}
+        srcs = [s for s in _sources() if s.get("enabled") and (not sids or s["id"] in sids)]
+        if sids:
+            srcs = [s for s in _sources() if s["id"] in sids]
+        if not srcs:
+            return {"ok": False, "error": "清单里没有打开的信息源"}
+        _run.update(running=True, stop=False, total=len(srcs), done=0, new=0, fail=0, current=[],
+                    started=int(time.time()), ended=0, trigger=trigger)
+    if not sids:
+        c = get_config()
+        c["last_run"] = int(time.time())
+        _write_json(CFG_FILE, c)
+    threading.Thread(target=_crawl_all, args=(srcs,), daemon=True, name="biz-radar-run").start()
+    _log("开始抓（%s）：%d 个信息源" % ("自动" if trigger == "auto" else "手动", len(srcs)))
+    return {"ok": True, "total": len(srcs)}
+
+
+def stop():
+    with _LOCK:
+        if _run["running"]:
+            _run["stop"] = True
+    return {"ok": True}
+
+
+def status():
+    cfg = get_config()
+    now = time.time()
+    with _LOCK:
+        r = {k: (list(v) if isinstance(v, list) else v) for k, v in _run.items()}
+        srcs = _sources()
+        feed = _feed()
+        n24 = sum(1 for x in feed if x.get("ts", 0) >= now - 86400)
+        n7 = sum(1 for x in feed if x.get("ts", 0) >= now - 7 * 86400)
+        en = sum(1 for s in srcs if s.get("enabled"))
+        bad = sum(1 for s in srcs if s.get("enabled") and s.get("err"))
+    nxt = cfg["last_run"] + cfg["every"] * 60 if cfg["auto"] else 0
+    r.update(ok=True, auto=cfg["auto"], every=cfg["every"], last_run=cfg["last_run"], next_run=int(nxt),
+             sources=len(srcs), enabled=en, failing=bad, items=len(feed), items_24h=n24, items_7d=n7,
+             scrapling=_scrapling_ok(), now=int(now))
+    return r
+
+
+def list_sources():
+    now = time.time()
+    with _LOCK:
+        srcs = [dict(s) for s in _sources()]
+        cnt = {}
+        for x in _feed():
+            if x.get("ts", 0) >= now - 7 * 86400:
+                cnt[x.get("sid")] = cnt.get(x.get("sid"), 0) + 1
+    have = {s["id"] for s in srcs}
+    have_t = {(s.get("url") or s.get("kw") or "").strip().lower() for s in srcs}
+    for s in srcs:
+        s["n7"] = cnt.get(s["id"], 0)
+    cat = []
+    for key, name, desc in GROUPS:
+        if key == "mine":
+            continue
+        rows = []
+        for c in CATALOG:
+            if c[4] != key:
+                continue
+            rows.append({"id": c[0], "name": c[1], "kind": c[2], "target": c[3], "hint": c[5], "desc": c[6],
+                         "added": c[0] in have or c[3].strip().lower() in have_t})
+        cat.append({"key": key, "name": name, "desc": desc, "items": rows})
+    return {"ok": True, "sources": srcs, "catalog": cat, "groups": [{"key": k, "name": n} for k, n, _d in GROUPS],
+            "config": get_config(), "status": status()}
+
+
+def source_action(body):
+    body = body or {}
+    act = body.get("action", "")
+    with _LOCK:
+        srcs = _sources()
+        if act == "add":
+            kind = "kw" if body.get("kind") == "kw" else "site"
+            hint = [str(h)[:40] for h in (body.get("hint") or []) if h][:3]
+            if kind == "kw":
+                kw = re.sub(r"\s+", " ", str(body.get("kw") or "")).strip()[:30]
+                if len(kw) < 2:
+                    return {"ok": False, "error": "关键词至少两个字"}
+                if any((s.get("kw") or "").lower() == kw.lower() for s in srcs):
+                    return {"ok": False, "error": "「%s」已经在清单里了" % kw}
+                s = {"id": "k" + hashlib.md5(kw.encode("utf-8")).hexdigest()[:8], "kind": "kw", "kw": kw,
+                     "name": str(body.get("name") or kw).strip()[:30]}
+            else:
+                url = str(body.get("url") or "").strip()
+                if not re.match(r"^https?://[^\s/]+\.[^\s]+", url):
+                    if re.match(r"^[\w.-]+\.[a-z]{2,}(/.*)?$", url, re.I):
+                        url = "https://" + url
+                    else:
+                        return {"ok": False, "error": "网址要像 https://www.example.com/news 这样"}
+                if any((s.get("url") or "").rstrip("/").lower() == url.rstrip("/").lower() for s in srcs):
+                    return {"ok": False, "error": "这个网址已经在清单里了"}
+                host = urllib.parse.urlsplit(url).netloc.lower()
+                s = {"id": "u" + hashlib.md5(url.encode("utf-8")).hexdigest()[:8], "kind": "site", "url": url,
+                     "name": str(body.get("name") or "").strip()[:30] or (host[4:] if host.startswith("www.") else host)}
+            s.update(group="mine", hint=hint, desc="", enabled=True, added=int(time.time()))
+            srcs.insert(0, s)
+            _save_sources()
+            return {"ok": True, "id": s["id"]}
+        if act == "add_catalog":
+            ids = [i for i in (body.get("ids") or []) if i in _CAT_BY_ID]
+            have = {s["id"] for s in srcs}
+            n = 0
+            for i in ids:
+                if i not in have:
+                    srcs.append(_from_catalog(_CAT_BY_ID[i]))
+                    n += 1
+            _save_sources()
+            return {"ok": True, "added": n}
+        s = next((x for x in srcs if x["id"] == body.get("id")), None)
+        if not s:
+            return {"ok": False, "error": "找不到这个信息源"}
+        if act == "toggle":
+            s["enabled"] = bool(body.get("enabled"))
+        elif act == "delete":
+            srcs.remove(s)
+        elif act == "hint":
+            s["hint"] = [str(h)[:40] for h in (body.get("hint") or []) if h][:3]
+            _ST["ver"] += 1
+        else:
+            return {"ok": False, "error": "不认识的操作"}
+        _save_sources()
+    return {"ok": True}
+
+
+def boot_scheduler():
+    """后台启动时调用：每分钟看一眼，打开了「自动更新」且到点了就抓一轮。重复调用只启动一次。"""
+    if _sched["started"]:
+        return
+    _sched["started"] = True
+
+    def _loop():
+        time.sleep(150)                      # 启动后先等两分半，别和开机抢资源
+        while True:
+            try:
+                c = get_config()
+                if c["auto"] and not _run["running"] and time.time() - c["last_run"] >= c["every"] * 60:
+                    start(trigger="auto")
+            except Exception as e:
+                _log("自动更新出错（忽略）：%s" % e)
+            time.sleep(60)
+
+    threading.Thread(target=_loop, name="biz-radar-auto", daemon=True).start()

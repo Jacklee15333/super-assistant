@@ -91,6 +91,7 @@ _LOG_QUIET_PATHS = {"/intake_kind", "/douyin/login",
     "/logs", "/ai_live", "/ai_live_shot", "/version", "/gpu_status", "/creator_profiles", "/creator_avatar", "/creator_scan_all",
     "/scrapling/status", "/sniff/sources",
     "/biz/job", "/biz/overview", "/biz/taxonomy", "/biz/items", "/biz/reports", "/biz/report", "/biz/opps", "/biz/topics",
+    "/biz/radar/status", "/biz/radar/sources",
 }
 
 # 给少数关键路径配一句「人话」描述，让日志一眼能看懂用户在干嘛。
@@ -124,6 +125,8 @@ _LOG_PATH_LABEL = {
     "/insight/research_item": "深入研究某条洞察",
     "/biz/run": "开始商业分析（写报告）",
     "/biz/stop": "停止商业分析",
+    "/biz/radar/run": "市场雷达：现在抓一次",
+    "/biz/radar/source": "市场雷达：改信息源清单",
 }
 
 
@@ -5586,11 +5589,12 @@ class Handler(BaseHTTPRequestHandler):
                 if path == "/biz/taxonomy":
                     return self._send(bz.taxonomy())
                 if path == "/biz/overview":
-                    return self._send(bz.overview(int(q1("days", "30") or 30)))
+                    return self._send(bz.overview(int(q1("days", "30") or 30), q1("lens", "mine")))
                 if path == "/biz/items":
                     return self._send(bz.items(ind=q1("ind"), trk=q1("trk"), mdl=q1("mdl"), q=q1("q"),
                                                src=q1("src", "all"), days=int(q1("days", "0") or 0),
-                                               limit=int(q1("limit", "60") or 60), biz=q1("biz") == "1"))
+                                               limit=int(q1("limit", "60") or 60), biz=q1("biz") == "1",
+                                               lens=q1("lens", "mine"), sid=q1("sid")))
                 if path == "/biz/reports":
                     return self._send(bz.list_reports(q1("kind")))
                 if path == "/biz/report":
@@ -5601,6 +5605,9 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(bz.job_status())
                 if path == "/biz/topics":
                     return self._send(bz.get_topics())
+                if path in ("/biz/radar/status", "/biz/radar/sources"):     # v156：市场雷达
+                    import biz_crawler as _bc
+                    return self._send(_bc.status() if path == "/biz/radar/status" else _bc.list_sources())
             except Exception as e:
                 return self._send({"ok": False, "error": str(e)})
 
@@ -6521,7 +6528,8 @@ class Handler(BaseHTTPRequestHandler):
                 if path == "/biz/run":
                     return self._send(bz.start(body.get("kind", ""), target=body.get("target", ""),
                                                scope=body.get("scope", ""), days=int(body.get("days") or 30),
-                                               web=bool(body.get("web", True)), depth=body.get("depth", "quick")))
+                                               web=bool(body.get("web", True)), depth=body.get("depth", "quick"),
+                                               lens=body.get("lens", "mine")))
                 if path == "/biz/stop":
                     return self._send(bz.stop())
                 if path == "/biz/report_delete":
@@ -6530,6 +6538,16 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(bz.opp_action(body))
                 if path == "/biz/topics":
                     return self._send(bz.save_topics(body.get("topics") or []))
+                if path.startswith("/biz/radar/"):                          # v156：市场雷达
+                    import biz_crawler as _bc
+                    if path == "/biz/radar/run":
+                        return self._send(_bc.start([body["id"]] if body.get("id") else None))
+                    if path == "/biz/radar/stop":
+                        return self._send(_bc.stop())
+                    if path == "/biz/radar/config":
+                        return self._send(_bc.save_config(body.get("auto"), body.get("every")))
+                    if path == "/biz/radar/source":
+                        return self._send(_bc.source_action(body))
             except Exception as e:
                 return self._send({"ok": False, "error": str(e)})
 
@@ -8871,6 +8889,12 @@ def main():
         sniffer.boot_scheduler()
     except Exception as e:
         print("[sniff] 启动自动嗅探计时失败：%s" % e)
+    # v156：「商业 → 市场雷达」按清单定时抓最新新闻（打开了自动更新才抓；不用 AI）
+    try:
+        import biz_crawler
+        biz_crawler.boot_scheduler()
+    except Exception as e:
+        print("[市场雷达] 启动定时抓取失败：%s" % e)
     # 启动时恢复上次没跑完的视频任务，自动接着处理
     try:
         _restore_video_queue()
