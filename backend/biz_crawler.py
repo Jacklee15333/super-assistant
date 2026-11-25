@@ -1006,25 +1006,37 @@ _JUNK_LINE = re.compile(r"^(责任编辑|编辑|来源|作者|校对|审核|本�
 
 
 def _main_text(h):
-    """从网页里挑出正文：按段落归到所在的容器，文字最多、链接最少的那个容器就是正文。只用标准库。"""
+    """从网页里挑出正文（v161：完整版）。
+    1) 每段文字记下它所在的容器和全部上层容器；
+    2) 先找段落文字最多的那个容器；
+    3) 再一层层往上看：上一层多出来的也是正文样子的段落、链接又不多，就把它也算进来——
+       百家号这类「每段一个小盒子」的网页，这样才不会只取到第一段。只用标准库。"""
     from html.parser import HTMLParser
 
     class P(HTMLParser):
         def __init__(self):
             super().__init__(convert_charrefs=True)
-            self.stack = []          # [(标签, 容器编号, 是否跳过)]
+            self.stack = []          # [(标签, 编号, 是否跳过)]
             self.skip = 0
             self.nid = 0
-            self.paras = []          # [(容器编号, 文字, 是不是在链接里)]
+            self.paras = []          # [(所在容器编号, 上层容器编号元组, 文字, 是不是在链接里)]
             self.buf = []
             self.link = 0
-            self.cur = 0
+            self.parent = {}
 
         def _flush(self):
             t = re.sub(r"\s+", " ", "".join(self.buf)).strip()
             self.buf = []
-            if t:
-                self.paras.append((self.cur, t, self.link > 0))
+            if t and self.stack:
+                chain = tuple(n for _t, n, _s in self.stack)
+                own = chain[-1]
+                # 段落标签（p/li…）的文字算到它的上一层容器
+                if self.stack[-1][0] in ("p", "li", "blockquote", "pre", "span", "strong", "b", "em", "font") and len(chain) > 1:
+                    k = len(self.stack) - 1
+                    while k > 0 and self.stack[k][0] not in ("div", "section", "article", "td", "main", "body"):
+                        k -= 1
+                    own = self.stack[k][1]
+                self.paras.append((own, chain, t, self.link > 0))
 
         def handle_starttag(self, tag, attrs):
             if tag in _VOID:
@@ -1036,14 +1048,13 @@ def _main_text(h):
             if tag in _BLOCK_TAGS:
                 self._flush()
             self.nid += 1
+            if self.stack:
+                self.parent[self.nid] = self.stack[-1][1]
             self.stack.append((tag, self.nid, noisy))
             if noisy:
                 self.skip += 1
             if tag == "a":
                 self.link += 1
-            if tag in ("p", "div", "section", "article", "td", "li", "blockquote", "pre"):
-                # 段落归到「父容器」：这样同一篇文章的各段落会落到同一个编号上
-                self.cur = self.stack[-2][1] if len(self.stack) > 1 and tag in ("p", "li", "blockquote", "pre") else self.nid
 
         def handle_endtag(self, tag):
             if tag in _VOID:
@@ -1070,20 +1081,64 @@ def _main_text(h):
         p._flush()
     except Exception:
         pass
+    if not p.paras:
+        return []
+
+    def is_body(t):
+        return len(t) >= 8 and not _JUNK_LINE.match(t)
+
     score = {}
-    for cid, t, inlink in p.paras:
-        if inlink or len(t) < 8:
+    for own, _c, t, inlink in p.paras:
+        if inlink or not is_body(t):
             continue
-        score[cid] = score.get(cid, 0) + len(t) + (40 if re.search(r"[。！？.!?]$", t) else 0)
+        score[own] = score.get(own, 0) + len(t) + (40 if re.search(r"[。！？.!?」”\"]$", t) else 0)
     if not score:
         return []
     best = max(score, key=score.get)
+
+    def stats(node):
+        good = link = n_good = long_good = 0
+        for _o, chain, t, inlink in p.paras:
+            if node not in chain:
+                continue
+            if inlink:
+                link += len(t)
+            elif is_body(t):
+                good += len(t)
+                n_good += 1
+                if len(t) >= 25:
+                    long_good += len(t)
+        return good, link, n_good, long_good
+
+    cur = best
+    g0, l0, n0, lg0 = stats(cur)
+    node = p.parent.get(cur)
+    while node:
+        g, l, n, lg = stats(node)
+        add, add_long = g - g0, lg - lg0
+        dens = l / float(g + l or 1)
+        if add <= 0:
+            cur, node = node, p.parent.get(node)            # 多一层但没多文字：照样往上
+            continue
+        # 多出来的大部分是长段落、链接也不多 → 也是正文
+        if dens < 0.3 and add_long >= add * 0.6:
+            cur, (g0, l0, n0, lg0) = node, (g, l, n, lg)
+            node = p.parent.get(node)
+            continue
+        break
     out, seen = [], set()
-    for cid, t, inlink in p.paras:
-        if cid != best or inlink or t in seen or _JUNK_LINE.match(t):
+    for _o, chain, t, inlink in p.paras:
+        if cur not in chain or inlink or t in seen or _JUNK_LINE.match(t):
+            continue
+        if len(t) < 2:
             continue
         seen.add(t)
         out.append(t)
+    # 开头结尾的零碎短句（日期、作者、标签）去掉
+    while out and len(out[0]) < 8 and not re.search(r"[。！？]", out[0]):
+        out.pop(0)
+    while out and len(out[-1]) < 8 and not re.search(r"[。！？]", out[-1]):
+        out.pop()
     return out
 
 
@@ -1120,7 +1175,7 @@ def article(url):
     except Exception as e:
         err = _human(e)
     paras = _main_text(h) if h else []
-    if sum(len(x) for x in paras) < 120 and _scrapling_ok() and (get_config().get("sc_fast", True)):
+    if sum(len(x) for x in paras) < 300 and _scrapling_ok() and (get_config().get("sc_fast", True)):
         try:                                            # 动态网页：换 Scrapling 再读一次
             import scrapling_fetch as SF
             px = None
@@ -1138,15 +1193,17 @@ def article(url):
     desc = _meta_of(h, "og:description", "description", "twitter:description") if h else ""
     pub = _meta_of(h, "article:published_time", "og:release_date", "pubdate", "publishdate", "datePublished") if h else ""
     total = sum(len(x) for x in paras)
-    if total > 12000:                                   # 太长的只留前面，够看就行
+    if total > 40000:                                   # 特别长的（几万字）只留前面
         keep, n = [], 0
         for x in paras:
             keep.append(x)
             n += len(x)
-            if n > 12000:
+            if n > 40000:
                 break
         paras = keep
-    res = {"ok": True, "url": url, "paras": paras if total >= 80 else [], "desc": desc[:400],
+    title = (item or {}).get("title", "") or _meta_of(h, "og:title") if h else (item or {}).get("title", "")
+    res = {"ok": True, "url": url, "paras": paras if total >= 80 else [], "desc": desc[:400], "title": title,
+           "foreign": _foreign(" ".join([title or ""] + (paras[:6] if total >= 80 else [desc]))),
            "summary": (item or {}).get("summary", ""), "pub": pub[:40], "via": via, "chars": total,
            "ms": int((time.time() - t0) * 1000),
            "error": "" if (total >= 80 or desc) else (err or "这个网页没读出正文（可能要登录，或者是图片、视频）")}
@@ -1156,3 +1213,205 @@ def article(url):
             if len(_ART) > 300:
                 _ART.pop(next(iter(_ART)))
     return res
+
+
+# ───────────────────────── v161：外文新闻翻译成中文 ─────────────────────────
+_TR = {}                         # 网址 → 译文结果
+
+
+def _foreign(text):
+    """是不是外文：中文字很少（日文有假名、韩文有谚文也算外文）。"""
+    t = re.sub(r"\s+", "", text or "")[:3000]
+    if len(t) < 6:
+        return False
+    if re.search(r"[\u3040-\u30ff\uac00-\ud7af]", t):
+        return True
+    han = len(re.findall(r"[\u4e00-\u9fff]", t))
+    other = len(re.findall(r"[^\W\d_]", t)) - han             # 拉丁、西里尔等字母
+    return other >= 6 and han < other * 0.1
+
+
+def _req_json(url, data=None, headers=None, proxy=None, timeout=20):
+    import json as _json
+    import urllib.request
+    h = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"}
+    h.update(headers or {})
+    body = None
+    if data is not None:
+        body = data if isinstance(data, bytes) else _json.dumps(data, ensure_ascii=False).encode("utf-8")
+        h.setdefault("Content-Type", "application/json")
+    req = urllib.request.Request(url, data=body, headers=h)
+    hs = [urllib.request.ProxyHandler({"http": proxy, "https": proxy} if proxy else {})]
+    with urllib.request.build_opener(*hs).open(req, timeout=timeout) as r:
+        raw = r.read(8 * 1024 * 1024).decode("utf-8", "replace")
+    try:
+        return _json.loads(raw)
+    except Exception:
+        return raw
+
+
+def _proxies(url):
+    """先试直连还是先试代理：境外站先代理。"""
+    px = ""
+    try:
+        import web_tools as W
+        px = W.proxy_for(url) or ""
+    except Exception:
+        pass
+    anyp = ""
+    try:
+        anyp = _P()._proxy() or ""
+    except Exception:
+        pass
+    out = [px] if px else []
+    for t in ("", anyp):
+        if t not in out:
+            out.append(t)
+    return out
+
+
+def _chunks(lines, limit):
+    cur, n = [], 0
+    for x in lines:
+        if cur and n + len(x) > limit:
+            yield cur
+            cur, n = [], 0
+        cur.append(x)
+        n += len(x)
+    if cur:
+        yield cur
+
+
+def _tr_microsoft(lines):
+    """微软翻译（Edge 浏览器自带的那个，国内一般能直连，不用钥匙）。"""
+    last = None
+    for px in _proxies("https://edge.microsoft.com/"):
+        try:
+            tok = _req_json("https://edge.microsoft.com/translate/auth", proxy=px, timeout=10)
+            if not isinstance(tok, str) or len(tok) < 20:
+                raise RuntimeError("拿不到翻译凭证")
+            out = []
+            for part in _chunks(lines, 9000):
+                r = _req_json("https://api-edge.cognitive.microsofttranslator.com/translate?to=zh-Hans&api-version=3.0",
+                              data=[{"Text": x} for x in part], headers={"Authorization": "Bearer " + tok.strip()},
+                              proxy=px, timeout=25)
+                if not isinstance(r, list) or len(r) != len(part):
+                    raise RuntimeError("翻译结果不对")
+                out += [((x.get("translations") or [{}])[0].get("text") or "") for x in r]
+            return out
+        except Exception as e:
+            last = e
+    raise RuntimeError("微软翻译：%s" % _human(last or "失败"))
+
+
+def _tr_google(lines):
+    """谷歌翻译（一般要开代理）。"""
+    import urllib.parse
+    last = None
+    for px in _proxies("https://translate.googleapis.com/"):
+        try:
+            out = []
+            for part in _chunks(lines, 3500):
+                q = "\n".join(x.replace("\n", " ") for x in part)
+                body = urllib.parse.urlencode({"q": q}).encode("utf-8")
+                r = _req_json("https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=zh-CN&dt=t",
+                              data=body, headers={"Content-Type": "application/x-www-form-urlencoded;charset=utf-8"},
+                              proxy=px, timeout=25)
+                txt = "".join(seg[0] for seg in (r[0] or []) if seg and seg[0])
+                got = txt.split("\n")
+                if len(got) != len(part):
+                    raise RuntimeError("段落对不上")
+                out += got
+            return out
+        except Exception as e:
+            last = e
+    raise RuntimeError("谷歌翻译：%s" % _human(last or "失败"))
+
+
+def _tr_local(lines):
+    """本地模型（Ollama）翻译：慢一些，前两种都不行时才用。"""
+    import agent_core as core
+    ul, model = core.prefer_local_model(True, "qwen2.5")
+    if not ul:
+        raise RuntimeError("本地模型没开")
+    client = core.make_client(True)
+    out = []
+    for part in _chunks(lines, 2500):
+        numbered = "\n".join("[%d] %s" % (i + 1, x) for i, x in enumerate(part))
+        resp = client.chat.completions.create(model=model, messages=[{"role": "user", "content":
+            "把下面每一段翻译成通顺的简体中文。每段输出「[编号] 译文」，编号一一对应，不要解释、不要输出原文。人名、公司名、产品名第一次出现时可在括号里保留原文。\n\n" + numbered}])
+        raw = re.sub(r"(?s)<think>.*?</think>", "", resp.choices[0].message.content or "")
+        got = {}
+        for m in re.finditer(r"^\s*\[(\d+)\]\s*(.+)$", raw, re.M):
+            got[int(m.group(1)) - 1] = m.group(2).strip()
+        if not got:
+            raise RuntimeError("本地模型没返回译文")
+        out += [got.get(i, "") for i in range(len(part))]
+    return out
+
+
+def translate_article(url):
+    """v161：把一条外文新闻（标题 + 正文）翻成中文。依次试：微软翻译 → 谷歌翻译 → 本地模型。结果记在内存里。"""
+    with _ART_LOCK:
+        hit = _TR.get(url)
+    if hit:
+        return hit
+    a = article(url)
+    if not a.get("ok"):
+        return a
+    lines = [a.get("title") or ""] + (a.get("paras") or ([a["desc"]] if a.get("desc") else []))
+    idx = [i for i, x in enumerate(lines) if x and x.strip()]
+    src = [lines[i] for i in idx]
+    if not src:
+        return {"ok": False, "error": "没有可翻译的内容"}
+    errs, got, via = [], None, ""
+    for name, f in (("微软翻译", _tr_microsoft), ("谷歌翻译", _tr_google), ("本地模型", _tr_local)):
+        try:
+            got = f(src)
+            if got and sum(1 for x in got if x) >= max(1, len(src) // 2):
+                via = name
+                break
+            errs.append("%s：没翻出来" % name)
+        except Exception as e:
+            errs.append(str(e)[:120])
+        got = None
+    if not got:
+        return {"ok": False, "error": "翻译没成功（" + "；".join(errs) + "）"}
+    out = list(lines)
+    for i, t in zip(idx, got):
+        out[i] = t or lines[i]
+    res = {"ok": True, "url": url, "title": out[0], "paras": out[1:] if a.get("paras") else [],
+           "desc": out[1] if not a.get("paras") and a.get("desc") else "", "via": via}
+    with _ART_LOCK:
+        _TR[url] = res
+        if len(_TR) > 200:
+            _TR.pop(next(iter(_TR)))
+    return res
+
+
+_TRL = {}                        # 原文 → 译文（新闻标题）
+
+
+def translate_lines(lines):
+    """v161：把列表里的外文标题翻成中文（只用微软 / 谷歌翻译，快；翻不了就原样返回空）。"""
+    lines = [str(x or "")[:500] for x in (lines or [])][:100]
+    with _ART_LOCK:
+        todo = [x for x in dict.fromkeys(lines) if x and x not in _TRL and _foreign(x)]
+    via, err = "", ""
+    if todo:
+        for name, f in (("微软翻译", _tr_microsoft), ("谷歌翻译", _tr_google)):
+            try:
+                got = f(todo)
+                with _ART_LOCK:
+                    for a, b in zip(todo, got):
+                        if b:
+                            _TRL[a] = b
+                    while len(_TRL) > 3000:
+                        _TRL.pop(next(iter(_TRL)))
+                via = name
+                break
+            except Exception as e:
+                err = str(e)[:120]
+    with _ART_LOCK:
+        out = [_TRL.get(x, "") for x in lines]
+    return {"ok": True, "items": out, "via": via, "error": "" if via or not todo else err}
