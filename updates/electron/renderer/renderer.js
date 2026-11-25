@@ -193,6 +193,7 @@ const NAV_GROUPS = {
     { key: "model", label: "商业模式", view: "biz", pane: "model" },
     { key: "opps", label: "趋势与机会", view: "biz", pane: "opps" },
     { key: "reports", label: "研究报告", view: "biz", pane: "reports" },
+    { key: "radar", label: "市场雷达", view: "biz", pane: "radar" },     // v156：爬虫盯最新新闻
   ] },
   data: { title: "资料库", tabs: [
     { key: "list", label: "列表", view: "datadb" },

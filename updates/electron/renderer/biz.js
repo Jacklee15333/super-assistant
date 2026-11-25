@@ -12,9 +12,10 @@
   const root = document.getElementById("view-biz");
   if (!root) return;
 
-  const PANES = ["market", "industry", "model", "opps", "reports"];
+  const PANES = ["market", "industry", "model", "opps", "reports", "radar"];
   const KIND = { market: "市场动向", industry: "行业研究", model: "商业模式", trend: "趋势与机会", research: "课题研究" };
-  const SRC = { note: "笔记", sniff: "网站动态", creator: "博主新内容" };
+  const SRC = { note: "笔记", sniff: "网站动态", creator: "博主新内容", radar: "市场新闻" };
+  const GRP = { news: "财经媒体", corp: "大公司官网", corpkw: "大公司动态", media: "行业媒体", indkw: "行业热词", policy: "政策数据", global: "海外", mine: "我加的" };
   const OPP_ST = [["new", "新发现"], ["watch", "关注"], ["testing", "验证中"], ["doing", "在做"], ["dropped", "放弃"]];
   const EG_MODEL = ["蜜雪冰城", "胖东来", "泡泡玛特", "瑞幸咖啡", "名创优品", "社区团购"];
   const EG_RESEARCH = ["低空经济", "AI 一人公司", "宠物殡葬", "银发旅游", "AI 陪伴硬件"];
@@ -34,6 +35,22 @@
   const fmtTime = (ts) => { if (!ts) return ""; const d = new Date(ts * 1000); return (d.getMonth() + 1) + "月" + d.getDate() + "日 " + pad(d.getHours()) + ":" + pad(d.getMinutes()); };
   const loading = (t) => '<p class="bz-empty">' + esc(t || "正在读取…") + "</p>";
   const empty = (t) => '<p class="bz-empty">' + t + "</p>";
+  const ago = (ts) => {
+    if (!ts) return "";
+    const s = Math.max(0, Date.now() / 1000 - ts);
+    if (s < 60) return "刚刚";
+    if (s < 3600) return Math.floor(s / 60) + " 分钟前";
+    if (s < 86400) return Math.floor(s / 3600) + " 小时前";
+    if (s < 86400 * 7) return Math.floor(s / 86400) + " 天前";
+    const d = new Date(ts * 1000);
+    return (d.getMonth() + 1) + "月" + d.getDate() + "日";
+  };
+  const until = (ts) => {
+    const s = ts - Date.now() / 1000;
+    if (s <= 60) return "马上";
+    if (s < 3600) return Math.ceil(s / 60) + " 分钟后";
+    return (s / 3600).toFixed(1).replace(/\.0$/, "") + " 小时后";
+  };
 
   const S = {
     pane: PANES.includes(store.get("pane", "market")) ? store.get("pane", "market") : "market",
@@ -43,6 +60,9 @@
     mdl: "", mdCases: null, mdDepth: "quick", rsDepth: "quick",
     opps: null, oppSt: "all", reports: [], repKind: "all", repQ: "", topics: [],
     job: null, jobTimer: null, readerRep: null,
+    // v156：两种看法——我关注的（你收进来的内容）/ 市场实时（市场雷达抓到的新闻）
+    lens: store.get("lens", "mine") === "market" ? "market" : "mine", mdays: store.get("mdays", 7),
+    ovm: null, ovmErr: "", radar: null, radarTimer: null, radarSrc: null, rdKind: "site", rdSid: "", rdItems: null, rdOpen: {},
   };
 
   // ───────── 分类表 ─────────
@@ -60,11 +80,15 @@
   const nameOf = (id) => (S.byId[id] ? S.byId[id].name : String(id || "").split("/").pop());
   const secName = (key) => (S.byId["sec:" + key] || {}).name || "";
   const lvl = (n) => (!n ? 0 : n <= 2 ? 1 : n <= 5 ? 2 : n <= 12 ? 3 : n <= 30 ? 4 : 5);
-  const heatOf = (id) => {
-    const d = S.byId[id], o = S.ov;
+  const curOv = () => (S.lens === "market" ? S.ovm : S.ov);
+  const heatIn = (o, id) => {
+    const d = S.byId[id];
     if (!o) return [0, 0];
     return (d && d.type === "l1" ? o.l1[id] : o.heat[id]) || [0, 0];
   };
+  const heatOf = (id) => heatIn(curOv(), id);
+  const LENS_SEG = () => seg("lens", [["mine", "我关注的"], ["market", "市场实时"]]).replace('class="bz-seg"', 'class="bz-seg lens"');
+  const MDAYS_SEG = () => seg("mdays", [["1", "24 小时"], ["3", "3 天"], ["7", "7 天"], ["30", "30 天"]]);
   function matchQ(d) {
     const q = S.indQ.trim().toLowerCase();
     if (!q || !d) return true;
@@ -91,12 +115,14 @@
       // ===== 市场动向 =====
       '<div class="bz-pane" data-pane="market">' +
         '<div class="bz-bar">' +
+          LENS_SEG() + MDAYS_SEG() +
           seg("days", [["7", "7 天"], ["30", "30 天"], ["90", "90 天"], ["0", "全部"]]) +
           '<span class="sp"></span>' +
           '<select class="bz-select" id="bzMkScope" aria-label="简报范围"><option value="">全部行业</option></select>' +
           '<label class="bz-chk"><input type="checkbox" id="bzMkWeb" checked>联网补充最新消息</label>' +
           '<button type="button" class="bz-btn" id="bzMkRun">生成市场动向简报</button>' +
         "</div>" +
+        '<div class="bz-strip" hidden></div>' +
         '<div class="bz-cols">' +
           '<div class="bz-main">' +
             '<section class="bz-card"><div class="bz-card-h"><h3>正在升温的话题</h3></div>' +
@@ -116,12 +142,15 @@
       // ===== 行业 =====
       '<div class="bz-pane" data-pane="industry">' +
         '<div class="bz-bar">' +
+          LENS_SEG() +
           seg("indview", [["map", "地图"], ["list", "列表"]]) +
           '<input type="search" class="bz-input" id="bzIndQ" placeholder="找行业：芯片、餐饮、储能、宠物…" aria-label="找行业">' +
+          MDAYS_SEG() +
           '<span class="sp"></span>' +
           '<span class="bz-legend" aria-hidden="true"><i class="h1"></i><i class="h2"></i><i class="h3"></i><i class="h4"></i><i class="h5"></i></span>' +
-          '<span class="bz-note">颜色越深，你收进来的相关内容越多</span>' +
+          '<span class="bz-note" id="bzLegendTxt"></span>' +
         "</div>" +
+        '<div class="bz-strip" hidden></div>' +
         '<p class="bz-source" id="bzIndSource"></p>' +
         '<div class="bz-ind"><div class="bz-ind-main" id="bzIndMain"></div><aside class="bz-ind-detail" id="bzIndDetail"></aside></div>' +
       "</div>" +
@@ -181,6 +210,33 @@
           '<div class="bz-reps wide" id="bzReports"></div></section>' +
       "</div>" +
 
+      // ===== 市场雷达（v156）=====
+      '<div class="bz-pane" data-pane="radar">' +
+        '<section class="bz-hero">' +
+          "<h2>市场雷达</h2>" +
+          "<p>小助的爬虫按下面的清单，定时去网上抓最新的新闻、大公司自己发布的文章和各行业头部媒体的报道，按行业归好类。" +
+          "「市场动向」和「行业」切到「市场实时」，看的就是这里抓到的：它反映市场上正在发生什么，不是你关注了什么。</p>" +
+          '<div class="bz-rd-status"><div class="bz-rd-line" id="bzRdLine"></div><div class="bz-rd-ctl" id="bzRdCtl"></div><p class="bz-note" id="bzRdNote"></p></div>' +
+        "</section>" +
+        '<div class="bz-cols">' +
+          '<div class="bz-main">' +
+            '<section class="bz-card"><div class="bz-card-h"><h3>正在盯的</h3><span class="bz-dim" id="bzRdCount"></span></div><div id="bzRdMine"></div></section>' +
+            '<section class="bz-card"><div class="bz-card-h"><h3>推荐的信息源</h3></div>' +
+              '<p class="bz-hint">按类别挑。「大公司官网」抓的是公司自己发的新闻稿；「大公司动态」「行业热词」是拿名字去新闻搜索里找各家媒体的最新报道。</p>' +
+              '<div id="bzRdCatalog"></div></section>' +
+          "</div>" +
+          '<aside class="bz-side">' +
+            '<section class="bz-card"><div class="bz-card-h"><h3>自己加一个</h3>' + seg("rdkind", [["site", "网站"], ["kw", "关键词"]]) + "</div>" +
+              '<div class="bz-rd-form"><input class="bz-input" id="bzRdTarget" maxlength="200" aria-label="网址或关键词">' +
+              '<input class="bz-input" id="bzRdName" maxlength="30" placeholder="名字（可以不填）" aria-label="名字">' +
+              '<select class="bz-select" id="bzRdHint" aria-label="属于哪个行业"><option value="">属于哪个行业（可以不选）</option></select>' +
+              '<button type="button" class="bz-btn" id="bzRdAdd">加进清单</button></div>' +
+              '<p class="bz-note" id="bzRdFormNote"></p></section>' +
+            '<section class="bz-card"><div class="bz-card-h"><h3 id="bzRdLatestT">刚抓到的</h3></div><div class="bz-feed compact" id="bzRdLatest"></div></section>' +
+          "</aside>" +
+        "</div>" +
+      "</div>" +
+
       "</div>" +   // bz-scroll
 
       '<div class="bz-reader" id="bzReader" hidden>' +
@@ -216,6 +272,9 @@
       el.value = keep;
       if (el.value !== keep) el.value = "";
     });
+    $("bzRdHint").innerHTML = '<option value="">属于哪个行业（可以不选）</option><optgroup label="新兴赛道">' +
+      S.tax.tracks.map((t) => '<option value="' + esc(t.id) + '">' + esc(t.name) + "</option>").join("") + "</optgroup>" +
+      S.tax.industries.map((i) => '<optgroup label="' + esc(i.name) + '">' + i.subs.map((x) => '<option value="' + esc(x.id) + '">' + esc(x.name) + "</option>").join("") + "</optgroup>").join("");
     $("bzIndSource").innerHTML = "分类参考：" + esc(S.tax.source) + "。共 " + S.tax.counts.l1 + " 个一级行业、" + S.tax.counts.l2 +
       " 个二级行业、" + S.tax.counts.tracks + " 个新兴赛道。" + '<a href="https://www.baidu.com/s?wd=' + enc("申万行业分类 2021版 一级 二级") +
       '" target="_blank" rel="noopener">在网上看分类原文</a>';
@@ -228,9 +287,11 @@
       ? '<button type="button" class="bz-item-t" data-note="' + esc(it.id) + '">' + esc(it.title) + "</button>"
       : (it.url ? '<a class="bz-item-t" href="' + esc(it.url) + '" target="_blank" rel="noopener">' + esc(it.title) + "</a>"
         : '<span class="bz-item-t">' + esc(it.title) + "</span>");
-    return '<div class="bz-item"><span class="bz-src s-' + it.src + '">' + SRC[it.src] + '</span><div class="bz-item-b">' + t +
+    const isR = it.src === "radar";
+    const when = isR ? (it.approx ? "时间不详" : ago(it.ts)) : it.date;
+    return '<div class="bz-item"><span class="bz-src s-' + it.src + '">' + (isR ? (GRP[it.grp] || SRC.radar) : SRC[it.src]) + '</span><div class="bz-item-b">' + t +
       (it.text ? "<p>" + esc(it.text) + "</p>" : "") +
-      '<div class="bz-item-m">' + (it.who ? "<span>" + esc(it.who) + "</span>" : "") + (it.date ? "<span>" + esc(it.date) + "</span>" : "") +
+      '<div class="bz-item-m">' + (it.who ? "<span>" + esc(it.who) + (isR && it.from && it.from !== it.who ? "·" + esc(it.from) : "") + "</span>" : "") + (when ? "<span>" + esc(when) + "</span>" : "") +
       (it.todo ? '<span class="bz-warn">还没加工</span>' : "") + tags + "</div></div></div>";
   }
 
@@ -247,29 +308,63 @@
   }
 
   // ───────── 市场动向 ─────────
+  function lensVis() {
+    const m = S.lens === "market";
+    segSync("lens", S.lens);
+    segSync("mdays", String(S.mdays));
+    root.querySelectorAll('.bz-seg[data-seg="mdays"]').forEach((e) => { e.hidden = !m; });
+    root.querySelectorAll('.bz-seg[data-seg="days"], .bz-seg[data-seg="feedsrc"]').forEach((e) => { e.hidden = m; });
+    root.classList.toggle("lens-market", m);
+    renderStrips();
+  }
+  function stripHTML() {
+    const r = S.radar;
+    if (!r) return "<span>市场雷达：正在读取…</span>";
+    const txt = r.running ? "市场雷达正在抓：" + r.done + " / " + r.total + " 个信息源，这一轮新抓到 " + r.new + " 条"
+      : (r.last_run ? "市场雷达盯着 " + r.enabled + " 个信息源，" + ago(r.last_run) + "更新过；最近 24 小时抓到 " + r.items_24h + " 条"
+        : "市场雷达还没抓过：打开软件两三分钟后会自动抓第一轮，也可以现在就抓");
+    return "<span>" + esc(txt) + "</span>" + (r.running ? "" : '<button type="button" class="bz-link" data-act="rd-run">现在更新</button>') +
+      '<button type="button" class="bz-link" data-goto="radar">管理信息源</button>';
+  }
+  function renderStrips() {
+    root.querySelectorAll(".bz-strip").forEach((el) => {
+      el.hidden = S.lens !== "market";
+      if (!el.hidden) el.innerHTML = stripHTML();
+    });
+  }
   function renderMarket() {
+    lensVis();
     segSync("days", String(S.days));
     segSync("feedsrc", S.feedSrc);
-    const ov = S.ov;
+    const m = S.lens === "market";
+    const ov = curOv();
+    $("bzFeedCard").querySelector("h3").textContent = m ? "市场最新动向" : "最新动向";
     if (!ov) {
-      const t = S.ovErr ? "读不到资料：" + esc(S.ovErr) : "正在把你收进来的内容按行业归类…第一次要几秒。";
-      $("bzRising").innerHTML = empty(t); $("bzHot").innerHTML = ""; $("bzFeed").innerHTML = "";
+      const err = m ? S.ovmErr : S.ovErr;
+      const t = err ? "读不到资料：" + esc(err) : (m ? "正在读市场雷达抓到的新闻…" : "正在把你收进来的内容按行业归类…第一次要几秒。");
+      $("bzRising").innerHTML = empty(t); $("bzHot").innerHTML = ""; $("bzFeed").innerHTML = ""; $("bzRisingHint").textContent = "";
       renderRepList("bzMkReports", "market", "还没有简报。");
       return;
     }
-    const win = S.days ? "最近 " + S.days + " 天" : "全部时间";
-    $("bzRisingHint").textContent = S.days
-      ? "按你收进来的内容算：" + win + "提到它的比例，明显高于平时。条越长，越集中在最近。点一下看相关内容。"
-      : "选了「全部」就看不出升温了，换成 7 天或 30 天看看。";
-    $("bzRising").innerHTML = (S.days && ov.rising.length) ? ov.rising.slice(0, 12).map((d) =>
-      '<button type="button" class="bz-term" data-term="' + esc(d.k) + '" title="' + esc(win + " " + d.r + " 条，一共 " + d.n + " 条，来自 " + d.src + " 个作者或网站") + '">' +
-      '<span class="k">' + esc(d.k) + '</span><span class="bar"><i style="width:' + Math.max(6, Math.round((d.r / d.n) * 100)) + '%"></i></span>' +
-      '<span class="n">' + d.r + "<small> / " + d.n + "</small></span></button>").join("")
-      : (S.days ? empty("还看不出哪个话题在升温：这段时间收进来的内容太少，或者都差不多。") : "");
-    $("bzHot").innerHTML = ov.hot.length ? ov.hot.slice(0, 16).map((d) => '<button type="button" class="bz-chip" data-term="' + esc(d.k) + '">' + esc(d.k) + " <b>" + d.r + "</b></button>").join("")
-      : empty("这段时间没有收进来新内容。");
+    const d = m ? S.mdays : S.days;
+    const win = m ? (d <= 1 ? "最近 6 小时" : "最近 24 小时") : (d ? "最近 " + d + " 天" : "全部时间");
+    $("bzRisingHint").textContent = m
+      ? "按市场雷达抓到的新闻算：" + win + "提到它的比例，明显高于这 " + (d <= 1 ? "24 小时" : d + " 天") + "的平均。条越长，越集中在最近。点一下看相关新闻。"
+      : (d ? "按你收进来的内容算：" + win + "提到它的比例，明显高于平时。条越长，越集中在最近。点一下看相关内容。"
+        : "选了「全部」就看不出升温了，换成 7 天或 30 天看看。");
+    const noRadar = m && !(ov.counts && ov.counts.radar);
+    $("bzRising").innerHTML = noRadar ? empty('市场雷达还没抓到东西。<button type="button" class="bz-link" data-act="rd-run">现在就抓一次</button>，或者去<button type="button" class="bz-link" data-goto="radar">市场雷达</button>挑要盯的信息源。')
+      : ((d && ov.rising.length) ? ov.rising.slice(0, 12).map((x) =>
+      '<button type="button" class="bz-term" data-term="' + esc(x.k) + '" title="' + esc(win + " " + x.r + " 条，一共 " + x.n + " 条，来自 " + x.src + " 个" + (m ? "信息源" : "作者或网站")) + '">' +
+      '<span class="k">' + esc(x.k) + '</span><span class="bar"><i style="width:' + Math.max(6, Math.round((x.r / x.n) * 100)) + '%"></i></span>' +
+      '<span class="n">' + x.r + "<small> / " + x.n + "</small></span></button>").join("")
+      : (d ? empty("还看不出哪个话题在升温：这段时间的内容太少，或者都差不多。") : ""));
+    $("bzHot").innerHTML = ov.hot.length ? ov.hot.slice(0, 16).map((x) => '<button type="button" class="bz-chip" data-term="' + esc(x.k) + '">' + esc(x.k) + " <b>" + (m ? x.n : x.r) + "</b></button>").join("")
+      : empty(m ? "这段时间还没抓到新闻。" : "这段时间没有收进来新内容。");
     const c = ov.counts;
-    $("bzCounts").textContent = "资料：笔记 " + c.note + " 篇（商业相关 " + c.biz_note + " 篇），网站动态 " + c.sniff + " 条，博主新内容 " + c.creator + " 条；归到行业或赛道的 " + c.classified + " 条。";
+    $("bzCounts").textContent = m
+      ? "市场新闻：这段时间 " + c.window + " 条（最近 24 小时 " + c.today + " 条），归到行业或赛道的 " + c.classified + " 条；雷达一共抓到 " + c.radar + " 条。"
+      : "资料：笔记 " + c.note + " 篇（商业相关 " + c.biz_note + " 篇），网站动态 " + c.sniff + " 条，博主新内容 " + c.creator + " 条；归到行业或赛道的 " + c.classified + " 条。";
     renderFeed();
     renderRepList("bzMkReports", "market", "还没有简报。点上面的「生成市场动向简报」，小助会把最近的动向整理成一份。");
   }
@@ -282,10 +377,12 @@
     el.innerHTML = S.feed.length ? S.feed.map(itemRow).join("") : empty("没有找到相关的内容。");
   }
   async function loadFeed() {
-    if (S.feedSrc === "all" && !S.feedQ) { S.feed = S.ov ? S.ov.latest : null; renderFeed(); return; }
+    const m = S.lens === "market";
+    if ((m || S.feedSrc === "all") && !S.feedQ) { S.feed = curOv() ? curOv().latest : null; renderFeed(); return; }
     S.feed = null; renderFeed();
     try {
-      const r = await api("/biz/items?src=" + S.feedSrc + "&q=" + enc(S.feedQ) + "&biz=1&limit=60");
+      const r = await api(m ? "/biz/items?lens=market&days=" + S.mdays + "&q=" + enc(S.feedQ) + "&limit=60"
+        : "/biz/items?src=" + S.feedSrc + "&q=" + enc(S.feedQ) + "&biz=1&limit=60");
       S.feed = r.items || [];
     } catch (e) { S.feed = []; }
     renderFeed();
@@ -295,11 +392,17 @@
   function tile(id) {
     const d = S.byId[id];
     if (!d) return "";
-    const h = heatOf(id);
-    const tip = d.name + "：" + d.desc + (d.co ? "\n代表企业：" + d.co : "") + "\n你收进来的相关内容：" + (h[0] || 0) + " 条";
+    const h = heatOf(id), m = S.lens === "market";
+    const mine = heatIn(S.ov, id);
+    const gap = m && h[0] >= 3 && S.ov && !mine[0];
+    const tip = d.name + "：" + d.desc + (d.co ? "\n代表企业：" + d.co : "") +
+      (m ? "\n最近 " + (S.mdays <= 1 ? "24 小时" : S.mdays + " 天") + "的市场新闻：" + (h[0] || 0) + " 条（今天 " + (h[1] || 0) + " 条）" +
+        (S.ov ? "\n你收进来的相关内容：" + (mine[0] || 0) + " 条" : "")
+        : "\n你收进来的相关内容：" + (h[0] || 0) + " 条");
     return '<button type="button" class="bz-tile h' + lvl(h[0]) + (S.indSel === id ? " sel" : "") + (matchQ(d) ? "" : " dim") +
       '" data-ind="' + esc(id) + '" title="' + esc(tip) + '"><span class="nm">' + esc(d.name) + "</span>" +
-      (h[0] ? '<span class="ct">' + h[0] + "</span>" : "") + "</button>";
+      (h[0] ? '<span class="ct">' + h[0] + (m && S.mdays > 1 && h[1] ? '<small> 今天 +' + h[1] + "</small>" : "") + "</span>" : "") +
+      (gap ? '<i class="gap" aria-hidden="true"></i>' : "") + "</button>";
   }
   function mapHTML() {
     let html = '<section class="bz-band trk"><header><h4>新兴赛道</h4><span>横跨好几个行业的热门方向</span></header><div class="bz-tiles">' +
@@ -349,6 +452,10 @@
   }
   function renderIndustry() {
     segSync("indview", S.indView);
+    lensVis();
+    $("bzLegendTxt").textContent = S.lens === "market"
+      ? "颜色越深，最近 " + (S.mdays <= 1 ? "24 小时" : S.mdays + " 天") + "市场上的相关新闻越多；带小圆点的是你还没关注的"
+      : "颜色越深，你收进来的相关内容越多";
     const main = $("bzIndMain");
     if (!S.tax) { main.innerHTML = loading(S.taxErr ? "读不到行业分类表：" + S.taxErr : ""); $("bzIndDetail").innerHTML = ""; return; }
     const sc = $("bzScroll").scrollTop;
@@ -376,12 +483,19 @@
     else if (d.type === "trk") rel = d.rel || [];
     else rel = relatedTracks(d.id);
     const relT = d.type === "l1" ? "下面的二级行业" : d.type === "trk" ? "主要涉及的行业" : "相关的新兴赛道";
-    const items = S.indItems && S.indItems._id === d.id ? S.indItems : null;
+    const items = S.indItems && S.indItems._id === d.id + "|" + S.lens ? S.indItems : null;
+    const m = S.lens === "market", mine = heatIn(S.ov, d.id), mkt = heatIn(S.ovm, d.id);
+    const win = S.mdays <= 1 ? "24 小时" : S.mdays + " 天";
+    const stat = m
+      ? '<p class="bz-dt-stat"><b>' + (h[0] || 0) + "</b> 条市场新闻（最近 " + win + "）" + (h[1] ? "，今天 " + h[1] + " 条" : "") + "</p>" +
+        '<p class="bz-dim">' + (S.ov ? (mine[0] ? "你收进来的相关内容 " + mine[0] + " 条" : "你收进来的内容里还没有它" + (h[0] >= 3 ? "，市场上却有动静：可能是个盲区" : "")) : "") + "</p>"
+      : '<p class="bz-dt-stat"><b>' + (h[0] || 0) + "</b> 条相关内容" + (S.days && h[1] ? "，最近 " + S.days + " 天 " + h[1] + " 条" : "") + "</p>" +
+        (S.ovm ? '<p class="bz-dim">市场上最近 ' + win + "的相关新闻 " + (mkt[0] || 0) + " 条</p>" : "");
     const reps = S.reports.filter((r) => r.target === d.id || r.scope === d.id).slice(0, 5);
     el.innerHTML = '<div class="bz-dt">' +
       '<p class="bz-dt-path">' + esc(path) + "</p><h3>" + esc(d.name) + "</h3><p>" + esc(d.desc) + "</p>" +
       (d.co ? '<p class="bz-dt-co"><span>代表企业（举例）</span>' + esc(d.co) + "</p>" : "") +
-      '<p class="bz-dt-stat"><b>' + (h[0] || 0) + "</b> 条相关内容" + (S.days && h[1] ? "，最近 " + S.days + " 天 " + h[1] + " 条" : "") + "</p>" +
+      stat +
       '<div class="bz-btns">' +
         '<button type="button" class="bz-btn" data-act="ind-research">联网研究这个行业</button>' +
         '<button type="button" class="bz-btn ghost" data-act="ind-trend">分析趋势和机会</button>' +
@@ -391,8 +505,8 @@
       (rel.length ? "<h4>" + relT + '</h4><div class="bz-chips">' + rel.filter((x) => S.byId[x]).map((x) => '<button type="button" class="bz-chip" data-ind="' + esc(x) + '">' + esc(nameOf(x)) + (heatOf(x)[0] ? " <b>" + heatOf(x)[0] + "</b>" : "") + "</button>").join("") + "</div>" : "") +
       (items && items.top_kw && items.top_kw.length ? '<h4>相关内容里提得多的</h4><div class="bz-chips">' + items.top_kw.slice(0, 12).map((k) => '<span class="bz-chip static">' + esc(k) + "</span>").join("") + "</div>" : "") +
       (reps.length ? '<h4>这个行业的报告</h4><div class="bz-reps">' + reps.map(repRow).join("") + "</div>" : "") +
-      "<h4>相关内容" + (items ? "（" + items.total + "）" : "") + '</h4><div class="bz-feed compact">' +
-      (items ? (items.items.length ? items.items.map(itemRow).join("") : empty("你收进来的内容里还没有和它相关的。可以点「联网研究这个行业」，让小助上网查。")) : loading()) +
+      "<h4>" + (m ? "市场新闻" : "相关内容") + (items ? "（" + items.total + "）" : "") + '</h4><div class="bz-feed compact">' +
+      (items ? (items.items.length ? items.items.map(itemRow).join("") : empty(m ? "市场雷达这段时间还没抓到它的新闻。可以在「市场雷达」里加这个行业的信息源或关键词。" : "你收进来的内容里还没有和它相关的。可以点「联网研究这个行业」，让小助上网查。")) : loading()) +
       "</div></div>";
   }
   async function selectInd(id) {
@@ -408,9 +522,10 @@
     if (det && window.innerWidth < 1100) det.scrollIntoView({ block: "start", behavior: "smooth" });
     try {
       const d = S.byId[id];
-      const r = await api("/biz/items?" + (d.type === "trk" ? "trk=" : "ind=") + enc(id) + "&limit=40");
-      r._id = id;
-      if (S.indSel === id) { S.indItems = r; renderIndDetail(); }
+      const lens = S.lens;
+      const r = await api("/biz/items?" + (d.type === "trk" ? "trk=" : "ind=") + enc(id) + "&limit=40&lens=" + lens + (lens === "market" ? "&days=" + S.mdays : ""));
+      r._id = id + "|" + lens;
+      if (S.indSel === id && S.lens === lens) { S.indItems = r; renderIndDetail(); }
     } catch (e) { /* 读不到就算了 */ }
   }
 
@@ -496,6 +611,114 @@
     else if (p === "model") renderModel();
     else if (p === "opps") renderOpps();
     else if (p === "reports") renderReports();
+    else if (p === "radar") renderRadar();
+  }
+
+  // ───────── 市场雷达（v156）─────────
+  function renderRadarStatus() {
+    const r = S.radar;
+    if (!r) { $("bzRdLine").innerHTML = loading(); return; }
+    let line;
+    if (r.running) line = "<b>正在抓：" + r.done + " / " + r.total + "</b><span>" + esc((r.current || []).join("、")) + "</span><span>这一轮新抓到 " + r.new + " 条</span>";
+    else if (r.last_run) line = "<b>" + esc(ago(r.last_run)) + "更新过</b><span>" + (r.ended ? "那一轮新抓到 " + r.new + " 条" + (r.fail ? "，" + r.fail + " 个没抓成" : "") : "") + "</span>" +
+      (r.auto && r.next_run ? "<span>下一轮大约 " + esc(until(r.next_run)) + "</span>" : "");
+    else line = "<b>还没开始抓</b><span>" + (r.auto ? "打开软件两三分钟后会自动抓第一轮，也可以现在就抓" : "自动更新关着，点「现在就抓一次」") + "</span>";
+    $("bzRdLine").innerHTML = line;
+    $("bzRdNote").textContent = "盯着 " + r.enabled + " 个信息源" + (r.failing ? "（" + r.failing + " 个上次没抓成，看下面的原因）" : "") + "；一共抓到 " + r.items +
+      " 条，最近 24 小时 " + r.items_24h + " 条、7 天 " + r.items_7d + " 条。网页抓取增强（Scrapling）：" +
+      (r.scrapling ? "已装好，普通方式打不开的网页会自动用它。" : "还没装好（后台第一次启动时会自动装），装好前动态网页可能抓不到。");
+    const key = (r.running ? 1 : 0) + "|" + r.auto + "|" + r.every;
+    const ctl = $("bzRdCtl");
+    if (ctl.dataset.k === key) return;
+    ctl.dataset.k = key;
+    ctl.innerHTML = (r.running ? '<button type="button" class="bz-btn ghost sm" data-act="rd-stop">停止</button>' : '<button type="button" class="bz-btn sm" data-act="rd-run">现在就抓一次</button>') +
+      '<label class="bz-chk"><input type="checkbox" id="bzRdAuto"' + (r.auto ? " checked" : "") + ">自动更新</label>" +
+      '<select class="bz-select sm" id="bzRdEvery" aria-label="多久抓一次">' + [[30, "每 30 分钟"], [60, "每小时"], [120, "每 2 小时"], [240, "每 4 小时"], [480, "每 8 小时"]]
+        .map(([v, t]) => '<option value="' + v + '"' + (+r.every === v ? " selected" : "") + ">" + t + "</option>").join("") + "</select>";
+  }
+  function rdRow(s) {
+    const st = s.err ? '<span class="bz-rd-st err">没抓成：' + esc(s.err) + "</span>"
+      : s.ok_at ? '<span class="bz-rd-st ok">' + esc(ago(s.ok_at)) + "抓到 " + (s.n || 0) + " 条" + (s.new ? "，新的 " + s.new + " 条" : "") + (s.via ? "（" + esc(s.via) + "）" : "") + "</span>"
+        : '<span class="bz-rd-st">还没抓过</span>';
+    const tgt = s.kind === "kw" ? "关键词：" + (s.kw || s.name) : String(s.url || "").replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
+    const hints = (s.hint || []).slice(0, 2).map((h) => '<span class="bz-tag">' + esc(nameOf(h)) + "</span>").join("");
+    return '<div class="bz-rd-src' + (s.enabled ? "" : " off") + '">' +
+      '<label class="bz-sw" title="打开 / 关掉"><input type="checkbox" data-rd-toggle="' + esc(s.id) + '"' + (s.enabled ? " checked" : "") + ' aria-label="盯不盯 ' + esc(s.name) + '"><i></i></label>' +
+      '<div class="bz-rd-main"><div class="bz-rd-name"><b>' + esc(s.name) + "</b>" + hints + (s.n7 ? '<span class="bz-dim">近 7 天 ' + s.n7 + " 条</span>" : "") + "</div>" +
+      '<div class="bz-rd-url">' + esc(tgt) + "</div>" + st + "</div>" +
+      '<div class="bz-rd-acts"><button type="button" class="bz-link" data-rd-items="' + esc(s.id) + '">看抓到的</button>' +
+      '<button type="button" class="bz-link" data-rd-one="' + esc(s.id) + '">抓一次</button>' +
+      '<button type="button" class="bz-link danger" data-rd-del="' + esc(s.id) + '">删除</button></div></div>';
+  }
+  function renderRadar() {
+    renderRadarStatus();
+    segSync("rdkind", S.rdKind);
+    const kw = S.rdKind === "kw";
+    $("bzRdTarget").placeholder = kw ? "关键词：比如 比亚迪、预制菜、低空经济" : "网址：比如 https://www.example.com/news";
+    $("bzRdFormNote").textContent = kw
+      ? "公司名、行业、话题都行。小助会定时去新闻搜索里找这个词最新的报道（有代理用 Google 新闻，没有用必应新闻，再不行用百度资讯）。"
+      : "填网站的新闻页、博客页最好。有 RSS 会自动用 RSS；打不开或者是动态网页，会用 Scrapling 打开。";
+    const d = S.radarSrc;
+    if (!d) { $("bzRdMine").innerHTML = loading(); $("bzRdCatalog").innerHTML = ""; }
+    else {
+      $("bzRdCount").textContent = d.sources.length + " 个，打开的 " + d.sources.filter((x) => x.enabled).length + " 个";
+      let html = "";
+      d.groups.forEach((g) => {
+        const rows = d.sources.filter((x) => (x.group || "mine") === g.key);
+        if (rows.length) html += '<div class="bz-rd-grp"><h4>' + esc(g.name) + "</h4>" + rows.map(rdRow).join("") + "</div>";
+      });
+      $("bzRdMine").innerHTML = html || empty("清单是空的。从下面推荐的里挑几个，或者在右边自己加。");
+      $("bzRdCatalog").innerHTML = d.catalog.map((g) => {
+        const left = g.items.filter((x) => !x.added).length;
+        return '<details class="bz-rd-cat" data-grp="' + esc(g.key) + '"' + (S.rdOpen[g.key] ? " open" : "") + "><summary><b>" + esc(g.name) + "</b><span>" + esc(g.desc) + "</span>" +
+          '<span class="bz-dim">' + (g.items.length - left) + " / " + g.items.length + " 个已在清单</span>" +
+          (left ? '<button type="button" class="bz-link" data-rd-addgrp="' + esc(g.key) + '">这一组全加进去</button>' : "") + "</summary>" +
+          '<div class="bz-rd-catlist">' + g.items.map((x) => '<div class="bz-rd-ci' + (x.added ? " on" : "") + '"><div><b>' + esc(x.name) + "</b>" +
+            (x.kind === "kw" ? '<span class="bz-tag">关键词</span>' : "") + "<span>" + esc(x.desc || (x.kind === "kw" ? "搜「" + x.target + "」的最新新闻" : x.target.replace(/^https?:\/\//, ""))) + "</span></div>" +
+            (x.added ? '<span class="bz-dim">已在清单</span>' : '<button type="button" class="bz-btn ghost sm" data-rd-add="' + esc(x.id) + '">加入</button>') + "</div>").join("") +
+          "</div></details>";
+      }).join("");
+    }
+    const src = S.rdSid && d ? d.sources.find((x) => x.id === S.rdSid) : null;
+    $("bzRdLatestT").innerHTML = src ? "「" + esc(src.name) + '」抓到的 <button type="button" class="bz-link" data-act="rd-allitems">看全部</button>' : "刚抓到的";
+    const list = S.rdSid ? S.rdItems : (S.ovm ? S.ovm.latest : null);
+    $("bzRdLatest").innerHTML = !list ? loading() : (list.length ? list.slice(0, 40).map(itemRow).join("") : empty(S.rdSid ? "这个信息源还没抓到东西。" : "还没抓到东西。"));
+  }
+  async function loadRadarSources() {
+    try { S.radarSrc = await api("/biz/radar/sources"); if (S.radarSrc.status) S.radar = S.radarSrc.status; } catch (e) {}
+    if (S.pane === "radar") renderRadar();
+    renderStrips();
+  }
+  async function loadRdItems() {
+    if (!S.rdSid) { S.rdItems = null; renderRadar(); return; }
+    S.rdItems = null; renderRadar();
+    try { const r = await api("/biz/items?lens=market&sid=" + enc(S.rdSid) + "&limit=40"); S.rdItems = r.items || []; } catch (e) { S.rdItems = []; }
+    renderRadar();
+  }
+  async function pollRadar() {
+    clearTimeout(S.radarTimer);
+    let r = null;
+    try { r = await api("/biz/radar/status"); } catch (e) {}
+    if (r && r.ok !== false) {
+      const was = S.radar && S.radar.running;
+      S.radar = r;
+      renderStrips();
+      if (S.pane === "radar") renderRadarStatus();
+      if (was && !r.running) {
+        refreshOverview("market"); loadRadarSources();
+        if (S.rdSid) loadRdItems();
+        toast("市场雷达这一轮抓完了，新抓到 " + r.new + " 条。");
+      }
+    }
+    const active = root.classList.contains("active") && (S.lens === "market" || S.pane === "radar");
+    if (r && r.running) S.radarTimer = setTimeout(pollRadar, 3000);
+    else if (active) S.radarTimer = setTimeout(pollRadar, 30000);
+  }
+  async function radarRun(id) {
+    const r = await api("/biz/radar/run", id ? { id: id } : {}).catch((e) => ({ ok: false, error: e.message }));
+    if (!r.ok) { toast(r.error || "没开始"); return; }
+    toast(id ? "开始抓这一个了。" : "开始抓了：" + r.total + " 个信息源，一般一两分钟抓完。");
+    setTimeout(pollRadar, 600);
   }
 
   // ───────── 后台任务（写报告）─────────
@@ -600,7 +823,7 @@
     S.readerRep = r;
     const m = r.meta;
     const meta = '<span class="bz-kind k-' + esc(m.kind) + '">' + esc(KIND[m.kind] || m.kind) + "</span><span>" + esc(fmtTime(m.created)) + "</span>" +
-      "<span>" + esc(m.engine || "AI") + "写的</span><span>用了你的笔记 " + (m.notes || 0) + " 篇" + (m.web ? "、网页 " + m.web + " 个" : "") + "</span>" +
+      "<span>" + esc(m.engine || "AI") + "写的</span><span>用了你的笔记 " + (m.notes || 0) + " 篇" + (m.radar ? "、市场新闻 " + m.radar + " 条" : "") + (m.web ? "、网页 " + m.web + " 个" : "") + "</span>" +
       (m.opps ? '<button type="button" class="bz-link" data-goto="opps">新增 ' + m.opps + " 个机会，去看板</button>" : "");
     let body = reportBody(r.content, r.chain);
     if (m.note_ids && m.note_ids.length) {
@@ -627,13 +850,18 @@
   }
 
   // ───────── 读数据 ─────────
-  async function refreshOverview() {
+  async function refreshOverview(which) {
+    which = which || S.lens;
+    const m = which === "market";
     try {
-      S.ov = await api("/biz/overview?days=" + S.days);
-      S.ovErr = S.ov && S.ov.ok === false ? (S.ov.error || "出错") : "";
-      if (S.ovErr) S.ov = null;
-    } catch (e) { S.ovErr = "连不上后台（" + e.message + "）"; }
-    if (S.feedSrc === "all" && !S.feedQ) S.feed = S.ov ? S.ov.latest : null;
+      const o = await api("/biz/overview?lens=" + which + "&days=" + (m ? S.mdays : S.days));
+      if (o && o.ok === false) throw new Error(o.error || "出错");
+      if (m) { S.ovm = o; S.ovmErr = ""; if (o.radar && o.radar.ok !== false) S.radar = o.radar; }
+      else { S.ov = o; S.ovErr = ""; }
+    } catch (e) {
+      if (m) { S.ovm = null; S.ovmErr = "连不上后台（" + e.message + "）"; } else { S.ov = null; S.ovErr = "连不上后台（" + e.message + "）"; }
+    }
+    if (which === S.lens && !S.feedQ && (m || S.feedSrc === "all")) S.feed = curOv() ? curOv().latest : null;
     renderPane(S.pane);
   }
   async function refreshReports() {
@@ -658,10 +886,12 @@
     const now = Date.now();
     if (now - lastLoad > 15000) {
       lastLoad = now;
-      refreshOverview(); refreshReports(); refreshOpps(); refreshTopics();
+      refreshOverview("mine"); refreshOverview("market"); refreshReports(); refreshOpps(); refreshTopics();
+      if (S.pane === "radar" || !S.radarSrc) loadRadarSources();
       if (S.indSel && S.byId[S.indSel] && !(S.indItems && S.indItems._id === S.indSel)) selectInd(S.indSel);
     }
     pollJob();
+    pollRadar();
     renderPane(S.pane);
   }
 
@@ -673,6 +903,7 @@
     root.querySelectorAll(".bz-pane").forEach((el) => { el.hidden = el.dataset.pane !== p; });
     closeReader();
     renderPane(p);
+    if (p === "radar") { if (!S.radarSrc) loadRadarSources(); pollRadar(); }
   }
   function goPane(p) {
     if (typeof navOpenGroup === "function") navOpenGroup("biz", p);
@@ -681,7 +912,19 @@
 
   // ───────── 事件 ─────────
   function onSeg(name, v) {
-    if (name === "days") { S.days = +v; store.set("days", S.days); S.ov = null; renderMarket(); refreshOverview(); }
+    if (name === "days") { S.days = +v; store.set("days", S.days); S.ov = null; renderMarket(); refreshOverview("mine"); }
+    else if (name === "lens") {
+      S.lens = v === "market" ? "market" : "mine"; store.set("lens", S.lens);
+      S.feedQ = ""; S.feed = curOv() ? curOv().latest : null;
+      if (!curOv()) refreshOverview(S.lens);
+      renderPane(S.pane); pollRadar();
+      if (S.pane === "industry" && S.indSel) selectInd(S.indSel);
+    }
+    else if (name === "mdays") {
+      S.mdays = +v; store.set("mdays", S.mdays); S.ovm = null; renderPane(S.pane); refreshOverview("market");
+      if (S.pane === "industry" && S.indSel) selectInd(S.indSel);
+    }
+    else if (name === "rdkind") { S.rdKind = v; renderRadar(); }
     else if (name === "feedsrc") { S.feedSrc = v; loadFeed(); segSync("feedsrc", v); }
     else if (name === "indview") { S.indView = v; store.set("indView", v); renderIndustry(); }
     else if (name === "mddepth") { S.mdDepth = v; segSync(name, v); }
@@ -708,6 +951,9 @@
       if ((b = t.closest("[data-act]"))) {
         const act = b.dataset.act;
         if (act === "back") closeReader();
+        else if (act === "rd-run") radarRun();
+        else if (act === "rd-stop") { await api("/biz/radar/stop", {}).catch(() => {}); toast("这一个抓完就停。"); pollRadar(); }
+        else if (act === "rd-allitems") { S.rdSid = ""; S.rdItems = null; renderRadar(); }
         else if (act === "clearterm") { S.feedQ = ""; loadFeed(); }
         else if (act === "stopjob") { b.disabled = true; await api("/biz/stop", {}).catch(() => {}); toast("正在停下…"); pollJob(); }
         else if (act === "jobseen") { store.set("jobSeen", S.job ? S.job.id : 0); renderJob(); }
@@ -760,6 +1006,29 @@
       }
       if ((b = t.closest("[data-note]"))) { openNote(b.dataset.note); return; }
       if ((b = t.closest("[data-goto]"))) { goPane(b.dataset.goto); return; }
+      if ((b = t.closest("[data-rd-one]"))) { radarRun(b.dataset.rdOne); return; }
+      if ((b = t.closest("[data-rd-items]"))) { S.rdSid = b.dataset.rdItems; loadRdItems(); const c = $("bzRdLatest"); if (c) c.scrollIntoView({ block: "nearest", behavior: "smooth" }); return; }
+      if ((b = t.closest("[data-rd-del]"))) {
+        if (!confirm("从清单里删掉这个信息源？（已经抓到的内容会留着）")) return;
+        const r = await api("/biz/radar/source", { action: "delete", id: b.dataset.rdDel });
+        if (r.ok) loadRadarSources(); else toast(r.error || "没删掉");
+        return;
+      }
+      if ((b = t.closest("[data-rd-add]"))) {
+        b.disabled = true;
+        const r = await api("/biz/radar/source", { action: "add_catalog", ids: [b.dataset.rdAdd] });
+        if (r.ok) { toast("加进去了，下一轮就会抓它。"); loadRadarSources(); } else toast(r.error || "没加上");
+        return;
+      }
+      if ((b = t.closest("[data-rd-addgrp]"))) {
+        e.preventDefault();
+        const g = (S.radarSrc && S.radarSrc.catalog || []).find((x) => x.key === b.dataset.rdAddgrp);
+        const ids = g ? g.items.filter((x) => !x.added).map((x) => x.id) : [];
+        if (!ids.length) return;
+        const r = await api("/biz/radar/source", { action: "add_catalog", ids: ids });
+        if (r.ok) { toast("加进去 " + r.added + " 个，下一轮就会抓。"); loadRadarSources(); } else toast(r.error || "没加上");
+        return;
+      }
       if ((b = t.closest("[data-term]"))) {
         S.feedQ = b.dataset.term;
         loadFeed();
@@ -788,7 +1057,22 @@
         if (r.ok) { S.opps = r.items; renderOpps(); }
         return;
       }
-      if (t.closest("#bzMkRun")) { runJob("market", { scope: $("bzMkScope").value, days: S.days || 30, web: $("bzMkWeb").checked }); return; }
+      if (t.closest("#bzMkRun")) {
+        const m = S.lens === "market";
+        runJob("market", { scope: $("bzMkScope").value, days: m ? S.mdays : (S.days || 30), web: $("bzMkWeb").checked, lens: S.lens });
+        return;
+      }
+      if (t.closest("#bzRdAdd")) {
+        const v = $("bzRdTarget").value.trim();
+        if (v.length < 2) { toast(S.rdKind === "kw" ? "先写上关键词。" : "先填网址。"); $("bzRdTarget").focus(); return; }
+        const hint = $("bzRdHint").value;
+        const body = { action: "add", kind: S.rdKind, name: $("bzRdName").value.trim(), hint: hint ? [hint] : [] };
+        if (S.rdKind === "kw") body.kw = v; else body.url = v;
+        const r = await api("/biz/radar/source", body);
+        if (r.ok) { $("bzRdTarget").value = ""; $("bzRdName").value = ""; $("bzRdHint").value = ""; toast("加进清单了，现在先抓它一次。"); await loadRadarSources(); radarRun(r.id); }
+        else toast(r.error || "没加上");
+        return;
+      }
       if (t.closest("#bzMdRun")) { startModel(); return; }
       if (t.closest("#bzRsRun")) { startResearch(); return; }
       if (t.closest("#bzRsSave")) {
@@ -806,6 +1090,13 @@
         const r = await api("/biz/opp", { action: "update", id: t.dataset.oppSt, status: t.value });
         if (r.ok) { S.opps = r.items; renderOpps(); }
       } else if (t.id === "bzMkScope" || t.id === "bzOpScope") store.set(t.id, t.value);
+      else if (t.matches("[data-rd-toggle]")) {
+        const r = await api("/biz/radar/source", { action: "toggle", id: t.dataset.rdToggle, enabled: t.checked });
+        if (r.ok) loadRadarSources(); else toast(r.error || "没改成");
+      } else if (t.id === "bzRdAuto" || t.id === "bzRdEvery") {
+        const r = await api("/biz/radar/config", { auto: $("bzRdAuto").checked, every: +$("bzRdEvery").value });
+        if (r.ok) { toast($("bzRdAuto").checked ? "好的，会按时自动抓。" : "自动更新关了，要抓时点「现在就抓一次」。"); pollRadar(); }
+      }
     });
     let qTimer = null;
     root.addEventListener("input", (e) => {
@@ -821,6 +1112,7 @@
     root.addEventListener("toggle", (e) => {
       const d = e.target;
       if (d && d.matches && d.matches("details[data-l1]")) S.openL1[d.dataset.l1] = d.open;
+      if (d && d.matches && d.matches("details[data-grp]")) S.rdOpen[d.dataset.grp] = d.open;
     }, true);
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && root.classList.contains("active") && !$("bzReader").hidden) closeReader();
