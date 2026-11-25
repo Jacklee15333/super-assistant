@@ -47,7 +47,22 @@ TYPES = [["company", "公司"], ["industry", "行业"], ["person", "人物"], ["
          ["concept", "概念"], ["event", "事件"], ["other", "其他"]]
 TYPE_NAME = dict(TYPES)
 TYPE_BY_NAME = {v: k for k, v in TYPES}
-KIND_NAME = {"note": "视频笔记", "report": "研究报告", "news": "新闻", "text": "粘贴的资料"}
+KIND_NAME = {"note": "视频笔记", "report": "研究报告", "news": "新闻", "text": "粘贴的资料",
+             "briefing": "情报简报", "sniff": "嗅探简报", "research": "主动研究", "insight": "洞察报告",
+             "daily": "每日笔记", "conv": "对话存档"}
+# v163：放在文件夹里的几类资料（类型 → 文件夹、文件名规则、数据管理里的类别名）
+FILE_KINDS = {
+    "note": (NOTE_DIR, "*.md", "video"),
+    "briefing": (MEM / "briefings", "*.md", "briefing"),
+    "sniff": (MEM / "sniff_reports", "*.md", "sniff"),
+    "research": (MEM / "insight_research", "research-*.md", "research"),
+    "insight": (MEM / "insight_reports", "insight-*.md", "insight_report"),
+    "daily": (MEM, "note-*.md", "notes"),
+    "conv": (MEM / "conversations", "conv-*.md", "conversations"),
+}
+KIND_ORDER = ["note", "report", "news", "text", "research", "insight", "briefing", "sniff", "daily", "conv"]
+AUTO_DEFAULT = {"note": True, "report": True, "research": True, "insight": True,
+                "briefing": False, "sniff": False, "daily": False, "conv": False}
 MAX_PAGES_PER_SOURCE = 6
 SRC_CHARS = 14000            # 一份资料最多给 AI 看多少字
 PAGE_CHARS = 5000            # 一个旧页面最多给 AI 看多少字
@@ -130,6 +145,10 @@ def get_config():
     c.setdefault("auto_notes", True)       # 新的视频笔记分析好以后自动收录
     c.setdefault("auto_reports", True)     # 新写好的研究报告自动收录
     c.setdefault("paused", False)          # 暂停收录（队列留着）
+    auto = dict(AUTO_DEFAULT)              # v163：每类资料分别开关
+    auto["note"], auto["report"] = bool(c["auto_notes"]), bool(c["auto_reports"])
+    auto.update({k: bool(v) for k, v in (c.get("auto") or {}).items() if k in AUTO_DEFAULT})
+    c["auto"] = auto
     c.setdefault("since", 0)               # 自动收录只收这个时间以后的新资料（以前的要自己挑）
     return c
 
@@ -140,6 +159,15 @@ def save_config(**kw):
         for k in ("auto_notes", "auto_reports", "paused"):
             if kw.get(k) is not None:
                 c[k] = bool(kw[k])
+        if isinstance(kw.get("auto"), dict):
+            for k, v in kw["auto"].items():
+                if k in AUTO_DEFAULT:
+                    c["auto"][k] = bool(v)
+            c["auto_notes"], c["auto_reports"] = c["auto"]["note"], c["auto"]["report"]
+        if kw.get("auto_notes") is not None:
+            c["auto"]["note"] = bool(kw["auto_notes"])
+        if kw.get("auto_reports") is not None:
+            c["auto"]["report"] = bool(kw["auto_reports"])
         if not c.get("since"):
             c["since"] = int(time.time())
         _write_json(CFG_FILE, c)
@@ -217,6 +245,12 @@ def _source_text(sid, ref=None):
     kind, _, key = sid.partition(":")
     if kind == "note":
         return _note_text(NOTE_DIR / key)
+    if kind in FILE_KINDS:
+        p = _file_of(kind, key)
+        try:
+            return p.read_text(encoding="utf-8", errors="replace")[:60000] if p else ""
+        except Exception:
+            return ""
     if kind == "report":
         meta = next((r for r in _reports_list() if r.get("id") == key), None)
         if not meta:
@@ -276,7 +310,14 @@ def enqueue(sids=None, kind="", title="", url="", text="", top=False):
         items = []
         for sid in sids or []:
             k = sid.split(":", 1)[0]
-            if k not in ("note", "report"):
+            if k not in ("note", "report") and k not in FILE_KINDS:
+                continue
+            if k in FILE_KINDS and k != "note":
+                m = _file_meta(k, sid.split(":", 1)[1])
+                if not m:
+                    skipped += 1
+                    continue
+                items.append({"sid": sid, "kind": k, "title": m["title"], "url": "", "who": m.get("who", "")})
                 continue
             if k == "note":
                 m = _note_meta(sid.split(":", 1)[1])
@@ -350,7 +391,7 @@ def _scan_new():
     if not since or c.get("paused"):
         return
     sids = []
-    if c.get("auto_notes") and NOTE_DIR.exists():
+    if c["auto"].get("note") and NOTE_DIR.exists():
         try:
             ents = [e for e in os.scandir(NOTE_DIR) if e.name.endswith(".md") and not e.name.startswith("_")]
         except Exception:
@@ -369,7 +410,22 @@ def _scan_new():
             m = _note_meta(e.name)
             if m and not m["todo"]:
                 sids.append("note:" + e.name)
-    if c.get("auto_reports"):
+    for k in FILE_KINDS:
+        if k == "note" or not c["auto"].get(k):
+            continue
+        d, pat, _dk = FILE_KINDS[k]
+        try:
+            ps = list(Path(d).glob(pat)) if Path(d).exists() else []
+        except Exception:
+            ps = []
+        for p in ps:
+            try:
+                st = p.stat()
+            except Exception:
+                continue
+            if min(st.st_ctime, st.st_mtime) >= since and p.is_file():     # Windows 上 ctime 是创建时间
+                sids.append(k + ":" + p.name)
+    if c["auto"].get("report"):
         for r in _reports_list():
             if int(r.get("created") or 0) >= since and r.get("id"):
                 sids.append("report:" + str(r["id"]))
@@ -669,6 +725,7 @@ def _run_one(item):
         err = str(e)[:300]
         changes, summary, by = [], "", ""
     stopped = _state["stop"]
+    final = False
     with _LOCK:
         q = _queue()
         it = next((x for x in q if x["sid"] == sid), None)
@@ -681,6 +738,7 @@ def _run_one(item):
                     _get_config_pause()
                 elif it["tries"] >= 3:
                     it["status"] = "failed"
+                    final = True
                 else:
                     it.update(status="pending", next_try=int(time.time()) + 600 * it["tries"])
             _write_json(QUEUE_FILE, q)
@@ -688,7 +746,8 @@ def _run_one(item):
             _write_json(QUEUE_FILE, [x for x in q if x["sid"] != sid])
     if err:
         _log("没收录成：%s（%s）" % (item.get("title", sid), err))
-        _add_log({"sid": sid, "title": item.get("title", ""), "kind": item.get("kind"), "ok": False, "error": err})
+        if final:                                    # 中间几次没成功只记在队列里，试满 3 次才写进「每份资料改了什么」
+            _add_log({"sid": sid, "title": item.get("title", ""), "kind": item.get("kind"), "ok": False, "error": "试了 3 次都没收录成：" + err})
     else:
         _log("收录好了：%s，改了 %d 页" % (item.get("title", sid), len(changes)))
         _add_log({"sid": sid, "title": item.get("title", ""), "kind": item.get("kind"), "ok": True, "by": by,
@@ -881,3 +940,254 @@ def source_status(sids):
 
 def news_sid(url):
     return "news:" + hashlib.sha1((url or "").encode("utf-8")).hexdigest()[:12]
+
+
+
+# ───────────────────────── v163：原始资料总表 ─────────────────────────
+_META_CACHE = {}
+
+
+def _file_of(kind, name):
+    d, pat, _dk = FILE_KINDS[kind]
+    if not name or "/" in name or "\\" in name or ".." in name:
+        return None
+    p = Path(d) / name
+    import fnmatch
+    if not fnmatch.fnmatch(name, pat) or name.startswith("_"):
+        return None
+    return p if p.is_file() else None
+
+
+def _file_meta(kind, name):
+    """一份文件资料的标题、时间（按修改时间缓存）。"""
+    if kind == "note":
+        p = NOTE_DIR / name
+        try:
+            st = p.stat()
+        except Exception:
+            return None
+        key = ("note", name, int(st.st_mtime), st.st_size)
+        hit = _META_CACHE.get(key)
+        if hit is None:
+            hit = _note_meta(name)
+            if hit:
+                hit = dict(hit, size=st.st_size)
+            _META_CACHE[key] = hit
+        return hit
+    p = _file_of(kind, name)
+    if not p:
+        return None
+    try:
+        st = p.stat()
+    except Exception:
+        return None
+    key = (kind, name, int(st.st_mtime), st.st_size)
+    hit = _META_CACHE.get(key)
+    if hit is None:
+        title = ""
+        try:
+            with open(p, "r", encoding="utf-8", errors="replace") as f:
+                head = f.read(3000)
+            for ln in head.splitlines():
+                t = ln.strip().lstrip("#").strip().strip("*").strip()
+                if t:
+                    title = t[:100]
+                    break
+        except Exception:
+            pass
+        hit = {"title": title or p.stem, "ts": int(min(st.st_ctime, st.st_mtime)), "who": "", "url": "", "todo": False,
+               "size": st.st_size}
+        _META_CACHE[key] = hit
+    if len(_META_CACHE) > 8000:
+        _META_CACHE.clear()
+    return hit
+
+
+def _all_raw():
+    """所有资料（不管收没收）：[{sid, kind, title, who, ts, size}]"""
+    out = []
+    for kind, (d, pat, _dk) in FILE_KINDS.items():
+        if not Path(d).exists():
+            continue
+        try:
+            names = [p.name for p in Path(d).glob(pat) if p.is_file() and not p.name.startswith("_")]
+        except Exception:
+            names = []
+        for name in names:
+            m = _file_meta(kind, name)
+            if not m:
+                continue
+            out.append({"sid": kind + ":" + name, "kind": kind, "title": m["title"], "who": m.get("who", ""),
+                        "ts": int(m.get("ts") or 0), "size": int(m.get("size") or 0), "todo": bool(m.get("todo"))})
+    for r in _reports_list():
+        if r.get("id"):
+            out.append({"sid": "report:" + str(r["id"]), "kind": "report", "title": r.get("title", ""), "who": r.get("model", ""),
+                        "ts": int(r.get("created") or 0), "size": 0, "todo": False})
+    with _LOCK:
+        srcs, q = _sources(), _queue()
+    have = {x["sid"] for x in out}
+    for s in srcs.values():                         # 新闻、粘贴的文字（还有原文件已经删掉的）
+        if s["sid"] not in have:
+            out.append({"sid": s["sid"], "kind": s.get("kind") or s["sid"].split(":")[0], "title": s.get("title", ""),
+                        "who": s.get("who", ""), "ts": int(s.get("ingested") or 0), "size": 0, "todo": False, "gone": s["sid"].split(":")[0] not in ("news", "text")})
+            have.add(s["sid"])
+    for x in q:
+        if x["sid"] not in have:
+            out.append({"sid": x["sid"], "kind": x.get("kind"), "title": x.get("title", ""), "who": x.get("who", ""),
+                        "ts": int(x.get("added") or 0), "size": 0, "todo": False})
+            have.add(x["sid"])
+    return out
+
+
+def raw_list(kind="all", status="all", q="", offset=0, limit=50):
+    items = _all_raw()
+    with _LOCK:
+        srcs, qu = _sources(), _queue()
+        pages = _pages()
+    qm = {x["sid"]: x for x in qu}
+
+    def st_of(it):
+        if it["sid"] in srcs:
+            return "done"
+        x = qm.get(it["sid"])
+        if x:
+            return "failed" if x.get("status") == "failed" else ("running" if x.get("status") == "running" else "queued")
+        return "todo" if it.get("todo") else "new"
+    counts_k, counts_s = {}, {}
+    ql = (q or "").strip().lower()
+    out = []
+    for it in items:
+        it["status"] = st_of(it)
+        if ql and ql not in (it["title"] + " " + it.get("who", "")).lower():
+            continue
+        counts_k[it["kind"]] = counts_k.get(it["kind"], 0) + 1
+        if kind != "all" and it["kind"] != kind:
+            continue
+        sk = "queued" if it["status"] == "running" else it["status"]
+        counts_s[sk] = counts_s.get(sk, 0) + 1
+        if status != "all" and sk != status:
+            continue
+        out.append(it)
+    out.sort(key=lambda x: -x["ts"])
+    off = max(0, int(offset or 0))
+    page_items = out[off:off + max(1, int(limit))]
+    for it in page_items:
+        s = srcs.get(it["sid"])
+        if s:
+            it["pages"] = [{"id": p, "title": pages[p]["title"]} for p in (s.get("pages") or []) if p in pages][:6]
+            it["n"] = s.get("n")
+        x = qm.get(it["sid"])
+        if x and x.get("error"):
+            it["error"] = x["error"][:200]
+    return {"ok": True, "total": len(out), "offset": off, "items": page_items,
+            "kinds": [[k, KIND_NAME.get(k, k), counts_k.get(k, 0)] for k in KIND_ORDER if counts_k.get(k)],
+            "statuses": counts_s}
+
+
+def raw_item(sid):
+    kind, _, key = sid.partition(":")
+    with _LOCK:
+        srcs, qu = _sources(), _queue()
+        pages = _pages()
+    s = srcs.get(sid)
+    x = next((y for y in qu if y["sid"] == sid), None)
+    text, title, ts, who, url, cat, path = "", "", 0, "", "", "", ""
+    if kind in FILE_KINDS:
+        p = (NOTE_DIR / key) if kind == "note" else _file_of(kind, key)
+        if p and p.exists():
+            try:
+                text = p.read_text(encoding="utf-8", errors="replace")[:200000]
+            except Exception:
+                text = ""
+            m = _file_meta(kind, key) or {}
+            title, ts, who, url = m.get("title", ""), m.get("ts", 0), m.get("who", ""), m.get("url", "")
+            cat, path = FILE_KINDS[kind][2], str(p.resolve())
+    elif kind == "report":
+        r = next((y for y in _reports_list() if str(y.get("id")) == key), None)
+        if r:
+            title, ts = r.get("title", ""), int(r.get("created") or 0)
+            try:
+                p = REPORT_DIR / r.get("file", "")
+                text, path = p.read_text(encoding="utf-8", errors="replace")[:200000], str(p.resolve())
+            except Exception:
+                pass
+    if not text:                                    # 新闻、粘贴的文字，或者原文件删了：读快照
+        try:
+            text = (SRC_DIR / (_safe(sid) + ".md")).read_text(encoding="utf-8")
+        except Exception:
+            text = ""
+    meta = s or x or {}
+    title = title or meta.get("title", "")
+    status = "done" if s else ("failed" if x and x.get("status") == "failed" else ("queued" if x else "new"))
+    return {"ok": bool(text or s or x), "error": "" if (text or s or x) else "找不到这份资料", "sid": sid, "kind": kind,
+            "kind_name": KIND_NAME.get(kind, kind), "title": title, "ts": ts or int(meta.get("ingested") or meta.get("added") or 0),
+            "who": who or meta.get("who", ""), "url": url or meta.get("url", ""), "text": text, "status": status,
+            "n": (s or {}).get("n"), "summary": (s or {}).get("summary", ""), "by": (s or {}).get("by", ""),
+            "ingested": (s or {}).get("ingested", 0), "q_error": (x or {}).get("error", ""),
+            "pages": [{"id": p, "title": pages[p]["title"], "type": pages[p].get("type")} for p in ((s or {}).get("pages") or []) if p in pages],
+            "cat": cat, "name": key if cat else "", "path": path, "can_delete": kind in FILE_KINDS or kind == "report" or (kind in ("news", "text") and not s)}
+
+
+def raw_delete(sid):
+    """删一份原始资料。已经收录过的，主题页里的出处还在（收录时存了快照）。"""
+    kind, _, key = sid.partition(":")
+    if kind in FILE_KINDS:
+        try:
+            import datadb
+            r = datadb.delete_item(FILE_KINDS[kind][2], key)
+        except Exception as e:
+            r = {"ok": False, "message": str(e)}
+    elif kind == "report":
+        try:
+            import biz_intel
+            r = biz_intel.delete_report(key)
+        except Exception as e:
+            r = {"ok": False, "message": str(e)}
+    elif kind in ("news", "text"):
+        with _LOCK:
+            if sid in _sources():
+                return {"ok": False, "error": "这份资料已经收进知识库，主题页的出处要用到它，不能删"}
+            _write_json(QUEUE_FILE, [x for x in _queue() if x["sid"] != sid])
+        try:
+            (SRC_DIR / (_safe(sid) + ".md")).unlink()
+        except Exception:
+            pass
+        r = {"ok": True}
+    else:
+        return {"ok": False, "error": "不认识的资料"}
+    if r.get("ok"):
+        with _LOCK:                                  # 还没收录的，顺手移出队列
+            q = _queue()
+            if any(x["sid"] == sid and x.get("status") != "running" for x in q):
+                _write_json(QUEUE_FILE, [x for x in q if x["sid"] != sid])
+        return {"ok": True}
+    return {"ok": False, "error": r.get("message") or r.get("error") or "没删成"}
+
+
+# ───────────────────────── v163：关系图 ─────────────────────────
+def graph():
+    with _LOCK:
+        pages = _pages()
+    names = {}
+    for pid, m in pages.items():
+        names[_norm(m["title"])] = pid
+        for a in m.get("aliases") or []:
+            names.setdefault(_norm(a), pid)
+    edges, seen = [], set()
+    for pid, m in pages.items():
+        for l in m.get("links") or []:
+            t = names.get(_norm(l))
+            if not t or t == pid:
+                continue
+            k = tuple(sorted((pid, t)))
+            if k in seen:
+                continue
+            seen.add(k)
+            edges.append([pid, t])
+    deg = {}
+    for a, b in edges:
+        deg[a] = deg.get(a, 0) + 1
+        deg[b] = deg.get(b, 0) + 1
+    nodes = [{"id": pid, "title": m["title"], "type": m.get("type", "other"), "deg": deg.get(pid, 0),
+              "n_src": len(m.get("sources") or []), "summary": (m.get("summary") or "")[:80]} for pid, m in pages.items()]
+    return {"ok": True, "nodes": nodes, "edges": edges}

@@ -194,10 +194,13 @@ const NAV_GROUPS = {
     { key: "opps", label: "机会看板", view: "biz", pane: "opps" },
     { key: "crawler", label: "爬虫管理", view: "biz", pane: "crawler" },
   ] },
-  data: { title: "资料库", tabs: [
-    { key: "kb", label: "知识库", view: "kb" },      // v162：AI 整理的主题页
-    { key: "list", label: "列表", view: "datadb" },
-    { key: "cloud", label: "云图", view: "knowledge" },
+  // v163：「资料库」整个改造成「知识库」（参照 LLM Wiki）。四块都在同一页（#view-kb），kb.js 负责切换。
+  // 原来的「列表」（数据管理）挪到「设置 → 数据管理」，「云图」挪进「待开发」。
+  data: { title: "知识库", tabs: [
+    { key: "kb", label: "主题页", view: "kb", pane: "pages" },
+    { key: "raw", label: "原始资料", view: "kb", pane: "raw" },
+    { key: "graph", label: "关系图", view: "kb", pane: "graph" },
+    { key: "log", label: "整理记录", view: "kb", pane: "log" },
   ] },
   you: { title: "懂你", parkedIn: "lab", tabs: [
     { key: "profile", label: "画像", view: "lumi", sub: "profile" },
@@ -209,7 +212,7 @@ const NAV_GROUPS = {
     { key: "skills", label: "技能", view: "skills" },
   ] },
   // 待开发：没有标签；从这里打开的页面，左上角有「待开发 /」可以点回来
-  lab: { title: "待开发", home: "lab", parked: ["loop", "harness", "pet", "study", "dashboard", "library"] },
+  lab: { title: "待开发", home: "lab", parked: ["loop", "harness", "pet", "study", "dashboard", "library", "knowledge"] },
 };
 
 // 这一页属于哪一组、哪个标签（不属于任何组就返回 null，比如对话、视频、设置）
@@ -15058,3 +15061,12 @@ function cvLoginNote(box, key, st) {
   }
   box.appendChild(w);
 }
+
+
+// v163：设置 ↔ 数据管理 互相跳（[data-goto-view] 跳到某一页，[data-goto-tab] 再切到设置里的某个标签）
+document.addEventListener("click", (e) => {
+  const b = e.target.closest && e.target.closest("[data-goto-view]");
+  if (!b) return;
+  navGo(b.dataset.gotoView);
+  if (b.dataset.gotoTab) setTimeout(() => document.querySelector('#settingsTabs .settings-tab-btn[data-tab="' + b.dataset.gotoTab + '"]')?.click(), 0);
+});

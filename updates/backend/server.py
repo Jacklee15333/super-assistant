@@ -91,7 +91,7 @@ _LOG_QUIET_PATHS = {"/intake_kind", "/douyin/login",
     "/logs", "/ai_live", "/ai_live_shot", "/version", "/gpu_status", "/creator_profiles", "/creator_avatar", "/creator_scan_all",
     "/scrapling/status", "/sniff/sources",
     "/biz/job", "/biz/overview", "/biz/taxonomy", "/biz/items", "/biz/reports", "/biz/report", "/biz/opps", "/biz/topics",
-    "/kb/overview", "/kb/page", "/kb/search", "/kb/candidates",
+    "/kb/overview", "/kb/page", "/kb/search", "/kb/candidates", "/kb/raw", "/kb/raw_item", "/kb/graph",
     "/biz/radar/status", "/biz/radar/plan", "/biz/brief_info", "/biz/radar/sources", "/biz/radar/engines", "/biz/radar/runs", "/biz/radar/report",
 }
 
@@ -5664,6 +5664,13 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(kbm.candidates(q1("kind", "note"), q1("q"), int(q1("limit", "200") or 200)))
                 if path == "/kb/search":
                     return self._send(kbm.search(q1("q")))
+                if path == "/kb/raw":                                # v163：原始资料总表
+                    return self._send(kbm.raw_list(q1("kind", "all"), q1("status", "all"), q1("q"),
+                                                   int(q1("offset", "0") or 0), int(q1("limit", "50") or 50)))
+                if path == "/kb/raw_item":
+                    return self._send(kbm.raw_item(q1("sid")))
+                if path == "/kb/graph":                              # v163：关系图
+                    return self._send(kbm.graph())
                 return self._send({"ok": False, "error": "不认识的地址"}, 404)
             except Exception as e:
                 return self._send({"ok": False, "error": str(e)}, 200)
@@ -6635,7 +6642,9 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(kbm.clear_failed())
                 if path == "/kb/config":
                     return self._send(kbm.save_config(auto_notes=body.get("auto_notes"), auto_reports=body.get("auto_reports"),
-                                                      paused=body.get("paused")))
+                                                      paused=body.get("paused"), auto=body.get("auto")))
+                if path == "/kb/raw_delete":
+                    return self._send(kbm.raw_delete(body.get("sid", "")))
                 if path == "/kb/stop":
                     return self._send(kbm.stop())
                 if path == "/kb/page_action":
