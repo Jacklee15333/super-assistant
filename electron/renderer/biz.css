@@ -601,3 +601,13 @@ body.dark .view-biz { --bz-up: #6cc08b; --bz-warn: #e0a24a; --bz-bad: #e5907a; }
 .view-biz #bzRq { min-width: 280px; }
 .view-biz .bz-updtab td { padding: 5px 10px; vertical-align: middle; }
 .view-biz .bz-updtab .bz-chk { color: var(--text); font-size: 13px; }
+
+/* v159：大按钮不带图标；自动更新间隔 */
+.view-biz .bz-big { padding: 8px 20px; justify-content: center; }
+.view-biz .bz-big-t { align-items: center; text-align: center; }
+.view-biz .bz-set-auto { flex-wrap: wrap; }
+.view-biz .bz-every { display: inline-flex; align-items: center; gap: 8px; flex: none; }
+.view-biz .bz-every-n { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; color: var(--text-dim); }
+.view-biz .bz-every-n .bz-input { min-width: 0; width: 72px; padding: 3px 6px; font-size: 12.5px; }
+.view-biz .bz-autost { margin: -4px 0 6px 44px; padding: 6px 10px; border-radius: 8px; font-size: 12.5px; line-height: 1.55; background: var(--bg-active); color: var(--text-dim); }
+.view-biz .bz-autost.on { background: color-mix(in srgb, var(--bz-up) 12%, transparent); color: var(--bz-up); }

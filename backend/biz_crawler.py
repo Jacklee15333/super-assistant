@@ -11,7 +11,7 @@
   radar_sources.json  信息源清单（第一次用时按推荐清单放进一批常用的）
   radar_feed.json     抓到的内容（留 45 天，最多 8000 条）
   radar_seen.json     抓过的链接（去重用）
-  radar_config.json   {auto, every, last_run}：自动更新开关、每隔几分钟
+  radar_config.json   {auto, every, last_run, sched_from}：自动更新开关、每隔几分钟（最短 5 分钟）
 """
 from __future__ import annotations
 
@@ -164,6 +164,15 @@ _ST = {"sources": None, "feed": None, "seen": None, "ver": 0, "dirty": False, "f
 _run = {"running": False, "stop": False, "total": 0, "done": 0, "new": 0, "fail": 0, "current": [],
         "started": 0, "ended": 0, "trigger": "", "rid": "", "recs": [], "log": []}
 _sched = {"started": False}
+_wake = threading.Event()               # v159：改了自动更新设置时叫醒定时器
+
+
+def next_run(c=None):
+    """v159：下一次自动更新的时间（关着就是 0）：上一轮开始或改设置那一刻，取晚的，再加间隔。"""
+    c = c or get_config()
+    if not c.get("auto"):
+        return 0
+    return int(max(int(c.get("last_run") or 0), int(c.get("sched_from") or 0)) + int(c["every"]) * 60)
 
 
 def _log(msg):
@@ -228,10 +237,14 @@ def get_config():
 
 def save_config(auto=None, every=None, workers=None, sc_fast=None, sc_browser=None, scope=None, groups=None):
     c = get_config()
+    old = (c.get("auto"), c.get("every"))
     if auto is not None:
         c["auto"] = bool(auto)
     if every is not None:
-        c["every"] = max(15, min(int(every), 24 * 60))
+        c["every"] = max(5, min(int(every), 24 * 60))           # v159：最短 5 分钟
+    if (c["auto"], c["every"]) != old:
+        c["sched_from"] = int(time.time())                     # v159：改了自动更新，从保存这一刻重新开始计时
+        _wake.set()
     if workers is not None:
         c["workers"] = max(1, min(int(workers), 8))
     if sc_fast is not None:
@@ -243,7 +256,7 @@ def save_config(auto=None, every=None, workers=None, sc_fast=None, sc_browser=No
     if groups is not None:
         c["groups"] = [g for g in groups if g in GROUP_NAME]
     _write_json(CFG_FILE, c)
-    return {"ok": True, "config": c}
+    return {"ok": True, "config": c, "next_run": next_run(c), "now": int(time.time())}
 
 
 def _pick_sources(scope, groups):
@@ -279,7 +292,7 @@ def plan():
         r = runs[0]
         last = {k: r.get(k) for k in ("id", "started", "ended", "trigger", "total", "ok", "fail", "new", "via", "stopped")}
     n_scope = len(_pick_sources(c["scope"], c["groups"]))
-    return {"ok": True, "config": c, "groups": groups, "enabled": len(srcs), "failing": failing[:40],
+    return {"ok": True, "config": c, "next_run": next_run(c), "now": int(time.time()), "groups": groups, "enabled": len(srcs), "failing": failing[:40],
             "n_scope": n_scope, "last": last, "scrapling": _scrapling_ok(),
             "group_names": [[k, n, d] for k, n, d in GROUPS]}
 
@@ -803,7 +816,7 @@ def status():
         n7 = sum(1 for x in feed if x.get("ts", 0) >= now - 7 * 86400)
         en = sum(1 for s in srcs if s.get("enabled"))
         bad = sum(1 for s in srcs if s.get("enabled") and s.get("err"))
-    nxt = cfg["last_run"] + cfg["every"] * 60 if cfg["auto"] else 0
+    nxt = next_run(cfg)
     r.update(ok=True, auto=cfg["auto"], every=cfg["every"], last_run=cfg["last_run"], next_run=int(nxt),
              sources=len(srcs), enabled=en, failing=bad, items=len(feed), items_24h=n24, items_7d=n7,
              scrapling=_scrapling_ok(), now=int(now))
@@ -969,10 +982,11 @@ def boot_scheduler():
         while True:
             try:
                 c = get_config()
-                if c["auto"] and not _run["running"] and time.time() - c["last_run"] >= c["every"] * 60:
+                if c["auto"] and not _run["running"] and time.time() >= next_run(c):
                     start(trigger="auto")
             except Exception as e:
                 _log("自动更新出错（忽略）：%s" % e)
-            time.sleep(60)
+            _wake.wait(20)
+            _wake.clear()
 
     threading.Thread(target=_loop, name="biz-radar-auto", daemon=True).start()
