@@ -1,5 +1,6 @@
 """
 datadb.py — 「🗄️ 数据库」：统一管理超能小助产生的所有数据
+（v163：视频笔记、简报、对话存档这些内容资料搬到「知识库 → 原始资料」；这里只剩画像记忆、配置、截图等软件自己的数据，入口在「设置 → 数据管理」）
 
 软件跑起来会在 memory/ 下攒下各种数据：视频笔记、情报简报、对话存档、画像记忆、
 各种配置 json……以前散落在各处、只能去文件夹翻。这个模块把它们按类别归拢，
@@ -263,11 +264,17 @@ def _safe_target(g, name):
 #  对外 API
 # ════════════════════════════════════════════════════════════════════
 
+# v163：这几类内容资料搬进了「知识库 → 原始资料」，「数据管理」里不再列出（读、删的接口照样能用）
+IN_KB = {"video", "briefing", "sniff", "research", "insight_report", "conversations", "notes"}
+
+
 def overview():
     """各类别的概况：条目数 + 占用空间。给前端左侧类别列表。"""
     cats = []
     grand_n, grand_size = 0, 0
     for g in _groups():
+        if g["key"] in IN_KB:
+            continue
         items = _list_items(g)
         size = sum(it["size"] for it in items)
         grand_n += len(items)

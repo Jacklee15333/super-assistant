@@ -79,9 +79,9 @@
     const cats = d.categories || [];
 
     let html = '<div class="ddb-overview">' +
-      '<div class="ddb-ov-title">软件产生的所有数据都在这里（含成长库）</div>' +
-      '<div class="ddb-ov-sub">视频笔记、情报、对话、画像记忆、配置……按类别归拢。内容类可<b>阅读、打标签、按标签筛选</b>（和原成长库一样），还能导出、删除。' +
-      '<b>配置类默认只读</b>，避免误删影响小助运行。</div>' +
+      '<div class="ddb-ov-title"><button type="button" class="ghost-btn small" data-goto-view="settings" data-goto-tab="tab-data" title="回到设置">← 设置</button> 数据管理 · 软件自己的数据</div>' +
+      '<div class="ddb-ov-sub">画像与记忆、配置与状态、视频截图、嗅探快照、学习档案。可以看、导出、删除；<b>配置类默认只读</b>，避免误删影响小助运行。' +
+      '视频笔记、简报、对话存档这些资料在左栏<b>「知识库 → 原始资料」</b>里。</div>' +
       '<div class="ddb-ov-stats">' +
         '<span class="ddb-ov-stat"><b>' + (d.total_count || 0) + '</b> 个文件</span>' +
         '<span class="ddb-ov-stat"><b>' + esc(d.total_size_h || "0 B") + '</b> 占用</span>' +

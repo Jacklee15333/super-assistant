@@ -149,7 +149,7 @@
         <button class="nav-item" data-view="video" data-video-mode="notes" title="加工好的东西：最新提取、博主、文件夹"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5h11a1.5 1.5 0 0 1 1.5 1.5v14a1.5 1.5 0 0 1-1.5 1.5h-11z"/><path d="M6.5 3.5v17M5 7.5h3M5 12h3M5 16.5h3M10.5 8h5M10.5 11.5h5"/></svg><span>笔记</span></button>
         <button class="nav-item" data-nav-group="sniff"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.5M7.8 16.2a6 6 0 0 1 0-8.5M19.1 4.9a10 10 0 0 1 0 14.2M4.9 19.1a10 10 0 0 1 0-14.2"/></svg><span>嗅探</span></button>
         <button class="nav-item" data-nav-group="biz" title="市场雷达、行业地图、研究分析、机会看板、爬虫管理"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 20.5h17"/><path d="m4.5 15.5 4.5-4.5 3.5 3.5 6.5-7"/><path d="M15 7.5h4v4"/></svg><span>商业</span></button>
-        <button class="nav-item" data-nav-group="data" title="知识库、资料列表、云图"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13"/><path d="M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8"/></svg><span>资料库</span></button>
+        <button class="nav-item" data-nav-group="data" title="主题页、原始资料、关系图、整理记录"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13"/><path d="M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8"/></svg><span>知识库</span></button>
         <button class="nav-item" data-nav-group="lab" title="暂时用不上、还没想好怎么用的功能"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6"/><path d="M10 3v6.2l-5.3 8.9A1.9 1.9 0 0 0 6.3 21h11.4a1.9 1.9 0 0 0 1.6-2.9L14 9.2V3"/><path d="M7.2 15h9.6"/></svg><span>待开发</span></button>
 
         <!-- v110：每一页原来的入口都留着但不显示。别处代码会 .click() 它们来跳页
@@ -1354,7 +1354,7 @@
 
       <section class="view view-datadb" id="view-datadb">
         <header class="topbar">
-          <span>🗄️ 数据库 · 管理小助产生的所有数据</span>
+          <span>数据管理 · 画像记忆、配置、截图等软件自己的数据</span>
           <span class="ddb-topbar-actions">
             <button id="ddbRefreshBtn" class="lumi-btn2" title="刷新">🔄 刷新</button>
           </span>
@@ -1505,6 +1505,14 @@
             </div>
             <div class="lab-acts"><button type="button" class="ghost-btn small" data-lab-open="dashboard">打开</button></div>
           </div>
+          <div class="lab-row">
+            <div class="lab-main">
+              <div class="lab-name">关键词云图</div>
+              <div class="lab-desc">原来「资料库 → 云图」：把对话、视频笔记、嗅探按关键词聚成一团团的星图。</div>
+              <div class="lab-note">知识库里的「关系图」画的是主题页之间真正的关系，一般看那个就够了。</div>
+            </div>
+            <div class="lab-acts"><button type="button" class="ghost-btn small" data-lab-open="knowledge">打开</button></div>
+          </div>
 
           <div class="lab-section">小助</div>
           <div class="lab-row">
@@ -1600,6 +1608,7 @@
             <button class="settings-tab-btn" data-tab="tab-auto">自动化</button>
             <button class="settings-tab-btn" data-tab="tab-notify">通知</button>
             <button class="settings-tab-btn" data-tab="tab-config">配置</button>
+            <button class="settings-tab-btn" data-tab="tab-data">数据管理</button>
           </div>
 
           <div class="settings-tab active" id="tab-general">
@@ -2000,6 +2009,17 @@
           <p class="settings-note" id="tgHint"></p>
           </div><!-- /tab-notify -->
 
+          <div class="settings-tab" id="tab-data">
+            <div class="settings-section">数据管理</div>
+            <div class="setting-row">
+              <div>
+                <div class="setting-title">软件自己的数据</div>
+                <div class="setting-desc">画像与记忆、配置与状态、视频截图、嗅探快照、学习档案。可以查看、导出、删除；配置默认只读，防止误删把软件弄坏。
+                  视频笔记、简报、对话存档这些资料在左栏「知识库 → 原始资料」里。</div>
+              </div>
+              <button type="button" class="ghost-btn small" data-goto-view="datadb">打开数据管理</button>
+            </div>
+          </div>
           <div class="settings-tab" id="tab-config">
             <div class="settings-section">配置 · 推送 / 代理 / 任务</div>
             <p class="settings-note" style="margin-top:8px">

@@ -180,3 +180,95 @@ body.dark .view-kb .kb-wl { color: #8db0f0; }
 }
 .view-kb .kb-srctext h1 { font-size: 17px; margin: 0 0 8px; }
 .view-kb .kb-srctext h2 { font-size: 15px; margin: 14px 0 6px; }
+
+/* ── v163：四块（主题页 / 原始资料 / 关系图 / 整理记录） ── */
+.view-kb .kb-x.sm { width: 26px; height: 26px; font-size: 18px; margin-left: auto; }
+.view-kb .kb-link.plain { color: var(--text); text-decoration: none; font-size: 13px; text-align: left; }
+.view-kb .kb-link.plain:hover { color: var(--accent); text-decoration: underline; }
+.view-kb .kb-note.flat { margin: -4px 0 8px; }
+.view-kb .kb-sw-row > span:last-child { display: flex; flex-direction: column; }
+.view-kb .kb-sw-row b { font-weight: 500; }
+.view-kb .kb-sw-row small { font-size: 11.5px; color: var(--text-dim); line-height: 1.4; }
+.view-kb .kb-sw-row { align-items: flex-start; padding: 3px 0; }
+.view-kb .kb-sw-row .kb-sw { margin-top: 1px; }
+
+/* 概览 */
+.view-kb .kb-stats { display: flex; flex-wrap: wrap; gap: 10px; }
+.view-kb .kb-stat { display: flex; flex-direction: column; align-items: flex-start; min-width: 84px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--bg); cursor: pointer; font: inherit; color: var(--text); }
+.view-kb .kb-stat:hover { border-color: var(--accent); }
+.view-kb .kb-stat.plain { cursor: default; }
+.view-kb .kb-stat.plain:hover { border-color: var(--line); }
+.view-kb .kb-stat b { font-size: 22px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.view-kb .kb-stat span { font-size: 12px; color: var(--text-dim); }
+.view-kb .kb-recent { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.view-kb .kb-rc { display: flex; flex-direction: column; gap: 4px; text-align: left; padding: 10px 12px; border: 1px solid var(--line); border-radius: 11px;
+  background: var(--bg); cursor: pointer; font: inherit; color: var(--text); }
+.view-kb .kb-rc:hover { border-color: var(--accent); }
+.view-kb .kb-rc .kb-pi-h b { white-space: normal; }
+
+/* 原始资料 */
+.view-kb .kb-raw-top { display: flex; align-items: center; gap: 16px; margin-bottom: 10px; }
+.view-kb .kb-raw-top p { flex: 1; margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.6; }
+.view-kb .kb-raw-bar { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.view-kb .kb-raw-bar2 { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.view-kb .kb-raw-bar2 .kb-input { width: 260px; }
+.view-kb .kb-seg { display: inline-flex; flex-wrap: wrap; background: var(--bg-active); border-radius: 9px; padding: 2px; gap: 2px; }
+.view-kb .kb-seg button { border: 0; background: transparent; padding: 5px 11px; border-radius: 7px; font: 500 12.5px var(--sans); color: var(--text-dim); cursor: pointer; }
+.view-kb .kb-seg button[aria-pressed="true"] { background: var(--bg-elev); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.view-kb .kb-raw-cols { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.view-kb .kb-raw-list { background: var(--bg-elev); border: 1px solid var(--line); border-radius: 14px; padding: 4px 12px 8px; min-width: 0; }
+.view-kb .kb-rr { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 8px; border-top: 1px solid var(--line); }
+.view-kb .kb-rr.head { border-top: 0; padding: 6px 0; font-size: 12px; color: var(--text-dim); }
+.view-kb .kb-rr.on { background: var(--kb-soft); margin: 0 -12px; padding: 0 12px; }
+.view-kb .kb-ck { display: flex; align-items: center; justify-content: center; }
+.view-kb .kb-ck input { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+.view-kb .kb-ck input:disabled { cursor: default; opacity: .35; }
+.view-kb .kb-rr-b { display: flex; flex-direction: column; gap: 2px; min-width: 0; text-align: left; border: 0; background: none; padding: 8px 0; cursor: pointer; font: inherit; color: var(--text); }
+.view-kb .kb-rr-b:hover .kb-rr-t { color: var(--accent); }
+.view-kb .kb-rr-t { font-size: 13px; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.view-kb .kb-rr-m { font-size: 11.5px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.view-kb .kb-st { font-size: 11.5px; padding: 1px 8px; border-radius: 10px; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
+.view-kb .kb-st.done { background: color-mix(in srgb, var(--kb-up) 14%, transparent); color: var(--kb-up); }
+.view-kb .kb-st.q { background: var(--kb-soft); color: var(--accent); }
+.view-kb .kb-st.bad { background: color-mix(in srgb, var(--kb-bad) 14%, transparent); color: var(--kb-bad); cursor: help; }
+.view-kb .kb-st.dim { color: var(--text-dim); }
+.view-kb .kb-pager { display: flex; align-items: center; justify-content: center; gap: 12px; padding-top: 10px; font-size: 12.5px; color: var(--text-dim); }
+.view-kb .kb-pg { border: 1px solid var(--line); background: var(--bg-elev); border-radius: 8px; padding: 4px 12px; font: 500 12.5px var(--sans); color: var(--text); cursor: pointer; }
+.view-kb .kb-pg:disabled { opacity: .4; cursor: default; }
+.view-kb .kb-raw-prev { position: sticky; top: 8px; max-height: calc(100vh - 140px); overflow-y: auto; border-radius: 14px; }
+.view-kb .kb-raw-doc h2 { margin: 8px 0 4px; font-size: 17px; line-height: 1.45; }
+.view-kb .kb-raw-doc-h { display: flex; align-items: center; gap: 8px; }
+.view-kb .kb-raw-help p { font-size: 13px; line-height: 1.7; color: var(--text-dim); margin: 0 0 8px; }
+.view-kb .kb-rp-st { margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--bg-active); font-size: 13px; line-height: 1.6;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.view-kb .kb-rp-st > p { flex-basis: 100%; margin: 0; }
+.view-kb .kb-rp-st.done { background: color-mix(in srgb, var(--kb-up) 10%, transparent); }
+.view-kb .kb-rp-st.q { background: var(--kb-soft); }
+.view-kb .kb-rp-st.bad { background: color-mix(in srgb, var(--kb-bad) 10%, transparent); }
+.view-kb .kb-raw-act { position: sticky; bottom: 12px; z-index: 5; display: flex; align-items: center; gap: 12px; margin-top: 12px; padding: 10px 16px;
+  border-radius: 12px; background: var(--bg-elev); border: 1px solid var(--accent); box-shadow: 0 6px 20px rgba(0,0,0,.12); font-size: 13px; }
+
+/* 关系图 */
+.view-kb .kb-g-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px; }
+.view-kb .kb-sw-c { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: 0; }
+.view-kb .kb-g-wrap { position: relative; height: calc(100vh - 190px); min-height: 420px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg-elev); overflow: hidden; }
+.view-kb .kb-g-wrap canvas { display: block; cursor: grab; }
+.view-kb .kb-g-tip { position: absolute; max-width: 260px; padding: 6px 10px; border-radius: 8px; background: var(--text); color: var(--bg); font-size: 12px; line-height: 1.5; pointer-events: none; }
+.view-kb .kb-g-card { position: absolute; top: 12px; right: 12px; width: 280px; padding: 12px 14px; border-radius: 12px; background: var(--bg-elev); border: 1px solid var(--line);
+  box-shadow: 0 6px 20px rgba(0,0,0,.12); font-size: 13px; }
+.view-kb .kb-g-card p { margin: 6px 0; }
+.view-kb .kb-g-card .kb-pi-s { -webkit-line-clamp: 4; }
+.view-kb .kb-g-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.view-kb .kb-g-help { position: absolute; left: 12px; bottom: 8px; margin: 0; font-size: 11.5px; color: var(--text-dim); pointer-events: none; }
+
+/* 整理记录 */
+.view-kb .kb-log-cols { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+.view-kb .kb-log-cols > div, .view-kb .kb-log-cols > aside { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.view-kb .kb-log-cols > aside { position: sticky; top: 8px; }
+
+@media (max-width: 980px) {
+  .view-kb .kb-raw-cols, .view-kb .kb-log-cols { grid-template-columns: 1fr; }
+  .view-kb .kb-raw-prev, .view-kb .kb-log-cols > aside { position: static; max-height: none; }
+  .view-kb .kb-raw-top { flex-direction: column; align-items: flex-start; }
+}

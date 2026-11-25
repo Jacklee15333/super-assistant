@@ -360,7 +360,7 @@
           '<button type="button" data-act="art-lang" data-v="zh" aria-pressed="' + (S.artLang === "zh") + '">中文</button>' +
           '<button type="button" data-act="art-lang" data-v="orig" aria-pressed="' + (S.artLang !== "zh") + '">原文</button></div>' : "") +
         '<span class="sp"></span>' +
-        (S.kbSent[it.url] ? '<span class="bz-kb-ok" title="在「资料库 → 知识库」里能看到收录进度">✓ 已排进知识库</span>'
+        (S.kbSent[it.url] ? '<span class="bz-kb-ok" title="在左栏「知识库 → 整理记录」里能看到收录进度">✓ 已排进知识库</span>'
           : '<button type="button" class="bz-rp-nav kb" data-act="art-kb" title="让 AI 把这条新闻整理进知识库的主题页"' + (a.loading || !S.art[it.url] ? " disabled" : "") + ">收进知识库</button>") +
         '<button type="button" class="bz-rp-nav" data-art="' + esc(prev) + '"' + (prev ? "" : " disabled") + ' aria-label="上一条">‹ 上一条</button>' +
         '<button type="button" class="bz-rp-nav" data-art="' + esc(next) + '"' + (next ? "" : " disabled") + ' aria-label="下一条">下一条 ›</button>' +
@@ -1536,7 +1536,7 @@
         const r = await api("/kb/enqueue", { sids: ["report:" + b.dataset.kbrep], top: true }).catch((e) => ({ ok: false, error: e.message }));
         if (!r.ok) { toast(r.error || "没排进去"); b.disabled = false; return; }
         b.textContent = "✓ 已排进知识库";
-        toast(r.added ? "排进知识库的队列了，在「资料库 → 知识库」能看进度。" : "这份报告之前已经收过或已在队列里。");
+        toast(r.added ? "排进知识库的队列了，在左栏「知识库 → 整理记录」能看进度。" : "这份报告之前已经收过或已在队列里。");
         return;
       }
       if ((b = t.closest("[data-openfolder]"))) {
@@ -1569,7 +1569,7 @@
           if (!r.ok) { toast(r.error || "没排进去"); b.disabled = false; return; }
           S.kbSent[it.url] = true;
           refreshArt(it);
-          toast(r.added ? "排进知识库的队列了，AI 池空了就整理。在「资料库 → 知识库」能看进度。" : "这条之前已经收过了。");
+          toast(r.added ? "排进知识库的队列了，AI 池空了就整理。在左栏「知识库 → 整理记录」能看进度。" : "这条之前已经收过了。");
         }
         else if (act === "upd-start") { b.disabled = true; updStart(); }
         else if (act === "upd-shownew") {
