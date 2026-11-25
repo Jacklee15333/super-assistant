@@ -1,0 +1,11 @@
+超能小助 · 视频提取诊断
+==============================
+时间：2026-11-25 11:01:04
+链接：https://www.douyin.com/video/7704114032164343050
+失败阶段：extract
+yt-dlp 版本：2026.11.23
+curl_cffi 版本：0.17.0
+系统：Windows-11-10.0.26200-SP0
+
+详细错误：
+mkl_malloc: failed to allocate memory

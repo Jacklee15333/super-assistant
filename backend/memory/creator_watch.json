@@ -5011,7 +5011,8 @@
       "uploader": "Dwarkesh Patel",
       "text": "",
       "x": null,
-      "found_at": "2026-11-25 10:03"
+      "found_at": "2026-11-25 10:03",
+      "title_zh": "对 RSI 最强烈的反对意见"
     },
     {
       "creator_id": "cw1782303278333268",
@@ -5024,7 +5025,8 @@
       "uploader": "八大電視娛樂百分百",
       "text": "",
       "x": null,
-      "found_at": "2026-11-25 10:04"
+      "found_at": "2026-11-25 10:04",
+      "title_zh": "[如果我没见过太阳] - 这是一个重磅消息！！！曾 Jinghua 的眼中充满爱..."
     },
     {
       "creator_id": "cw1782303278333268",
@@ -5604,7 +5606,8 @@
         "text": "This is a proof of concept. Next, we want to test whether these proteins do something useful after attaching, tackle harder targets, and extend the work to other types of molecules.\n\nOur goal is for scientists to one day design working medicines simply by prompting. We want to",
         "_c": 1
       },
-      "found_at": "2026-11-25 10:05"
+      "found_at": "2026-11-25 10:05",
+      "title_zh": "这是一个概念验证。接下来，我们想测试这些蛋白质是否具有某些功能"
     },
     {
       "creator_id": "cw1782801438636820",
@@ -5623,7 +5626,8 @@
         "text": "In a separate experiment, GPT-6.2 designed new sequences for three shapes it had previously designed. 14 of 107 proteins made with the new sequences showed binding in the wet lab.\n\nGPT-6.2 also redesigned the parts of antibodies that grip a target. In two further laboratory",
         "_c": 1
       },
-      "found_at": "2026-11-25 10:05"
+      "found_at": "2026-11-25 10:05",
+      "title_zh": "在另一项实验中，GPT-6.2 为三种它已有的形状设计了新的序列"
     },
     {
       "creator_id": "cw1782801438636820",
@@ -5642,7 +5646,8 @@
         "text": "With our research partner Onava, we also tested two parts of protein design in the lab. \n\nGPT-6.2 designed the protein shapes. Specialized models filled in the rest of the workflow. Of 322 proteins tested, 35 showed evidence of binding, or attachment, with binders for all five",
         "_c": 1
       },
-      "found_at": "2026-11-25 10:05"
+      "found_at": "2026-11-25 10:05",
+      "title_zh": "与合作伙伴 Onava 合作，我们还测试了蛋白质设计的两个部分"
     },
     {
       "creator_id": "cw1782801438636820",
@@ -5661,7 +5666,8 @@
         "text": "We tested that control at scales ranging from a single bond between two atoms to a protein’s overall shape. \n\nFor GPT-6.2, a prompt could identify which two atoms formed a bond between a small molecule and a protein, then ask how the rest of the molecule fit. Other prompts",
         "_c": 1
       },
-      "found_at": "2026-11-25 10:05"
+      "found_at": "2026-11-25 10:05",
+      "title_zh": "我们测试了这种控制机制，其范围从两个原子间的单个键到"
     },
     {
       "creator_id": "cw1782801438636820",
@@ -5683,7 +5689,8 @@
         ],
         "_c": 1
       },
-      "found_at": "2026-11-25 10:05"
+      "found_at": "2026-11-25 10:05",
+      "title_zh": "科学家设计蛋白质以开发新的生物技术及潜在药物"
     },
     {
       "creator_id": "cw1782801438636820",
@@ -5705,7 +5712,8 @@
         ],
         "_c": 1
       },
-      "found_at": "2026-11-25 10:05"
+      "found_at": "2026-11-25 10:05",
+      "title_zh": "性能随着模型迭代提升。在计算机测试中，一项内部的..."
     },
     {
       "creator_id": "cw1782801438636820",
@@ -5725,7 +5733,8 @@
         "video": true,
         "_c": 1
       },
-      "found_at": "2026-11-25 10:05"
+      "found_at": "2026-11-25 10:05",
+      "title_zh": "我们正在分享一篇新预印本，展示对内源性蛋白设计的湿法实验室验证"
     },
     {
       "creator_id": "cw1782801438636820",
@@ -5744,7 +5753,8 @@
         "text": "Ethan asked Astra to review published methods and write software to search observations of about 19 million stars from NASA’s TESS mission. The search included regions around a star where a planet with the right atmosphere could have liquid water on its surface.\n\nHis first pass",
         "_c": 1
       },
-      "found_at": "2026-11-25 10:05"
+      "found_at": "2026-11-25 10:05",
+      "title_zh": "Ethan 要求 Astra 审查已发表的方法并编写软件以搜索观测数据"
     },
     {
       "creator_id": "cw1782801438636820",
@@ -5766,7 +5776,8 @@
         ],
         "_c": 1
       },
-      "found_at": "2026-11-25 10:05"
+      "found_at": "2026-11-25 10:05",
+      "title_zh": "Kevin 使用 Codex 编写了一款程序，用于搜索约 100 项的观测数据"
     },
     {
       "creator_id": "cw1782801438636820",
@@ -5786,7 +5797,8 @@
         "video": true,
         "_c": 1
       },
-      "found_at": "2026-11-25 10:05"
+      "found_at": "2026-11-25 10:05",
+      "title_zh": "两位业余天文学家 Kevin Bond (@canvrno) 和 Ethan Byrd (@itsjustemail)"
     },
     {
       "creator_id": "cw1782805126154204",
@@ -7116,7 +7128,8 @@
           "when": "20261124",
           "uploader": "Dwarkesh Patel",
           "when_human": "2026-11-24",
-          "days_ago": 1
+          "days_ago": 1,
+          "title_zh": "对 RSI 最强烈的反对意见"
         },
         {
           "vid": "SyHM5hNPAEo",
@@ -7491,7 +7504,8 @@
           "when": "20251217",
           "uploader": "八大電視娛樂百分百",
           "when_human": "2025-12-17",
-          "days_ago": 343
+          "days_ago": 343,
+          "title_zh": "[如果我没见过太阳] - 这是一个重磅消息！！！曾 Jinghua 的眼中充满爱..."
         },
         {
           "vid": "k5qhQXn6d3I",
@@ -10309,7 +10323,8 @@
             "_c": 1
           },
           "when_human": "2026-11-24",
-          "days_ago": 1
+          "days_ago": 1,
+          "title_zh": "这是一个概念验证。接下来，我们想测试这些蛋白质是否具有某些功能"
         },
         {
           "vid": "2125334392814051724",
@@ -10326,7 +10341,8 @@
             "_c": 1
           },
           "when_human": "2026-11-24",
-          "days_ago": 1
+          "days_ago": 1,
+          "title_zh": "在另一项实验中，GPT-6.2 为三种它已有的形状设计了新的序列"
         },
         {
           "vid": "2125334391195070471",
@@ -10343,7 +10359,8 @@
             "_c": 1
           },
           "when_human": "2026-11-24",
-          "days_ago": 1
+          "days_ago": 1,
+          "title_zh": "与合作伙伴 Onava 合作，我们还测试了蛋白质设计的两个部分"
         },
         {
           "vid": "2125334389387366627",
@@ -10360,7 +10377,8 @@
             "_c": 1
           },
           "when_human": "2026-11-24",
-          "days_ago": 1
+          "days_ago": 1,
+          "title_zh": "我们测试了这种控制机制，其范围从两个原子间的单个键到"
         },
         {
           "vid": "2125334387575435593",
@@ -10380,7 +10398,8 @@
             "_c": 1
           },
           "when_human": "2026-11-24",
-          "days_ago": 1
+          "days_ago": 1,
+          "title_zh": "科学家设计蛋白质以开发新的生物技术及潜在药物"
         },
         {
           "vid": "2125334385272774887",
@@ -10400,7 +10419,8 @@
             "_c": 1
           },
           "when_human": "2026-11-24",
-          "days_ago": 1
+          "days_ago": 1,
+          "title_zh": "性能随着模型迭代提升。在计算机测试中，一项内部的..."
         },
         {
           "vid": "2125334383490105601",
@@ -10418,7 +10438,8 @@
             "_c": 1
           },
           "when_human": "2026-11-24",
-          "days_ago": 1
+          "days_ago": 1,
+          "title_zh": "我们正在分享一篇新预印本，展示对内源性蛋白设计的湿法实验室验证"
         },
         {
           "vid": "2125305610678010244",
@@ -10435,7 +10456,8 @@
             "_c": 1
           },
           "when_human": "2026-11-24",
-          "days_ago": 1
+          "days_ago": 1,
+          "title_zh": "Ethan 要求 Astra 审查已发表的方法并编写软件以搜索观测数据"
         },
         {
           "vid": "2125305608597590018",
@@ -10455,7 +10477,8 @@
             "_c": 1
           },
           "when_human": "2026-11-24",
-          "days_ago": 1
+          "days_ago": 1,
+          "title_zh": "Kevin 使用 Codex 编写了一款程序，用于搜索约 100 项的观测数据"
         },
         {
           "vid": "2125305606685053416",
@@ -10473,7 +10496,8 @@
             "_c": 1
           },
           "when_human": "2026-11-24",
-          "days_ago": 1
+          "days_ago": 1,
+          "title_zh": "两位业余天文学家 Kevin Bond (@canvrno) 和 Ethan Byrd (@itsjustemail)"
         },
         {
           "vid": "2125007927098699827",
@@ -16154,7 +16178,19 @@
     "RT @clairevo: current fave models 0 jev 1 gemini neon 2 opus 5.5 3 fable 5.2 cur": "RT @clairevo: 当前最爱的模型 0 jev 1 gemini neon 2 opus 5.5 3 fable 5.2 cur",
     "Bullseye": "命中目标",
     "A familiar city, reimagined for #NVIDIAGTC. Carlos Carmonamedina shares the insp": "一座熟悉的城，为#NVIDIAGTC重新构想。Carlos Carmonamedina分享灵感",
-    "What can decades of Linux teach us about securing AI agents? @RedHat CTO @kernel": "数十年的Linux经验能教我们什么关于保护AI代理的？@RedHat CTO @kernel"
+    "What can decades of Linux teach us about securing AI agents? @RedHat CTO @kernel": "数十年的Linux经验能教我们什么关于保护AI代理的？@RedHat CTO @kernel",
+    "This is a proof of concept. Next, we want to test whether these proteins do some": "这是一个概念验证。接下来，我们想测试这些蛋白质是否具有某些功能",
+    "In a separate experiment, GPT-6.2 designed new sequences for three shapes it had": "在另一项实验中，GPT-6.2 为三种它已有的形状设计了新的序列",
+    "With our research partner Onava, we also tested two parts of protein design in t": "与合作伙伴 Onava 合作，我们还测试了蛋白质设计的两个部分",
+    "We tested that control at scales ranging from a single bond between two atoms to": "我们测试了这种控制机制，其范围从两个原子间的单个键到",
+    "Scientists design proteins to develop new biotechnologies and potential medicine": "科学家设计蛋白质以开发新的生物技术及潜在药物",
+    "Performance improved across model generations. In computer tests, an internal re": "性能随着模型迭代提升。在计算机测试中，一项内部的...",
+    "We’re sharing a new preprint showing wet lab validation of intrinsic protein des": "我们正在分享一篇新预印本，展示对内源性蛋白设计的湿法实验室验证",
+    "Ethan asked Astra to review published methods and write software to search obser": "Ethan 要求 Astra 审查已发表的方法并编写软件以搜索观测数据",
+    "Kevin used Codex to build a program that searched for observations of about 100,": "Kevin 使用 Codex 编写了一款程序，用于搜索约 100 项的观测数据",
+    "Two amateur astronomers, Kevin Bond (@canvrno) and Ethan Byrd (@itsjustemail), i": "两位业余天文学家 Kevin Bond (@canvrno) 和 Ethan Byrd (@itsjustemail)",
+    "[If I Had Never Seen the Sun] - This is a bombshell!!! Zeng Jinghua's eyes are filled with love a...": "[如果我没见过太阳] - 这是一个重磅消息！！！曾 Jinghua 的眼中充满爱...",
+    "The strongest objections to RSI": "对 RSI 最强烈的反对意见"
   },
   "extracted": {
     "cw1782303553561476|P3KDebPTUrw": {

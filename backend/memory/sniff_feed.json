@@ -1,49 +1,5 @@
 [
   {
-    "kind": "发布",
-    "title": "Anthropic launches Claude Ship",
-    "summary": "Anthropic 推出了 Claude Ship，这是一个基于 AI 的代码审查和管理工具，允许 AI 代理参与代码的审查、修复和批准流程。该工具属于 AI 在软件开发领域的应用，有助于提高代码质量并提升开发效率，是 AI 辅助编程工具的重要进展。",
-    "importance": "高",
-    "source_title": "TechCrunch",
-    "link": "https://techcrunch.com",
-    "category": "趋势瞭望台",
-    "key": "9b9388b9e4e35e70",
-    "ts": "2026-11-25 01:07"
-  },
-  {
-    "kind": "功能",
-    "title": "Pinterest 限制青少年看到的 AI 生成内容",
-    "summary": "Pinterest 推出了新功能，允许家长限制青少年用户看到的 AI 生成内容。这项功能属于 AI 内容管理领域，旨在应对 AI 生成内容泛滥带来的潜在风险，提升平台内容的安全性和可控性。",
-    "importance": "中",
-    "source_title": "TechCrunch",
-    "link": "https://techcrunch.com",
-    "category": "趋势瞭望台",
-    "key": "0d23025bc7e9bf80",
-    "ts": "2026-11-25 01:07"
-  },
-  {
-    "kind": "功能",
-    "title": "Tidal 禁用 AI 生成的音乐内容",
-    "summary": "Tidal 开始移除和禁用数百万条 AI 生成的音乐内容，以应对 AI 生成内容对音乐流媒体平台的冲击。这项措施属于 AI 内容治理领域，反映了行业对 AI 生成内容质量与版权问题的关注和应对趋势。",
-    "importance": "中",
-    "source_title": "TechCrunch",
-    "link": "https://techcrunch.com",
-    "category": "趋势瞭望台",
-    "key": "ab6420e9fabd6853",
-    "ts": "2026-11-25 01:07"
-  },
-  {
-    "kind": "发布",
-    "title": "Supertake 获得 2000 万美元融资",
-    "summary": "Supertake 宣布获得 2000 万美元融资，用于开发 AI 代理，将市场预测转化为股票投资组合。该产品属于 AI 在金融领域的应用，标志着 AI 在自动化投资决策方面的新进展，可能对个人和机构投资者产生影响。",
-    "importance": "中",
-    "source_title": "TechCrunch",
-    "link": "https://techcrunch.com",
-    "category": "趋势瞭望台",
-    "key": "b84b6ef83fd3675b",
-    "ts": "2026-11-25 01:07"
-  },
-  {
     "kind": "概念",
     "title": "AI 生成内容泛滥引发行业担忧",
     "summary": "TechCrunch 报道指出，AI 生成内容的泛滥引发了行业对内容质量、版权和安全性的担忧。这属于 AI 技术应用带来的新趋势，提示行业需要更完善的内容审核和治理机制，以应对 AI 技术带来的挑战。",
@@ -10998,5 +10954,49 @@
     "category": "趋势瞭望台",
     "key": "8bfde5743aa4d78a",
     "ts": "2026-11-25 10:47"
+  },
+  {
+    "kind": "功能",
+    "title": "MedChemBench药物化学评测基准",
+    "summary": "OpenAI推出MedChemBench基准测试，专门用于评估AI在药物化学领域的表现。该数据集属于AI制药领域的重要工具，将促进模型在分子设计、药物发现等场景的优化与应用",
+    "importance": "高",
+    "source_title": "OpenAI 新闻",
+    "link": "https://openai.com/news/",
+    "category": "AI动态",
+    "key": "238c05893c339eca",
+    "ts": "2026-11-25 11:06"
+  },
+  {
+    "kind": "发布",
+    "title": "OpenAI与思科联合推出Shirudo安全防护",
+    "summary": "OpenAI与思科合作推出Shirudo安全防护解决方案，属于企业级网络安全产品。这标志着AI技术在安全防护领域的商业化落地，可能涉及威胁检测、自动化响应等新型安全能力",
+    "importance": "中",
+    "source_title": "OpenAI 新闻",
+    "link": "https://openai.com/news/",
+    "category": "AI动态",
+    "key": "bfd17fb552357ae1",
+    "ts": "2026-11-25 11:06"
+  },
+  {
+    "kind": "功能",
+    "title": "Astra行星探索工具",
+    "summary": "OpenAI借助Astra项目探索遥远行星，涉及天文数据分析能力。该功能属于AI在天文学领域的应用扩展，可能包含图像识别、光谱分析等技术，但具体技术细节尚不明确",
+    "importance": "中",
+    "source_title": "OpenAI 新闻",
+    "link": "https://openai.com/news/",
+    "category": "AI动态",
+    "key": "ec2358dd039c96d8",
+    "ts": "2026-11-25 11:06"
+  },
+  {
+    "kind": "概念",
+    "title": "困惑度与智能研究",
+    "summary": "OpenAI发布关于困惑度（Perplexity）与智能关系的研究，探讨语言模型评估指标的深层含义。该研究属于NLP领域基础理论突破，可能影响未来模型评估体系和训练方法",
+    "importance": "中",
+    "source_title": "OpenAI 新闻",
+    "link": "https://openai.com/news/",
+    "category": "AI动态",
+    "key": "ced7f0bfaa43bc61",
+    "ts": "2026-11-25 11:06"
   }
 ]
