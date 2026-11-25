@@ -58,9 +58,5 @@
   "trends.google.com": {
     "mode": "fast",
     "at": "2026-11-24 00:13"
-  },
-  "ben-evans.com": {
-    "mode": "browser",
-    "at": "2026-11-24 09:18"
   }
 }

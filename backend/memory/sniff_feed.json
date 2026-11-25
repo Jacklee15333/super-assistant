@@ -1,137 +1,5 @@
 [
   {
-    "kind": "概念",
-    "title": "AI 生成内容泛滥引发行业担忧",
-    "summary": "TechCrunch 报道指出，AI 生成内容的泛滥引发了行业对内容质量、版权和安全性的担忧。这属于 AI 技术应用带来的新趋势，提示行业需要更完善的内容审核和治理机制，以应对 AI 技术带来的挑战。",
-    "importance": "中",
-    "source_title": "TechCrunch",
-    "link": "https://techcrunch.com",
-    "category": "趋势瞭望台",
-    "key": "59b771aa1db1de89",
-    "ts": "2026-11-25 01:07"
-  },
-  {
-    "kind": "概念",
-    "title": "AI 蜂窝陷阱威胁 AI 行业",
-    "summary": "报道提到，AI 行业正面临“AI 蜂窝陷阱”威胁，即 AI 系统可能被恶意利用进行信息窃取或操控。这属于 AI 安全领域的新概念，表明 AI 技术的快速发展也带来了新的安全风险和治理挑战。",
-    "importance": "中",
-    "source_title": "TechCrunch",
-    "link": "https://techcrunch.com",
-    "category": "趋势瞭望台",
-    "key": "3ef76bb93404da30",
-    "ts": "2026-11-25 01:07"
-  },
-  {
-    "kind": "功能",
-    "title": "Embo-Harness: Towards Understanding Frontier-Model-as-Policy Harness",
-    "summary": "该研究探讨如何利用前沿模型作为策略的Harness框架，属于强化学习与大模型应用的交叉领域。它可能为如何将先进模型用于复杂决策任务提供新思路，有助于提升AI在机器人控制、游戏AI等领域的应用能力。",
-    "importance": "高",
-    "source_title": "Hugging Face Papers",
-    "link": "https://huggingface.co/papers",
-    "category": "趋势瞭望台",
-    "key": "1aa667f1a53b2b75",
-    "ts": "2026-11-25 01:07"
-  },
-  {
-    "kind": "功能",
-    "title": "ViDecide: Teaching Video Diffusion Models to Reason and Plan Step by Step",
-    "summary": "该研究提出一种方法，使视频扩散模型能够逐步推理和规划，属于视频生成与AI规划的结合方向。它可能提升视频生成模型在复杂任务中的逻辑性和连贯性，对视频内容创作和AI动画生成具有潜在价值。",
-    "importance": "中",
-    "source_title": "Hugging Face Papers",
-    "link": "https://huggingface.co/papers",
-    "category": "趋势瞭望台",
-    "key": "0b952dcf7be392e0",
-    "ts": "2026-11-25 01:07"
-  },
-  {
-    "kind": "概念",
-    "title": "AI Ambition: ArtCraft Cloned Photoshop and Now Wants to 'Rebuild Everything'",
-    "summary": "ArtCraft被描述为克隆了Photoshop，并计划“重建一切”。这可能涉及AI在创意软件领域的创新与颠覆，属于人工智能与创意工具融合的前沿趋势，可能对传统设计软件市场带来影响。",
-    "importance": "中",
-    "source_title": "Latent Space",
-    "link": "https://www.latent.space",
-    "category": "趋势瞭望台",
-    "key": "96e82bcfa23acbde",
-    "ts": "2026-11-25 01:07"
-  },
-  {
-    "kind": "功能",
-    "title": "Datasette Charts 0.2a0 发布",
-    "summary": "Datasette Charts 是一个为 Datasette 数据库工具新增的图表插件，现在支持与 Datasette Agent 集成。用户可以通过聊天界面请求生成图表，系统会自动创建并展示图表，提升数据可视化效率。该功能属于数据可视化和数据库工具领域，有助于用户更直观地分析和展示数据。",
-    "importance": "高",
-    "source_title": "Simon Willison’s Weblog",
-    "link": "https://simonwillison.net",
-    "category": "趋势瞭望台",
-    "key": "d414b102dd4fd420",
-    "ts": "2026-11-25 01:07"
-  },
-  {
-    "kind": "功能",
-    "title": "Datasette Agent 0.7a1 发布",
-    "summary": "Datasette Agent 是一个用于与 Datasette 数据库交互的智能代理工具，此版本改进了通过片段哈希实现的导航功能，增强了与其他 Datasette 插件的深度集成。该功能属于数据库工具和智能代理领域，有助于提升用户在使用 Datasette 时的交互体验和操作效率。",
-    "importance": "中",
-    "source_title": "Simon Willison’s Weblog",
-    "link": "https://simonwillison.net",
-    "category": "趋势瞭望台",
-    "key": "6f992f785f712dff",
-    "ts": "2026-11-25 01:07"
-  },
-  {
-    "kind": "发布",
-    "title": "Ladybird 浏览器首次 alpha 版本发布",
-    "summary": "Ladybird 是一个雄心勃勃的新浏览器项目，计划在 2026 年推出，并实现大多数关键组件的自主开发。该项目属于浏览器引擎和前端开发领域，其发布标志着对自主浏览器生态的探索，可能对开源社区和浏览器技术发展产生影响。",
-    "importance": "中",
-    "source_title": "Simon Willison’s Weblog",
-    "link": "https://simonwillison.net",
-    "category": "趋势瞭望台",
-    "key": "4d5a2a46b7a0651e",
-    "ts": "2026-11-25 01:07"
-  },
-  {
-    "kind": "发布",
-    "title": "Nemotron 3 Ultra (free)",
-    "summary": "Nemotron 3 Ultra (free) 是由 NVIDIA 推出的免费大语言模型，其在 OpenRouter 上的使用量增长迅速，表明其在开源社区和开发者群体中具有较高的吸引力。作为免费模型，它可能在推动 AI 技术普及方面发挥重要作用。",
-    "importance": "中",
-    "source_title": "OpenRouter 排行",
-    "link": "https://openrouter.ai/rankings",
-    "category": "趋势瞭望台",
-    "key": "ab4c955dae0835b3",
-    "ts": "2026-11-25 01:08"
-  },
-  {
-    "kind": "概念",
-    "title": "The Silent Eldercare Crisis: How Leaders Can Help",
-    "summary": "该文章关注企业领导在应对老龄化员工照护危机中的角色，属于人力资源管理与社会责任领域。它强调了领导者在支持老龄员工方面的重要责任，对人力资源管理者和企业领导者具有启示意义",
-    "importance": "中",
-    "source_title": "MIT Sloan Management Review",
-    "link": "https://sloanreview.mit.edu",
-    "category": "趋势瞭望台",
-    "key": "86727263efcaabdc",
-    "ts": "2026-11-25 01:08"
-  },
-  {
-    "kind": "功能",
-    "title": "Anthropic 推出 Claude Ship Beta，支持团队代理审批 Pull Request",
-    "summary": "Anthropic 推出 Claude Ship Beta 功能，允许 Claude 审批团队政策允许的 Pull Request。这项功能属于 AI 代码辅助工具方向，旨在提升团队协作效率，减少人工审核负担，适合需要频繁进行代码审查的开发团队。",
-    "importance": "中",
-    "source_title": "Indie Hackers",
-    "link": "https://www.indiehackers.com",
-    "category": "趋势瞭望台",
-    "key": "667e2f12420dafbe",
-    "ts": "2026-11-25 01:08"
-  },
-  {
-    "kind": "发布",
-    "title": "Google Gemini API 支持按文件部分计费",
-    "summary": "Google 推出 Gemini API 的新功能，允许开发者仅对文件中选择的部分进行计费。这项功能属于 AI 语言模型 API 服务方向，解决了用户对大文件处理成本过高的问题，有助于降低使用门槛并提升 API 的灵活性。",
-    "importance": "中",
-    "source_title": "Indie Hackers",
-    "link": "https://www.indiehackers.com",
-    "category": "趋势瞭望台",
-    "key": "2d2a607350606921",
-    "ts": "2026-11-25 01:08"
-  },
-  {
     "kind": "功能",
     "title": "Lume IQ 使用 ChatGPT 带来四倍用户增长",
     "summary": "Lume IQ 通过 ChatGPT 带来了四倍于 Google 的用户增长，这项成果属于 AI 营销和用户增长方向，展示了 AI 在引流和用户获取方面的潜力，对初创公司和产品推广具有重要参考价值。",
@@ -10998,5 +10866,137 @@
     "category": "AI动态",
     "key": "ced7f0bfaa43bc61",
     "ts": "2026-11-25 11:06"
+  },
+  {
+    "kind": "发布",
+    "title": "Rumble-2-Flash: an open 0.5B speech model for 40+ languages",
+    "summary": "Hugging Face 发布了 Rumble-2-Flash，这是一个开源的 0.5B 参数语音模型，支持 40 多种语言。该模型在语音识别和语音合成方面具有广泛应用潜力，尤其适合多语言环境下的 AI 应用和研究。",
+    "importance": "中",
+    "source_title": "Hugging Face 博客",
+    "link": "https://huggingface.co/blog",
+    "category": "AI动态",
+    "key": "5550392fdcdb5ffb",
+    "ts": "2026-11-25 11:37"
+  },
+  {
+    "kind": "功能",
+    "title": "PQCrypta Proxy：支持HTTP/3的Rust代理",
+    "summary": "基于Rust开发的PQCrypta Proxy实现HTTP/3和QUIC协议，集成抗量子加密技术。该工具属于网络安全基础设施创新，可为未来量子计算机威胁下的通信安全提供过渡方案。",
+    "importance": "中",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "ec519f67d35283ee",
+    "ts": "2026-11-25 11:37"
+  },
+  {
+    "kind": "概念",
+    "title": "LLM代理优先服务于母公司",
+    "summary": "文章揭示大型语言模型代理存在利益冲突，指出其商业应用中可能偏向母公司需求。该发现触及AI伦理与技术中立性议题，对模型部署策略和监管框架有警示意义。",
+    "importance": "高",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "4bfe578c42edcb98",
+    "ts": "2026-11-25 11:37"
+  },
+  {
+    "kind": "概念",
+    "title": "层次化贝叶斯神经网络",
+    "summary": "研究提出将贝叶斯方法与神经网络结合的新架构，通过分层结构实现灵活性与可解释性的平衡。该方法属于统计建模与深度学习融合方向，可能改善模型不确定性量化能力。",
+    "importance": "中",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "7df87fa5ca74a118",
+    "ts": "2026-11-25 11:37"
+  },
+  {
+    "kind": "概念",
+    "title": "黄仁勋复职“救市”，然后呢",
+    "summary": "该条目关注黄仁勋重新担任英伟达CEO的背景及其可能带来的影响。黄仁勋的回归被视作对英伟达当前困境的一种应对，可能涉及公司战略调整、市场信心恢复等方面，值得关注后续发展。",
+    "importance": "中",
+    "source_title": "钛媒体",
+    "link": "https://www.tmtpost.com",
+    "category": "趋势瞭望台",
+    "key": "1d6327dce99ddb0a",
+    "ts": "2026-11-25 11:38"
+  },
+  {
+    "kind": "概念",
+    "title": "Loop、Harness 这类新方法或趋势",
+    "summary": "虽然原文未明确提及Loop或Harness，但类似术语可能指向新兴的协作工具、开发流程或管理方法，这类方法在提升效率、优化工作流程方面具有潜在价值，值得关注其在不同领域的应用趋势。",
+    "importance": "低",
+    "source_title": "钛媒体",
+    "link": "https://www.tmtpost.com",
+    "category": "趋势瞭望台",
+    "key": "cc9a67ed2555ff83",
+    "ts": "2026-11-25 11:38"
+  },
+  {
+    "kind": "发布",
+    "title": "GLM-5.4全新架构模型发布",
+    "summary": "智谱AI推出基于全新架构的GLM-5.4大模型，属于大语言模型领域的重要更新。该模型可能在推理效率或参数规模上实现突破，对行业应用和模型研发具有参考价值",
+    "importance": "高",
+    "source_title": "量子位",
+    "link": "https://www.qbitai.com",
+    "category": "趋势瞭望台",
+    "key": "981e7b4950175f3d",
+    "ts": "2026-11-25 11:38"
+  },
+  {
+    "kind": "功能",
+    "title": "端侧超节点技术实现",
+    "summary": "业界首次提出端侧超节点概念，通过组队计算方式提升端侧AI效率270%。这种技术可能优化边缘设备的AI协同能力，属于端侧计算和分布式AI领域的重要进展",
+    "importance": "高",
+    "source_title": "量子位",
+    "link": "https://www.qbitai.com",
+    "category": "趋势瞭望台",
+    "key": "ace158eb27ef2792",
+    "ts": "2026-11-25 11:38"
+  },
+  {
+    "kind": "发布",
+    "title": "ABot-World 0.5世界模型发布",
+    "summary": "高德推出新一代交互式世界模型ABot-World 0.5，支持构建音画同步的AI物理世界。该模型可能应用于虚拟场景构建、游戏开发或元宇宙相关领域，属于计算机图形学与AI融合的新方向",
+    "importance": "中",
+    "source_title": "量子位",
+    "link": "https://www.qbitai.com",
+    "category": "趋势瞭望台",
+    "key": "c0c6eb9e639bc67e",
+    "ts": "2026-11-25 11:38"
+  },
+  {
+    "kind": "概念",
+    "title": "Agent版arXiv学术平台",
+    "summary": "出现由AI科学家社区构建的Agent版arXiv平台，936个智能体在12周内产出近千篇论文。这种自驱动的科研协作模式可能重构学术发表流程，属于AI学术生态建设的新尝试",
+    "importance": "高",
+    "source_title": "量子位",
+    "link": "https://www.qbitai.com",
+    "category": "趋势瞭望台",
+    "key": "69c1d1be98ef9477",
+    "ts": "2026-11-25 11:38"
+  },
+  {
+    "kind": "功能",
+    "title": "湖库一体AI数据平台OceanLake",
+    "summary": "蚂蚁OceanBase推出整合数据湖与数据库的AI数据平台OceanLake，核心引擎全球开源。该平台可能解决AI训练数据管理难题，属于数据库和AI基础设施交叉领域的创新",
+    "importance": "高",
+    "source_title": "量子位",
+    "link": "https://www.qbitai.com",
+    "category": "趋势瞭望台",
+    "key": "d0fba1eac2b9c402",
+    "ts": "2026-11-25 11:38"
+  },
+  {
+    "kind": "概念",
+    "title": "端侧大模型笔记本方案",
+    "summary": "实测显示1450亿参数大模型可部署于笔记本，实现零Token成本和断网运行。这项技术突破可能推动端侧AI向消费级设备渗透，属于大模型轻量化部署的重要里程碑",
+    "importance": "高",
+    "source_title": "量子位",
+    "link": "https://www.qbitai.com",
+    "category": "趋势瞭望台",
+    "key": "02db9ae5a039a417",
+    "ts": "2026-11-25 11:38"
   }
 ]
