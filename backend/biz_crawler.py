@@ -218,17 +218,70 @@ def get_config():
     c.setdefault("auto", True)
     c.setdefault("every", 60)
     c.setdefault("last_run", 0)
+    c.setdefault("workers", WORKERS)          # v158：同时抓几个
+    c.setdefault("sc_fast", True)             # v158：被拦时用 Scrapling 快速模式补救
+    c.setdefault("sc_browser", True)          # v158：还不行再用真浏览器（慢，但能抓动态网页）
+    c.setdefault("scope", "all")              # v158：「现在更新」抓哪些：all 全部 / groups 选中的几类 / failed 上次没抓成的
+    c.setdefault("groups", [])
     return c
 
 
-def save_config(auto=None, every=None):
+def save_config(auto=None, every=None, workers=None, sc_fast=None, sc_browser=None, scope=None, groups=None):
     c = get_config()
     if auto is not None:
         c["auto"] = bool(auto)
     if every is not None:
         c["every"] = max(15, min(int(every), 24 * 60))
+    if workers is not None:
+        c["workers"] = max(1, min(int(workers), 8))
+    if sc_fast is not None:
+        c["sc_fast"] = bool(sc_fast)
+    if sc_browser is not None:
+        c["sc_browser"] = bool(sc_browser)
+    if scope is not None and scope in ("all", "groups", "failed"):
+        c["scope"] = scope
+    if groups is not None:
+        c["groups"] = [g for g in groups if g in GROUP_NAME]
     _write_json(CFG_FILE, c)
     return {"ok": True, "config": c}
+
+
+def _pick_sources(scope, groups):
+    """v158：「现在更新」按设置挑要抓的信息源（只挑打开的）。"""
+    srcs = [s for s in _sources() if s.get("enabled")]
+    if scope == "groups":
+        gs = set(groups or [])
+        srcs = [s for s in srcs if s.get("group") in gs]
+    elif scope == "failed":
+        srcs = [s for s in srcs if s.get("err")]
+    return srcs
+
+
+def plan():
+    """v158：点「现在更新」之前给界面看的：会抓哪些、按什么顺序、上一轮花了多久、设置。"""
+    c = get_config()
+    with _LOCK:
+        srcs = [s for s in _sources() if s.get("enabled")]
+        by = {}
+        for s in srcs:
+            g = s.get("group") or "mine"
+            d = by.setdefault(g, {"key": g, "name": GROUP_NAME.get(g, g), "n": 0, "site": 0, "kw": 0, "failing": 0})
+            d["n"] += 1
+            d["kw" if s.get("kind") == "kw" else "site"] += 1
+            if s.get("err"):
+                d["failing"] += 1
+        failing = [{"name": s.get("name", ""), "err": s.get("err", "")} for s in srcs if s.get("err")]
+        runs = [r for r in _runs() if r.get("trigger") != "single"]
+    order = [k for k, _n, _d in GROUPS]
+    groups = sorted(by.values(), key=lambda d: order.index(d["key"]) if d["key"] in order else 99)
+    last = None
+    if runs:
+        r = runs[0]
+        last = {k: r.get(k) for k in ("id", "started", "ended", "trigger", "total", "ok", "fail", "new", "via", "stopped")}
+    n_scope = len(_pick_sources(c["scope"], c["groups"]))
+    return {"ok": True, "config": c, "groups": groups, "enabled": len(srcs), "failing": failing[:40],
+            "n_scope": n_scope, "last": last, "scrapling": _scrapling_ok(),
+            "group_names": [[k, n, d] for k, n, d in GROUPS]}
 
 
 def _feed():
@@ -416,6 +469,12 @@ def _fetch_site(src, trace):
     name = src.get("name", "")
     pref = src.get("pref") if src.get("pref") in ("fast", "browser") else ""
     use_sc = _scrapling_ok()
+    cfg = _run.get("cfg") or {}
+    modes = [m for m in ("fast", "browser") if cfg.get("sc_" + m, True)]   # v158：设置里关掉的补救方式不用
+    if pref not in modes:
+        pref = ""
+    if not modes:
+        use_sc = False
 
     def via_sc(mode):
         import scrapling_fetch as SF
@@ -485,13 +544,15 @@ def _fetch_site(src, trace):
     except Exception as e:
         _step(trace, "网页解析", t0, False, 0, _human(e))
     if use_sc:
-        for mode in ("fast", "browser"):
+        for mode in modes:
             if mode == pref:
                 continue
             items = try_sc(mode)
             if items:
                 src["pref"] = mode
                 return items, SC_NAME[mode]
+    elif not modes:
+        trace.append({"m": "Scrapling", "ok": False, "n": 0, "ms": 0, "why": "设置里关掉了 Scrapling 补救"})
     else:
         trace.append({"m": "Scrapling", "ok": False, "n": 0, "ms": 0, "why": "网页抓取增强还没装好，没法补救"})
     bad = [x for x in trace if not x["ok"]]
@@ -662,7 +723,7 @@ def _runs():
 
 def _crawl_all(srcs):
     try:
-        with ThreadPoolExecutor(max_workers=WORKERS) as ex:
+        with ThreadPoolExecutor(max_workers=int((_run.get("cfg") or {}).get("workers") or WORKERS)) as ex:
             list(ex.map(_crawl_src, srcs))
     except Exception as e:
         _runlog("这一轮出错：%s" % e)
@@ -691,17 +752,24 @@ def _crawl_all(srcs):
         _log(msg)
 
 
-def start(sids=None, trigger="manual"):
+def start(sids=None, trigger="manual", scope=None, groups=None):
+    cfg = get_config()
     with _LOCK:
         if _run["running"]:
             return {"ok": False, "error": "正在抓，等这一轮抓完再说"}
         if sids:
             srcs = [s for s in _sources() if s["id"] in sids]
             trigger = "single" if trigger == "manual" else trigger
+        elif trigger == "auto":
+            srcs = [s for s in _sources() if s.get("enabled")]          # 自动更新一直抓全部
         else:
-            srcs = [s for s in _sources() if s.get("enabled")]
+            sc = scope or cfg.get("scope") or "all"
+            srcs = _pick_sources(sc, groups if groups is not None else cfg.get("groups"))
+            if not srcs:
+                return {"ok": False, "error": {"groups": "选中的这几类里没有打开的信息源", "failed": "上一轮没有没抓成的信息源"}.get(sc, "清单里没有打开的信息源")}
         if not srcs:
             return {"ok": False, "error": "清单里没有打开的信息源"}
+        _run["cfg"] = dict(cfg)
         now = int(time.time())
         _run.update(running=True, stop=False, total=len(srcs), done=0, new=0, fail=0, current=[], started=now,
                     ended=0, trigger=trigger, rid=datetime.datetime.now().strftime("%Y%m%d-%H%M%S"), recs=[],

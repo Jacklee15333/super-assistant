@@ -1,40 +1,4 @@
 {
-  "current": {
-    "url": "https://v.douyin.com/fHGZH2aIRCQ/",
-    "level": "accurate",
-    "lang": "auto",
-    "vocal": false,
-    "tidy": false,
-    "use_local": true,
-    "model": "qwen3:14b",
-    "screenshot": false,
-    "link": false,
-    "mode": "auto",
-    "analyze": false,
-    "author": "",
-    "note_folder": "",
-    "creator_url": "",
-    "notify": null,
-    "id": "vj1795575654.0965881-0",
-    "title": "抖音视频 …887414",
-    "fail_count": 1
-  },
-  "pending": [
-    {
-      "url": "https://v.douyin.com/gjVc6jbUngI/",
-      "title": "抖音视频 …343050",
-      "level": "accurate",
-      "lang": "auto",
-      "vocal": false,
-      "mode": "auto",
-      "use_local": true,
-      "model": "qwen3:14b",
-      "screenshot": false,
-      "link": false,
-      "analyze": false,
-      "_vf_tries": 1,
-      "id": "vj1795575670.3053563-0",
-      "tidy": false
-    }
-  ]
+  "current": null,
+  "pending": []
 }

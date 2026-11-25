@@ -1,5 +1,5 @@
 // ============================================================
-// biz.js —「商业」（v155 新增，v157 重新整理成五块）
+// biz.js —「商业」（v155 新增，v157 重新整理成五块；v158 新闻分页、「现在更新」「整理成简报」改成带说明和设置的面板）
 //   市场雷达：爬虫抓来的最新新闻——市场上正在发生什么（升温话题、提得最多、一键整理成简报）
 //   行业地图：申万 31 个一级行业 + 二级行业 + 新兴赛道，「市场实时 / 我关注的」两种看法，地图和列表两种摆法
 //   研究分析：挑一件事让 AI 写报告——拆解商业模式（含产业链图）、研究课题、找趋势和机会、市场动向简报；报告库
@@ -69,7 +69,8 @@
     pane: PANES.includes(pane0) ? pane0 : (OLD_PANE[pane0] || "radar"),
     tax: null, byId: {}, taxErr: "",
     ovm: null, ovmErr: "", ov: null, ovErr: "", mdays: store.get("mdays", 3),
-    rfeed: null, rgrp: "all", rq: "", rlimit: 80,
+    rfeed: null, rgrp: "all", rq: "", rlimit: 80, rpage: 1, rsize: store.get("rsize", 20), rtotal: 0, rsince: 0, rseq: 0,
+    plan: null, updOpen: false, updDone: "", updRes: null, briefOpen: false, bf: null, briefInfo: null,
     lens: store.get("lens", "market") === "mine" ? "mine" : "market", days: 30,
     indView: store.get("indView", "map"), indSel: store.get("indSel", ""), indQ: "", indItems: null, openL1: {},
     task: store.get("task", "model"), depth: "quick",
@@ -137,13 +138,15 @@
           "<li><b>爬虫管理</b>：爬虫盯哪些网站、用什么方法抓、每一轮抓到了什么。</li></ol></section>" +
         '<div class="bz-bar">' + MDAYS_SEG() +
           '<input type="search" class="bz-input" id="bzRq" placeholder="在新闻里搜：比如 比亚迪、降价、融资" aria-label="在新闻里搜">' +
-          '<span class="sp"></span><button type="button" class="bz-btn" id="bzBriefRun">把这些整理成简报</button></div>' +
+          '<span class="sp"></span>' +
+          '<button type="button" class="bz-big primary" id="bzUpdBtn" aria-haspopup="dialog"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v5h-5"/></svg><span class="bz-big-t"><b id="bzUpdBtnT">现在更新</b><small id="bzUpdBtnS">让爬虫马上去抓最新新闻</small></span></button>' +
+          '<button type="button" class="bz-big" id="bzBriefRun" aria-haspopup="dialog"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h5"/></svg><span class="bz-big-t"><b>把这些整理成简报</b><small id="bzBriefBtnS">AI 写一份文档，存在你电脑上</small></span></button></div>' +
         '<div class="bz-strip" id="bzStripR"></div>' +
         '<div class="bz-cols">' +
           '<div class="bz-main"><section class="bz-card" id="bzFeedCard"><div class="bz-card-h"><h3>最新新闻</h3>' +
             seg("rgrp", [["all", "全部"], ["news", "财经媒体"], ["corp,corpkw", "大公司"], ["media,indkw", "行业媒体"], ["policy", "政策数据"], ["global", "海外"], ["mine", "我加的"]]) + "</div>" +
             '<p class="bz-filter" id="bzFeedFilter" hidden></p><div class="bz-feed" id="bzFeed"></div>' +
-            '<button type="button" class="bz-more" id="bzFeedMore" hidden>再多看一些</button></section></div>' +
+            '<nav class="bz-pager" id="bzPager" aria-label="翻页" hidden></nav></section></div>' +
           '<aside class="bz-side">' +
             '<section class="bz-card"><div class="bz-card-h"><h3>正在升温</h3></div><p class="bz-hint" id="bzRisingHint"></p><div class="bz-terms" id="bzRising"></div></section>' +
             '<section class="bz-card"><div class="bz-card-h"><h3>提得最多</h3></div><div class="bz-chips" id="bzHot"></div></section>' +
@@ -231,6 +234,8 @@
           '<span class="bz-reader-title"></span><span class="bz-reader-acts"></span></div>' +
         '<div class="bz-reader-body"><div class="bz-reader-inner"><div class="bz-reader-meta"></div><div class="bz-reader-content"></div></div></div>' +
       "</div>" +
+      '<div class="bz-modal" id="bzUpd" hidden><div class="bz-dlg" role="dialog" aria-modal="true" aria-labelledby="bzUpdT"><div id="bzUpdBody"></div></div></div>' +
+      '<div class="bz-modal" id="bzBrief" hidden><div class="bz-dlg" role="dialog" aria-modal="true" aria-labelledby="bzBriefT"><div id="bzBriefBody"></div></div></div>' +
       '<div class="bz-toast" id="bzToast" role="status" hidden></div>';
   }
 
@@ -272,7 +277,9 @@
         : '<span class="bz-item-t">' + esc(it.title) + "</span>");
     const isR = it.src === "radar";
     const when = isR ? (it.approx ? "时间不详" : ago(it.ts)) : it.date;
-    return '<div class="bz-item"><span class="bz-src s-' + it.src + '">' + (isR ? (GRP[it.grp] || SRC.radar) : SRC[it.src]) + '</span><div class="bz-item-b">' + t +
+    const fresh = isR && it.seen && S.newCut && it.seen >= S.newCut;
+    return '<div class="bz-item' + (fresh ? " fresh" : "") + '"><span class="bz-src s-' + it.src + '">' + (isR ? (GRP[it.grp] || SRC.radar) : SRC[it.src]) + "</span>" +
+      '<div class="bz-item-b">' + (fresh ? '<span class="bz-new" title="上一轮更新时新抓到的">新</span>' : "") + t +
       (it.text ? "<p>" + esc(it.text) + "</p>" : "") +
       '<div class="bz-item-m">' + (it.who ? "<span>" + esc(it.who) + (isR && it.from && it.from !== it.who ? "·" + esc(it.from) : "") + "</span>" : "") + (when ? "<span>" + esc(when) + "</span>" : "") +
       (it.todo ? '<span class="bz-warn">还没加工</span>' : "") + tags + "</div></div></div>";
@@ -288,20 +295,30 @@
     const list = S.reports.filter((r) => r.kind === kind).slice(0, n || 8);
     el.innerHTML = list.length ? list.map(repRow).join("") : empty(emptyText);
   }
-  function stripHTML() {
+  function autoText(r) {
+    if (!r) return "";
+    if (!r.auto) return "自动更新已关，要更新时点「现在更新」";
+    const ev = r.every >= 60 ? (r.every / 60).toFixed(1).replace(/\.0$/, "") + " 小时" : r.every + " 分钟";
+    return "每 " + ev + "自动更新一次" + (r.next_run ? "，下一次在 " + until(r.next_run) : "");
+  }
+  function stripHTML(withBtn) {
     const r = S.radar;
     if (!r) return "<span>爬虫：正在读取…</span>";
-    const txt = r.running ? "爬虫正在抓：" + r.done + " / " + r.total + " 个信息源，这一轮新抓到 " + r.new + " 条"
-      : (r.last_run ? "爬虫盯着 " + r.enabled + " 个信息源，" + ago(r.last_run) + "更新过；最近 24 小时抓到 " + r.items_24h + " 条"
-        : "爬虫还没抓过：打开软件两三分钟后会自动抓第一轮，也可以现在就抓");
-    return "<span>" + esc(txt) + "</span>" + (r.running ? "" : '<button type="button" class="bz-link" data-act="rd-run">现在更新</button>') +
-      '<button type="button" class="bz-link" data-goto="crawler">爬虫管理</button>';
+    if (r.running) {
+      const pct = r.total ? Math.round((r.done / r.total) * 100) : 0;
+      return '<span class="bz-prog sm" aria-hidden="true"><i style="width:' + pct + '%"></i></span><span>正在更新：' + r.done + " / " + r.total +
+        " 个信息源，这一轮新抓到 " + r.new + " 条</span>" + '<button type="button" class="bz-link" data-act="upd-open">看进度</button>';
+    }
+    const txt = r.last_run ? "爬虫盯着 " + r.enabled + " 个信息源，" + ago(r.last_run) + "更新过；最近 24 小时抓到 " + r.items_24h + " 条。" + autoText(r) + "。"
+      : "爬虫还没抓过：打开软件两三分钟后会自动抓第一轮，也可以点「现在更新」马上抓。";
+    return "<span>" + esc(txt) + "</span>" + (withBtn ? '<button type="button" class="bz-link" data-act="upd-open">现在更新</button>' : "");
   }
   function renderStrips() {
     const r = $("bzStripR");
-    if (r) r.innerHTML = stripHTML();
+    if (r) r.innerHTML = stripHTML(false);
     const i = $("bzStripI");
-    if (i) { i.hidden = S.lens !== "market"; if (!i.hidden) i.innerHTML = stripHTML(); }
+    if (i) { i.hidden = S.lens !== "market"; if (!i.hidden) i.innerHTML = stripHTML(true); }
+    renderBigBtns();
   }
   function lensVis() {
     segSync("lens", S.lens);
@@ -344,22 +361,60 @@
     const f = $("bzFeedFilter");
     f.hidden = !S.rq;
     f.innerHTML = S.rq ? "只看提到「" + esc(S.rq) + "」的 " + '<button type="button" class="bz-link" data-act="clearq">看全部</button>' : "";
+    if (S.rsince) {
+      f.hidden = false;
+      f.innerHTML = "只看最近一轮更新新抓到的" + (S.rq ? "、提到「" + esc(S.rq) + "」的" : "") + ' <button type="button" class="bz-link" data-act="clearsince">看全部</button>';
+    }
     const el = $("bzFeed");
-    if (!S.rfeed) { el.innerHTML = loading(); $("bzFeedMore").hidden = true; return; }
+    if (!S.rfeed) { el.innerHTML = loading(); $("bzPager").hidden = true; return; }
     const noData = S.ovm && S.ovm.counts && !S.ovm.counts.radar;
     el.innerHTML = S.rfeed.length ? S.rfeed.map(itemRow).join("")
-      : (noData ? empty('爬虫还没抓到东西。<button type="button" class="bz-link" data-act="rd-run">现在就抓一次</button>，或者去<button type="button" class="bz-link" data-goto="crawler">爬虫管理</button>挑要盯的网站。')
+      : (noData ? empty('爬虫还没抓到东西。点上面的<button type="button" class="bz-link" data-act="upd-open">现在更新</button>马上抓一次。')
         : empty("这段时间没有符合的新闻。"));
-    $("bzFeedMore").hidden = S.rfeed.length < S.rlimit;
+    renderPager();
   }
-  async function loadRadarFeed() {
-    if (S.rgrp === "all" && !S.rq && S.rlimit <= 80) { S.rfeed = S.ovm ? S.ovm.latest : null; renderFeed(); return; }
+  function renderPager() {
+    const el = $("bzPager"), n = S.rtotal, size = S.rsize, pages = Math.max(1, Math.ceil(n / size)), cur = Math.min(S.rpage, pages);
+    el.hidden = !n;
+    if (!n) return;
+    const nums = [];
+    const add = (p) => nums.push('<button type="button" class="bz-pg' + (p === cur ? " on" : "") + '" data-page="' + p + '"' + (p === cur ? ' aria-current="page"' : "") + ">" + p + "</button>");
+    const lo = Math.max(2, cur - 2), hi = Math.min(pages - 1, cur + 2);
+    add(1);
+    if (lo > 2) nums.push('<span class="bz-pg-gap">…</span>');
+    for (let p = lo; p <= hi; p++) add(p);
+    if (hi < pages - 1) nums.push('<span class="bz-pg-gap">…</span>');
+    if (pages > 1) add(pages);
+    const from = (cur - 1) * size + 1, to = Math.min(n, cur * size);
+    el.innerHTML = '<span class="bz-pg-info">共 ' + n + " 条 · 第 " + from + "–" + to + " 条</span>" +
+      '<span class="bz-pg-nums"><button type="button" class="bz-pg nav" data-page="' + (cur - 1) + '"' + (cur <= 1 ? " disabled" : "") + ">上一页</button>" + nums.join("") +
+      '<button type="button" class="bz-pg nav" data-page="' + (cur + 1) + '"' + (cur >= pages ? " disabled" : "") + ">下一页</button></span>" +
+      '<label class="bz-pg-size">每页 <select class="bz-select sm" id="bzPgSize">' + [20, 50, 100].map((v) => '<option value="' + v + '"' + (v === size ? " selected" : "") + ">" + v + "</option>").join("") + "</select> 条</label>";
+  }
+  async function loadRadarFeed(keepPage) {
+    if (!keepPage) S.rpage = 1;
+    const seq = ++S.rseq;
     S.rfeed = null; renderFeed();
+    let r = null;
     try {
-      const r = await api("/biz/items?lens=market&days=" + S.mdays + "&grp=" + enc(S.rgrp === "all" ? "" : S.rgrp) + "&q=" + enc(S.rq) + "&limit=" + S.rlimit);
-      S.rfeed = r.items || [];
-    } catch (e) { S.rfeed = []; }
+      r = await api("/biz/items?lens=market&days=" + S.mdays + "&grp=" + enc(S.rgrp === "all" ? "" : S.rgrp) + "&q=" + enc(S.rq) +
+        "&limit=" + S.rsize + "&offset=" + (S.rpage - 1) * S.rsize + (S.rsince ? "&since=" + S.rsince : ""));
+    } catch (e) {}
+    if (seq !== S.rseq) return;
+    S.rfeed = (r && r.items) || [];
+    S.rtotal = (r && r.total) || 0;
+    if (!S.rfeed.length && S.rtotal && S.rpage > 1) { S.rpage = Math.ceil(S.rtotal / S.rsize); return loadRadarFeed(true); }
     renderFeed();
+    renderBigBtns();
+  }
+  function goPage(p) {
+    const pages = Math.max(1, Math.ceil(S.rtotal / S.rsize));
+    p = Math.max(1, Math.min(pages, p));
+    if (p === S.rpage) return;
+    S.rpage = p;
+    loadRadarFeed(true);
+    const card = $("bzFeedCard");
+    if (card) card.scrollIntoView({ block: "start", behavior: "smooth" });
   }
 
   // ───────── 行业地图 ─────────
@@ -774,6 +829,7 @@
       el.innerHTML = '<div class="bz-job-t"><b>写好了：' + esc(j.title) + "</b><span>" +
         (j.opps ? "报告里的 " + j.opps + " 个机会已经放进「趋势与机会」的看板" : "用了 " + mmss(j.ended - j.started)) + "</span></div>" +
         '<button type="button" class="bz-btn sm" data-rep="' + esc(j.report) + '">打开报告</button>' +
+        '<button type="button" class="bz-btn ghost sm" data-openfolder="' + esc(j.report) + '">打开所在文件夹</button>' +
         '<button type="button" class="bz-link" data-act="jobseen">知道了</button>';
     } else {
       el.className = "bz-job fail";
@@ -788,6 +844,7 @@
       const was = S.job && S.job.running;
       S.job = j;
       renderJob();
+      renderBigBtns();
       if (was && !j.running) { refreshReports(); refreshOpps(); refreshOverview(); }
       if (j.running) S.jobTimer = setTimeout(pollJob, 2000);
     } catch (e) {
@@ -803,6 +860,257 @@
     toast("开始了：" + r.title + "。要几分钟，进度在页面顶上，可以先去做别的。");
     store.set("jobSeen", Math.max(0, (r.job_id || 1) - 1));
     pollJob();
+  }
+
+
+  // ───────── v158：两个大按钮 ─────────
+  function renderBigBtns() {
+    const r = S.radar, t = $("bzUpdBtnT"), sub = $("bzUpdBtnS"), btn = $("bzUpdBtn");
+    if (!t) return;
+    if (r && r.running) {
+      btn.classList.add("busy");
+      t.textContent = "正在更新 " + r.done + " / " + r.total;
+      sub.textContent = "新抓到 " + r.new + " 条 · 点开看进度";
+    } else {
+      btn.classList.remove("busy");
+      t.textContent = "现在更新";
+      sub.textContent = r && r.last_run ? "上次 " + ago(r.last_run) + (r.auto ? " · 每 " + (r.every >= 60 ? (r.every / 60).toFixed(1).replace(/\.0$/, "") + " 小时" : r.every + " 分钟") + "自动更新" : " · 自动更新已关")
+        : "让爬虫马上去抓最新新闻";
+    }
+    const bs = $("bzBriefBtnS");
+    if (bs) {
+      const j = S.job;
+      bs.textContent = j && j.running && j.kind === "market" ? "正在写：" + (j.stage || "…")
+        : (S.rtotal ? "用这 " + S.rtotal + " 条新闻写一份文档" : "AI 写一份文档，存在你电脑上");
+    }
+  }
+
+  // ───────── v158：「现在更新」面板 ─────────
+  const EVERY = [[30, "30 分钟"], [60, "1 小时"], [120, "2 小时"], [240, "4 小时"], [480, "8 小时"]];
+  const sw = (id, on, label, hint) => '<label class="bz-set"><span class="bz-sw"><input type="checkbox" id="' + id + '"' + (on ? " checked" : "") + '><i></i></span>' +
+    '<span class="bz-set-t"><b>' + label + "</b>" + (hint ? "<small>" + hint + "</small>" : "") + "</span></label>";
+  function openModal(id) {
+    const m = $(id);
+    m.hidden = false;
+    document.body.classList.add("bz-modal-open");
+    setTimeout(() => { const f = m.querySelector("[data-autofocus]") || m.querySelector("button, input, select"); if (f) f.focus(); }, 30);
+  }
+  function closeModal(id) {
+    const m = $(id);
+    if (!m || m.hidden) return;
+    m.hidden = true;
+    if ($("bzUpd").hidden && $("bzBrief").hidden) document.body.classList.remove("bz-modal-open");
+    if (id === "bzUpd") { S.updOpen = false; const b = $("bzUpdBtn"); if (b) b.focus(); }
+    if (id === "bzBrief") { S.briefOpen = false; const b = $("bzBriefRun"); if (b) b.focus(); }
+  }
+  async function openUpd() {
+    S.updOpen = true;
+    if (!(S.radar && S.radar.running) && !S.updDone) S.plan = null;
+    renderUpd();
+    openModal("bzUpd");
+    if (!S.plan) { try { S.plan = await api("/biz/radar/plan"); } catch (e) { S.plan = { ok: false, error: e.message }; } renderUpd(); }
+  }
+  const dlgHead = (id, title, sub) => '<div class="bz-dlg-h"><div><h2 id="' + id + '">' + title + "</h2>" + (sub ? "<p>" + sub + "</p>" : "") + "</div>" +
+    '<button type="button" class="bz-x" data-close aria-label="关闭">×</button></div>';
+  function renderUpd() {
+    const el = $("bzUpdBody");
+    if (!el || !S.updOpen) return;
+    const r = S.radar || {};
+    if (r.running) { el.innerHTML = updRunning(r); return; }
+    if (S.updDone) { el.innerHTML = updDoneHTML(); return; }
+    const p = S.plan;
+    if (!p) { el.innerHTML = dlgHead("bzUpdT", "现在更新") + '<div class="bz-dlg-b">' + loading() + "</div>"; return; }
+    if (p.ok === false) { el.innerHTML = dlgHead("bzUpdT", "现在更新") + '<div class="bz-dlg-b">' + empty("读不到爬虫的设置：" + esc(p.error || "")) + "</div>"; return; }
+    const c = p.config, sc = c.scope || "all", gsel = new Set(c.groups || []);
+    const nFail = p.failing.length;
+    const nScope = sc === "all" ? p.enabled : sc === "failed" ? nFail : p.groups.filter((g) => gsel.has(g.key)).reduce((a, g) => a + g.n, 0);
+    const last = p.last;
+    const lastDur = last && last.ended ? last.ended - last.started : 0;
+    const est = lastDur && last.total ? Math.max(20, Math.round((lastDur / last.total) * nScope)) : 0;
+    const grows = p.groups.map((g) => '<tr><td><label class="bz-chk"><input type="checkbox" data-upd-grp="' + esc(g.key) + '"' + (gsel.has(g.key) ? " checked" : "") +
+      (sc !== "groups" ? " disabled" : "") + "> " + esc(g.name) + "</label></td><td class=\"num\">" + g.site + '</td><td class="num">' + g.kw + '</td><td class="num' + (g.failing ? " bad" : "") + '">' + (g.failing || "—") + "</td></tr>").join("");
+    el.innerHTML = dlgHead("bzUpdT", "现在更新", "让爬虫马上去网上抓一轮最新新闻。不用 AI、不占 AI 池，随时可以停。") +
+      '<div class="bz-dlg-b">' +
+      '<section class="bz-sec"><h3><span class="bz-no">1</span>这次抓哪些</h3>' +
+        '<div class="bz-radios" role="radiogroup" aria-label="这次抓哪些">' +
+          '<label class="bz-radio"><input type="radio" name="bzUpdScope" value="all"' + (sc === "all" ? " checked" : "") + "><span><b>全部打开的信息源</b><small>" + p.enabled + " 个</small></span></label>" +
+          '<label class="bz-radio"><input type="radio" name="bzUpdScope" value="groups"' + (sc === "groups" ? " checked" : "") + "><span><b>只抓下面勾选的几类</b><small>适合只想快速看某一类</small></span></label>" +
+          '<label class="bz-radio"><input type="radio" name="bzUpdScope" value="failed"' + (sc === "failed" ? " checked" : "") + (nFail ? "" : " disabled") + "><span><b>只重抓上次没抓成的</b><small>" + (nFail ? nFail + " 个" : "上次全都抓成了") + "</small></span></label>" +
+        "</div>" +
+        '<div class="bz-tablewrap"><table class="bz-rrtab bz-updtab"><thead><tr><th>分类</th><th class="num">网站</th><th class="num">关键词</th><th class="num">上次没抓成</th></tr></thead><tbody>' + grows + "</tbody></table></div>" +
+        (nFail ? '<details class="bz-fails"><summary>上次没抓成的 ' + nFail + " 个，原因</summary><ul>" + p.failing.map((f) => "<li><b>" + esc(f.name) + "</b>：" + esc(f.err) + "</li>").join("") + "</ul></details>" : "") +
+        '<p class="bz-note">清单里要加网站、关掉不想要的，在顶上的「爬虫管理」标签里改。</p>' +
+      "</section>" +
+      '<section class="bz-sec"><h3><span class="bz-no">2</span>点了之后会发生什么</h3><ol class="bz-flow">' +
+        "<li><b>同时开 " + c.workers + " 个</b>，把这 " + nScope + " 个信息源轮流抓一遍。</li>" +
+        "<li><b>网站</b>：先找 RSS 订阅（最准，带发布时间）→ 没有就从网页里挑文章链接" +
+          (c.sc_fast || c.sc_browser ? " → 被拦或是动态网页，换 Scrapling" + (c.sc_fast ? "快速模式" : "") + (c.sc_fast && c.sc_browser ? " → 还不行用" : "") + (c.sc_browser ? "真浏览器打开" : "") : "（Scrapling 补救在下面设置里关掉了）") +
+          "。哪种方法管用会记住，下次直接用。" + (p.scrapling ? "" : '<span class="bz-warn">Scrapling 还没装好，动态网页可能抓不到。</span>') + "</li>" +
+        "<li><b>关键词</b>：去 Google 新闻（要开代理）、必应新闻、百度资讯找最新报道。</li>" +
+        "<li><b>去重</b>：以前抓过的文章不再算，只留新的。</li>" +
+        "<li><b>归类</b>：按关键词把新闻归到行业和赛道（不用 AI）。</li>" +
+        "<li><b>抓完</b>：新的出现在「最新新闻」第一页，标着「新」；「正在升温」「提得最多」跟着重算；这一轮的详细记录在「爬虫管理」的抓取记录里。</li>" +
+      "</ol>" +
+        '<p class="bz-note">' + (last ? "上一轮：" + esc(fmtTime(last.started)) + "（" + (TRIG[last.trigger] || "手动") + "），" + last.total + " 个信息源用了 " + dur(lastDur) +
+          "，成功 " + last.ok + " 个、没抓成 " + last.fail + " 个，新抓到 " + last.new + " 条。" : "还没抓过。") +
+          (est ? "这次预计 " + dur(est) + " 左右。" : "") + "</p>" +
+      "</section>" +
+      '<section class="bz-sec"><h3><span class="bz-no">3</span>设置</h3><div class="bz-sets">' +
+        '<div class="bz-set">' + '<span class="bz-sw"><input type="checkbox" id="bzUpdAuto"' + (c.auto ? " checked" : "") + '><i></i></span><span class="bz-set-t"><b>自动更新</b><small>软件开着时，每隔一段时间自动抓一轮（自动的那轮总是抓全部）</small></span>' +
+          '<select class="bz-select sm" id="bzUpdEvery" aria-label="多久自动更新一次"' + (c.auto ? "" : " disabled") + ">" + EVERY.map(([v, t]) => '<option value="' + v + '"' + (v === c.every ? " selected" : "") + ">每 " + t + "</option>").join("") +
+          (EVERY.some(([v]) => v === c.every) ? "" : '<option value="' + c.every + '" selected>每 ' + c.every + " 分钟</option>") + "</select></div>" +
+        '<div class="bz-set"><span class="bz-set-t"><b>同时抓几个</b><small>越多越快，但太多容易被网站拦</small></span>' +
+          '<select class="bz-select sm" id="bzUpdWorkers" aria-label="同时抓几个">' + [2, 4, 6, 8].map((v) => '<option value="' + v + '"' + (v === c.workers ? " selected" : "") + ">" + v + " 个</option>").join("") + "</select></div>" +
+        sw("bzUpdScFast", c.sc_fast, "被拦时用 Scrapling 快速模式补救", "几秒一个，能过大部分拦截") +
+        sw("bzUpdScBrowser", c.sc_browser, "还不行就用真浏览器打开", "十几秒一个、慢，但财联社、华尔街见闻这类动态网页只能靠它") +
+      "</div></section>" +
+      "</div>" +
+      '<div class="bz-dlg-f"><span class="bz-note" id="bzUpdSaved"></span><span class="sp"></span>' +
+        '<button type="button" class="bz-btn ghost" data-close>取消</button>' +
+        '<button type="button" class="bz-btn lg" data-act="upd-start" data-autofocus' + (nScope ? "" : " disabled") + ">开始更新（" + nScope + " 个信息源）</button></div>";
+  }
+  function updRunning(r) {
+    const pct = r.total ? Math.round((r.done / r.total) * 100) : 0;
+    const el = (r.now || Date.now() / 1000) - (r.started || 0);
+    return dlgHead("bzUpdT", "正在更新", "关掉这个窗口也会继续抓，抓完会提醒你。") +
+      '<div class="bz-dlg-b">' +
+      '<div class="bz-rr-stats"><div><span>进度</span><b>' + r.done + " / " + r.total + "</b></div><div><span>新抓到</span><b>" + r.new + " 条</b></div>" +
+        "<div><span>没抓成</span><b>" + (r.fail || 0) + " 个</b></div><div><span>用了</span><b>" + mmss(el) + "</b></div></div>" +
+      '<div class="bz-prog big" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pct + '"><i style="width:' + pct + '%"></i></div>' +
+      '<p class="bz-note">正在抓：' + ((r.current || []).length ? (r.current || []).map(esc).join("、") : "准备中…") + "</p>" +
+      '<h3 class="bz-sub">运行日志</h3><div class="bz-log big">' + (r.log || []).slice().reverse().map((x) => "<div><time>" + hhmm(x[0]) + "</time>" + esc(x[1]) + "</div>").join("") + "</div>" +
+      "</div>" +
+      '<div class="bz-dlg-f"><span class="sp"></span><button type="button" class="bz-btn ghost danger" data-act="rd-stop">停止</button>' +
+        '<button type="button" class="bz-btn" data-close data-autofocus>放到后台，继续看新闻</button></div>';
+  }
+  function updDoneHTML() {
+    const d = S.updRes;
+    if (!d) return dlgHead("bzUpdT", "这一轮抓完了") + '<div class="bz-dlg-b">' + loading("正在读这一轮的结果…") + "</div>";
+    if (!d.ok) return dlgHead("bzUpdT", "这一轮抓完了") + '<div class="bz-dlg-b">' + empty(esc(d.error || "读不到结果")) + "</div>" +
+      '<div class="bz-dlg-f"><span class="sp"></span><button type="button" class="bz-btn" data-close>关闭</button></div>';
+    const r = d.run, bad = (r.sources || []).filter((x) => !x.ok);
+    return dlgHead("bzUpdT", r.stopped ? "这一轮中途停了" : "这一轮抓完了", esc(fmtTime(r.started)) + " 开始，用了 " + dur(r.ended - r.started)) +
+      '<div class="bz-dlg-b">' +
+      '<div class="bz-rr-stats"><div><span>新抓到</span><b>' + r.new + " 条</b></div><div><span>抓成的信息源</span><b>" + r.ok + " / " + r.total + "</b></div>" +
+        "<div><span>没抓成</span><b" + (r.fail ? ' class="bad"' : "") + ">" + r.fail + " 个</b></div><div><span>用到的方法</span><b class=\"sm\">" + (esc(viaText(r.via)) || "—") + "</b></div></div>" +
+      (d.by_ind && d.by_ind.length ? '<h3 class="bz-sub">新内容主要在</h3><div class="bz-chips">' + d.by_ind.slice(0, 12).map(([g, n]) => '<span class="bz-chip">' + esc(nameOf(g)) + " <b>" + n + "</b></span>").join("") + "</div>" : "") +
+      (bad.length ? '<h3 class="bz-sub">没抓成的 ' + bad.length + " 个</h3><ul class=\"bz-badlist\">" + bad.map((x) => "<li><b>" + esc(x.name) + "</b>：" + esc(x.err || "") + "</li>").join("") + "</ul>" +
+        '<p class="bz-note">下次点「现在更新」时可以选「只重抓上次没抓成的」；老是抓不成的，可以在「爬虫管理」里关掉或换网址。</p>' : "") +
+      "</div>" +
+      '<div class="bz-dlg-f"><span class="sp"></span><button type="button" class="bz-btn ghost" data-close>关闭</button>' +
+        (r.new ? '<button type="button" class="bz-btn" data-act="upd-shownew" data-autofocus>只看这次新抓到的 ' + r.new + " 条</button>" : "") + "</div>";
+  }
+  async function updSave(extra) {
+    const body = Object.assign({
+      auto: $("bzUpdAuto").checked, every: +$("bzUpdEvery").value, workers: +$("bzUpdWorkers").value,
+      sc_fast: $("bzUpdScFast").checked, sc_browser: $("bzUpdScBrowser").checked,
+      scope: (root.querySelector('input[name="bzUpdScope"]:checked') || {}).value || "all",
+      groups: Array.from(root.querySelectorAll("[data-upd-grp]:checked")).map((x) => x.dataset.updGrp),
+    }, extra || {});
+    const r = await api("/biz/radar/config", body).catch((e) => ({ ok: false, error: e.message }));
+    if (!r.ok) { toast(r.error || "没存上"); return; }
+    if (S.plan) S.plan.config = r.config;
+    renderUpd();
+    const n = $("bzUpdSaved");
+    if (n) n.textContent = "设置已保存";
+    pollRadar();
+  }
+  async function updStart() {
+    const sc = (root.querySelector('input[name="bzUpdScope"]:checked') || {}).value || "all";
+    const groups = Array.from(root.querySelectorAll("[data-upd-grp]:checked")).map((x) => x.dataset.updGrp);
+    if (sc === "groups" && !groups.length) { toast("先勾上要抓的分类。"); return; }
+    await updSave();
+    S.updDone = ""; S.updRes = null;
+    await radarRun(null, { scope: sc, groups: groups });
+    renderUpd();
+  }
+
+  // ───────── v158：「整理成简报」面板 ─────────
+  const BF_SIZE = { short: ["简短", "800 字以内，最重要的几条", 40], normal: ["标准", "1500～2500 字", 60], detail: ["详细", "3000～5000 字，每条讲清来龙去脉", 90] };
+  async function openBrief() {
+    const prev = store.get("bf", {});
+    S.bf = { days: S.mdays, grp: S.rgrp, q: S.rq, size: prev.size || "normal", notes: prev.notes !== false, web: !!prev.web, focus: "", count: null };
+    S.briefOpen = true;
+    renderBrief();
+    openModal("bzBrief");
+    briefCount();
+    if (!S.briefInfo) { try { S.briefInfo = await api("/biz/brief_info"); } catch (e) { S.briefInfo = null; } renderBrief(); }
+  }
+  let bfSeq = 0;
+  async function briefCount() {
+    const f = S.bf, seq = ++bfSeq;
+    f.count = null;
+    const n = $("bzBfCount");
+    if (n) n.textContent = "正在数…";
+    let r = null;
+    try { r = await api("/biz/items?lens=market&limit=1&days=" + f.days + "&grp=" + enc(f.grp === "all" ? "" : f.grp) + "&q=" + enc(f.q)); } catch (e) {}
+    if (seq !== bfSeq) return;
+    f.count = r ? r.total || 0 : 0;
+    renderBriefCount();
+  }
+  function renderBriefCount() {
+    const f = S.bf, n = $("bzBfCount");
+    if (!n || f.count == null) return;
+    const m = BF_SIZE[f.size][2];
+    n.innerHTML = f.count ? "符合的新闻 <b>" + f.count + "</b> 条。" + (f.count > m ? "AI 会从里面挑最新、最相关的 " + m + " 条来写。" : "全部交给 AI。")
+      : '<span class="bz-warn">这个范围里没有新闻，换个时间或来源试试。</span>';
+    const go = $("bzBfGo");
+    if (go) go.disabled = !f.count || !!(S.job && S.job.running);
+  }
+  function bfTitle() {
+    const f = S.bf, gname = { news: "财经媒体", "corp,corpkw": "大公司", "media,indkw": "行业媒体", policy: "政策数据", global: "海外", mine: "我加的" }[f.grp];
+    return "市场动向简报（实时）· " + [gname || "全部行业", f.q ? "「" + f.q + "」" : ""].filter(Boolean).join(" ") + " · " + (f.days <= 1 ? "最近 24 小时" : "最近 " + f.days + " 天");
+  }
+  function renderBrief() {
+    const el = $("bzBriefBody");
+    if (!el || !S.briefOpen) return;
+    const f = S.bf, info = S.briefInfo, busy = S.job && S.job.running;
+    const now = new Date(), stamp = now.getFullYear() + pad(now.getMonth() + 1) + pad(now.getDate()) + "-" + pad(now.getHours()) + pad(now.getMinutes()) + "00";
+    const fname = stamp + "-market-" + bfTitle().replace(/[\\/:*?"<>|\s·：]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40) + ".md";
+    const grpOpts = [["all", "全部来源"], ["news", "财经媒体"], ["corp,corpkw", "大公司"], ["media,indkw", "行业媒体"], ["policy", "政策数据"], ["global", "海外"], ["mine", "我加的"]];
+    const parts = (info && info.parts) || [];
+    const segB = (name, opts, cur) => '<div class="bz-seg" role="group" data-seg="' + name + '">' + opts.map(([v, t]) => '<button type="button" data-v="' + v + '" aria-pressed="' + (String(v) === String(cur)) + '">' + t + "</button>").join("") + "</div>";
+    el.innerHTML = dlgHead("bzBriefT", "把这些新闻整理成简报", "AI 读完你选的新闻，写成一份「市场动向简报」文档，存在你电脑上。") +
+      '<div class="bz-dlg-b">' +
+      '<section class="bz-sec"><h3><span class="bz-no">1</span>用哪些新闻</h3>' +
+        '<p class="bz-note bz-flat">默认就是「最新新闻」里现在筛出来的那些，可以在这里改。</p>' +
+        '<div class="bz-form">' +
+          "<div><span class=\"bz-lbl\">时间</span>" + segB("bfdays", [[1, "24 小时"], [3, "3 天"], [7, "7 天"], [30, "30 天"]], f.days) + "</div>" +
+          '<label><span class="bz-lbl">来源</span><select class="bz-select" id="bzBfGrp">' + grpOpts.map(([v, t]) => '<option value="' + v + '"' + (v === f.grp ? " selected" : "") + ">" + t + "</option>").join("") + "</select></label>" +
+          '<label><span class="bz-lbl">只要提到</span><input class="bz-input" id="bzBfQ" value="' + esc(f.q) + '" placeholder="不填就是全部，比如 比亚迪、降价" maxlength="40"></label>' +
+        "</div>" +
+        '<p class="bz-count" id="bzBfCount" aria-live="polite">正在数…</p>' +
+        '<label class="bz-chk"><input type="checkbox" id="bzBfNotes"' + (f.notes ? " checked" : "") + "> 加上你收进来的笔记和动态（让 AI 对照你关注的方向）</label>" +
+        '<label class="bz-chk"><input type="checkbox" id="bzBfWeb"' + (f.web ? " checked" : "") + "> 联网补充查资料（会多花 1～2 分钟）</label>" +
+      "</section>" +
+      '<section class="bz-sec"><h3><span class="bz-no">2</span>写成什么样</h3>' +
+        '<div class="bz-form"><div><span class="bz-lbl">篇幅</span>' + segB("bfsize", Object.keys(BF_SIZE).map((k) => [k, BF_SIZE[k][0]]), f.size) +
+          '<span class="bz-note">' + esc(BF_SIZE[f.size][1]) + "</span></div>" +
+          '<label class="wide"><span class="bz-lbl">特别想知道</span><input class="bz-input" id="bzBfFocus" value="' + esc(f.focus) + '" placeholder="可以不填。比如：哪些行业在降价打价格战" maxlength="80"></label></div>' +
+      "</section>" +
+      '<section class="bz-sec"><h3><span class="bz-no">3</span>会得到什么</h3>' +
+        "<p>一份 <b>Markdown 文档（.md）</b>，标题是「" + esc(bfTitle()) + "」，里面按顺序有：</p>" +
+        (parts.length ? '<ol class="bz-parts">' + parts.map((x) => "<li>" + esc(x) + "</li>").join("") + "</ol>" : loading()) +
+        '<p class="bz-note">文末会列出这份简报用了哪些资料。「机会清单」里的机会会自动放进「机会看板」。</p>' +
+      "</section>" +
+      '<section class="bz-sec"><h3><span class="bz-no">4</span>存在哪</h3>' +
+        '<div class="bz-where"><code>' + esc(info && info.dir ? info.dir : "（正在读…）") + "</code>" +
+          '<button type="button" class="bz-btn ghost sm" data-openfolder="">打开这个文件夹</button></div>' +
+        '<p class="bz-note">文件名像这样：<code>' + esc(fname) + "</code><br>在软件里：本页右边「最近的简报」，或者「研究分析」→ 报告库，点开就能看、复制全文。文件也可以直接用记事本、Typora 打开。</p>" +
+      "</section>" +
+      '<section class="bz-sec"><h3><span class="bz-no">5</span>要多久</h3><p>一般 2～6 分钟。交给 AI 池排队写（AI 池在忙就先等），页面顶上会有进度条，可以随时停；写好会提醒你，点「打开报告」就能看。</p></section>' +
+      "</div>" +
+      '<div class="bz-dlg-f">' + (busy ? '<span class="bz-warn">「' + esc(S.job.title) + "」还在写，等它写完再开始。</span>" : "") + '<span class="sp"></span>' +
+        '<button type="button" class="bz-btn ghost" data-close>取消</button>' +
+        '<button type="button" class="bz-btn lg" id="bzBfGo" data-act="brief-start" data-autofocus disabled>开始整理</button></div>';
+    renderBriefCount();
+  }
+  function briefStart() {
+    const f = S.bf;
+    f.notes = $("bzBfNotes").checked; f.web = $("bzBfWeb").checked; f.focus = $("bzBfFocus").value.trim();
+    store.set("bf", { size: f.size, notes: f.notes, web: f.web });
+    closeModal("bzBrief");
+    runJob("market", { scope: "", days: f.days, web: f.web, lens: "market", grp: f.grp === "all" ? "" : f.grp, q: f.q, size: f.size, notes: f.notes, focus: f.focus });
   }
 
   // ───────── 阅读：报告 / 笔记 ─────────
@@ -857,13 +1165,15 @@
     const m = r.meta;
     const meta = '<span class="bz-kind k-' + esc(m.kind) + '">' + esc(KIND[m.kind] || m.kind) + "</span><span>" + esc(fmtTime(m.created)) + "</span>" +
       "<span>" + esc(m.engine || "AI") + "写的</span><span>用了你的笔记 " + (m.notes || 0) + " 篇" + (m.radar ? "、市场新闻 " + m.radar + " 条" : "") + (m.web ? "、网页 " + m.web + " 个" : "") + "</span>" +
-      (m.opps ? '<button type="button" class="bz-link" data-goto="opps">新增 ' + m.opps + " 个机会，去看板</button>" : "");
+      (m.opps ? '<button type="button" class="bz-link" data-goto="opps">新增 ' + m.opps + " 个机会，去看板</button>" : "") +
+      (r.path ? '<span class="bz-path" title="这份报告在你电脑上的位置">文件：' + esc(r.path) + "</span>" : "");
     let body = reportBody(r.content, r.chain);
     if (m.note_ids && m.note_ids.length) {
       body += '<section class="bz-used"><h4>用到的笔记</h4><div class="bz-chips">' + m.note_ids.map((n) =>
         '<button type="button" class="bz-chip" data-note="' + esc(n) + '">' + esc(n.replace(/^\d{8}-\d{6}-/, "").replace(/\.md$/, "").slice(0, 24)) + "</button>").join("") + "</div></section>";
     }
     openReader(m.title, meta, body,
+      '<button type="button" class="bz-btn ghost sm" data-openfolder="' + esc(m.id) + '">打开所在文件夹</button>' +
       '<button type="button" class="bz-btn ghost sm" data-act="copyrep">复制全文</button>' +
       '<button type="button" class="bz-btn ghost sm" data-act="rerun">重新写一份</button>' +
       '<button type="button" class="bz-btn ghost sm danger" data-act="delrep">删除</button>');
@@ -894,7 +1204,7 @@
     } catch (e) {
       if (m) { S.ovm = null; S.ovmErr = "连不上后台（" + e.message + "）"; } else { S.ov = null; S.ovErr = "连不上后台（" + e.message + "）"; }
     }
-    if (m && S.rgrp === "all" && !S.rq && S.rlimit <= 80) S.rfeed = S.ovm ? S.ovm.latest : null;
+    if (m && !S.rfeed) loadRadarFeed(true);
     renderPane(S.pane);
   }
   async function refreshReports() {
@@ -936,24 +1246,37 @@
       const was = S.radar && S.radar.running;
       const wasRid = S.radar && S.radar.rid;
       S.radar = r;
+      if (!r.running) S.newCut = r.started || r.last_run || 0;
       renderStrips();
+      if (S.updOpen && r.running) renderUpd();
       if (S.pane === "crawler") { renderCrawlerStatus(); renderRuns(); }
       if (was && !r.running) {
         refreshOverview("market"); loadRadarSources(); loadEngines(); loadRuns();
         if (S.rdSid) loadRdItems();
         if (S.readerRun && S.readerRun === wasRid && !$("bzReader").hidden) openRunReport(wasRid);
-        toast("爬虫这一轮抓完了，新抓到 " + r.new + " 条。");
+        loadRadarFeed(true);
+        if (S.updOpen && wasRid) { S.updDone = wasRid; S.updRes = null; renderUpd(); openUpdResult(wasRid); }
+        else toast("爬虫这一轮抓完了，新抓到 " + r.new + " 条。");
       } else if (!was && r.running && S.pane === "crawler") loadRuns();
     }
     const active = root.classList.contains("active");
     if (r && r.running) S.radarTimer = setTimeout(pollRadar, 2500);
     else if (active) S.radarTimer = setTimeout(pollRadar, 30000);
   }
-  async function radarRun(id) {
-    const r = await api("/biz/radar/run", id ? { id: id } : {}).catch((e) => ({ ok: false, error: e.message }));
+  async function openUpdResult(rid) {
+    let d;
+    try { d = await api("/biz/radar/report?id=" + enc(rid)); } catch (e) { d = { ok: false, error: e.message }; }
+    if (S.updDone !== rid) return;
+    S.updRes = d;
+    renderUpd();
+  }
+  async function radarRun(id, opts) {
+    const r = await api("/biz/radar/run", id ? { id: id } : (opts || {})).catch((e) => ({ ok: false, error: e.message }));
     if (!r.ok) { toast(r.error || "没开始"); return; }
     S.radar = Object.assign({}, S.radar || {}, { running: true, rid: r.rid, done: 0, total: r.total, new: 0, current: [] });   // 抓得很快时也能认出「抓完了」
-    toast(id ? "开始抓这一个了，过程在「爬虫管理」的运行日志里。" : "开始抓了：" + r.total + " 个信息源，一般一两分钟抓完。");
+    if (id) toast("开始抓这一个了，过程在「爬虫管理」的运行日志里。");
+    else if (!S.updOpen) toast("开始抓了：" + r.total + " 个信息源，一般一两分钟抓完。");
+    renderBigBtns();
     setTimeout(pollRadar, 500);
   }
 
@@ -996,10 +1319,12 @@
     if (name === "mdays") {
       S.mdays = +v; store.set("mdays", S.mdays); S.ovm = null; S.rfeed = null;
       renderPane(S.pane); refreshOverview("market");
-      if (S.rgrp !== "all" || S.rq) loadRadarFeed();
+      loadRadarFeed();
       if (S.pane === "industry" && S.indSel && S.lens === "market") selectInd(S.indSel);
     }
-    else if (name === "rgrp") { S.rgrp = v; S.rlimit = 80; segSync("rgrp", v); loadRadarFeed(); }
+    else if (name === "rgrp") { S.rgrp = v; segSync("rgrp", v); loadRadarFeed(); }
+    else if (name === "bfdays") { S.bf.days = +v; renderBrief(); briefCount(); }
+    else if (name === "bfsize") { S.bf.size = v; renderBrief(); }
     else if (name === "lens") {
       S.lens = v === "mine" ? "mine" : "market"; store.set("lens", S.lens);
       if (!curOv()) refreshOverview(S.lens);
@@ -1029,14 +1354,31 @@
     root.addEventListener("click", async (e) => {
       const t = e.target;
       let b;
+      if (t.classList && t.classList.contains("bz-modal")) { closeModal(t.id); return; }        // 点窗口外面的灰色部分
+      if ((b = t.closest("[data-close]"))) { const m = b.closest(".bz-modal"); if (m) closeModal(m.id); return; }
+      if ((b = t.closest("[data-openfolder]"))) {
+        const r = await api("/biz/open_folder", { id: b.dataset.openfolder || "" }).catch((e) => ({ ok: false, error: e.message }));
+        if (!r.ok) toast(r.error || "打不开文件夹"); else toast("已在资源管理器里打开。");
+        return;
+      }
       if ((b = t.closest(".bz-seg button[data-v]"))) { onSeg(b.parentNode.dataset.seg, b.dataset.v); return; }
       if ((b = t.closest("[data-act]"))) {
         const act = b.dataset.act;
         if (act === "back") closeReader();
         else if (act === "guide-hide") { store.set("guideHidden", true); $("bzGuide").hidden = true; }
         else if (act === "clearq") { S.rq = ""; $("bzRq").value = ""; loadRadarFeed(); }
+        else if (act === "clearsince") { S.rsince = 0; loadRadarFeed(); }
         else if (act === "rd-run") radarRun();
-        else if (act === "rd-stop") { await api("/biz/radar/stop", {}).catch(() => {}); toast("正在抓的这几个抓完就停。"); pollRadar(); }
+        else if (act === "upd-open") openUpd();
+        else if (act === "upd-start") { b.disabled = true; updStart(); }
+        else if (act === "upd-shownew") {
+          const run = S.updRes && S.updRes.run;
+          S.rsince = run ? run.started : 0; S.rq = ""; $("bzRq").value = ""; S.rgrp = "all"; segSync("rgrp", "all");
+          S.updDone = ""; closeModal("bzUpd"); loadRadarFeed();
+          const card = $("bzFeedCard"); if (card) card.scrollIntoView({ block: "start" });
+        }
+        else if (act === "brief-start") briefStart();
+        else if (act === "rd-stop") { b.disabled = true; await api("/biz/radar/stop", {}).catch(() => {}); toast("正在抓的这几个抓完就停。"); pollRadar(); }
         else if (act === "rd-allitems") { S.rdSid = ""; S.rdItems = null; renderSources(); }
         else if (act === "run-refresh" && S.readerRun) openRunReport(S.readerRun);
         else if (act === "stopjob") { b.disabled = true; await api("/biz/stop", {}).catch(() => {}); toast("正在停下…"); pollJob(); }
@@ -1140,8 +1482,9 @@
         if (r.ok) { toast("加进去 " + r.added + " 个，下一轮就会抓。"); loadRadarSources(); } else toast(r.error || "没加上");
         return;
       }
-      if (t.closest("#bzFeedMore")) { S.rlimit += 100; loadRadarFeed(); return; }
-      if (t.closest("#bzBriefRun")) { runJob("market", { scope: "", days: S.mdays, web: false, lens: "market" }); return; }
+      if ((b = t.closest("[data-page]"))) { if (!b.disabled) goPage(+b.dataset.page); return; }
+      if (t.closest("#bzUpdBtn")) { openUpd(); return; }
+      if (t.closest("#bzBriefRun")) { openBrief(); return; }
       if (t.closest("#bzTaskRun")) { startTask(); return; }
       if (t.closest("#bzTaskSave")) {
         const v = (($("bzTaskTarget") || {}).value || "").trim();
@@ -1168,6 +1511,11 @@
         const r = await api("/biz/opp", { action: "update", id: t.dataset.oppSt, status: t.value });
         if (r.ok) { S.opps = r.items; renderOpps(); }
       } else if (t.id === "bzTaskScope") store.set("taskScope", t.value);
+      else if (t.id === "bzPgSize") { S.rsize = +t.value; store.set("rsize", S.rsize); loadRadarFeed(); }
+      else if (["bzUpdAuto", "bzUpdEvery", "bzUpdWorkers", "bzUpdScFast", "bzUpdScBrowser"].includes(t.id) || t.name === "bzUpdScope" || t.matches("[data-upd-grp]")) updSave();
+      else if (t.id === "bzBfGrp") { S.bf.grp = t.value; briefCount(); }
+      else if (t.id === "bzBfNotes") S.bf.notes = t.checked;
+      else if (t.id === "bzBfWeb") S.bf.web = t.checked;
       else if (t.matches("[data-rd-toggle]")) {
         const r = await api("/biz/radar/source", { action: "toggle", id: t.dataset.rdToggle, enabled: t.checked });
         if (r.ok) loadRadarSources(); else toast(r.error || "没改成");
@@ -1180,7 +1528,9 @@
     root.addEventListener("input", (e) => {
       const t = e.target;
       if (t.id === "bzIndQ") { S.indQ = t.value; clearTimeout(qTimer); qTimer = setTimeout(renderIndustry, 160); }
-      else if (t.id === "bzRq") { clearTimeout(qTimer); qTimer = setTimeout(() => { S.rq = t.value.trim(); S.rlimit = 80; loadRadarFeed(); }, 350); }
+      else if (t.id === "bzRq") { clearTimeout(qTimer); qTimer = setTimeout(() => { S.rq = t.value.trim(); loadRadarFeed(); }, 350); }
+      else if (t.id === "bzBfQ") { S.bf.q = t.value.trim(); clearTimeout(qTimer); qTimer = setTimeout(briefCount, 350); }
+      else if (t.id === "bzBfFocus") S.bf.focus = t.value;
       else if (t.id === "bzRepQ") { S.repQ = t.value; renderAnalysis(); }
     });
     root.addEventListener("keydown", (e) => {
@@ -1195,7 +1545,10 @@
       if (d && d.matches && d.matches("details[data-grp]")) S.rdOpen[d.dataset.grp] = d.open;
     }, true);
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && root.classList.contains("active") && !$("bzReader").hidden) closeReader();
+      if (e.key !== "Escape" || !root.classList.contains("active")) return;
+      if (!$("bzBrief").hidden) closeModal("bzBrief");
+      else if (!$("bzUpd").hidden) closeModal("bzUpd");
+      else if (!$("bzReader").hidden) closeReader();
     });
   }
 

@@ -459,7 +459,8 @@ def _radar_items():
                 it = _signal("radar", "r:" + str(r.get("key")), r.get("title", ""), r.get("summary", ""),
                              s.get("name") or r.get("sname", ""), r.get("url", ""), r.get("ts", 0),
                              {"grp": s.get("group") or r.get("grp", ""), "approx": not r.get("dated"),
-                              "sid": r.get("sid", ""), "from": r.get("from", "")}, hints=s.get("hint") or [],
+                              "sid": r.get("sid", ""), "from": r.get("from", ""),
+                              "seen": int(r.get("seen") or r.get("ts") or 0)}, hints=s.get("hint") or [],
                              hint_w=2 if (s.get("group") or r.get("grp")) in ("media", "corpkw", "indkw", "mine") else 1)
             keep[ck] = it
             out.append(it)
@@ -474,7 +475,7 @@ def _pub(it):
             "ind": it.get("ind", [])[:3], "trk": it.get("trk", [])[:2], "mdl": it.get("mdl", [])[:3],
             "cat": it.get("cat", ""), "kind": it.get("kind", ""), "imp": it.get("imp", ""), "todo": it.get("todo", False),
             "ts": int(it.get("ts") or 0), "grp": it.get("grp", ""), "from": it.get("from", ""),
-            "approx": bool(it.get("approx")), "sid": it.get("sid", "")}
+            "approx": bool(it.get("approx")), "sid": it.get("sid", ""), "seen": int(it.get("seen") or 0)}
 
 
 # ───────────────────────── 总览 / 查资料 ─────────────────────────
@@ -600,7 +601,8 @@ def _overview_market(days=7):
             "radar": rs, "reports": len(_reports()), "now": int(now)}
 
 
-def items(ind="", trk="", mdl="", q="", src="all", days=0, limit=60, biz=False, lens="mine", sid="", grp=""):
+def items(ind="", trk="", mdl="", q="", src="all", days=0, limit=60, biz=False, lens="mine", sid="", grp="", offset=0,
+          since=0):
     allit = _radar_items() if lens == "market" else _all_items()
     grps = {g for g in (grp or "").split(",") if g and g != "all"}
     cut = time.time() - int(days) * 86400 if days else 0
@@ -614,6 +616,8 @@ def items(ind="", trk="", mdl="", q="", src="all", days=0, limit=60, biz=False, 
         if grps and it.get("grp") not in grps:
             continue
         if cut and it["ts"] < cut:
+            continue
+        if since and int(it.get("seen") or 0) < since:        # v158：只看某一轮之后新抓到的
             continue
         if biz and it["src"] == "note" and it["biz"] < 2:
             continue
@@ -636,7 +640,8 @@ def items(ind="", trk="", mdl="", q="", src="all", days=0, limit=60, biz=False, 
         out.append(it)
     out.sort(key=lambda x: -x["ts"])
     c = collections.Counter(k for it in out for k in it.get("terms", []))
-    return {"ok": True, "total": len(out), "items": [_pub(x) for x in out[:max(1, int(limit))]],
+    off = max(0, int(offset or 0))                         # v158：分页
+    return {"ok": True, "total": len(out), "offset": off, "items": [_pub(x) for x in out[off:off + max(1, int(limit))]],
             "top_kw": [k for k, _n in c.most_common(16)]}
 
 
@@ -652,7 +657,23 @@ def _reports():
 def list_reports(kind=""):
     reps = [r for r in _reports() if not kind or r.get("kind") == kind]
     reps.sort(key=lambda r: -int(r.get("created") or 0))
-    return {"ok": True, "items": reps}
+    return {"ok": True, "items": reps, "dir": str(REPORT_DIR.resolve())}
+
+
+def report_path(rid=""):
+    """v158：报告文件在电脑上的完整路径；没给编号就是报告文件夹。"""
+    if not rid:
+        REPORT_DIR.mkdir(parents=True, exist_ok=True)
+        return REPORT_DIR.resolve()
+    meta = next((r for r in _reports() if r.get("id") == rid), None)
+    if not meta:
+        return None
+    return (REPORT_DIR / meta.get("file", "")).resolve()
+
+
+def brief_struct():
+    """v158：简报里会有哪些部分（给界面说明用）。"""
+    return list(_STRUCT["market"])
 
 
 def parse_chain(md):
@@ -739,7 +760,7 @@ def read_report(rid):
         content = p.read_text(encoding="utf-8")
     except Exception:
         return {"ok": False, "error": "报告文件读不出来：%s" % meta.get("file", "")}
-    return {"ok": True, "meta": meta, "content": content, "chain": parse_chain(content)}
+    return {"ok": True, "meta": meta, "content": content, "chain": parse_chain(content), "path": str(p.resolve())}
 
 
 def delete_report(rid):
@@ -901,12 +922,15 @@ def _resolve(sid):
     return sid, "", set(), [sid], ""
 
 
-def _spec(kind, target, scope, days, web, depth, lens="mine"):
+def _spec(kind, target, scope, days, web, depth, lens="mine", grp="", q="", size="", notes=True, focus=""):
     days = max(1, min(int(days or 30), 365))
     sname, sdesc, sgids, sterms, sco = _resolve(scope)
     spec = {"kind": kind, "target": target, "scope": scope, "days": days, "web": bool(web),
             "depth": "deep" if depth == "deep" else "quick", "scope_name": sname, "desc": sdesc, "co": sco,
-            "gids": set(sgids), "terms": list(sterms), "lens": "market" if lens == "market" else "mine"}
+            "gids": set(sgids), "terms": list(sterms), "lens": "market" if lens == "market" else "mine",
+            "grp": [g for g in (grp or "").split(",") if g and g != "all"], "q": (q or "").strip()[:40],
+            "size": size if size in ("short", "detail") else "normal", "use_notes": bool(notes),
+            "focus": re.sub(r"\s+", " ", focus or "").strip()[:80]}
     if kind in ("model", "research") or (kind == "industry" and target and not scope):
         # 自由文字：按分类表扩展出相关行业 / 赛道（比如「蜜雪冰城」→ 新茶饮、酒店餐饮），用来多挑资料
         tname, tdesc, tg, tt, tco = _resolve(target)
@@ -918,7 +942,13 @@ def _spec(kind, target, scope, days, web, depth, lens="mine"):
             spec["terms"] = [target] + [w for w in re.split(r"[\s,，、/]+", target) if len(w) >= 2 and w != target]
             spec["scope_name"] = target
     if kind == "market":
-        spec["title"] = "市场动向简报%s · %s · 最近 %d 天" % ("（实时）" if spec["lens"] == "market" else "", sname, days)
+        rng = "最近 24 小时" if days <= 1 else "最近 %d 天" % days
+        bits = [sname]
+        if spec["grp"]:
+            bits = [_GRP_NAMES.get(spec["grp"][0], "") or sname]
+        if spec["q"]:
+            bits.append("「%s」" % spec["q"])
+        spec["title"] = "市场动向简报%s · %s · %s" % ("（实时）" if spec["lens"] == "market" else "", " ".join(b for b in bits if b), rng)
     elif kind == "industry":
         spec["title"] = "行业研究：%s" % spec["scope_name"]
     elif kind == "model":
@@ -930,7 +960,12 @@ def _spec(kind, target, scope, days, web, depth, lens="mine"):
     return spec
 
 
-def start(kind, target="", scope="", days=30, web=True, depth="quick", lens="mine"):
+_GRP_NAMES = {"news": "财经媒体", "corp": "大公司", "corpkw": "大公司动态", "media": "行业媒体", "indkw": "行业热词",
+              "policy": "政策数据", "global": "海外", "mine": "我加的"}
+
+
+def start(kind, target="", scope="", days=30, web=True, depth="quick", lens="mine", grp="", q="", size="", notes=True,
+          focus=""):
     if kind not in KIND_NAMES:
         return {"ok": False, "error": "不认识的分析类型：%s" % kind}
     target = re.sub(r"\s+", " ", str(target or "")).strip()[:60]
@@ -939,7 +974,7 @@ def start(kind, target="", scope="", days=30, web=True, depth="quick", lens="min
         return {"ok": False, "error": "先写上要分析的公司、产品或课题"}
     if kind == "industry" and not (target or scope):
         return {"ok": False, "error": "先选一个行业"}
-    spec = _spec(kind, target, scope, days, web, depth, lens)
+    spec = _spec(kind, target, scope, days, web, depth, lens, grp, q, size, notes, focus)
     with _job_lock:
         if _job.get("running"):
             return {"ok": False, "error": "「%s」还在做，等它做完或者先点停止" % _job.get("title", "")}
@@ -1024,9 +1059,15 @@ def _select_radar(spec, n):
     gids = spec["gids"]
     terms = [t.lower() for t in spec["terms"] if t and len(t) >= 2]
     cut = time.time() - (spec["days"] if spec["kind"] == "market" else 30) * 86400
+    grps = set(spec.get("grp") or [])
+    ql = (spec.get("q") or "").lower()
     scored = []
     for it in _radar_items():
         if it["ts"] < cut:
+            continue
+        if grps and it.get("grp") not in grps:             # v158：简报只用界面上筛出来的那些新闻
+            continue
+        if ql and ql not in it["_text"]:
             continue
         s = 0
         if gids:
@@ -1131,7 +1172,17 @@ _MARKERS = {"market": ["主要动向", "接下来观察"], "industry": ["产业�
 def _task_line(spec):
     k = spec["kind"]
     if k == "market":
-        return "任务：根据下面的资料，写一份「%s」的市场动向简报，覆盖最近 %d 天。" % (spec["scope_name"], spec["days"])
+        line = "任务：根据下面的资料，写一份「%s」的市场动向简报，覆盖%s。" % (
+            spec["scope_name"], "最近 24 小时" if spec["days"] <= 1 else "最近 %d 天" % spec["days"])
+        if spec.get("grp"):
+            line += "新闻只来自这几类信息源：%s。" % "、".join(_GRP_NAMES.get(g, g) for g in spec["grp"])
+        if spec.get("q"):
+            line += "新闻都是提到「%s」的，简报围绕它来写。" % spec["q"]
+        if spec.get("focus"):
+            line += "用户特别想知道：%s，这部分要写充分。" % spec["focus"]
+        line += {"short": "篇幅要短：全文 800 字以内，每部分只写最重要的两三条。",
+                 "detail": "写详细：全文 3000～5000 字，每条动向都写清来龙去脉、影响和出处。"}.get(spec.get("size"), "篇幅适中：全文 1500～2500 字。")
+        return line
     if k == "industry":
         extra = "；".join(x for x in (spec["desc"], ("代表企业举例：" + spec["co"]) if spec["co"] else "") if x)
         return "任务：研究「%s」这个行业%s。" % (spec["scope_name"], "（%s）" % extra if extra else "")
@@ -1244,7 +1295,8 @@ def _save(spec, text, notes, sigs, web_src, engine):
             "notes": len(notes), "sigs": len(sigs), "web": len(web_src), "summary": _summary(body),
             "chain": bool(parse_chain(body)), "opps": n_opps, "note_ids": [it["id"] for it in notes[:30]],
             "days": spec["days"], "web_on": spec["web"], "depth": spec["depth"], "lens": spec.get("lens", "mine"),
-            "radar": spec.get("n_radar", 0)}
+            "radar": spec.get("n_radar", 0), "size": spec.get("size", ""), "grp": spec.get("grp", []), "q": spec.get("q", ""),
+            "focus": spec.get("focus", "")}
     with _REP_LOCK:
         reps = _reports()
         reps.insert(0, meta)
@@ -1257,7 +1309,10 @@ def _run(spec):
         deep = spec["depth"] == "deep"
         _stage(1, "从你收进来的资料里挑相关的…")
         notes, sigs = _select_local(spec, 34 if deep else 24, 40 if spec["kind"] == "market" else 24)
-        radar = _select_radar(spec, 60 if spec.get("lens") == "market" else 30)
+        if spec["kind"] == "market" and not spec.get("use_notes", True):
+            notes, sigs = [], []                            # v158：简报设置里没勾「加上我的笔记」
+        n_r = {"short": 40, "detail": 90}.get(spec.get("size"), 60) if spec["kind"] == "market" else 30
+        radar = _select_radar(spec, n_r if spec.get("lens") == "market" else 30)
         _stage(1, "挑出 %d 篇笔记、%d 条动态、%d 条市场新闻" % (len(notes), len(sigs), len(radar)))
         if _stopping():
             raise _Stop()

@@ -91,7 +91,7 @@ _LOG_QUIET_PATHS = {"/intake_kind", "/douyin/login",
     "/logs", "/ai_live", "/ai_live_shot", "/version", "/gpu_status", "/creator_profiles", "/creator_avatar", "/creator_scan_all",
     "/scrapling/status", "/sniff/sources",
     "/biz/job", "/biz/overview", "/biz/taxonomy", "/biz/items", "/biz/reports", "/biz/report", "/biz/opps", "/biz/topics",
-    "/biz/radar/status", "/biz/radar/sources", "/biz/radar/engines", "/biz/radar/runs", "/biz/radar/report",
+    "/biz/radar/status", "/biz/radar/plan", "/biz/brief_info", "/biz/radar/sources", "/biz/radar/engines", "/biz/radar/runs", "/biz/radar/report",
 }
 
 # 给少数关键路径配一句「人话」描述，让日志一眼能看懂用户在干嘛。
@@ -3980,6 +3980,28 @@ def _biz_cancel():
         pass
 
 
+def _biz_open_folder(p):
+    """v158：在资源管理器里打开报告文件夹；给的是文件就打开它所在的文件夹并选中它。"""
+    import subprocess
+    from pathlib import Path
+    if not p:
+        return {"ok": False, "error": "找不到这份报告（可能删掉了）"}
+    p = Path(p)
+    if not p.exists():
+        return {"ok": False, "error": "电脑上找不到这个文件：%s" % p}
+    try:
+        if os.name == "nt":
+            if p.is_file():
+                subprocess.Popen(["explorer", "/select,", str(p)])
+            else:
+                os.startfile(str(p))
+        else:
+            subprocess.Popen(["xdg-open", str(p if p.is_dir() else p.parent)])
+        return {"ok": True, "path": str(p)}
+    except Exception as e:
+        return {"ok": False, "error": "打不开文件夹：%s" % e, "path": str(p)}
+
+
 def _biz_mod():
     """v155：左栏「商业」（biz_intel.py）。"""
     import biz_intel as _bz
@@ -5594,7 +5616,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(bz.items(ind=q1("ind"), trk=q1("trk"), mdl=q1("mdl"), q=q1("q"),
                                                src=q1("src", "all"), days=int(q1("days", "0") or 0),
                                                limit=int(q1("limit", "60") or 60), biz=q1("biz") == "1",
-                                               lens=q1("lens", "mine"), sid=q1("sid"), grp=q1("grp")))
+                                               lens=q1("lens", "mine"), sid=q1("sid"), grp=q1("grp"),
+                                               offset=int(q1("offset", "0") or 0), since=int(q1("since", "0") or 0)))
                 if path == "/biz/reports":
                     return self._send(bz.list_reports(q1("kind")))
                 if path == "/biz/report":
@@ -5611,6 +5634,11 @@ class Handler(BaseHTTPRequestHandler):
                                        "/biz/radar/engines": _bc.engines, "/biz/radar/runs": _bc.list_runs}[path]())
                 if path == "/biz/radar/report":
                     return self._send(bz.radar_run(q1("id")))
+                if path == "/biz/radar/plan":                        # v158：「现在更新」面板
+                    import biz_crawler as _bc
+                    return self._send(_bc.plan())
+                if path == "/biz/brief_info":                        # v158：「整理成简报」面板
+                    return self._send({"ok": True, "dir": str(bz.report_path()), "parts": bz.brief_struct()})
             except Exception as e:
                 return self._send({"ok": False, "error": str(e)})
 
@@ -6532,7 +6560,11 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(bz.start(body.get("kind", ""), target=body.get("target", ""),
                                                scope=body.get("scope", ""), days=int(body.get("days") or 30),
                                                web=bool(body.get("web", True)), depth=body.get("depth", "quick"),
-                                               lens=body.get("lens", "mine")))
+                                               lens=body.get("lens", "mine"), grp=body.get("grp", ""), q=body.get("q", ""),
+                                               size=body.get("size", ""), notes=bool(body.get("notes", True)),
+                                               focus=body.get("focus", "")))
+                if path == "/biz/open_folder":                       # v158：在资源管理器里打开报告所在的文件夹
+                    return self._send(_biz_open_folder(bz.report_path(body.get("id", ""))))
                 if path == "/biz/stop":
                     return self._send(bz.stop())
                 if path == "/biz/report_delete":
@@ -6544,11 +6576,14 @@ class Handler(BaseHTTPRequestHandler):
                 if path.startswith("/biz/radar/"):                          # v156：市场雷达
                     import biz_crawler as _bc
                     if path == "/biz/radar/run":
-                        return self._send(_bc.start([body["id"]] if body.get("id") else None))
+                        return self._send(_bc.start([body["id"]] if body.get("id") else None,
+                                                    scope=body.get("scope"), groups=body.get("groups")))
                     if path == "/biz/radar/stop":
                         return self._send(_bc.stop())
                     if path == "/biz/radar/config":
-                        return self._send(_bc.save_config(body.get("auto"), body.get("every")))
+                        return self._send(_bc.save_config(body.get("auto"), body.get("every"), body.get("workers"),
+                                                          body.get("sc_fast"), body.get("sc_browser"),
+                                                          body.get("scope"), body.get("groups")))
                     if path == "/biz/radar/source":
                         return self._send(_bc.source_action(body))
             except Exception as e:
