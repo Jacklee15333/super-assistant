@@ -990,3 +990,169 @@ def boot_scheduler():
             _wake.clear()
 
     threading.Thread(target=_loop, name="biz-radar-auto", daemon=True).start()
+
+
+# ───────────────────────── v160：点开一条新闻，在软件里看正文 ─────────────────────────
+_ART = {}                       # 网址 → 结果（只放在内存里，最多 300 篇）
+_ART_LOCK = threading.Lock()
+_BLOCK_TAGS = {"p", "div", "section", "article", "li", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "td", "pre", "br", "tr"}
+_SKIP_TAGS = {"script", "style", "noscript", "nav", "footer", "header", "aside", "form", "button", "select", "iframe", "svg",
+              "template", "figure", "figcaption"}
+_VOID = {"br", "img", "hr", "meta", "link", "input", "source", "wbr", "area", "base", "col", "embed", "param", "track"}
+_NOISE = re.compile(r"(comment|footer|share|related|recommend|sidebar|nav|menu|breadcrumb|copyright|advert|banner|login|"
+                    r"subscribe|hot-?list|rank|tags?$|toolbar|评论|推荐)", re.I)
+_JUNK_LINE = re.compile(r"^(责任编辑|编辑|来源|作者|校对|审核|本文来源|原标题|声明|免责声明|版权|分享到|扫一扫|点击|关注|相关阅读|"
+                        r"推荐阅读|更多|举报|返回|上一篇|下一篇|打开.{0,6}APP|下载.{0,6}APP|©|Copyright)", re.I)
+
+
+def _main_text(h):
+    """从网页里挑出正文：按段落归到所在的容器，文字最多、链接最少的那个容器就是正文。只用标准库。"""
+    from html.parser import HTMLParser
+
+    class P(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.stack = []          # [(标签, 容器编号, 是否跳过)]
+            self.skip = 0
+            self.nid = 0
+            self.paras = []          # [(容器编号, 文字, 是不是在链接里)]
+            self.buf = []
+            self.link = 0
+            self.cur = 0
+
+        def _flush(self):
+            t = re.sub(r"\s+", " ", "".join(self.buf)).strip()
+            self.buf = []
+            if t:
+                self.paras.append((self.cur, t, self.link > 0))
+
+        def handle_starttag(self, tag, attrs):
+            if tag in _VOID:
+                if tag == "br":
+                    self._flush()
+                return
+            a = dict(attrs)
+            noisy = tag in _SKIP_TAGS or bool(_NOISE.search((a.get("class") or "") + " " + (a.get("id") or "")))
+            if tag in _BLOCK_TAGS:
+                self._flush()
+            self.nid += 1
+            self.stack.append((tag, self.nid, noisy))
+            if noisy:
+                self.skip += 1
+            if tag == "a":
+                self.link += 1
+            if tag in ("p", "div", "section", "article", "td", "li", "blockquote", "pre"):
+                # 段落归到「父容器」：这样同一篇文章的各段落会落到同一个编号上
+                self.cur = self.stack[-2][1] if len(self.stack) > 1 and tag in ("p", "li", "blockquote", "pre") else self.nid
+
+        def handle_endtag(self, tag):
+            if tag in _VOID:
+                return
+            for i in range(len(self.stack) - 1, -1, -1):
+                if self.stack[i][0] == tag:
+                    if tag in _BLOCK_TAGS:
+                        self._flush()
+                    for t, _n, noisy in self.stack[i:]:
+                        if noisy:
+                            self.skip -= 1
+                        if t == "a":
+                            self.link = max(0, self.link - 1)
+                    del self.stack[i:]
+                    break
+
+        def handle_data(self, d):
+            if not self.skip:
+                self.buf.append(d)
+
+    p = P()
+    try:
+        p.feed(h)
+        p._flush()
+    except Exception:
+        pass
+    score = {}
+    for cid, t, inlink in p.paras:
+        if inlink or len(t) < 8:
+            continue
+        score[cid] = score.get(cid, 0) + len(t) + (40 if re.search(r"[。！？.!?]$", t) else 0)
+    if not score:
+        return []
+    best = max(score, key=score.get)
+    out, seen = [], set()
+    for cid, t, inlink in p.paras:
+        if cid != best or inlink or t in seen or _JUNK_LINE.match(t):
+            continue
+        seen.add(t)
+        out.append(t)
+    return out
+
+
+def _meta_of(h, *names):
+    for n in names:
+        for pat in (r'<meta[^>]+(?:property|name|itemprop)=["\']%s["\'][^>]*content=["\']([^"\']*)["\']' % re.escape(n),
+                    r'<meta[^>]+content=["\']([^"\']*)["\'][^>]*(?:property|name|itemprop)=["\']%s["\']' % re.escape(n)):
+            m = re.search(pat, h, re.I)
+            if m and m.group(1).strip():
+                return _html.unescape(m.group(1)).strip()
+    return ""
+
+
+def article(url):
+    """v160：读一条新闻的正文（软件里展开看，不用跳网页）。读不到正文就返回网页自己的简介。"""
+    url = (url or "").strip()
+    if not re.match(r"^https?://", url, re.I):
+        return {"ok": False, "error": "网址不对"}
+    with _ART_LOCK:
+        hit = _ART.get(url)
+    if hit:
+        return hit
+    item = None
+    with _LOCK:
+        for x in _feed():
+            if x.get("url") == url:
+                item = x
+                break
+    t0 = time.time()
+    h, via, err = "", "", ""
+    try:
+        b, _final = _get(url, timeout=15)
+        h, via = _P()._text(b), "直接打开"
+    except Exception as e:
+        err = _human(e)
+    paras = _main_text(h) if h else []
+    if sum(len(x) for x in paras) < 120 and _scrapling_ok() and (get_config().get("sc_fast", True)):
+        try:                                            # 动态网页：换 Scrapling 再读一次
+            import scrapling_fetch as SF
+            px = None
+            try:
+                import web_tools as W
+                px = W.proxy_for(url) or None
+            except Exception:
+                pass
+            h2 = SF.fetch(url, mode="fast", proxy=px, timeout=20)
+            p2 = _main_text(h2)
+            if sum(len(x) for x in p2) > sum(len(x) for x in paras):
+                h, paras, via, err = h2, p2, "Scrapling", ""
+        except Exception as e:
+            err = err or _human(e)
+    desc = _meta_of(h, "og:description", "description", "twitter:description") if h else ""
+    pub = _meta_of(h, "article:published_time", "og:release_date", "pubdate", "publishdate", "datePublished") if h else ""
+    total = sum(len(x) for x in paras)
+    if total > 12000:                                   # 太长的只留前面，够看就行
+        keep, n = [], 0
+        for x in paras:
+            keep.append(x)
+            n += len(x)
+            if n > 12000:
+                break
+        paras = keep
+    res = {"ok": True, "url": url, "paras": paras if total >= 80 else [], "desc": desc[:400],
+           "summary": (item or {}).get("summary", ""), "pub": pub[:40], "via": via, "chars": total,
+           "ms": int((time.time() - t0) * 1000),
+           "error": "" if (total >= 80 or desc) else (err or "这个网页没读出正文（可能要登录，或者是图片、视频）")}
+    if total >= 80 or desc:
+        with _ART_LOCK:
+            _ART[url] = res
+            if len(_ART) > 300:
+                _ART.pop(next(iter(_ART)))
+    return res
