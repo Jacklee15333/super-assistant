@@ -186,6 +186,14 @@ const NAV_GROUPS = {
     { key: "web", label: "网站新动态", view: "sniff", sn: "web" },
     { key: "trend", label: "信息源推荐", view: "trendwatch" },
   ] },
+  // v155：商业。五块都在同一页（#view-biz），用 pane 区分，biz.js 负责切换
+  biz: { title: "商业", tabs: [
+    { key: "market", label: "市场动向", view: "biz", pane: "market" },
+    { key: "industry", label: "行业", view: "biz", pane: "industry" },
+    { key: "model", label: "商业模式", view: "biz", pane: "model" },
+    { key: "opps", label: "趋势与机会", view: "biz", pane: "opps" },
+    { key: "reports", label: "研究报告", view: "biz", pane: "reports" },
+  ] },
   data: { title: "资料库", tabs: [
     { key: "list", label: "列表", view: "datadb" },
     { key: "cloud", label: "云图", view: "knowledge" },
@@ -218,6 +226,10 @@ function navFind(view, sub) {
         const want = sub === "insight" ? "insight" : "profile";   // 人格演化并进了画像
         return { g, tab: cands.find((t) => t.sub === want) || cands[0] };
       }
+      if (cands.some((t) => t.pane)) {   // v155：一页分好几块（商业）：看页面上记着的是哪一块
+        const cur = document.getElementById("view-" + view)?.dataset.pane || "";
+        return { g, tab: cands.find((t) => t.pane === cur) || cands[0] };
+      }
       return { g, tab: cands[0] };
     }
     if (view === G.home || (G.parked || []).includes(view)) return { g, tab: null };
@@ -247,6 +259,11 @@ function navOpenGroup(g, key) {
     const b = document.querySelector('#snTabs .sn-tab[data-sntab="' + t.sn + '"]');
     if (b && !b.classList.contains("active")) b.click();
     navSync("sniff");
+  }
+  if (t.pane) {   // v155：同一页里的某一块（商业）
+    const fn = (window.cxPaneShow || {})[t.view];
+    if (typeof fn === "function") fn(t.pane);
+    navSync(t.view);
   }
 }
 

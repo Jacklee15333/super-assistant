@@ -90,6 +90,7 @@ _LOG_QUIET_PATHS = {"/intake_kind", "/douyin/login",
     "/creator/x_cookie_status",
     "/logs", "/ai_live", "/ai_live_shot", "/version", "/gpu_status", "/creator_profiles", "/creator_avatar", "/creator_scan_all",
     "/scrapling/status", "/sniff/sources",
+    "/biz/job", "/biz/overview", "/biz/taxonomy", "/biz/items", "/biz/reports", "/biz/report", "/biz/opps", "/biz/topics",
 }
 
 # 给少数关键路径配一句「人话」描述，让日志一眼能看懂用户在干嘛。
@@ -121,6 +122,8 @@ _LOG_PATH_LABEL = {
     "/insight/run": "运行洞察爬取",
     "/insight/stop": "停止洞察爬取",
     "/insight/research_item": "深入研究某条洞察",
+    "/biz/run": "开始商业分析（写报告）",
+    "/biz/stop": "停止商业分析",
 }
 
 
@@ -3915,6 +3918,73 @@ def _lb_mod():
     return _lb
 
 
+def _biz_llm(prompt, what="商业分析", markers=None, on_stage=None, should_stop=None, on_hold=None):
+    """v155：「商业」写报告用的 AI。先排队用 AI 池（会联网、写得最好，换新卡、用最高级模型）；
+    AI 池没写成，再用本机的本地模型。返回 (报告文字, 用的哪个 AI)。"""
+    def _st(m):
+        if on_stage:
+            try:
+                on_stage(m)
+            except Exception:
+                pass
+
+    def _hold(v):
+        if on_hold:
+            try:
+                on_hold(v)
+            except Exception:
+                pass
+    pool_err = "没轮到"
+    t = _ai_gate.acquire("商业·" + (what or "写报告")[:30], on_wait=lambda busy: _st("排队等 AI 池：" + busy),
+                         should_stop=should_stop)
+    if t is None:
+        raise RuntimeError("已按你的要求停止")
+    _hold(True)
+    try:
+        opts = dict(core.VIDEO_ANALYSIS_WEB_OPTS, busyStallMs=300000, incompleteGraceMs=90000)
+        if markers:
+            opts["completeMarkers"] = list(markers)
+        for i in range(2):
+            if should_stop and should_stop():
+                raise RuntimeError("已按你的要求停止")
+            try:
+                _st("AI 池正在写报告（大概 2～6 分钟）…" if i == 0 else "AI 池换一张卡重写…")
+                client = core.make_client_for("web", False, on_progress=lambda m: _st("AI 池：" + str(m)[:60]))
+                resp = client.chat.completions.create(model="web", messages=[{"role": "user", "content": prompt}], **opts)
+                out = _an_clean(resp.choices[0].message.content or "")
+                if len(out) > 200:
+                    return out, "AI 池"
+                pool_err = "回复太短"
+            except Exception as e:
+                pool_err = str(e)[:160]
+                if should_stop and should_stop():
+                    raise RuntimeError("已按你的要求停止")
+    finally:
+        _hold(False)
+        _ai_gate.release(t)
+    _st("AI 池没写成（%s），改用本地模型…" % pool_err[:40])
+    try:
+        return _local_chat(prompt[:15000], num_ctx=16384, timeout=900), "本地模型"
+    except Exception as e:
+        raise RuntimeError("AI 池和本地模型都没写成：%s；%s" % (pool_err[:80], str(e)[:80]))
+
+
+def _biz_cancel():
+    try:
+        import web_model as _wm
+        _wm.cancel_current("你点了停止")
+    except Exception:
+        pass
+
+
+def _biz_mod():
+    """v155：左栏「商业」（biz_intel.py）。"""
+    import biz_intel as _bz
+    if not _bz._hooks.get("llm"):
+        _bz.configure(llm=_biz_llm, log=_clog, cancel=_biz_cancel)
+    return _bz
+
+
 def _tg_mod():
     """v140：内容标签（tags.py）。"""
     import tags as _tg
@@ -5509,6 +5579,31 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send({"runs": [], "metrics": {"count": 0}, "error": str(e)}, 200)
 
+        if path.startswith("/biz/"):            # v155：商业
+            try:
+                bz = _biz_mod()
+                q1 = lambda k, d="": (qs.get(k) or [d])[0]
+                if path == "/biz/taxonomy":
+                    return self._send(bz.taxonomy())
+                if path == "/biz/overview":
+                    return self._send(bz.overview(int(q1("days", "30") or 30)))
+                if path == "/biz/items":
+                    return self._send(bz.items(ind=q1("ind"), trk=q1("trk"), mdl=q1("mdl"), q=q1("q"),
+                                               src=q1("src", "all"), days=int(q1("days", "0") or 0),
+                                               limit=int(q1("limit", "60") or 60), biz=q1("biz") == "1"))
+                if path == "/biz/reports":
+                    return self._send(bz.list_reports(q1("kind")))
+                if path == "/biz/report":
+                    return self._send(bz.read_report(q1("id")))
+                if path == "/biz/opps":
+                    return self._send(bz.list_opps())
+                if path == "/biz/job":
+                    return self._send(bz.job_status())
+                if path == "/biz/topics":
+                    return self._send(bz.get_topics())
+            except Exception as e:
+                return self._send({"ok": False, "error": str(e)})
+
         if path == "/sniff/discover":
             # 「按关键词找信息源」的进度和结果（前端轮询）
             try:
@@ -6419,6 +6514,24 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send({"ok": True})
             except Exception as e:
                 return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path.startswith("/biz/"):            # v155：商业
+            try:
+                bz = _biz_mod()
+                if path == "/biz/run":
+                    return self._send(bz.start(body.get("kind", ""), target=body.get("target", ""),
+                                               scope=body.get("scope", ""), days=int(body.get("days") or 30),
+                                               web=bool(body.get("web", True)), depth=body.get("depth", "quick")))
+                if path == "/biz/stop":
+                    return self._send(bz.stop())
+                if path == "/biz/report_delete":
+                    return self._send(bz.delete_report(body.get("id", "")))
+                if path == "/biz/opp":
+                    return self._send(bz.opp_action(body))
+                if path == "/biz/topics":
+                    return self._send(bz.save_topics(body.get("topics") or []))
+            except Exception as e:
+                return self._send({"ok": False, "error": str(e)})
 
         if path == "/sniff/discover":
             # 按关键词找行业信息源：后台开始查找，前端用 GET /sniff/discover 轮询

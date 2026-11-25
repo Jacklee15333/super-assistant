@@ -115,6 +115,7 @@
   </style>
   <link rel="stylesheet" href="theme-claude.css" />
   <link rel="stylesheet" href="trendwatch.css" />
+<link rel="stylesheet" href="biz.css" />
 </head>
 <body class="on-chat">
   <div class="app">
@@ -146,6 +147,7 @@
         <button class="nav-item" data-view="video" data-video-mode="process" title="提取出来的半成品交给 AI 分析：总结要点、打标签分类"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m11 4 1.8 4.7L17.5 10.5l-4.7 1.8L11 17l-1.8-4.7L4.5 10.5l4.7-1.8z"/><path d="M18.5 15v5M16 17.5h5"/></svg><span>加工</span></button>
         <button class="nav-item" data-view="video" data-video-mode="notes" title="加工好的东西：最新提取、博主、文件夹"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5h11a1.5 1.5 0 0 1 1.5 1.5v14a1.5 1.5 0 0 1-1.5 1.5h-11z"/><path d="M6.5 3.5v17M5 7.5h3M5 12h3M5 16.5h3M10.5 8h5M10.5 11.5h5"/></svg><span>笔记</span></button>
         <button class="nav-item" data-nav-group="sniff"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.5M7.8 16.2a6 6 0 0 1 0-8.5M19.1 4.9a10 10 0 0 1 0 14.2M4.9 19.1a10 10 0 0 1 0-14.2"/></svg><span>嗅探</span></button>
+        <button class="nav-item" data-nav-group="biz" title="市场动向、行业地图、商业模式拆解、趋势与机会、研究报告"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 20.5h17"/><path d="m4.5 15.5 4.5-4.5 3.5 3.5 6.5-7"/><path d="M15 7.5h4v4"/></svg><span>商业</span></button>
         <button class="nav-item" data-nav-group="data"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13"/><path d="M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8"/></svg><span>资料库</span></button>
         <button class="nav-item" data-nav-group="lab" title="暂时用不上、还没想好怎么用的功能"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6"/><path d="M10 3v6.2l-5.3 8.9A1.9 1.9 0 0 0 6.3 21h11.4a1.9 1.9 0 0 0 1.6-2.9L14 9.2V3"/><path d="M7.2 15h9.6"/></svg><span>待开发</span></button>
 
@@ -154,6 +156,7 @@
         <div class="nav-legacy" hidden aria-hidden="true">
           <button class="nav-item" data-view="sniff" tabindex="-1"><span>嗅探</span></button>
           <button class="nav-item" data-view="trendwatch" tabindex="-1"><span>趋势瞭望台</span></button>
+          <button class="nav-item" data-view="biz" tabindex="-1"><span>商业</span></button>
           <button class="nav-item" data-view="datadb" tabindex="-1"><span>数据库</span></button>
           <button class="nav-item" data-view="knowledge" tabindex="-1"><span>知识云图</span></button>
           <button class="nav-item" data-view="lumi" data-lumi-sub="profile" tabindex="-1"><span>画像</span></button>
@@ -1342,6 +1345,9 @@
       <!-- 趋势瞭望台视图（v106）：内容由 trendwatch.js 生成 -->
       <section class="view view-trendwatch" id="view-trendwatch"></section>
 
+    <!-- v155：商业（市场动向 / 行业 / 商业模式 / 趋势与机会 / 研究报告），内容由 biz.js 画 -->
+    <section class="view view-biz" id="view-biz"></section>
+
       <section class="view view-datadb" id="view-datadb">
         <header class="topbar">
           <span>🗄️ 数据库 · 管理小助产生的所有数据</span>
@@ -2048,6 +2054,7 @@
   <script src="sniff-discover.js"></script>
   <script src="line-icons.js"></script>
   <script src="trendwatch.js"></script>
+<script src="biz.js"></script>
   <!-- 视频页「处理进度」卡片：内部三个容器都空时整张收起，不占地方；
        一旦有任务/结果/状态文字就自动显示。独立运行，不依赖 renderer.js。 -->
   <script>
