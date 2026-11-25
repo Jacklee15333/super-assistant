@@ -510,6 +510,27 @@ def _terms_stats(items, cut, hot_by="r"):
     return [fmt(d) for d in hot], [fmt(d, l) for d, l in rising[:16]], rec_n, base
 
 
+def radar_run(rid):
+    """v157：一轮抓取的结果报告：每个信息源用了哪个爬虫、过程、抓到几条；这一轮新抓到的内容按行业分。"""
+    try:
+        import biz_crawler as BC
+        run = BC.get_run(rid)
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    if not run:
+        return {"ok": False, "error": "找不到这一轮的记录"}
+    keys = set()
+    for r in run.get("sources") or []:
+        keys.update(r.get("keys") or [])
+    got = [it for it in _radar_items() if it["id"][2:] in keys]
+    got.sort(key=lambda x: -x["ts"])
+    c = collections.Counter(g for it in got for g in it["ind"] + it["trk"])
+    for r in run.get("sources") or []:
+        r.pop("keys", None)
+    return {"ok": True, "run": run, "items": [_pub(x) for x in got[:400]], "n_items": len(got),
+            "by_ind": [[g, n] for g, n in c.most_common(16)]}
+
+
 def overview(days=30, lens="mine"):
     if lens == "market":
         return _overview_market(days)
@@ -579,8 +600,9 @@ def _overview_market(days=7):
             "radar": rs, "reports": len(_reports()), "now": int(now)}
 
 
-def items(ind="", trk="", mdl="", q="", src="all", days=0, limit=60, biz=False, lens="mine", sid=""):
+def items(ind="", trk="", mdl="", q="", src="all", days=0, limit=60, biz=False, lens="mine", sid="", grp=""):
     allit = _radar_items() if lens == "market" else _all_items()
+    grps = {g for g in (grp or "").split(",") if g and g != "all"}
     cut = time.time() - int(days) * 86400 if days else 0
     ql = (q or "").strip().lower()
     out = []
@@ -588,6 +610,8 @@ def items(ind="", trk="", mdl="", q="", src="all", days=0, limit=60, biz=False, 
         if src and src != "all" and it["src"] != src:
             continue
         if sid and it.get("sid") != sid:
+            continue
+        if grps and it.get("grp") not in grps:
             continue
         if cut and it["ts"] < cut:
             continue

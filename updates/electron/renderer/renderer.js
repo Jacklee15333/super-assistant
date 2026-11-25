@@ -186,14 +186,13 @@ const NAV_GROUPS = {
     { key: "web", label: "网站新动态", view: "sniff", sn: "web" },
     { key: "trend", label: "信息源推荐", view: "trendwatch" },
   ] },
-  // v155：商业。五块都在同一页（#view-biz），用 pane 区分，biz.js 负责切换
+  // v155：商业。几块都在同一页（#view-biz），用 pane 区分，biz.js 负责切换。v157：整理成五块，市场雷达放最前面
   biz: { title: "商业", tabs: [
-    { key: "market", label: "市场动向", view: "biz", pane: "market" },
-    { key: "industry", label: "行业", view: "biz", pane: "industry" },
-    { key: "model", label: "商业模式", view: "biz", pane: "model" },
-    { key: "opps", label: "趋势与机会", view: "biz", pane: "opps" },
-    { key: "reports", label: "研究报告", view: "biz", pane: "reports" },
-    { key: "radar", label: "市场雷达", view: "biz", pane: "radar" },     // v156：爬虫盯最新新闻
+    { key: "radar", label: "市场雷达", view: "biz", pane: "radar" },
+    { key: "industry", label: "行业地图", view: "biz", pane: "industry" },
+    { key: "analysis", label: "研究分析", view: "biz", pane: "analysis" },
+    { key: "opps", label: "机会看板", view: "biz", pane: "opps" },
+    { key: "crawler", label: "爬虫管理", view: "biz", pane: "crawler" },
   ] },
   data: { title: "资料库", tabs: [
     { key: "list", label: "列表", view: "datadb" },
