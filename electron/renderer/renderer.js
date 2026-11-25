@@ -195,6 +195,7 @@ const NAV_GROUPS = {
     { key: "crawler", label: "爬虫管理", view: "biz", pane: "crawler" },
   ] },
   data: { title: "资料库", tabs: [
+    { key: "kb", label: "知识库", view: "kb" },      // v162：AI 整理的主题页
     { key: "list", label: "列表", view: "datadb" },
     { key: "cloud", label: "云图", view: "knowledge" },
   ] },

@@ -70,7 +70,7 @@
     tax: null, byId: {}, taxErr: "",
     ovm: null, ovmErr: "", ov: null, ovErr: "", mdays: store.get("mdays", 3),
     rfeed: null, rgrp: "all", rq: "", rlimit: 80, rpage: 1, rsize: store.get("rsize", 20), rtotal: 0, rsince: 0, rseq: 0,
-    artSel: "", art: {}, artTr: {}, artLang: "zh", artItems: {}, trTitle: {},
+    artSel: "", art: {}, artTr: {}, artLang: "zh", artItems: {}, trTitle: {}, kbSent: {},
     plan: null, updOpen: false, updDone: "", updRes: null, briefOpen: false, bf: null, briefInfo: null,
     lens: store.get("lens", "market") === "mine" ? "mine" : "market", days: 30,
     indView: store.get("indView", "map"), indSel: store.get("indSel", ""), indQ: "", indItems: null, openL1: {},
@@ -360,6 +360,8 @@
           '<button type="button" data-act="art-lang" data-v="zh" aria-pressed="' + (S.artLang === "zh") + '">中文</button>' +
           '<button type="button" data-act="art-lang" data-v="orig" aria-pressed="' + (S.artLang !== "zh") + '">原文</button></div>' : "") +
         '<span class="sp"></span>' +
+        (S.kbSent[it.url] ? '<span class="bz-kb-ok" title="在「资料库 → 知识库」里能看到收录进度">✓ 已排进知识库</span>'
+          : '<button type="button" class="bz-rp-nav kb" data-act="art-kb" title="让 AI 把这条新闻整理进知识库的主题页"' + (a.loading || !S.art[it.url] ? " disabled" : "") + ">收进知识库</button>") +
         '<button type="button" class="bz-rp-nav" data-art="' + esc(prev) + '"' + (prev ? "" : " disabled") + ' aria-label="上一条">‹ 上一条</button>' +
         '<button type="button" class="bz-rp-nav" data-art="' + esc(next) + '"' + (next ? "" : " disabled") + ' aria-label="下一条">下一条 ›</button>' +
         '<button type="button" class="bz-x" data-act="art-close" aria-label="关闭阅读栏（Esc）" title="关闭（Esc）">×</button></div>' +
@@ -1346,6 +1348,7 @@
     }
     openReader(m.title, meta, body,
       '<button type="button" class="bz-btn ghost sm" data-openfolder="' + esc(m.id) + '">打开所在文件夹</button>' +
+      '<button type="button" class="bz-btn ghost sm" data-kbrep="' + esc(m.id) + '" title="让 AI 把这份报告整理进知识库的主题页">收进知识库</button>' +
       '<button type="button" class="bz-btn ghost sm" data-act="copyrep">复制全文</button>' +
       '<button type="button" class="bz-btn ghost sm" data-act="rerun">重新写一份</button>' +
       '<button type="button" class="bz-btn ghost sm danger" data-act="delrep">删除</button>');
@@ -1528,6 +1531,14 @@
       let b;
       if (t.classList && t.classList.contains("bz-modal")) { closeModal(t.id); return; }        // 点窗口外面的灰色部分
       if ((b = t.closest("[data-close]"))) { const m = b.closest(".bz-modal"); if (m) closeModal(m.id); return; }
+      if ((b = t.closest("[data-kbrep]"))) {               // v162：把报告收进知识库
+        b.disabled = true;
+        const r = await api("/kb/enqueue", { sids: ["report:" + b.dataset.kbrep], top: true }).catch((e) => ({ ok: false, error: e.message }));
+        if (!r.ok) { toast(r.error || "没排进去"); b.disabled = false; return; }
+        b.textContent = "✓ 已排进知识库";
+        toast(r.added ? "排进知识库的队列了，在「资料库 → 知识库」能看进度。" : "这份报告之前已经收过或已在队列里。");
+        return;
+      }
       if ((b = t.closest("[data-openfolder]"))) {
         const r = await api("/biz/open_folder", { id: b.dataset.openfolder || "" }).catch((e) => ({ ok: false, error: e.message }));
         if (!r.ok) toast(r.error || "打不开文件夹"); else toast("已在资源管理器里打开。");
@@ -1545,6 +1556,21 @@
         else if (act === "art-close") closeArt();
         else if (act === "art-lang") { S.artLang = b.dataset.v === "orig" ? "orig" : "zh"; const it = curArt(); if (it) refreshArt(it); }
         else if (act === "art-retr") { const it = curArt(); if (it) loadTr(it); }
+        else if (act === "art-kb") {                      // v162：把这条新闻收进知识库
+          const it = curArt();
+          if (!it) return;
+          const a = S.art[it.url] || {}, tr = S.artTr[it.url], useTr = a.foreign && tr && tr.ok;
+          const paras = (useTr ? tr.paras : a.paras) || [];
+          const text = paras.length ? paras.join("\n\n") : (a.desc || a.summary || it.text || "");
+          const title = (useTr && tr.title ? tr.title + "（" + it.title + "）" : it.title);
+          b.disabled = true;
+          const r = await api("/kb/enqueue", { kind: "news", title: title, url: it.url, text: (it.who ? "来源：" + it.who + "\n\n" : "") + text, top: true })
+            .catch((e) => ({ ok: false, error: e.message }));
+          if (!r.ok) { toast(r.error || "没排进去"); b.disabled = false; return; }
+          S.kbSent[it.url] = true;
+          refreshArt(it);
+          toast(r.added ? "排进知识库的队列了，AI 池空了就整理。在「资料库 → 知识库」能看进度。" : "这条之前已经收过了。");
+        }
         else if (act === "upd-start") { b.disabled = true; updStart(); }
         else if (act === "upd-shownew") {
           const run = S.updRes && S.updRes.run;

@@ -91,6 +91,7 @@ _LOG_QUIET_PATHS = {"/intake_kind", "/douyin/login",
     "/logs", "/ai_live", "/ai_live_shot", "/version", "/gpu_status", "/creator_profiles", "/creator_avatar", "/creator_scan_all",
     "/scrapling/status", "/sniff/sources",
     "/biz/job", "/biz/overview", "/biz/taxonomy", "/biz/items", "/biz/reports", "/biz/report", "/biz/opps", "/biz/topics",
+    "/kb/overview", "/kb/page", "/kb/search", "/kb/candidates",
     "/biz/radar/status", "/biz/radar/plan", "/biz/brief_info", "/biz/radar/sources", "/biz/radar/engines", "/biz/radar/runs", "/biz/radar/report",
 }
 
@@ -3972,6 +3973,51 @@ def _biz_llm(prompt, what="商业分析", markers=None, on_stage=None, should_st
         raise RuntimeError("AI 池和本地模型都没写成：%s；%s" % (pool_err[:80], str(e)[:80]))
 
 
+def _kb_llm(prompt, what="知识库", markers=None, on_stage=None, should_stop=None):
+    """v162：知识库收录用的 AI。只用 AI 池（按你的要求不用本地模型）；AI 池这次没写成就抛错，
+    这份资料留在队列里，过一会儿再试。返回 (回复文字, "AI 池")。"""
+    def _st(m):
+        if on_stage:
+            try:
+                on_stage(m)
+            except Exception:
+                pass
+    t = _ai_gate.acquire("知识库·" + (what or "收录")[:30], on_wait=lambda busy: _st("排队等 AI 池：" + busy),
+                         should_stop=should_stop)
+    if t is None:
+        raise RuntimeError("已按你的要求停止")
+    err = "没轮到"
+    try:
+        opts = dict(core.VIDEO_ANALYSIS_WEB_OPTS, busyStallMs=300000, incompleteGraceMs=90000)
+        if markers:
+            opts["completeMarkers"] = list(markers)
+        for i in range(2):
+            if should_stop and should_stop():
+                raise RuntimeError("已按你的要求停止")
+            try:
+                _st("AI 池正在整理（一般 2～5 分钟）…" if i == 0 else "AI 池换一张卡再整理…")
+                client = core.make_client_for("web", False, on_progress=lambda m: _st("AI 池：" + str(m)[:60]))
+                resp = client.chat.completions.create(model="web", messages=[{"role": "user", "content": prompt}], **opts)
+                out = _an_clean(resp.choices[0].message.content or "")
+                if "=====页面=====" in out:
+                    return out, "AI 池"
+                err = "回复里没有页面"
+            except Exception as e:
+                err = str(e)[:160]
+                if should_stop and should_stop():
+                    raise RuntimeError("已按你的要求停止")
+    finally:
+        _ai_gate.release(t)
+    raise RuntimeError("AI 池这次没整理成：%s" % err)
+
+
+def _kb_mod():
+    import kb as _kb
+    if not _kb._hooks.get("llm"):
+        _kb.configure(llm=_kb_llm, log=_clog, cancel=_biz_cancel)
+    return _kb
+
+
 def _biz_cancel():
     try:
         import web_model as _wm
@@ -5604,6 +5650,24 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send({"runs": [], "metrics": {"count": 0}, "error": str(e)}, 200)
 
+        if path.startswith("/kb/"):             # v162：知识库
+            try:
+                kbm = _kb_mod()
+                q1 = lambda k, d="": (qs.get(k) or [d])[0]
+                if path == "/kb/overview":
+                    return self._send(kbm.overview())
+                if path == "/kb/page":
+                    return self._send(kbm.page(q1("id")))
+                if path == "/kb/source":
+                    return self._send(kbm.source(q1("sid"), q1("n")))
+                if path == "/kb/candidates":
+                    return self._send(kbm.candidates(q1("kind", "note"), q1("q"), int(q1("limit", "200") or 200)))
+                if path == "/kb/search":
+                    return self._send(kbm.search(q1("q")))
+                return self._send({"ok": False, "error": "不认识的地址"}, 404)
+            except Exception as e:
+                return self._send({"ok": False, "error": str(e)}, 200)
+
         if path.startswith("/biz/"):            # v155：商业
             try:
                 bz = _biz_mod()
@@ -6558,6 +6622,31 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send({"ok": True})
             except Exception as e:
                 return self._send({"ok": False, "message": str(e)}, 200)
+
+        if path.startswith("/kb/"):             # v162：知识库
+            try:
+                kbm = _kb_mod()
+                if path == "/kb/enqueue":
+                    return self._send(kbm.enqueue(body.get("sids") or [], kind=body.get("kind", ""), title=body.get("title", ""),
+                                                  url=body.get("url", ""), text=body.get("text", ""), top=bool(body.get("top"))))
+                if path == "/kb/queue":
+                    return self._send(kbm.queue_action(body.get("sid", ""), body.get("act", "")))
+                if path == "/kb/clear_failed":
+                    return self._send(kbm.clear_failed())
+                if path == "/kb/config":
+                    return self._send(kbm.save_config(auto_notes=body.get("auto_notes"), auto_reports=body.get("auto_reports"),
+                                                      paused=body.get("paused")))
+                if path == "/kb/stop":
+                    return self._send(kbm.stop())
+                if path == "/kb/page_action":
+                    return self._send(kbm.page_action(body.get("id", ""), body.get("act", ""), body.get("ts", 0)))
+                if path == "/kb/source_status":
+                    return self._send(kbm.source_status(body.get("sids") or []))
+                if path == "/kb/open_folder":
+                    return self._send(_biz_open_folder(kbm.KB_DIR))
+                return self._send({"ok": False, "error": "不认识的地址"}, 404)
+            except Exception as e:
+                return self._send({"ok": False, "error": str(e)}, 200)
 
         if path.startswith("/biz/"):            # v155：商业
             try:
@@ -8936,6 +9025,11 @@ def main():
         sniffer.boot_scheduler()
     except Exception as e:
         print("[sniff] 启动自动嗅探计时失败：%s" % e)
+    # v162：知识库在后台按队列收录资料（只用 AI 池）
+    try:
+        _kb_mod().boot()
+    except Exception as e:
+        print("[知识库] 启动收录线程失败：%s" % e)
     # v156：「商业 → 市场雷达」按清单定时抓最新新闻（打开了自动更新才抓；不用 AI）
     try:
         import biz_crawler
