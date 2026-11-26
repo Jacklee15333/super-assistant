@@ -336,6 +336,15 @@
     const card = $("bzFeedCard");
     if (card && ind) card.scrollIntoView({ block: "start" });
   }
+  // v176：雷达上的字用深一点（深色模式下浅一点）的同色，和浅色底拉开对比
+  function ink(hex, k) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
+    if (!m) return hex;
+    const n = parseInt(m[1], 16), dark = document.body.classList.contains("dark");
+    const tgt = dark ? 255 : 18, f = dark ? (k || 0.55) : (k || 0.42);
+    const mix = (c) => Math.round(c + (tgt - c) * f);
+    return "rgb(" + mix((n >> 16) & 255) + "," + mix((n >> 8) & 255) + "," + mix(n & 255) + ")";
+  }
   const RAD_SEC = { "科技": "#3b6fd1", "消费": "#c4613a", "医药": "#2f8f5b", "制造": "#7a5cc2", "周期资源": "#a0711a", "金融地产": "#c23b6a", "公用交运": "#2a8a9a" };
   // v168：新兴赛道按方向分成 5 块；v169：去掉「赛道·」
   const TRK_GROUPS = [
@@ -417,11 +426,11 @@
       cells.forEach((c, ci) => {
         const r2 = ci === k - 1 ? RB : r1 + ((RB - R0) * wt[ci]) / wsum;
         const on = selItem && (selItem.parent === c.name || selItem.id === c.id);
-        wedges += '<path d="' + arc(r1, r2, a0, a1) + '" class="wedge band-c' + (on ? " on" : "") + '" fill="' + w.color + '" fill-opacity="' + (0.05 + 0.1 * ((ci % 2) ? 0.55 : 1)) + '"/>';
+        wedges += '<path d="' + arc(r1, r2, a0, a1) + '" class="wedge band-c' + (on ? " on" : "") + '" fill="' + w.color + '" fill-opacity="' + ((ci % 2) ? 0.06 : 0.11) + '"/>';
         // v172：名字放在这一圈正中间（半径、角度都居中），沿着弧写，下半圈反过来写免得倒着
         const th = r2 - r1, rm = (r1 + r2) / 2, am = (a0 + a1) / 2, low = Math.sin(am) > 0.15;
         const lab = c.name + (c.n ? " " + c.n : "");
-        const CH = 11.5, room = rm * span * 0.9;        // v175：字小一点（12px），一个字约 11.5 宽
+        const CH = 13, room = rm * span * 0.9;        // v175：字小一点（12px），一个字约 11.5 宽
         let txt = "", radial = false;
         if (th >= 16) {
           if (room >= lab.length * CH) txt = lab;
@@ -433,13 +442,13 @@
         const labW = !txt ? 0 : radial ? (CH + 8) / rm : (txt.length * CH + 14) / rm;          // 名字占的角度
         if (txt && radial) {
           const deg = (am * 180) / Math.PI, flip = Math.cos(am) < 0, [tx, ty] = pt(rm, am);
-          rim += '<text class="rim' + (c.n ? "" : " q") + (on ? " on" : "") + '" fill="' + w.color + '" x="' + tx.toFixed(1) + '" y="' + ty.toFixed(1) + '" text-anchor="middle" dominant-baseline="central" transform="rotate(' +
+          rim += '<text class="rim' + (c.n ? "" : " q") + (on ? " on" : "") + '" fill="' + ink(w.color) + '" x="' + tx.toFixed(1) + '" y="' + ty.toFixed(1) + '" text-anchor="middle" dominant-baseline="central" transform="rotate(' +
             (flip ? deg + 180 : deg).toFixed(1) + " " + tx.toFixed(1) + " " + ty.toFixed(1) + ')">' + esc(txt) + "</text>";
         } else if (txt) {
           const pid = "bzArc" + wi + "_" + ci;
           const [sx, sy] = pt(rm, low ? a1 : a0), [ex, ey] = pt(rm, low ? a0 : a1);
           defs += '<path id="' + pid + '" d="M' + sx.toFixed(1) + "," + sy.toFixed(1) + " A" + rm.toFixed(1) + "," + rm.toFixed(1) + " 0 " + (span > Math.PI ? 1 : 0) + " " + (low ? 0 : 1) + " " + ex.toFixed(1) + "," + ey.toFixed(1) + '"/>';
-          rim += '<text class="rim' + (c.n ? "" : " q") + (on ? " on" : "") + '" fill="' + w.color + '" dominant-baseline="central"><textPath href="#' + pid + '" startOffset="50%" text-anchor="middle">' +
+          rim += '<text class="rim' + (c.n ? "" : " q") + (on ? " on" : "") + '" fill="' + ink(w.color) + '" dominant-baseline="central"><textPath href="#' + pid + '" startOffset="50%" text-anchor="middle">' +
             esc(txt) + "</textPath></text>";
         }
         // 圆点：和名字在同一条中线上，名字左右两边交替排开；放不下的排到名字上下
@@ -471,11 +480,11 @@
       const am = (a0 + a1) / 2, [lx, ly] = pt(R + 30, am);
       const anchor = Math.abs(Math.cos(am)) < 0.3 ? "middle" : Math.cos(am) > 0 ? "start" : "end";
       const dy = Math.sin(am) > 0.3 ? 18 : Math.sin(am) < -0.3 ? -2 : 7;
-      labels += '<text x="' + lx.toFixed(1) + '" y="' + (ly + dy).toFixed(1) + '" text-anchor="' + anchor + '" class="secl" fill="' + w.color + '">' + esc(w.name) + '<tspan class="secn"> ' + w.n + "</tspan></text>";
+      labels += '<text x="' + lx.toFixed(1) + '" y="' + (ly + dy).toFixed(1) + '" text-anchor="' + anchor + '" class="secl" fill="' + ink(w.color, 0.25) + '">' + esc(w.name) + '<tspan class="secn"> ' + w.n + "</tspan></text>";
       a0 = a1 + GAP;
     });
     S.radPos = {};
-    S.radVB = { x: -R - 175, y: -R - 64, w: (R + 175) * 2, h: (R + 64) * 2, C: C, R: R };
+    S.radVB = { x: -R - 158, y: -R - 46, w: (R + 158) * 2, h: (R + 46) * 2, C: C, R: R };   // v176：边距收小，饼更大
     pos.forEach(({ it, x, y, size }) => {
       S.radPos[it.id] = { x, y, color: it.color };
       const sel = S.radSel === it.id;

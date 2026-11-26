@@ -932,3 +932,12 @@ body.dark .view-biz { --bz-up: #6cc08b; --bz-warn: #e0a24a; --bz-bad: #e5907a; }
 .view-biz .bz-rad-svg .secl { font: 500 19px var(--sans); }
 .view-biz .bz-rad-svg .secn { font-size: 14px; font-weight: 400; }
 .view-biz .bz-rad-svg .bl { font: 500 13px var(--sans); stroke-width: 2.5px; }
+
+/* v176：雷达页的白板更宽、饼更大；字更清楚（13px 常规字重，深色同色字，浅一点的底） */
+.view-biz .bz-pane[data-pane="radar"] { max-width: 1720px; padding-left: 18px; padding-right: 18px; }
+.view-biz .bz-cols.wide:not(.reading) .bz-radar { grid-template-columns: minmax(0, 1fr) 300px; gap: 10px; }
+.view-biz .bz-rad-svg .rim { font: 400 13px var(--sans); letter-spacing: .2px; }
+.view-biz .bz-rad-svg .rim.q { fill-opacity: .55; }
+.view-biz .bz-rad-svg .rim .rn, .view-biz .bz-rad-svg .rim tspan { fill-opacity: .75; }
+.view-biz .bz-rad-svg .secl { font: 600 19px var(--sans); }
+.view-biz .bz-rad-svg .secn { fill: var(--text-dim); font-weight: 400; }
