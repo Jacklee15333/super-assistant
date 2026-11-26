@@ -375,8 +375,9 @@
     // v171：先按大类切成一片片的饼（片的大小跟新闻多少走），每一片里再按一级行业一圈一圈横着切；
     // 一圈一个行业，名字沿着这一圈写，圆点（细分行业）排在这一圈里。
     const R = 400, R0 = 24, RB = R - 4, C = 0;
-    const GAP = 0.022, MIN = 0.16;
-    const raw = M.wedges.map((w) => Math.sqrt(w.n + 4) * Math.max(1, Math.sqrt(w.cells.length) * 0.75));
+    // v173：片的大小跟着数据走——热门的大类切得大，冷门的切得小（最小也留一点，名字放得下）
+    const GAP = 0.022, MIN = 0.13;
+    const raw = M.wedges.map((w) => Math.pow(w.n + 2, 0.82));
     const rsum = raw.reduce((a, b) => a + b, 0);
     const free = Math.PI * 2 - GAP * M.wedges.length;
     let spans = raw.map((v) => Math.max(MIN, (v / rsum) * free));
@@ -398,7 +399,12 @@
       const cells = w.cells.slice().sort((p, q) => p.n - q.n || p.items.length - q.items.length);
       const k = cells.length;
       // 每圈的厚度：按里面细分行业的数量分一点，最薄也要放得下字
-      const wt = cells.map((c) => 1 + Math.min(3, c.items.filter((x) => x.n).length * 0.35));
+      // v173：每一圈的厚度也跟着数据走——热门行业的圈厚，冷门的薄（最薄也要放得下名字）
+      const MINT = 16;
+      const heat = cells.map((c) => Math.pow(c.n + 1, 0.7));
+      const hsum = heat.reduce((a, b) => a + b, 0) || 1;
+      const spare = Math.max(0, RB - R0 - MINT * k);
+      const wt = heat.map((h) => MINT + (spare * h) / hsum);
       const wsum = wt.reduce((a, b) => a + b, 0);
       let r1 = R0;
       cells.forEach((c, ci) => {
@@ -480,7 +486,7 @@
     const oldLive = $("bzRadLive");                         // 重画雷达时，正在亮的那几条留着接着演
     el.innerHTML = '<div class="bz-rad-l"><div class="bz-rad-bar" id="bzRadBar" aria-live="polite"></div>' +
       '<div class="bz-rad-stage">' + svg + '<div class="bz-rad-live" id="bzRadLive"></div><div class="bz-rad-tip" id="bzRadTip" hidden></div></div>' +
-      '<p class="bz-rad-legend"><span><i class="lg-near"></i>一片是一个大类（新闻越多片越大），片里一圈是一个行业，圆点是细分行业（越大新闻越多）</span>' + (S.mdays > 1 ? '<span><i class="lg-hot"></i>带圈的：最近 24 小时明显变多</span>' : "") +
+      '<p class="bz-rad-legend"><span><i class="lg-near"></i>一片是一个大类（新闻越多片越大），片里一圈是一个行业（越热门越靠外、圈越厚），圆点是细分行业（越大新闻越多）</span>' + (S.mdays > 1 ? '<span><i class="lg-hot"></i>带圈的：最近 24 小时明显变多</span>' : "") +
       '<span><i class="lg-quiet"></i>边上的小灰点：这段时间没新闻</span></p></div>' +
       '<div class="bz-rad-r" id="bzRadPanel"></div>';
     if (oldLive && oldLive.children.length) { const nl = $("bzRadLive"); nl.replaceWith(oldLive); }
@@ -582,7 +588,7 @@
     if (!sel) {
       const hot = all.filter((x) => x.hot);
       el.innerHTML = '<h4 class="bz-rad-h">怎么看这张雷达</h4>' +
-        '<ul class="bz-rad-how"><li>一片是一个<b>大类</b>，新闻越多这一片越大。</li><li>片里一圈是一个<b>行业</b>（名字沿着这一圈写），新闻多的行业在外圈。</li>' +
+        '<ul class="bz-rad-how"><li>一片是一个<b>大类</b>，新闻越多这一片切得越大。</li><li>片里一圈是一个<b>行业</b>，新闻越多越靠外、圈越厚。</li>' +
         "<li>圈里的圆点是<b>细分行业</b>，越大新闻越多；带圈的是最近明显变多的。</li><li>鼠标移上去看名字，点一下在这里看它的新闻。</li></ul>" +
         '<div class="bz-rad-stats"><div><b>' + all.length + "</b><span>个细分有新闻</span></div><div><b>" + hot.length + "</b><span>个正在升温</span></div><div><b>" +
         all.reduce((a, x) => a + x.n, 0) + "</b><span>条次（" + win + "，一条可能归到好几处）</span></div></div>" +
