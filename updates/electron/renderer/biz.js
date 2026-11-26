@@ -85,6 +85,7 @@
     radar: null, radarTimer: null, radarSrc: null, engines: null, runs: null,
     rdKind: "site", rdSid: "", rdItems: null, rdOpen: {},
     cu: { loaded: false, ready: false, pv: null, err: "", seq: 0, timer: null, dirty: false, updated: 0, at: 0, news: {}, peek: "",
+          pick: null, optLoading: false, open: store.get("cuOpen", null) || { exp: true }, b: { ind: "", role: "", years: "", lead: "" },   // v188：选项面板
           web: store.get("cuWeb", true) !== false, depth: store.get("cuDepth", "quick") === "deep" ? "deep" : "quick" },   // v187：商业定制
   };
 
@@ -1718,16 +1719,15 @@
     risk: [["", "不确定"], ["safe", "不能亏，要稳"], ["mid", "亏一部分能接受"], ["bold", "全亏了也不影响生活"]],
     goal: [["", "不确定"], ["extra", "每月多赚几千"], ["replace", "替代工资（月入 1～3 万）"], ["big", "做成一门生意、开公司"]],
   };
-  const CU_SKILLS = ["销售", "写文案", "拍剪视频", "直播", "编程", "设计", "做饭", "带团队", "财务", "英语", "开车", "装修维修", "教书", "医护", "美容美发", "健身", "摄影", "电商运营", "采购"];
-  const CU_LIKES = ["美食", "宠物", "健身", "旅行", "数码", "母婴", "穿搭", "养生", "游戏", "动漫", "户外露营", "钓鱼", "喝茶", "汽车", "读书", "手工", "花草", "AI 新工具"];
   const CU_TR = { up: "升温", down: "降温" };
-  const cuF = (key, label, ctrl, cls) => '<div class="bz-cu-f' + (cls ? " " + cls : "") + '"><label for="bzCu-' + key + '">' + label + "</label>" + ctrl + "</div>";
+  // v188：每一栏要填字的地方都有一个选项面板（选项从后台 /biz/fit_options 来，和配对表放在一起），可以展开看全部、收起只看常用的
+  const cuF = (key, label, ctrl, cls) => '<div class="bz-cu-f' + (cls ? " " + cls : "") + '" data-cu-f="' + key + '"><div class="bz-cu-fh"><label for="bzCu-' + key + '">' + label + "</label>" +
+    '<span class="bz-cu-cnt" data-cu-cnt="' + key + '"></span><button type="button" class="bz-cu-open" data-cu-open="' + key + '" aria-expanded="false" hidden></button></div>' +
+    ctrl + '<div class="bz-cu-pick" data-cu-pick="' + key + '"></div></div>';
   const cuIn = (key, ph, max, num) => '<input class="bz-input" id="bzCu-' + key + '" data-cu="' + key + '"' +
     (num ? ' type="number" min="14" max="99" inputmode="numeric"' : ' maxlength="' + max + '"') + ' placeholder="' + esc(ph) + '">';
   const cuTa = (key, ph, max, rows) => '<textarea class="bz-input" id="bzCu-' + key + '" data-cu="' + key + '" rows="' + rows + '" maxlength="' + max + '" placeholder="' + esc(ph) + '"></textarea>';
   const cuSel = (key) => '<select class="bz-select" id="bzCu-' + key + '" data-cu="' + key + '">' + CU_SEL[key].map(([v, t]) => '<option value="' + v + '">' + esc(t) + "</option>").join("") + "</select>";
-  const cuChips = (field, words, label) => '<div class="bz-cu-chips" role="group" aria-label="' + label + '">' + words.map((w) =>
-    '<button type="button" class="bz-cu-chip" data-cu-chip="' + field + '" data-w="' + esc(w) + '" aria-pressed="false">' + esc(w) + "</button>").join("") + "</div>";
   const cuSplit = (v) => String(v || "").split(/[、，,；;\n]+/).map((s) => s.trim()).filter(Boolean);
 
   function cuPaneHTML() {
@@ -1737,18 +1737,18 @@
       '<div class="bz-cu">' +
         '<form class="bz-card bz-cu-form" id="bzCuForm" autocomplete="off" novalidate>' +
           '<div class="bz-card-h"><h3>我的情况</h3><span class="bz-dim" id="bzCuSaved" aria-live="polite"></span></div>' +
-          '<p class="bz-hint">写得越具体，配得越准。填的内容只存在你自己的电脑上，改完会自动保存。</p>' +
+          '<p class="bz-hint">写得越具体，配得越准。每一栏都可以点右上角从列表里选，没有的自己写。填的内容只存在你自己的电脑上，改完会自动保存。</p>' +
           '<div class="bz-cu-grid">' +
             cuF("age", "年龄", cuIn("age", "比如 35", 2, true)) + cuF("city", "所在城市", cuIn("city", "比如 广州", 20)) +
             cuF("status", "现在的状态", cuSel("status"), "w2") +
-            cuF("exp", "阅历", cuTa("exp", "做过什么工作、在什么行业待了几年、管过人没有、做过什么生意。比如：在餐饮行业做了 8 年，当过店长", 600, 3), "w2") +
-            cuF("skills", "技能", cuTa("skills", "会什么，用顿号隔开。比如：销售、剪视频、做饭、Python", 400, 2) + cuChips("skills", CU_SKILLS, "常见技能，点一下加进去"), "w2") +
-            cuF("likes", "兴趣", cuTa("likes", "平时喜欢什么。比如：宠物、户外、喝茶", 300, 2) + cuChips("likes", CU_LIKES, "常见兴趣，点一下加进去"), "w2") +
+            cuF("exp", "阅历", cuTa("exp", "做过什么工作、在什么行业待了几年、管过人没有、做过什么生意。不知道怎么写，点右上角「帮我写」从列表里选", 800, 3), "w2") +
+            cuF("skills", "技能", cuTa("skills", "会什么，用顿号隔开；也可以从下面选", 800, 2), "w2") +
+            cuF("likes", "兴趣", cuTa("likes", "平时喜欢什么；也可以从下面选", 600, 2), "w2") +
             cuF("money", "能拿出来的资金", cuSel("money")) + cuF("time", "每周能投入的时间", cuSel("time")) +
             cuF("risk", "能承受的亏损", cuSel("risk")) + cuF("goal", "想要的结果", cuSel("goal")) +
-            cuF("res", "手上的资源", cuTa("res", "人脉、渠道、货源、场地、粉丝、证书……没有就不填", 300, 2), "w2") +
-            cuF("avoid", "不想做的", cuIn("avoid", "比如：不想露脸、不想压货、不碰加盟", 200), "w2") +
-            cuF("more", "其他想让 AI 知道的", cuTa("more", "学历、家庭情况、身体情况、以后的打算……可以不填", 400, 2), "w2") +
+            cuF("res", "手上的资源", cuTa("res", "人脉、渠道、货源、场地、粉丝、证书……没有就不填", 600, 2), "w2") +
+            cuF("avoid", "不想做的", cuIn("avoid", "比如：不想露脸、不想压货、不碰加盟", 400), "w2") +
+            cuF("more", "其他想让 AI 知道的", cuTa("more", "学历、家庭、身体、以后的打算……可以不填", 600, 2), "w2") +
           "</div>" +
           '<div class="bz-cu-foot"><button type="button" class="bz-link danger" data-act="cu-clear">清空重填</button></div>' +
         "</form>" +
@@ -1777,19 +1777,133 @@
     const sv = $("bzCuSaved");
     if (sv) sv.textContent = S.cu.updated ? "上次保存：" + fmtTime(S.cu.updated) : "";
   }
-  function cuSyncChips() {
-    const vals = {};
-    root.querySelectorAll("#bzCuForm [data-cu]").forEach((el) => { vals[el.dataset.cu] = cuSplit(el.value); });
-    root.querySelectorAll("[data-cu-chip]").forEach((b) => b.setAttribute("aria-pressed", String((vals[b.dataset.cuChip] || []).includes(b.dataset.w))));
+  // ── v188：选项面板 ──
+  function cuLoadOptions() {
+    if (S.cu.optLoading || S.cu.pick) return;
+    S.cu.optLoading = true;
+    api("/biz/fit_options").then((r) => {
+      S.cu.optLoading = false;
+      if (r && r.ok && r.pick) { S.cu.pick = r.pick; cuRenderPickers(); }
+    }).catch(() => { S.cu.optLoading = false; });
   }
-  function cuChip(field, w) {
-    const el = root.querySelector('#bzCuForm [data-cu="' + field + '"]');
-    if (!el) return;
-    const parts = cuSplit(el.value), i = parts.indexOf(w);
-    if (i >= 0) parts.splice(i, 1); else parts.push(w);
-    el.value = parts.join("、");
+  const cuChipB = (key, w) => '<button type="button" class="bz-cu-chip" data-cu-c="' + key + '" data-w="' + esc(w) + '" aria-pressed="false">' + esc(w) + "</button>";
+  function cuPickInner(key, P) {
+    if (P.mode === "build") return cuBuildHTML(P);
+    const top = (P.top || []).length ? '<div class="bz-cu-chips bz-cu-top" role="group" aria-label="常用的，点一下加进去">' + P.top.map((w) => cuChipB(key, w)).join("") + "</div>" : "";
+    return top + '<div class="bz-cu-all" role="group" aria-label="全部选项">' + P.groups.map(([g, items]) =>
+      '<div class="bz-cu-grp"><span class="bz-cu-gn">' + esc(g) + '</span><div class="bz-cu-chips">' + items.map((w) => cuChipB(key, w)).join("") + "</div></div>").join("") + "</div>";
+  }
+  function cuOpenLabel(P, open) {
+    if (open) return "收起";
+    if (P.mode === "build") return "帮我写：从列表里选";
+    if (P.mode === "single") return "从列表里选";
+    return "展开全部 " + P.groups.reduce((n, g) => n + g[1].length, 0) + " 个";
+  }
+  function cuApplyOpen(key) {                                      // 展开 / 收起：只切显示，不重画
+    const P = (S.cu.pick || {})[key], f = root.querySelector('[data-cu-f="' + key + '"]');
+    if (!P || !f) return;
+    const open = !!S.cu.open[key], btn = f.querySelector("[data-cu-open]");
+    f.classList.toggle("open", open);
+    f.querySelectorAll(".bz-cu-all").forEach((e) => { e.hidden = !open; });
+    f.querySelectorAll(".bz-cu-top").forEach((e) => { e.hidden = open; });
+    if (btn) { btn.hidden = false; btn.textContent = cuOpenLabel(P, open); btn.setAttribute("aria-expanded", String(open)); }
+  }
+  function cuRenderPickers() {
+    const P = S.cu.pick || {};
+    Object.keys(P).forEach((key) => {
+      const box = root.querySelector('[data-cu-pick="' + key + '"]');
+      if (!box) return;
+      box.innerHTML = cuPickInner(key, P[key]);
+      cuApplyOpen(key);
+    });
+    cuBuildSync();
+    cuSyncChips();
+  }
+  function cuToggleOpen(key) {
+    S.cu.open[key] = !S.cu.open[key];
+    store.set("cuOpen", S.cu.open);
+    cuApplyOpen(key);
+  }
+  const cuField = (key) => root.querySelector('#bzCuForm [data-cu="' + key + '"]');
+  // 阅历是一句一句的：整句加在后面（「；」隔开），已经有了就去掉
+  const cuTidy = (v) => String(v || "").replace(/[；;]\s*([；;]\s*)+/g, "；").replace(/^[；;，,、\s]+|[；;，,、\s]+$/g, "");
+  function cuPhrase(v, w) {
+    v = String(v || "");
+    if (v.includes(w)) return cuTidy(v.replace(w, ""));
+    v = cuTidy(v);
+    return v ? v + "；" + w : w;
+  }
+  function cuPick(key, w) {                                        // 点一个选项：单选的换掉；多选的加上或去掉；阅历里的整句加上或去掉
+    const el = cuField(key), P = (S.cu.pick || {})[key];
+    if (!el || !P) return;
+    if (P.mode === "single") el.value = el.value.trim() === w ? "" : w;
+    else if (P.mode === "build") el.value = cuPhrase(el.value, w);
+    else {
+      const parts = cuSplit(el.value), i = parts.indexOf(w);
+      if (i >= 0) parts.splice(i, 1); else parts.push(w);
+      el.value = parts.join("、");
+    }
     cuSyncChips();
     cuQueueSave(300);
+  }
+  // 阅历「帮我写」：选行业、做什么、干了多久、带过人吗，拼成一句话
+  function cuBuildHTML(P) {
+    const chips = (k, items) => '<div class="bz-cu-chips">' + items.map((w) =>
+      '<button type="button" class="bz-cu-chip" data-cu-b="' + k + '" data-w="' + esc(w) + '" aria-pressed="false">' + esc(w) + "</button>").join("") + "</div>";
+    const step = (n, t, body) => '<div class="bz-cu-step"><span class="bz-cu-gn"><b>' + n + "</b>" + t + "</span>" + body + "</div>";
+    return '<div class="bz-cu-all bz-cu-build" role="group" aria-label="帮我写阅历">' +
+      step("1", "在什么行业", P.ind.map(([g, items]) => '<div class="bz-cu-sub"><i>' + esc(g) + "</i>" + chips("ind", items) + "</div>").join("")) +
+      step("2", "做什么（可以不选）", chips("role", P.role)) +
+      step("3", "干了多久", chips("years", P.years)) +
+      step("4", "带过人吗", chips("lead", P.lead)) +
+      '<div class="bz-cu-bl"><span class="bz-cu-bp" id="bzCuBp" aria-live="polite"></span>' +
+        '<button type="button" class="bz-btn sm" data-act="cu-build-add" id="bzCuBadd">加进阅历</button></div>' +
+      '<div class="bz-cu-grp"><span class="bz-cu-gn">做过的生意，点一下直接加进去</span><div class="bz-cu-chips">' + P.biz.map((w) => cuChipB("exp", w)).join("") + "</div></div>" +
+      "</div>";
+  }
+  function cuBuildText() {
+    const B = S.cu.b, P = (S.cu.pick || {}).exp;
+    if (!P || (!B.ind && !B.role)) return "";
+    const yrs = B.years ? (/^\d/.test(B.years) ? " " : "") + B.years : "";
+    let s;
+    if (B.ind) {
+      s = "在" + ((P.phrase || {})[B.ind] || B.ind + "行业");
+      if (B.role) s += "做" + B.role + (yrs ? "，干了" + yrs : "");
+      else s += yrs ? "干了" + yrs : "工作过";
+    } else s = "做过" + B.role + (yrs ? "，干了" + yrs : "");
+    if (B.lead) s += "，" + B.lead;
+    return s;
+  }
+  function cuBuildSync() {
+    root.querySelectorAll("[data-cu-b]").forEach((b) => b.setAttribute("aria-pressed", String(S.cu.b[b.dataset.cuB] === b.dataset.w)));
+    const t = cuBuildText(), bp = $("bzCuBp"), add = $("bzCuBadd");
+    if (bp) { bp.textContent = t || "选一个行业或做过什么，这里会拼成一句话"; bp.classList.toggle("empty", !t); }
+    if (add) add.disabled = !t;
+  }
+  function cuBuildPick(k, w) { S.cu.b[k] = S.cu.b[k] === w ? "" : w; cuBuildSync(); }
+  function cuBuildAdd() {
+    const t = cuBuildText(), el = cuField("exp");
+    if (!t || !el) return;
+    const v = cuTidy(el.value);
+    el.value = v ? v + "；" + t : t;
+    S.cu.b = { ind: "", role: "", years: "", lead: "" };
+    cuBuildSync();
+    cuSyncChips();
+    cuQueueSave(300);
+    toast("加进阅历了：" + t);
+  }
+  function cuSyncChips() {                                         // 选项的亮暗跟着框里写的走（自己打字也算）
+    const vals = {}, raw = {}, P = S.cu.pick || {};
+    root.querySelectorAll("#bzCuForm [data-cu]").forEach((el) => { raw[el.dataset.cu] = el.value.trim(); vals[el.dataset.cu] = cuSplit(el.value); });
+    root.querySelectorAll("[data-cu-c]").forEach((b) => {
+      const k = b.dataset.cuC, mode = (P[k] || {}).mode, w = b.dataset.w;
+      const on = mode === "single" ? raw[k] === w : mode === "build" ? (raw[k] || "").includes(w) : (vals[k] || []).includes(w);
+      b.setAttribute("aria-pressed", String(on));
+    });
+    root.querySelectorAll("[data-cu-cnt]").forEach((x) => {
+      const k = x.dataset.cuCnt, n = (P[k] || {}).mode === "multi" ? (vals[k] || []).length : 0;
+      x.textContent = n ? "写了 " + n + " 项" : "";
+    });
   }
   function cuQueueSave(ms) {
     S.cu.dirty = true;
@@ -1834,6 +1948,7 @@
     renderCuPrev();
   }
   function cuEnsure() {                                            // 切到这一页：第一次读存着的情况；隔了一分钟以上，按表单重新配一遍（不存）
+    if (!S.cu.pick) cuLoadOptions();                                // v188：选项面板（不用等配对，马上出来）
     if (!S.cu.loaded) cuLoad();
     else if (S.cu.ready && !S.cu.timer && Date.now() - (S.cu.at || 0) > 60000) cuRefresh();
   }
@@ -1948,7 +2063,7 @@
   }
   // 横着是「跟你的匹配度」，竖着是「市场热度」（7 天新闻条数，对数刻度）：越靠右上，越是又适合你、市场又热
   function cuChartSVG(cands, W) {
-    const H = 300, L = 54, R = 14, T = 12, B = 40, pw = W - L - R, ph = H - T - B, r = 11;
+    const H = 320, L = 54, R = 14, T = 12, B = 40, pw = W - L - R, ph = H - T - B, r = 11;
     const mk = (S.cu.pv && S.cu.pv.market) || {};
     const lg = (n) => Math.log10(1 + Math.max(0, n));
     const ns = cands.map((c) => c.n7);
@@ -1981,7 +2096,29 @@
       pts.some((p) => bx.x0 < p.x + r + 2 && bx.x1 > p.x - r - 2 && bx.y0 < p.y + r + 2 && bx.y1 > p.y - r - 2) ||
       boxes.some((o) => bx.x0 < o.x1 && bx.x1 > o.x0 && bx.y0 < o.y1 && bx.y1 > o.y0);
     const caps = [];
-    // 角上的说明：「又适合你、市场又热」最要紧，右上角被圆点占了就换到这一块的其他角上
+    // 名字：先挨着圆点试右、左、上、下、四个斜角；都被占了，再往外一圈试，用一根细线连回圆点（v188）；还不行就不写（圆点里的数字对得上下面的列表）
+    const near = [[r + 5, 4, "start"], [-(r + 5), 4, "end"], [0, -(r + 6), "middle"], [0, r + 15, "middle"],
+      [r + 2, -(r + 3), "start"], [r + 2, r + 13, "start"], [-(r + 2), -(r + 3), "end"], [-(r + 2), r + 13, "end"]];
+    const far = [[r + 30, 4, "start"], [-(r + 30), 4, "end"], [0, -(r + 26), "middle"], [0, r + 36, "middle"],
+      [r + 22, -(r + 20), "start"], [r + 22, r + 30, "start"], [-(r + 22), -(r + 20), "end"], [-(r + 22), r + 30, "end"],
+      [r + 52, 4, "start"], [-(r + 52), 4, "end"]];
+    const labels = pts.map((p) => {
+      const t = p.c.name, w = cuTextW(t, 12, 600), h = 14;
+      for (const [dx, dy, anc, isFar] of near.map((x) => x.concat(false)).concat(far.map((x) => x.concat(true)))) {
+        const x = p.x + dx, y = p.y + dy, x0 = anc === "start" ? x : anc === "end" ? x - w : x - w / 2;
+        const bx = { x0: x0 - 1, x1: x0 + w + 1, y0: y - h + 3, y1: y + 3 };
+        if (hit(bx)) continue;
+        boxes.push(bx);
+        let line = null;
+        if (isFar) {                                                // 细线：从圆点边上连到名字最近的那一点
+          const lx = Math.max(bx.x0, Math.min(bx.x1, p.x)), ly = Math.max(bx.y0, Math.min(bx.y1, p.y)), d = Math.hypot(lx - p.x, ly - p.y) || 1;
+          line = [p.x + ((lx - p.x) / d) * (r + 1), p.y + ((ly - p.y) / d) * (r + 1), lx, ly];
+        }
+        return { x, y, anc, line };
+      }
+      return null;
+    });
+    // 角上的说明（名字先放，说明再找空地）：「又适合你、市场又热」最要紧，右上角被占了就换到这一块的其他角上
     const qh = midY - T > 34;
     [["又适合你、市场又热", "good", 600, [[W - R - 6, T + 15, "end"], [midX + 8, T + 15, "start"]].concat(qh ? [[W - R - 6, midY - 7, "end"], [midX + 8, midY - 7, "start"]] : [])],
       ["市场热，但和你沾边少", "", 400, [[L + 8, T + 15, "start"]]],
@@ -1992,17 +2129,6 @@
         const bx = { x0: x0 - 2, x1: x0 + w + 2, y0: y - 12, y1: y + 4 };
         if (!hit(bx)) { boxes.push(bx); caps.push('<text class="cap' + (cls ? " " + cls : "") + '" x="' + f1(x) + '" y="' + f1(y) + '" text-anchor="' + anc + '">' + t + "</text>"); break; }
       }
-    });
-    const labels = pts.map((p) => {                               // 名字：右、左、上、下、四个斜角，挑第一个不压东西的地方；都不行就不写（圆点里的数字对得上下面的列表）
-      const t = p.c.name, w = cuTextW(t, 12, 600), h = 14;
-      const tries = [[r + 5, 4, "start"], [-(r + 5), 4, "end"], [0, -(r + 6), "middle"], [0, r + 15, "middle"],
-        [r + 2, -(r + 3), "start"], [r + 2, r + 13, "start"], [-(r + 2), -(r + 3), "end"], [-(r + 2), r + 13, "end"]];
-      for (const [dx, dy, anc] of tries) {
-        const x = p.x + dx, y = p.y + dy, x0 = anc === "start" ? x : anc === "end" ? x - w : x - w / 2;
-        const bx = { x0: x0 - 1, x1: x0 + w + 1, y0: y - h + 3, y1: y + 3 };
-        if (!hit(bx)) { boxes.push(bx); return { x, y, anc }; }
-      }
-      return null;
     });
     let s = '<svg class="bz-cu-svg" viewBox="0 0 ' + W + " " + H + '" width="' + W + '" height="' + H + '" role="group" aria-label="跟你的匹配度和市场热度">' +
       '<rect class="q-good" x="' + f1(midX) + '" y="' + T + '" width="' + f1(L + pw - midX) + '" height="' + f1(midY - T) + '"/>' +
@@ -2022,6 +2148,7 @@
         esc(k + 1 + "，" + p.c.name + "，匹配度 " + p.c.fit + "，最近 7 天 " + p.c.n7 + " 条新闻") + '">' +
         '<circle cx="' + f1(p.x) + '" cy="' + f1(p.y) + '" r="' + r + '" style="' + (p.c.fill ? "stroke:" + p.col : "fill:" + p.col) + '"/>' +
         '<text class="num" x="' + f1(p.x) + '" y="' + f1(p.y + 4) + '" text-anchor="middle"' + (p.c.fill ? ' style="fill:' + p.col + '"' : "") + ">" + (k + 1) + "</text>" +
+        (lb && lb.line ? '<line class="lead" x1="' + f1(lb.line[0]) + '" y1="' + f1(lb.line[1]) + '" x2="' + f1(lb.line[2]) + '" y2="' + f1(lb.line[3]) + '"/>' : "") +
         (lb ? '<text class="lbl" x="' + f1(lb.x) + '" y="' + f1(lb.y) + '" text-anchor="' + lb.anc + '">' + esc(p.c.name) + "</text>" : "") + "</g>";
     });
     return s + "</svg>";
@@ -2988,8 +3115,10 @@
         else if (act === "cu-clear") {                                // v187：商业定制——清空重填
           if (!confirm("把「我的情况」全部清空？")) return;
           root.querySelectorAll("#bzCuForm [data-cu]").forEach((el) => { el.value = ""; });
-          cuSyncChips(); cuQueueSave(50);
+          S.cu.b = { ind: "", role: "", years: "", lead: "" };
+          cuBuildSync(); cuSyncChips(); cuQueueSave(50);
         }
+        else if (act === "cu-build-add") cuBuildAdd();                 // v188：阅历「帮我写」拼好的那句加进去
         else if (act === "opennote") {
           const name = b.dataset.name;
           const nb = document.querySelector('.nav-item[data-view="video"][data-video-mode="notes"]');
@@ -2998,7 +3127,9 @@
         }
         return;
       }
-      if ((b = t.closest("[data-cu-chip]"))) { cuChip(b.dataset.cuChip, b.dataset.w); return; }      // v187：商业定制
+      if ((b = t.closest("[data-cu-c]"))) { cuPick(b.dataset.cuC, b.dataset.w); return; }           // v187/v188：商业定制的选项
+      if ((b = t.closest("[data-cu-b]"))) { cuBuildPick(b.dataset.cuB, b.dataset.w); return; }
+      if ((b = t.closest("[data-cu-open]"))) { cuToggleOpen(b.dataset.cuOpen); return; }
       if (t.closest("#bzCuRun")) { cuStart(); return; }
       if ((b = t.closest("[data-cu-map]"))) { cuMap(b.dataset.cuMap); return; }
       if ((b = t.closest("[data-cu-research]"))) { runJob("research", { target: b.dataset.cuResearch.slice(0, 60), web: true, depth: "quick" }); return; }
