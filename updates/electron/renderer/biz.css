@@ -1090,3 +1090,23 @@ body.dark .view-biz { --bz-up: #6cc08b; --bz-warn: #e0a24a; --bz-bad: #e5907a; }
 .view-biz .bz-map .bz-band > header { align-items: baseline; gap: 12px; margin: 0 0 10px; }
 .view-biz .bz-map .bz-band > header h4 { font-size: 18px; font-weight: 700; letter-spacing: .5px; }
 .view-biz .bz-map .bz-band > header span { font-size: 11px; color: var(--text-dim); }
+
+/* ── v186：热门的板块放前面、标题旁写总数；扫描时对应的小格子闪一下，标题冒出来 3 秒 ── */
+.view-biz .bz-map .bz-band > header .bz-band-n { font-style: normal; font-size: 13px; font-weight: 650; color: var(--c, var(--text-dim)); font-variant-numeric: tabular-nums; }
+.view-biz .bz-ind { position: relative; }
+.view-biz .bz-mlive { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+.view-biz .bz-got { position: absolute; pointer-events: auto; display: flex; flex-direction: column; gap: 2px; width: max-content; padding: 5px 9px;
+  border-radius: 8px; border: 1px solid var(--line); background: var(--bg-elev); box-shadow: 0 6px 18px rgba(0, 0, 0, .18);
+  font: 12px/1.4 var(--sans); color: var(--text); text-align: left; cursor: pointer; animation: bz-got-in .25s ease-out; transition: opacity .4s, transform .4s; }
+.view-biz .bz-got .t { font-weight: 600; }
+.view-biz .bz-got .g { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-dim); }
+.view-biz .bz-got .g i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.view-biz .bz-got:hover { border-color: var(--accent); }
+.view-biz .bz-got.out { opacity: 0; transform: translateY(-6px) scale(.96); }
+@keyframes bz-got-in { from { opacity: 0; transform: translateY(6px) scale(.9); } }
+.view-biz .bz-map .bz-tile.got { z-index: 2; animation: bz-got-pulse 1s ease-out 3; }
+@keyframes bz-got-pulse {
+  0% { transform: scale(1.08); box-shadow: 0 0 0 0 color-mix(in srgb, var(--c, var(--accent)) 75%, transparent); }
+  100% { transform: scale(1); box-shadow: 0 0 0 9px transparent; }
+}
+@media (prefers-reduced-motion: reduce) { .view-biz .bz-map .bz-tile.got { animation: none; outline: 2px solid var(--c, var(--accent)); } .view-biz .bz-got { animation: none; transition: none; } }
