@@ -6,21 +6,9 @@
   "url": "",
   "who": "",
   "added": 1795689410,
-  "status": "pending",
-  "tries": 2,
+  "status": "failed",
+  "tries": 3,
   "error": "AI 池这次没整理成：回复里没有页面",
   "next_try": 1795692902
- },
- {
-  "sid": "report:20261126-190450-custom",
-  "kind": "report",
-  "title": "商业定制方案：38 岁 · 会教书 · 资金 1～5 万",
-  "url": "",
-  "who": "",
-  "added": 1795691409,
-  "status": "running",
-  "tries": 0,
-  "error": "",
-  "next_try": 0
  }
 ]

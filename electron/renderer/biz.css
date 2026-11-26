@@ -1157,7 +1157,19 @@ body.dark .view-biz .bz-kind.k-custom { color: #b8a2f0; }
 }
 .view-biz .bz-cu-chip:hover { color: var(--text); border-color: var(--text-dim); }
 .view-biz .bz-cu-chip[aria-pressed="true"] { border-style: solid; border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
-.view-biz .bz-cu-foot { display: flex; justify-content: flex-end; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.view-biz .bz-cu-foot { display: flex; align-items: center; gap: 12px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.view-biz .bz-cu-fst { min-width: 0; font-size: 12px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.view-biz .bz-cu-undo { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 8px 10px; border-radius: 9px;
+  background: color-mix(in srgb, var(--bz-warn) 11%, transparent); font-size: 12.5px; line-height: 1.5; }
+.view-biz .bz-cu-undo span { flex: 1; min-width: 0; }
+.view-biz .bz-cu-saved { margin-top: 10px; padding: 2px 10px; border: 1px solid var(--line); border-radius: 10px; }
+.view-biz .bz-cu-si { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px dashed var(--line); }
+.view-biz .bz-cu-si:last-child { border-bottom: 0; }
+.view-biz .bz-cu-sit { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; font-size: 12.5px; }
+.view-biz .bz-cu-sit b { font-weight: 600; }
+.view-biz .bz-cu-sit em { font-style: normal; font-size: 11px; line-height: 17px; padding: 0 6px; border-radius: 5px; background: var(--bg-active); color: var(--text-dim); }
+.view-biz .bz-cu-sit span { flex-basis: 100%; min-width: 0; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.view-biz .bz-cu-busy + .bz-link { margin-left: 10px; }
 
 .view-biz .bz-cu-go { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
 .view-biz .bz-cu-go-t { flex: 1 1 340px; min-width: 0; }

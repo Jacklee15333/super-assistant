@@ -334,18 +334,92 @@ def normalize(p):
 _LOCK = threading.Lock()
 
 
-def load():
+def _file():
     d = BZ._read_json(PROFILE_FILE, {})
-    d = d if isinstance(d, dict) else {}
+    return d if isinstance(d, dict) else {}
+
+
+def load():
+    d = _file()
     return normalize(d.get("profile")), int(d.get("updated") or 0)
 
 
 def save(p):
+    """自动保存（改完停一下就存）：只换「现在的情况」，存过的那几份原样留着。"""
     prof = normalize(p)
     now = int(time.time())
     with _LOCK:
-        BZ._write_json(PROFILE_FILE, {"profile": prof, "updated": now})
+        d = _file()
+        d.update(profile=prof, updated=now)
+        BZ._write_json(PROFILE_FILE, d)
     return prof, now
+
+
+# ── v189：存过的情况——点「保存」存一份；清空、换成别的之前自动存一份；最多留 12 份 ──
+SNAP_MAX = 12
+
+
+def _blank(prof):
+    return not any(v for v in prof.values())
+
+
+def saved_list():
+    return [{k: x.get(k) for k in ("id", "at", "brief", "auto", "label")} for x in (_file().get("saved") or [])]
+
+
+def _push(lst, prof, auto, label, now):
+    """往最前面加一份；和最近那份一模一样就只改时间，不重复存。"""
+    if _blank(prof):
+        return lst, ""
+    if lst and lst[0].get("profile") == prof:
+        lst[0].update(at=now, auto=bool(lst[0].get("auto")) and bool(auto), label=label if auto else "")
+        return lst, lst[0]["id"]
+    sid = "s%d" % int(time.time() * 1000)
+    while any(x.get("id") == sid for x in lst):
+        sid += "x"
+    lst.insert(0, {"id": sid, "at": now, "brief": brief(prof), "auto": bool(auto), "label": label if auto else "", "profile": prof})
+    return lst[:SNAP_MAX], sid
+
+
+def snapshot(p, auto=False, label=""):
+    """存一份。手动点「保存」的同时也是现在的情况；自动的（清空前）只是留个底。返回 (情况, 这份的编号)。"""
+    prof = normalize(p)
+    now = int(time.time())
+    with _LOCK:
+        d = _file()
+        lst, sid = _push(list(d.get("saved") or []), prof, auto, str(label or "")[:20], now)
+        d["saved"] = lst
+        if not auto:
+            d.update(profile=prof, updated=now)
+        BZ._write_json(PROFILE_FILE, d)
+    return prof, sid
+
+
+def restore(sid):
+    """换成存过的某一份；现在的情况先自动存一份（不空、也没存过的话），不会弄丢。"""
+    now = int(time.time())
+    with _LOCK:
+        d = _file()
+        lst = list(d.get("saved") or [])
+        hit = next((x for x in lst if x.get("id") == sid), None)
+        if not hit:
+            return None
+        cur = normalize(d.get("profile"))
+        if not _blank(cur) and all(x.get("profile") != cur for x in lst):
+            lst, _sid = _push(lst, cur, True, "换之前自动存的", now)
+        prof = normalize(hit.get("profile"))
+        d.update(profile=prof, updated=now, saved=lst)
+        BZ._write_json(PROFILE_FILE, d)
+    return prof
+
+
+def drop(sid):
+    with _LOCK:
+        d = _file()
+        lst = [x for x in (d.get("saved") or []) if x.get("id") != sid]
+        d["saved"] = lst
+        BZ._write_json(PROFILE_FILE, d)
+    return True
 
 
 def enough(prof):
@@ -739,12 +813,28 @@ def preview(prof, n=8, news_per=2):
 
 def get():
     prof, upd = load()
-    return {"ok": True, "profile": prof, "updated": upd, "preview": preview(prof),
+    return {"ok": True, "profile": prof, "updated": upd, "preview": preview(prof), "saved": saved_list(),
             "options": {"status": STATUS, "money": {k: v[0] for k, v in MONEY.items()}, "time": TIME, "risk": RISK, "goal": GOAL}}
 
 
 def post(body):
     body = body if isinstance(body, dict) else {}
+    act = body.get("action") or ""
+    if act == "snapshot":                                   # v189：点「保存」，或清空前自动存一份
+        auto = bool(body.get("auto"))
+        prof, sid = snapshot(body.get("profile"), auto=auto, label=body.get("label") or "")
+        out = {"ok": True, "id": sid, "saved": saved_list(), "updated": int(time.time())}
+        if not auto:
+            out.update(profile=prof, preview=preview(prof))
+        return out
+    if act == "restore":                                    # v189：换成存过的某一份
+        prof = restore(str(body.get("id") or ""))
+        if prof is None:
+            return {"ok": False, "error": "找不到这一份（可能删掉了）"}
+        return {"ok": True, "profile": prof, "updated": int(time.time()), "saved": saved_list(), "preview": preview(prof)}
+    if act == "drop":
+        drop(str(body.get("id") or ""))
+        return {"ok": True, "saved": saved_list()}
     prof = normalize(body.get("profile"))
     upd = 0
     if body.get("save", True):

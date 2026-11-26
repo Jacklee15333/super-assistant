@@ -3474,6 +3474,7 @@ class _AIGate:
         self._cv = _threading.Condition()
         self._queue = []              # 排队的（先来先做）
         self._holders = {}            # 正在用 AI 池的：票 → (说明, 开始时间, 线程号)
+        self._qnames = {}             # v189：排队的是谁：票 → (说明, 开始排队的时间)，给「AI 池实时画面」的排队列表用
 
     def _busy_locked(self):
         if not self._holders:
@@ -3487,11 +3488,13 @@ class _AIGate:
         last = None
         with self._cv:
             self._queue.append(t)
+            self._qnames[t] = (what, _time_now())
         try:
             while True:
                 with self._cv:
                     if self._queue and self._queue[0] is t and len(self._holders) < max(1, _ai_slots()):
                         self._queue.pop(0)
+                        self._qnames.pop(t, None)
                         self._holders[t] = (what, _time_now(), _threading.get_ident())
                         if last is not None:
                             _clog("AI池", "▶ 轮到「%s」" % what)
@@ -3501,6 +3504,7 @@ class _AIGate:
                     with self._cv:
                         if t in self._queue:
                             self._queue.remove(t)
+                        self._qnames.pop(t, None)
                         self._cv.notify_all()
                     return None
                 if busy != last:
@@ -3518,6 +3522,7 @@ class _AIGate:
             with self._cv:
                 if t in self._queue:
                     self._queue.remove(t)
+                self._qnames.pop(t, None)
                 self._cv.notify_all()
             raise
 
@@ -3539,7 +3544,9 @@ class _AIGate:
     def status(self):
         with self._cv:
             return {"slots": max(1, _ai_slots()), "waiting": len(self._queue),
-                    "busy": [{"what": w, "since": int(t0)} for w, t0, _i in self._holders.values()]}
+                    "busy": [{"what": w, "since": int(t0)} for w, t0, _i in self._holders.values()],
+                    "queue": [{"what": self._qnames[q][0], "since": int(self._qnames[q][1])}      # v189：谁在排队
+                              for q in self._queue if q in self._qnames]}
 
 
 _ai_gate = _AIGate()

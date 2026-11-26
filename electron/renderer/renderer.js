@@ -13058,11 +13058,14 @@ function _cwfRenderPanel(root, st) {
 function _cwFindRender(st) { _cwfPanels().forEach((r) => _cwfRenderPanel(r, st)); }
 
 // AI 实时画面（小号）：AI 池浏览器的实时截图 + 它正在写的回复，样子和「批量 AI 分析」里的一样
+// v189：小号实时画面也能折叠（记住你的选择）；折叠时不截图
+function aiMiniOpen() { try { return localStorage.getItem("cx.cwfLive.open") !== "0"; } catch (_) { return true; } }
 function aiLiveBuild() {
   const box = document.createElement("div");
   box.className = "vn-live ai-live-mini";
   box.innerHTML =
-    '<div class="vn-live-head"><span class="vn-live-title">AI 实时画面</span><span class="vn-live-sum ai-live-sum"></span></div>' +
+    '<div class="vn-live-head ai-live-head" title="点一下展开 / 折叠"><span class="vn-live-title">AI 实时画面</span><span class="vn-live-sum ai-live-sum"></span>' +
+      '<button type="button" class="vn-live-tg ai-live-tg"></button></div>' +
     '<div class="vn-live-body">' +
       '<div class="vn-live-stage ai-live-stage"></div>' +
       '<div class="vn-live-grid">' +
@@ -13071,6 +13074,18 @@ function aiLiveBuild() {
         '<div class="vn-live-side"><pre class="vn-live-reply ai-live-reply"></pre></div>' +
       "</div>" +
     "</div>";
+  box._sync = () => {
+    const open = aiMiniOpen();
+    box.querySelector(".vn-live-body").hidden = !open;
+    box.querySelector(".ai-live-tg").textContent = open ? "▾ 折叠" : "▸ 展开看";
+  };
+  box.querySelector(".ai-live-head").addEventListener("click", (e) => {
+    e.stopPropagation();
+    try { localStorage.setItem("cx.cwfLive.open", aiMiniOpen() ? "0" : "1"); } catch (_) {}
+    document.querySelectorAll(".ai-live-mini").forEach((b) => { if (b._sync) b._sync(); });
+    _cwFindPoll();
+  });
+  box._sync();
   return box;
 }
 
@@ -13105,7 +13120,7 @@ async function _cwFindPoll() {
   _cwFindLast = st;
   _cwFindRender(st);
   const panels = _cwfPanels();
-  const watch = !!st.running && panels.some(_cwfShown) && !document.hidden;
+  const watch = !!st.running && panels.some(_cwfShown) && !document.hidden && aiMiniOpen();   // v189：折叠着就不截图
   let live = null;
   if (watch) { try { live = await (await fetch(BACKEND + "/ai_live?watch=1", { cache: "no-store" })).json(); } catch (_) {} }
   panels.forEach((r) => {

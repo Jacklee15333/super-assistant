@@ -122,7 +122,8 @@
     const parts = ["<span><b>" + o.pages.length + "</b> 个主题页 · 来自 <b>" + o.n_sources + "</b> 份资料</span>"];
     if (o.running) {
       parts.push('<span class="kb-run"><i class="kb-dot" aria-hidden="true"></i>正在收录「' + esc(o.running.title) + "」：" + esc(o.running.stage || "…") +
-        "（" + mmss(o.now - o.running.started) + "）</span>" + '<button type="button" class="kb-link" data-act="stop">停止</button>');
+        "（" + mmss(o.now - o.running.started) + "）</span>" + '<button type="button" class="kb-link" data-act="ailive">看实时画面</button>' +   // v189
+        '<button type="button" class="kb-link" data-act="stop">停止</button>');
     } else if (c.paused) {
       parts.push('<span class="kb-warn">收录暂停了' + (o.n_pending ? "，队列里还有 " + o.n_pending + " 份" : "") + '</span><button type="button" class="kb-link" data-act="resume">继续收录</button>');
     } else if (o.n_pending) {
@@ -668,6 +669,7 @@
       const act = b.dataset.act;
       if (act === "overview") { S.sel = ""; renderPages(); renderOverview(); }
       else if (act === "paste") openPaste();
+      else if (act === "ailive") { if (window.cxAiLive) window.cxAiLive.open(); }     // v189：AI 池实时画面
       else if (act === "stop") { const r = await api("/kb/stop", {}).catch(() => ({})); toast(r.ok ? "正在停。停下后收录会先暂停，要继续点「继续收录」。" : (r.error || "没停成")); refresh(); }
       else if (act === "resume") { await api("/kb/config", { paused: false }); refresh(); }
       else if (act === "clear-failed") { await api("/kb/clear_failed", {}); refresh(); }
