@@ -703,6 +703,42 @@
       "title": "🤖 自动 · 特朗普动态 · 11-25 09:25",
       "created_at": "2026-11-25T09:27:20",
       "seen": true
+    },
+    {
+      "id": "n-20261126095137484602",
+      "slug": "ai-intel-agent",
+      "agent_name": "情报员",
+      "agent_emoji": "🧠",
+      "task_id": "t-184222-47be",
+      "conversation_id": "auto-20261126-094951-47be",
+      "task_name": "最新AI动态",
+      "title": "🤖 自动 · 最新AI动态 · 11-26 09:49",
+      "created_at": "2026-11-26T09:51:37",
+      "seen": true
+    },
+    {
+      "id": "n-20261126095508866848",
+      "slug": "ai-intel-agent",
+      "agent_name": "情报员",
+      "agent_emoji": "🧠",
+      "task_id": "t-1782729748831-r8g7",
+      "conversation_id": "auto-20261126-095137-r8g7",
+      "task_name": "最新github开源项目",
+      "title": "🤖 自动 · 最新github开源项目 · 11-26 09:51",
+      "created_at": "2026-11-26T09:55:08",
+      "seen": true
+    },
+    {
+      "id": "n-20261126095830454643",
+      "slug": "ai-intel-agent",
+      "agent_name": "情报员",
+      "agent_emoji": "🧠",
+      "task_id": "t-1782732670790-st6b",
+      "conversation_id": "auto-20261126-095508-st6b",
+      "task_name": "特朗普动态",
+      "title": "🤖 自动 · 特朗普动态 · 11-26 09:55",
+      "created_at": "2026-11-26T09:58:30",
+      "seen": true
     }
   ]
 }
