@@ -1,9 +1,0 @@
-{
- "md_len": 22,
- "reply_len": 294,
- "md_head": "ChatGPT 可能会出错。请核查重要信息。",
- "md_tail": "ChatGPT 可能会出错。请核查重要信息。",
- "reply_head": "ChatGPT 说：\n\n中文标题：RT @googledevs: Gemini API推出工具检索功能 ✨ 工具检索\n\n推文\n\nGemini API（Gemini 应用程序编程接口）推出 Tool Retrieval（工具检索）功能 ✨\n\n借助工具检索功能，你可以将工具数量扩展至数百个，而不会导致上下文膨胀。按需加载参数模式，在保持工具选择准确性的同时，减少 Token（词元）消耗，并保持前缀缓存完整。\n\n阅读博客：https://goo.gle/4ALQwgM\n\n〔图1〕\n\n分类标签\n\n标签：工具检索、按需加载、上下文优化、智能体开发、前缀缓存\n\n分类：AI/AI编程\n\n（译完）",
- "reply_tail": "Tool Retrieval（工具检索）功能 ✨\n\n借助工具检索功能，你可以将工具数量扩展至数百个，而不会导致上下文膨胀。按需加载参数模式，在保持工具选择准确性的同时，减少 Token（词元）消耗，并保持前缀缓存完整。\n\n阅读博客：https://goo.gle/4ALQwgM\n\n〔图1〕\n\n分类标签\n\n标签：工具检索、按需加载、上下文优化、智能体开发、前缀缓存\n\n分类：AI/AI编程\n\n（译完）",
- "url": "https://sorryios.ai/c/6b051043-f594-83ea-9498-c64c962836f7"
-}

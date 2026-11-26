@@ -655,3 +655,10 @@ body.dark .view-biz { --bz-up: #6cc08b; --bz-warn: #e0a24a; --bz-bad: #e5907a; }
 .view-biz .bz-rp-nav.kb { border-color: var(--accent); color: var(--accent); }
 .view-biz .bz-rp-nav.kb:hover:not(:disabled) { background: var(--bz-soft); }
 .view-biz .bz-kb-ok { font-size: 12px; color: var(--bz-up); white-space: nowrap; }
+
+/* v164：整行可点、看过的变淡 */
+.view-biz .bz-item.clickable { cursor: pointer; border-radius: 6px; transition: background .12s; }
+.view-biz .bz-item.clickable:hover { background: color-mix(in srgb, var(--accent) 4%, transparent); }
+.view-biz .bz-item.read .bz-item-t, .view-biz .bz-item.read .bz-orig { color: var(--text-dim); font-weight: 400; }
+.view-biz .bz-item.read.sel .bz-item-t { color: var(--accent); }
+.view-biz .bz-item.read .bz-item-b > p { opacity: .75; }

@@ -1,9 +1,0 @@
-{
- "md_len": 22,
- "reply_len": 8247,
- "md_head": "ChatGPT 可能会出错。请核查重要信息。",
- "md_tail": "ChatGPT 可能会出错。请核查重要信息。",
- "reply_head": "ChatGPT 说：\n\n中文标题：在移动传送带上，每一次抓取都很重要\n\n一句话概括\n\n美国 AI 机器人公司 EverestLabs AI 将计算机视觉、人工智能与工业机械臂结合，让机器人能够在高速移动的传送带上实时识别、判断并抓取不同类型的可回收物品，实现废弃物自动化分拣，提高资源回收效率，减少可回收材料进入垃圾填埋场。\n\n背景与主题\n\n这段视频展示的是 AI 在工业废弃物回收领域的实际应用，核心企业是美国初创公司 EverestLabs AI。传统垃圾回收分拣主要依赖人工和机械筛选，但传送带上的物品种类复杂、位置不断变化，而且传送速度较快，人工分拣很难持续保持高效率和高准确率。\n\nEverestLabs 将计算机视觉（Computer Vision）、AI 推理和机器人抓取技术结合起来，使机械臂能够识别传送带上的不同物品，并在物品经过时及时完成抓取。视频最重要的一句话是：\n\nOn a ",
- "reply_tail": "分拣、边缘计算、循环经济\n\n分类：AI/行业公司\n\n原始及延伸资料：\n\nNVIDIA：AI Helps Recyclers Turn Mixed Waste Into Reusable Material（2026年11月10日）\n\nEverestLabs：AI Recycling Robots 官方技术 FAQ\n\nEverestLabs：AI-Powered Sorting Robots 产品介绍",
- "url": "https://sorryios.ai/c/6b04ebe0-5e28-83e9-b448-4a3a377e18c1"
-}

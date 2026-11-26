@@ -1193,6 +1193,16 @@ def article(url):
     desc = _meta_of(h, "og:description", "description", "twitter:description") if h else ""
     pub = _meta_of(h, "article:published_time", "og:release_date", "pubdate", "publishdate", "datePublished") if h else ""
     total = sum(len(x) for x in paras)
+    # v164：网页里写着发布时间、而列表里这条原来「时间不详」的，补上发布时间
+    if pub and item is not None and not item.get("dated"):
+        t = _ts_of(pub)
+        if 946684800 < t < time.time() + 86400:
+            with _LOCK:
+                item["ts"] = int(t)
+                item["dated"] = True
+                _ST["dirty"] = True
+                _ST["ver"] += 1
+            _flush()
     if total > 40000:                                   # 特别长的（几万字）只留前面
         keep, n = [], 0
         for x in paras:

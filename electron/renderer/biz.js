@@ -42,6 +42,8 @@
   const api = (path, body) => fetch(backend() + path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : undefined)
     .then((r) => r.json());
   const fmtTime = (ts) => { if (!ts) return ""; const d = new Date(ts * 1000); return (d.getMonth() + 1) + "月" + d.getDate() + "日 " + pad(d.getHours()) + ":" + pad(d.getMinutes()); };
+  // v164：新闻的发布时间（不是今年的带上年份）
+  const fmtPub = (ts) => { const d = new Date(ts * 1000); return (d.getFullYear() !== new Date().getFullYear() ? d.getFullYear() + "年" : "") + fmtTime(ts); };
   const hhmm = (ts) => { const d = new Date(ts * 1000); return pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds()); };
   const loading = (t) => '<p class="bz-empty">' + esc(t || "正在读取…") + "</p>";
   const empty = (t) => '<p class="bz-empty">' + t + "</p>";
@@ -71,6 +73,7 @@
     ovm: null, ovmErr: "", ov: null, ovErr: "", mdays: store.get("mdays", 3),
     rfeed: null, rgrp: "all", rq: "", rlimit: 80, rpage: 1, rsize: store.get("rsize", 20), rtotal: 0, rsince: 0, rseq: 0,
     artSel: "", art: {}, artTr: {}, artLang: "zh", artItems: {}, trTitle: {}, kbSent: {},
+    read: new Set(store.get("read", [])),       // v164：点开看过的新闻（标题变淡、不再标「新」）
     plan: null, updOpen: false, updDone: "", updRes: null, briefOpen: false, bf: null, briefInfo: null,
     lens: store.get("lens", "market") === "mine" ? "mine" : "market", days: 30,
     indView: store.get("indView", "map"), indSel: store.get("indSel", ""), indQ: "", indItems: null, openL1: {},
@@ -283,9 +286,11 @@
           esc(zh || it.title) + "</button>" + (zh ? '<span class="bz-orig">' + esc(it.title) + "</span>" : "")
         : '<span class="bz-item-t">' + esc(it.title) + "</span>");
     const isR = it.src === "radar";
-    const when = isR ? (it.approx ? "时间不详" : ago(it.ts)) : it.date;
-    const fresh = isR && it.seen && S.newCut && it.seen >= S.newCut;
-    return '<div class="bz-item' + (fresh ? " fresh" : "") + (sel ? " sel" : "") + '" data-row="' + esc(it.id) + '"><span class="bz-src s-' + it.src + '">' + (isR ? (GRP[it.grp] || SRC.radar) : SRC[it.src]) + "</span>" +
+    // v164：写出发布时间；不知道发布时间的，写什么时候抓到的
+    const when = isR ? (it.approx ? "发布时间不详" + (it.seen ? " · " + ago(it.seen) + "抓到" : "") : fmtPub(it.ts) + " 发布 · " + ago(it.ts)) : it.date;
+    const read = it.url && S.read.has(it.id);
+    const fresh = isR && !read && it.seen && S.newCut && it.seen >= S.newCut;
+    return '<div class="bz-item' + (fresh ? " fresh" : "") + (sel ? " sel" : "") + (read ? " read" : "") + (it.url && it.src !== "note" ? " clickable" : "") + '" data-row="' + esc(it.id) + '"><span class="bz-src s-' + it.src + '">' + (isR ? (GRP[it.grp] || SRC.radar) : SRC[it.src]) + "</span>" +
       '<div class="bz-item-b">' + (fresh ? '<span class="bz-new" title="上一轮更新时新抓到的">新</span>' : "") + t +
       (it.text && !zh ? "<p>" + esc(it.text) + "</p>" : "") +
       '<div class="bz-item-m">' + (it.who ? "<span>" + esc(it.who) + (isR && it.from && it.from !== it.who ? "·" + esc(it.from) : "") + "</span>" : "") + (when ? "<span>" + esc(when) + "</span>" : "") +
@@ -392,6 +397,13 @@
       else if (!(r.paras && r.paras.length) && !r.desc) r.failed = true;
       if (!r.foreign && isForeign(it.title) && !(r.paras && r.paras.length)) r.foreign = true;
       S.art[url] = r;
+      if (r.pub && it.approx) {                    // v164：网页里读到了发布时间，列表这一行也补上
+        const t = Date.parse(r.pub);
+        if (t && t / 1000 > 946684800 && t / 1000 < Date.now() / 1000 + 86400) {
+          it.ts = Math.round(t / 1000); it.approx = false;
+          root.querySelectorAll('.bz-item[data-row="' + CSS.escape(it.id) + '"]').forEach((e) => { e.outerHTML = itemRow(it); });
+        }
+      }
       refreshArt(it);
     }
     const a = S.art[url];
@@ -412,9 +424,21 @@
     if (cur && cur.url === it.url) renderReadP();
   }
   const curArt = () => S.artItems[!$("bzReader").hidden && S.readerArt ? S.readerArt : S.artSel];
+  function markRead(id) {
+    if (S.read.has(id)) return;
+    S.read.add(id);
+    const arr = Array.from(S.read);
+    if (arr.length > 4000) S.read = new Set(arr.slice(-3000));
+    store.set("read", Array.from(S.read));
+    root.querySelectorAll('.bz-item[data-row="' + CSS.escape(id) + '"]').forEach((e) => {
+      e.classList.add("read"); e.classList.remove("fresh");
+      const n = e.querySelector(".bz-new"); if (n) n.remove();
+    });
+  }
   function openArt(id, inFeed) {
     const it = S.artItems[id];
     if (!it) return;
+    markRead(id);
     if (!inFeed) { S.readerArt = id; openArtPage(it); loadArt(it); return; }
     S.artSel = id;
     root.querySelectorAll("#bzFeed .bz-item").forEach((e) => {
@@ -1684,6 +1708,12 @@
         return;
       }
       if ((b = t.closest("[data-art]"))) { if (b.dataset.art && !b.disabled) openArt(b.dataset.art, !!b.closest("#bzFeed, #bzReadP")); return; }
+      // v164：点新闻这一行的任何地方（除了链接、按钮）都能打开
+      if (!t.closest("a, button, input, select, textarea, label") && (b = t.closest(".bz-item.clickable[data-row]")) && S.artItems[b.dataset.row]) {
+        if (window.getSelection && String(window.getSelection()).length) return;      // 在选文字，不算点击
+        openArt(b.dataset.row, !!b.closest("#bzFeed"));
+        return;
+      }
       if ((b = t.closest("[data-page]"))) { if (!b.disabled) goPage(+b.dataset.page); return; }
       if (t.closest("#bzUpdBtn")) { openUpd(); return; }
       if (t.closest("#bzBriefRun")) { openBrief(); return; }
