@@ -372,79 +372,93 @@
     const M = radarModel();
     if (!M) { el.innerHTML = loading(S.ovmErr ? "读不到：" + S.ovmErr : "正在扫描…"); return; }
     if (!(S.ovm.counts && S.ovm.counts.radar)) { el.innerHTML = empty('爬虫还没抓到东西。点上面的<button type="button" class="bz-link" data-act="upd-open">现在更新</button>马上抓一次。'); return; }
-    // 外圈一圈写一级行业 / 赛道的名字，里面的圆点按条数从多到少由里往外排，保证都在自己那一格里
-    const R = 400, R0 = 26, RD = R - 118, C = 0;
-    const cellsN = M.wedges.reduce((a, w) => a + w.cells.length, 0);
-    const unit = (Math.PI * 2 - M.wedges.length * 0.03) / M.wedges.reduce((a, w) => a + w.cells.reduce((b, c) => b + Math.max(1, Math.min(4, c.items.length * 0.55 + 0.6)), 0), 0);
-    let a0 = -Math.PI / 2;
+    // v171：先按大类切成一片片的饼（片的大小跟新闻多少走），每一片里再按一级行业一圈一圈横着切；
+    // 一圈一个行业，名字沿着这一圈写，圆点（细分行业）排在这一圈里。
+    const R = 400, R0 = 24, RB = R - 4, C = 0;
+    const GAP = 0.022, MIN = 0.16;
+    const raw = M.wedges.map((w) => Math.sqrt(w.n + 4) * Math.max(1, Math.sqrt(w.cells.length) * 0.75));
+    const rsum = raw.reduce((a, b) => a + b, 0);
+    const free = Math.PI * 2 - GAP * M.wedges.length;
+    let spans = raw.map((v) => Math.max(MIN, (v / rsum) * free));
+    const ssum = spans.reduce((a, b) => a + b, 0);
+    spans = spans.map((v) => (v / ssum) * free);
+    let a0 = -Math.PI / 2 + GAP / 2;
     const pt = (r, a) => [C + r * Math.cos(a), C + r * Math.sin(a)];
     const arc = (r1, r2, x, y) => {
       const [p1x, p1y] = pt(r2, x), [p2x, p2y] = pt(r2, y), [p3x, p3y] = pt(r1, y), [p4x, p4y] = pt(r1, x), lg = y - x > Math.PI ? 1 : 0;
       return "M" + p1x.toFixed(1) + "," + p1y.toFixed(1) + " A" + r2 + "," + r2 + " 0 " + lg + " 1 " + p2x.toFixed(1) + "," + p2y.toFixed(1) +
         " L" + p3x.toFixed(1) + "," + p3y.toFixed(1) + " A" + r1 + "," + r1 + " 0 " + lg + " 0 " + p4x.toFixed(1) + "," + p4y.toFixed(1) + " Z";
     };
-    let wedges = "", labels = "", rim = "", blips = "", spokes = "";
+    let wedges = "", labels = "", rim = "", blips = "", spokes = "", defs = "";
     const pos = [];
-    const sizeOf = (n) => (n ? 3.2 + 10 * Math.sqrt(n / M.max) : 2);
-    const selCell = S.radSel && M.items.find((x) => x.id === S.radSel);
+    const selItem = S.radSel && M.items.find((x) => x.id === S.radSel);
     M.wedges.forEach((w, wi) => {
-      const ws = a0;
-      w.cells.forEach((c, ci) => {
-        const span = unit * Math.max(1, Math.min(4, c.items.length * 0.55 + 0.6)), a1 = a0 + span;
-        const on = selCell && (selCell.parent === c.name || selCell.id === c.id);
-        wedges += '<path d="' + arc(R0, R, a0, a1) + '" class="wedge' + (on ? " on" : "") + '" fill="' + w.color + '" fill-opacity="' + (ci % 2 ? 0.07 : 0.13) + '"/>';
-        // 一级行业 / 赛道名字：沿着半径写在外圈里面，左半边翻过来免得倒着
-        const am = (a0 + a1) / 2, deg = (am * 180) / Math.PI, flip = Math.cos(am) < 0;
-        const [tx, ty] = pt(R - 8, am);
-        rim += '<text x="' + tx.toFixed(1) + '" y="' + ty.toFixed(1) + '" class="rim' + (c.n ? "" : " q") + (on ? " on" : "") + '" text-anchor="' + (flip ? "start" : "end") + '" dominant-baseline="middle" transform="rotate(' +
-          (flip ? deg + 180 : deg).toFixed(1) + " " + tx.toFixed(1) + " " + ty.toFixed(1) + ')" fill="' + w.color + '">' + esc(c.name.length > 7 ? c.name.slice(0, 6) + "…" : c.name) + (c.n ? '<tspan class="rn"> ' + c.n + "</tspan>" : "") + "</text>";
-        // 圆点
-        const act = c.items.filter((x) => x.n).sort((p, q) => q.n - p.n), quiet = c.items.filter((x) => !x.n);
-        const aIn = a0 + span * 0.12, aSpan = span * 0.76;
-        // 先按里圈放得下几个分好行，再把这些行均匀铺满整格的深度（不挤在中心）
-        const rows = [];
-        let r = R0 + 22, k = 0;
-        while (k < act.length) {
-          const slots = Math.max(1, Math.floor((r * aSpan) / 26));
-          rows.push(act.slice(k, k + slots));
-          k += slots;
-          r += 27;
+      const span = spans[wi], a1 = a0 + span;
+      // 这一片里的一级行业：新闻多的放外圈（外圈地方大，点多也放得下）
+      const cells = w.cells.slice().sort((p, q) => p.n - q.n || p.items.length - q.items.length);
+      const k = cells.length;
+      // 每圈的厚度：按里面细分行业的数量分一点，最薄也要放得下字
+      const wt = cells.map((c) => 1 + Math.min(3, c.items.filter((x) => x.n).length * 0.35));
+      const wsum = wt.reduce((a, b) => a + b, 0);
+      let r1 = R0;
+      cells.forEach((c, ci) => {
+        const r2 = ci === k - 1 ? RB : r1 + ((RB - R0) * wt[ci]) / wsum;
+        const on = selItem && (selItem.parent === c.name || selItem.id === c.id);
+        wedges += '<path d="' + arc(r1, r2, a0, a1) + '" class="wedge band-c' + (on ? " on" : "") + '" fill="' + w.color + '" fill-opacity="' + (0.05 + 0.1 * ((ci % 2) ? 0.55 : 1)) + '"/>';
+        // 名字：沿着这一圈的弧写（下半圈反过来写，免得倒着），放在这一圈靠外的地方
+        const th = r2 - r1, rt = r2 - Math.min(11, th * 0.32), am = (a0 + a1) / 2, low = Math.sin(am) > 0.15;
+        const lab = c.name + (c.n ? " " + c.n : "");
+        const room = rt * span * 0.92, need = lab.length * 12;
+        if (th >= 20 && room >= Math.min(need, 36)) {
+          const pid = "bzArc" + wi + "_" + ci;
+          const [sx, sy] = pt(rt, low ? a1 : a0), [ex, ey] = pt(rt, low ? a0 : a1);
+          defs += '<path id="' + pid + '" d="M' + sx.toFixed(1) + "," + sy.toFixed(1) + " A" + rt.toFixed(1) + "," + rt.toFixed(1) + " 0 " + (span > Math.PI ? 1 : 0) + " " + (low ? 0 : 1) + " " + ex.toFixed(1) + "," + ey.toFixed(1) + '"/>';
+          const txt = room >= need ? lab : (c.name.length > Math.floor(room / 12) ? c.name.slice(0, Math.max(1, Math.floor(room / 12) - 1)) + "…" : c.name);
+          rim += '<text class="rim' + (c.n ? "" : " q") + (on ? " on" : "") + '" fill="' + w.color + '" dominant-baseline="middle"><textPath href="#' + pid + '" startOffset="50%" text-anchor="middle">' +
+            esc(txt) + "</textPath></text>";
         }
-        const r1 = R0 + 30, r2 = RD - 6;
-        rows.forEach((row, i) => {
-          const rr = rows.length === 1 ? r1 + (r2 - r1) * (0.08 + 0.8 * (1 - Math.log(1 + row[0].n) / Math.log(1 + M.max))) : r1 + ((r2 - r1) * i) / Math.max(rows.length - 1, Math.min(6, act.length));
-          row.forEach((it, j) => { const [x, y] = pt(rr, aIn + aSpan * ((j + 0.5) / row.length)); pos.push({ it, x, y, size: sizeOf(it.n) }); });
+        // 圆点：排在这一圈靠里的地方，沿着弧均匀铺开
+        const act = c.items.filter((x) => x.n).sort((p, q) => q.n - p.n), quiet = c.items.filter((x) => !x.n);
+        const rd = th >= 30 ? r1 + th * 0.4 : r1 + th * 0.5;
+        const aIn = a0 + span * 0.06, aSpan = span * 0.88;
+        const maxSize = Math.max(3, Math.min(11, th * 0.3));
+        const perRow = Math.max(1, Math.floor((rd * aSpan) / (maxSize * 2 + 8)));
+        const rows = Math.min(2, Math.ceil(act.length / perRow));
+        act.forEach((it, i) => {
+          const row = rows > 1 ? i % 2 : 0, idx = rows > 1 ? Math.floor(i / 2) : i, cnt = rows > 1 ? Math.ceil(act.length / 2) - (row && act.length % 2 ? 1 : 0) : act.length;
+          const rr = rows > 1 ? r1 + th * (row ? 0.58 : 0.28) : rd;
+          const [x, y] = pt(rr, aIn + aSpan * ((idx + 0.5) / Math.max(1, cnt)));
+          pos.push({ it, x, y, size: Math.min(maxSize, 3 + 9 * Math.sqrt(it.n / M.max)) });
         });
-        quiet.forEach((it, j) => { const [x, y] = pt(RD + 8, aIn + aSpan * ((j + 0.5) / quiet.length)); pos.push({ it, x, y, size: 2 }); });
-        a0 = a1;
+        quiet.forEach((it, j) => { const [x, y] = pt(r1 + th * 0.15 + 3, aIn + aSpan * ((j + 0.5) / quiet.length)); pos.push({ it, x, y, size: 1.6 }); });
+        r1 = r2;
       });
-      // 板块：外面一条彩色的弧 + 名字
-      const we = a0;
-      wedges += '<path d="' + arc(R + 4, R + 12, ws, we) + '" fill="' + w.color + '" class="band"/>';
-      const am = (ws + we) / 2, [lx, ly] = pt(R + 30, am);
+      // 大类：外面一条彩色的弧 + 名字
+      wedges += '<path d="' + arc(R + 4, R + 13, a0, a1) + '" fill="' + w.color + '" class="band"/>';
+      const am = (a0 + a1) / 2, [lx, ly] = pt(R + 30, am);
       const anchor = Math.abs(Math.cos(am)) < 0.3 ? "middle" : Math.cos(am) > 0 ? "start" : "end";
-      const dy = Math.sin(am) > 0.3 ? 16 : Math.sin(am) < -0.3 ? -2 : 6;
+      const dy = Math.sin(am) > 0.3 ? 18 : Math.sin(am) < -0.3 ? -2 : 7;
       labels += '<text x="' + lx.toFixed(1) + '" y="' + (ly + dy).toFixed(1) + '" text-anchor="' + anchor + '" class="secl" fill="' + w.color + '">' + esc(w.name) + '<tspan class="secn"> ' + w.n + "</tspan></text>";
-      spokes += '<line x1="' + pt(R0, ws)[0].toFixed(1) + '" y1="' + pt(R0, ws)[1].toFixed(1) + '" x2="' + pt(R + 12, ws)[0].toFixed(1) + '" y2="' + pt(R + 12, ws)[1].toFixed(1) + '" class="sp"/>';
-      a0 += 0.03;
+      [a0, a1].forEach((a) => { spokes += '<line x1="' + pt(R0, a)[0].toFixed(1) + '" y1="' + pt(R0, a)[1].toFixed(1) + '" x2="' + pt(R + 2, a)[0].toFixed(1) + '" y2="' + pt(R + 2, a)[1].toFixed(1) + '" class="sp2" stroke="' + w.color + '"/>'; });
+      a0 = a1 + GAP;
     });
-    void cellsN;
     S.radPos = {};
-    S.radVB = { x: -R - 170, y: -R - 64, w: (R + 170) * 2, h: (R + 64) * 2, C: C, R: R };
+    S.radVB = { x: -R - 175, y: -R - 64, w: (R + 175) * 2, h: (R + 64) * 2, C: C, R: R };
     pos.forEach(({ it, x, y, size }) => {
       S.radPos[it.id] = { x, y, color: it.color };
       const sel = S.radSel === it.id;
       blips += '<g class="blip' + (it.n ? "" : " quiet") + (it.hot ? " hot" : "") + (sel ? " sel" : "") + '" data-rad="' + esc(it.id) + '" tabindex="' + (it.n ? 0 : -1) + '" role="button" aria-label="' +
         esc(it.name + "（" + it.parent + "），" + it.n + " 条新闻" + (it.hot ? "，正在升温" : "")) + '">' +
-        '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + (size + 7).toFixed(1) + '" class="hit"/>' +
+        '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + (size + 6).toFixed(1) + '" class="hit"/>' +
         (it.hot ? '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + (size + 3.5).toFixed(1) + '" class="ring" stroke="' + it.color + '"/>' : "") +
         '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + size.toFixed(1) + '" fill="' + it.color + '" class="dot"/>' +
         (sel ? '<text x="' + x.toFixed(1) + '" y="' + (y + size + 15).toFixed(1) + '" text-anchor="middle" class="bl">' + esc(it.name) + "</text>" : "") + "</g>";
     });
     labels = rim + labels;
-    const rings = [0.33, 0.66, 1].map((k) => '<circle cx="0" cy="0" r="' + (R0 + (RD - R0) * k).toFixed(1) + '" class="rg"/>').join("");
+    const RD = RB;
+    const rings = '<circle cx="0" cy="0" r="' + RD + '" class="rg"/>';
     const svg = '<svg class="bz-rad-svg" viewBox="' + S.radVB.x + " " + S.radVB.y + " " + S.radVB.w + " " + S.radVB.h + '" role="img" aria-label="市场雷达：按行业分好类的新闻，越靠近中心新闻越多">' +
-      '<defs><radialGradient id="bzRadBg"><stop offset="0" stop-color="var(--accent)" stop-opacity=".10"/><stop offset="1" stop-color="var(--accent)" stop-opacity=".02"/></radialGradient>' +
+      "<defs>" + defs + '<radialGradient id="bzRadBg"><stop offset="0" stop-color="var(--accent)" stop-opacity=".10"/><stop offset="1" stop-color="var(--accent)" stop-opacity=".02"/></radialGradient>' +
       '<linearGradient id="bzSweep" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="var(--accent)" stop-opacity="0"/><stop offset="1" stop-color="var(--accent)" stop-opacity=".28"/></linearGradient></defs>' +
       '<circle cx="' + C + '" cy="' + C + '" r="' + R + '" fill="url(#bzRadBg)"/>' + wedges + rings + spokes +
       '<g class="sweep" style="transform-origin:' + C + "px " + C + 'px"><path d="M' + C + "," + C + " L" + (C + R) + "," + C + " A" + R + "," + R + " 0 0 0 " + pt(R, -0.55)[0].toFixed(1) + "," + pt(R, -0.55)[1].toFixed(1) + ' Z" fill="url(#bzSweep)"/>' +
@@ -453,7 +467,7 @@
     const oldLive = $("bzRadLive");                         // 重画雷达时，正在亮的那几条留着接着演
     el.innerHTML = '<div class="bz-rad-l"><div class="bz-rad-bar" id="bzRadBar" aria-live="polite"></div>' +
       '<div class="bz-rad-stage">' + svg + '<div class="bz-rad-live" id="bzRadLive"></div><div class="bz-rad-tip" id="bzRadTip" hidden></div></div>' +
-      '<p class="bz-rad-legend"><span><i class="lg-near"></i>每块里新闻越多越靠里、圆点越大</span>' + (S.mdays > 1 ? '<span><i class="lg-hot"></i>带圈的：最近 24 小时明显变多</span>' : "") +
+      '<p class="bz-rad-legend"><span><i class="lg-near"></i>一片是一个大类（新闻越多片越大），片里一圈是一个行业，圆点是细分行业（越大新闻越多）</span>' + (S.mdays > 1 ? '<span><i class="lg-hot"></i>带圈的：最近 24 小时明显变多</span>' : "") +
       '<span><i class="lg-quiet"></i>边上的小灰点：这段时间没新闻</span></p></div>' +
       '<div class="bz-rad-r" id="bzRadPanel"></div>';
     if (oldLive && oldLive.children.length) { const nl = $("bzRadLive"); nl.replaceWith(oldLive); }
@@ -555,8 +569,8 @@
     if (!sel) {
       const hot = all.filter((x) => x.hot);
       el.innerHTML = '<h4 class="bz-rad-h">怎么看这张雷达</h4>' +
-        '<ul class="bz-rad-how"><li>一大块是一个<b>板块</b>，外圈一格是一个<b>一级行业</b>或新方向，里面每个圆点是一个<b>细分行业</b>。</li>' +
-        "<li>同一格里新闻越多，圆点越靠里、越大；带圈的是最近明显变多的。</li><li>鼠标移上去看名字，点一下在这里看它的新闻。</li></ul>" +
+        '<ul class="bz-rad-how"><li>一片是一个<b>大类</b>，新闻越多这一片越大。</li><li>片里一圈是一个<b>行业</b>（名字沿着这一圈写），新闻多的行业在外圈。</li>' +
+        "<li>圈里的圆点是<b>细分行业</b>，越大新闻越多；带圈的是最近明显变多的。</li><li>鼠标移上去看名字，点一下在这里看它的新闻。</li></ul>" +
         '<div class="bz-rad-stats"><div><b>' + all.length + "</b><span>个细分有新闻</span></div><div><b>" + hot.length + "</b><span>个正在升温</span></div><div><b>" +
         all.reduce((a, x) => a + x.n, 0) + "</b><span>条次（" + win + "，一条可能归到好几处）</span></div></div>" +
         (hot.length ? '<h5 class="bz-rad-sub">正在升温的细分</h5><div class="bz-chips">' + hot.slice(0, 12).map((x) =>

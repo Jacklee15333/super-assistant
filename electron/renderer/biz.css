@@ -890,3 +890,10 @@ body.dark .view-biz { --bz-up: #6cc08b; --bz-warn: #e0a24a; --bz-bad: #e5907a; }
 .view-biz .bz-lib { background: var(--bz-soft); border-radius: 12px; padding: 12px 14px !important; margin: 10px 0; border-top: 0 !important; }
 .view-biz .bz-lib p { font-size: 13px; line-height: 1.7; margin: 0 0 10px; }
 .view-biz .bz-lib-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* v171：饼状切片 + 片里横着一圈圈切 */
+.view-biz .bz-rad-svg .band-c { stroke: var(--bg-elev); stroke-width: 1.5; }
+.view-biz .bz-rad-svg .band-c.on { fill-opacity: .3; }
+.view-biz .bz-rad-svg .sp2 { stroke-width: 1; stroke-opacity: .35; }
+.view-biz .bz-rad-svg .rim { font: 600 13.5px var(--sans); }
+.view-biz .bz-rad-svg .rim .rn { font-weight: 400; }
