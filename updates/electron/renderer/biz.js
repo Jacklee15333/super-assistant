@@ -90,7 +90,7 @@
           saved: [], savedOpen: false, undoId: "", undoT: null,          // v189：存过的、撤销清空
           web: store.get("cuWeb", true) !== false, depth: store.get("cuDepth", "quick") === "deep" ? "deep" : "quick" },   // v187：商业定制
     rm: { data: null, err: "", at: 0, timer: null, sel: store.get("rmSel", ""), item: null, q: "",                 // v191：真实市场
-          updWait: false, showReport: false, tab: store.get("rmTab", "data"),                                   // v195：三个标签                                                                    // v193：更新汇报
+          updWait: false, showReport: false, tab: ["map", "data", "check", "trade"].includes(store.get("rmTab", "map")) ? store.get("rmTab", "map") : "map",                                   // v195：三个标签                                                                    // v193：更新汇报
           pick: "", batchOpen: false, bscope: "all", btodo: true, allChecks: false, ttimer: null,                     // v192：下拉框、全部核实
           metric: ["size", "growth", "margin", "quad"].includes(store.get("rmMetric", "size")) ? store.get("rmMetric", "size") : "size",
           view: store.get("rmView", "map") === "list" ? "list" : "map", depth: store.get("rmDepth", "quick") === "deep" ? "deep" : "quick" },
@@ -2472,10 +2472,11 @@
         "<p>市场雷达看新闻多不多（大家在说什么），这里看钱：一年卖了多少、谁在买、肯花多少、赚不赚钱。</p>" +
         '<div class="bz-rm-kpi" id="bzRmKpi"></div></section>' +
       '<div class="bz-rm-tabs" id="bzRmTabs" role="tablist" aria-label="要做什么">' +
+        '<button type="button" role="tab" data-rmtab="map"><b>行业地图</b><span class="bz-rm-tabs-s" data-rmts="map"></span></button>' +
         '<button type="button" role="tab" data-rmtab="data"><b>更新数据</b><span class="bz-rm-tabs-s" data-rmts="data"></span></button>' +
         '<button type="button" role="tab" data-rmtab="check"><b>AI 核实</b><span class="bz-rm-tabs-s" data-rmts="check"></span></button>' +
         '<button type="button" role="tab" data-rmtab="trade"><b>交易平台抓取</b><span class="bz-rm-tabs-s" data-rmts="trade"></span></button></div>' +
-      '<section class="bz-rm-tp" data-rmtp="data">' +
+      '<section class="bz-rm-tp" data-rmtp="data" hidden>' +
         '<div class="bz-rm-tp-h"><p class="bz-hint">统计局（社零、工业利润、居民收支）、上市公司财报和概念板块（新兴赛道）的数字，自动更新；超过 12 小时没更新，打开这一页会自己更新。想马上取最新的，点右边。</p>' +
           '<button type="button" class="bz-btn" data-act="rm-update" id="bzRmUpdBtn">现在更新数据</button></div>' +
         '<p class="bz-note" id="bzRmUpd"></p><div class="bz-rm-report" id="bzRmReport" hidden></div>' +
@@ -2493,10 +2494,11 @@
         '<div class="bz-rm-checks" id="bzRmChecks"></div></section>' +
       '<section class="bz-rm-tp" data-rmtp="trade" hidden>' +
         '<div class="bz-rm-tbar" id="bzRmTBar"></div><div class="bz-tablewrap" id="bzRmSrc"></div></section>' +
-      '<div class="bz-bar bz-rm-mapbar">' + seg("rmmetric", RM_METRIC) + seg("rmview", [["map", "地图"], ["list", "列表"]]) +
-        '<input type="search" class="bz-input" id="bzRmQ" placeholder="找行业：白酒、化妆品、教育…" aria-label="找行业"></div>' +
-      '<p class="bz-source" id="bzRmLegend"></p>' +
-      '<div class="bz-ind nodet" id="bzRmWrap"><div class="bz-ind-main" id="bzRmMain"></div><aside class="bz-ind-detail" id="bzRmDetail" hidden></aside></div>' +
+      '<section class="bz-rm-tp bz-rm-tp-map" data-rmtp="map">' +                    // v196：地图也是一个标签（以前放在三个标签下面共用，看着像每个标签里都有）
+        '<div class="bz-bar bz-rm-mapbar">' + seg("rmmetric", RM_METRIC) + seg("rmview", [["map", "地图"], ["list", "列表"]]) +
+          '<input type="search" class="bz-input" id="bzRmQ" placeholder="找行业：白酒、化妆品、教育…" aria-label="找行业"></div>' +
+        '<p class="bz-source" id="bzRmLegend"></p>' +
+        '<div class="bz-ind nodet" id="bzRmWrap"><div class="bz-ind-main" id="bzRmMain"></div><aside class="bz-ind-detail" id="bzRmDetail" hidden></aside></div></section>' +
     "</div>";
   }
   // v195：三个标签——切换、标签上显示正在做的事
@@ -2507,7 +2509,9 @@
     tabs.querySelectorAll("[data-rmtab]").forEach((b) => { const on = b.dataset.rmtab === t; b.classList.toggle("on", on); b.setAttribute("aria-selected", String(on)); });
     root.querySelectorAll(".bz-rm-tp").forEach((x) => { x.hidden = x.dataset.rmtp !== t; });
     const spin = '<span class="bz-spin" aria-hidden="true"></span>';
+    const L = d.listed || {};
     const st = {
+      map: L.companies ? L.companies + " 家公司 · 点格子看体检卡" : "",
       data: d.updating && d.updating.running || S.rm.updWait ? spin + "正在更新" : d.updated ? ago(d.updated) + "更新过" : "",
       check: j && j.running && j.kind === "real" ? spin + (bt && bt.running ? "核实中 " + Math.min(bt.n, bt.i + 1) + "/" + bt.n : "正在核实") :
         bt && bt.running ? spin + "排队中 " + bt.i + "/" + bt.n : bt && bt.paused ? "暂停了 " + bt.i + "/" + bt.n : ((d.checks || []).length ? (d.checks || []).length + " 个核实过" : ""),
@@ -2516,10 +2520,15 @@
     tabs.querySelectorAll("[data-rmts]").forEach((x) => { x.innerHTML = st[x.dataset.rmts] || ""; });
   }
   function rmSetTab(t) {
-    S.rm.tab = ["data", "check", "trade"].includes(t) ? t : "data";
+    S.rm.tab = ["map", "data", "check", "trade"].includes(t) ? t : "map";
     store.set("rmTab", S.rm.tab);
     rmTabsRender();
     bzLivePlace();
+    const tabs = $("bzRmTabs"), sc = $("bzScroll"), tp = root.querySelector('.bz-rm-tp[data-rmtp="' + S.rm.tab + '"]');
+    if (tabs && sc && tp) {                                          // v196：切过去时，这个标签的内容要在眼前（往下拉了的话滚回标签下面）
+      const gap = tp.getBoundingClientRect().top - tabs.getBoundingClientRect().bottom;
+      if (gap < -1) sc.scrollTop += gap;
+    }
   }
   const rmYi = (v) => (v == null ? "–" : Math.abs(v) >= 10000 ? (v / 10000).toFixed(Math.abs(v) >= 100000 ? 1 : 2).replace(/\.?0+$/, "") + " 万亿" : (Math.abs(v) >= 100 ? Math.round(v) : v.toFixed(1).replace(/\.0$/, "")) + " 亿");
   const rmPct = (v) => (v == null ? "–" : (v > 0 ? "+" : "") + v.toFixed(1).replace(/\.0$/, "") + "%");
@@ -3702,7 +3711,7 @@
         }
         return;
       }
-      if ((b = t.closest("[data-rm]"))) { rmSelect(b.dataset.rm); return; }
+      if ((b = t.closest("[data-rm]"))) { if (S.rm.tab !== "map") rmSetTab("map"); rmSelect(b.dataset.rm); return; }   // v196：在别的标签里点「在地图上看」→ 回到地图
       if ((b = t.closest("[data-act]"))) {
         const act = b.dataset.act;
         if (act === "back") closeReader();
