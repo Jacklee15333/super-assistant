@@ -1169,7 +1169,13 @@ body.dark .view-biz .bz-kind.k-custom { color: #b8a2f0; }
 .view-biz .bz-cu-sit b { font-weight: 600; }
 .view-biz .bz-cu-sit em { font-style: normal; font-size: 11px; line-height: 17px; padding: 0 6px; border-radius: 5px; background: var(--bg-active); color: var(--text-dim); }
 .view-biz .bz-cu-sit span { flex-basis: 100%; min-width: 0; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.view-biz .bz-cu-busy + .bz-link { margin-left: 10px; }
+/* v190：进度标题能点（展开 / 收起 AI 实时画面） */
+.view-biz .bz-job-t.cx-ail-tg { display: flex; flex-direction: column; gap: 2px; }
+.view-biz .bz-job-t.cx-ail-tg b { display: flex; align-items: baseline; min-width: 0; color: var(--accent); }
+.view-biz .bz-job-t .bz-job-tt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.view-biz .bz-job-t .cx-ail-caret { flex: none; }
+.view-biz .bz-cu-busy.cx-ail-tg { font-weight: 600; font-size: 12px; line-height: 1.6; }
+.view-biz .bz-cu-go > .cx-ail-slot { margin-top: 0; }
 
 .view-biz .bz-cu-go { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
 .view-biz .bz-cu-go-t { flex: 1 1 340px; min-width: 0; }
