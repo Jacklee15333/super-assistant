@@ -39,7 +39,7 @@ OPPS_FILE = BIZ_DIR / "opportunities.json"
 TOPICS_FILE = BIZ_DIR / "topics.json"
 
 KIND_NAMES = {"market": "市场动向简报", "industry": "行业研究", "model": "商业模式拆解",
-              "trend": "趋势与机会", "research": "课题研究"}
+              "trend": "趋势与机会", "research": "课题研究", "custom": "商业定制方案"}   # v187：商业定制（biz_fit.py）
 STEPS = ["读你收进来的资料", "上网查资料", "AI 写报告", "存报告"]
 OPP_STATUS = ("new", "watch", "testing", "doing", "dropped")
 
@@ -909,7 +909,12 @@ def read_report(rid):
         content = p.read_text(encoding="utf-8")
     except Exception:
         return {"ok": False, "error": "报告文件读不出来：%s" % meta.get("file", "")}
-    return {"ok": True, "meta": meta, "content": content, "chain": parse_chain(content), "path": str(p.resolve())}
+    plans = None
+    if meta.get("kind") == "custom":                    # v187
+        import biz_fit as _bf
+        plans = _bf.parse_plans(content)
+    return {"ok": True, "meta": meta, "content": content, "chain": parse_chain(content), "plans": plans,
+            "path": str(p.resolve())}
 
 
 def delete_report(rid):
@@ -1042,6 +1047,9 @@ def job_status():
         d["log"] = list(d.get("log") or [])[-8:]
     d["now"] = int(time.time())
     d["steps"] = STEPS
+    if d.get("kind") == "custom":                      # v187：商业定制的几步说法不一样
+        import biz_fit as _bf
+        d["steps"] = _bf.STEPS
     return d
 
 
@@ -1118,9 +1126,17 @@ _GRP_NAMES = {"news": "财经媒体", "corp": "大公司", "corpkw": "大公司�
 
 
 def start(kind, target="", scope="", days=30, web=True, depth="quick", lens="mine", grp="", q="", size="", notes=True,
-          focus=""):
+          focus="", profile=None):
     if kind not in KIND_NAMES:
         return {"ok": False, "error": "不认识的分析类型：%s" % kind}
+    prof = None
+    if kind == "custom":                                # v187：商业定制——按你的情况写方案（没传就用存着的）
+        import biz_fit as _bf
+        prof = _bf.save(profile)[0] if isinstance(profile, dict) else _bf.load()[0]
+        ok, why = _bf.enough(prof)
+        if not ok:
+            return {"ok": False, "error": why}
+        target, scope = _bf.brief(prof), ""
     target = re.sub(r"\s+", " ", str(target or "")).strip()[:60]
     scope = str(scope or "").strip()[:60]
     if kind in ("model", "research") and len(target) < 2:
@@ -1128,6 +1144,8 @@ def start(kind, target="", scope="", days=30, web=True, depth="quick", lens="min
     if kind == "industry" and not (target or scope):
         return {"ok": False, "error": "先选一个行业"}
     spec = _spec(kind, target, scope, days, web, depth, lens, grp, q, size, notes, focus)
+    if prof is not None:
+        spec.update(profile=prof, title=_bf.title(prof), scope_name="为我定制", target=target)
     with _job_lock:
         if _job.get("running"):
             return {"ok": False, "error": "「%s」还在做，等它做完或者先点停止" % _job.get("title", "")}
@@ -1245,20 +1263,21 @@ _QUERIES = {
 }
 
 
-def _web(spec, deep):
+def _web(spec, deep, qs=None):
     try:
         import web_tools
     except Exception:
         _stage(2, "联网模块没加载，跳过联网")
         return "", []
-    now = datetime.date.today()
-    t = spec["target"] if spec["kind"] in ("model", "research") else spec["scope_name"]
-    if spec["kind"] == "industry":
-        t = spec["scope_name"].split("·")[-1]
-    if t == "全部行业":
-        t = "中国 商业 市场"
-    qs = [q.format(t=t, y=now.year, y1=now.year + 1, m=now.month) for q in _QUERIES[spec["kind"]]]
-    qs = qs if deep else qs[:(3 if spec["kind"] in ("industry", "model", "research") else 2)]
+    if qs is None:                                      # v187：商业定制自己定要查哪几句
+        now = datetime.date.today()
+        t = spec["target"] if spec["kind"] in ("model", "research") else spec["scope_name"]
+        if spec["kind"] == "industry":
+            t = spec["scope_name"].split("·")[-1]
+        if t == "全部行业":
+            t = "中国 商业 市场"
+        qs = [q.format(t=t, y=now.year, y1=now.year + 1, m=now.month) for q in _QUERIES[spec["kind"]]]
+        qs = qs if deep else qs[:(3 if spec["kind"] in ("industry", "model", "research") else 2)]
     budget = 18000 if deep else 13000
     per = budget // max(1, len(qs))
     chunks, srcs, seen = [], [], set()
@@ -1319,7 +1338,8 @@ _STRUCT = {
                  "商业模式（谁在赚钱、怎么赚）", "趋势", "机会清单", "风险", "接下来观察什么", "信息来源"],
 }
 _MARKERS = {"market": ["主要动向", "接下来观察"], "industry": ["产业链图", "机会清单"], "model": ["产业链图", "可借鉴"],
-            "trend": ["趋势", "机会清单"], "research": ["产业链", "机会清单"]}
+            "trend": ["趋势", "机会清单"], "research": ["产业链", "机会清单"],
+            "custom": ["推荐方向一览", "行动计划", "机会清单"]}           # v187
 
 
 def _task_line(spec):
@@ -1450,6 +1470,10 @@ def _save(spec, text, notes, sigs, web_src, engine):
             "days": spec["days"], "web_on": spec["web"], "depth": spec["depth"], "lens": spec.get("lens", "mine"),
             "radar": spec.get("n_radar", 0), "size": spec.get("size", ""), "grp": spec.get("grp", []), "q": spec.get("q", ""),
             "focus": spec.get("focus", "")}
+    if spec["kind"] == "custom":                        # v187：推荐的几个方向（界面画成卡片）、写方案时你的情况（「重新写一份」用）
+        import biz_fit as _bf
+        meta.update(plans=_bf.parse_plans(body), profile=spec.get("profile") or {}, who=_bf.brief(spec.get("profile") or {}),
+                    cands=spec.get("cands", []))
     with _REP_LOCK:
         reps = _reports()
         reps.insert(0, meta)
@@ -1457,8 +1481,42 @@ def _save(spec, text, notes, sigs, web_src, engine):
     return rid, n_opps
 
 
+def _run_custom(spec):
+    """v187：商业定制——读软件里的数据（你的情况 × 市场雷达热度、机会看板、笔记）→ 联网查 → AI 写方案 → 存。"""
+    import biz_fit as _bf
+    deep = spec["depth"] == "deep"
+    prof = spec["profile"]
+    _stage(1, "读软件里的数据：市场雷达的热度、机会看板、你的笔记…")
+    pv = _bf.preview(prof, n=10, news_per=5)
+    if _stopping():
+        raise _Stop()
+    top = [c["id"] for c in pv["cands"][:6]]
+    spec["gids"], spec["terms"] = set(top), _bf.terms(prof)
+    spec["cands"] = [c["name"] for c in pv["cands"][:6]]
+    notes, _sigs = _select_local(spec, 14 if deep else 10, 0)
+    n_news = sum(len(c.get("news") or []) for c in pv["cands"])
+    _stage(1, "配出 %d 个候选方向，带上 %d 条相关新闻、%d 篇相关笔记" % (len(pv["cands"]), n_news, len(notes)))
+    web_txt, web_src = "", []
+    if spec["web"]:
+        web_txt, web_src = _web(spec, deep, qs=_bf.web_queries(prof, pv["cands"], deep))
+    else:
+        _stage(2, "没勾联网，这一步跳过")
+    if _stopping():
+        raise _Stop()
+    _stage(3, "交给 AI 定制方案…")
+    text, engine = _ask(_bf.prompt(spec, pv, notes, web_txt), spec)
+    _stage(4, "存方案…")
+    spec["n_radar"] = n_news
+    rid, n_opps = _save(spec, text, notes, [], web_src, engine)
+    _set(running=False, ok=True, ended=int(time.time()), report=rid, opps=n_opps, stage="写好了")
+    _log("写好了：%s（%s%s）" % (spec["title"], engine, "，新增 %d 个机会" % n_opps if n_opps else ""))
+
+
 def _run(spec):
     try:
+        if spec["kind"] == "custom":
+            _run_custom(spec)
+            return
         deep = spec["depth"] == "deep"
         _stage(1, "从你收进来的资料里挑相关的…")
         notes, sigs = _select_local(spec, 34 if deep else 24, 40 if spec["kind"] == "market" else 24)

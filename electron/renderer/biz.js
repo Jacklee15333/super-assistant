@@ -4,6 +4,7 @@
 //   行业地图：申万 31 个一级行业 + 二级行业 + 新兴赛道，「市场实时 / 我关注的」两种看法，地图和列表两种摆法
 //   研究分析：挑一件事让 AI 写报告——拆解商业模式（含产业链图）、研究课题、找趋势和机会、市场动向简报；报告库
 //   机会看板：报告里找到的机会 + 自己记的点子
+//   商业定制（v187）：填你的年龄、阅历、技能、兴趣、资金……先按市场雷达的热度配出适合你的方向，再让 AI 写定制方案
 //   爬虫管理：用的是哪些爬虫、现在在干什么、每一轮的抓取记录和结果报告、信息源清单
 // 顶部五个标签由 renderer.js 的 NAV_GROUPS.biz 画，切换时调 window.cxPaneShow.biz(标签)。
 // 复用全局：BACKEND、renderMarkdown、navOpenGroup、openVideoNote（都可能不存在，判断了再用）。
@@ -13,9 +14,9 @@
   const root = document.getElementById("view-biz");
   if (!root) return;
 
-  const PANES = ["radar", "industry", "analysis", "opps", "crawler"];
+  const PANES = ["radar", "industry", "analysis", "opps", "custom", "crawler"];   // v187：加「商业定制」
   const OLD_PANE = { market: "radar", model: "analysis", reports: "analysis" };
-  const KIND = { market: "市场动向简报", industry: "行业研究", model: "商业模式", trend: "趋势与机会", research: "课题研究" };
+  const KIND = { market: "市场动向简报", industry: "行业研究", model: "商业模式", trend: "趋势与机会", research: "课题研究", custom: "商业定制" };
   const SRC = { note: "笔记", sniff: "网站动态", creator: "博主新内容", radar: "市场新闻" };
   const GRP = { news: "财经媒体", corp: "大公司官网", firm: "企业官网", govmedia: "官方媒体", corpkw: "大公司动态", media: "行业媒体", indkw: "行业热词", policy: "政策数据", global: "海外", mine: "我加的" };
   const OPP_ST = [["new", "新发现"], ["watch", "关注"], ["testing", "验证中"], ["doing", "在做"], ["dropped", "放弃"]];
@@ -83,6 +84,8 @@
     job: null, jobTimer: null, readerRep: null, readerRun: "",
     radar: null, radarTimer: null, radarSrc: null, engines: null, runs: null,
     rdKind: "site", rdSid: "", rdItems: null, rdOpen: {},
+    cu: { loaded: false, ready: false, pv: null, err: "", seq: 0, timer: null, dirty: false, updated: 0, at: 0, news: {}, peek: "",
+          web: store.get("cuWeb", true) !== false, depth: store.get("cuDepth", "quick") === "deep" ? "deep" : "quick" },   // v187：商业定制
   };
 
   // ───────── 分类表 ─────────
@@ -143,6 +146,7 @@
           "<li><b>行业地图</b>：把新闻和你收进来的内容按行业摆开，看哪里热、哪些你还没关注。</li>" +
           "<li><b>研究分析</b>：挑一件事，让 AI 深入研究、写成报告（商业模式、课题、趋势机会、简报）。</li>" +
           "<li><b>机会看板</b>：报告里找到的机会自动放这里，也能记自己的点子。</li>" +
+          "<li><b>商业定制</b>：写下你的年龄、阅历、技能、兴趣和资金，小助按市场数据帮你挑行业和赚钱的做法。</li>" +
           "<li><b>爬虫管理</b>：爬虫盯哪些网站、用什么方法抓、每一轮抓到了什么。</li></ol></section>" +
         '<div class="bz-bar">' + MDAYS_SEG() +
           '<input type="search" class="bz-input" id="bzRq" placeholder="在新闻里搜：比如 比亚迪、降价、融资" aria-label="在新闻里搜">' +
@@ -193,7 +197,7 @@
             '<button type="button" class="bz-task" data-task="' + k + '" aria-pressed="false"><b>' + t + "</b><span>" + d + "</span></button>").join("") + "</div>" +
           '<div class="bz-taskform" id="bzTaskForm"></div></section>' +
         '<section class="bz-card"><div class="bz-card-h"><h3>报告库</h3>' +
-          seg("repkind", [["all", "全部"], ["model", "商业模式"], ["research", "课题研究"], ["industry", "行业研究"], ["trend", "趋势与机会"], ["market", "市场动向简报"]]) +
+          seg("repkind", [["all", "全部"], ["model", "商业模式"], ["research", "课题研究"], ["industry", "行业研究"], ["trend", "趋势与机会"], ["market", "市场动向简报"], ["custom", "商业定制"]]) +
           '<input type="search" class="bz-input" id="bzRepQ" placeholder="搜报告" aria-label="搜报告"></div>' +
           '<div class="bz-reps wide" id="bzReports"></div></section>' +
         '<details class="bz-card bz-cases"><summary>你笔记里的商业模式案例（按赚钱方式分）</summary>' +
@@ -214,6 +218,9 @@
         '<div class="bz-opbar">' + seg("oppst", [["all", "全部"]].concat(OPP_ST)) + "</div>" +
         '<div class="bz-opps" id="bzOpps"></div>' +
       "</div>" +
+
+      // ===== v187：商业定制 =====
+      cuPaneHTML() +
 
       // ===== 爬虫管理 =====
       '<div class="bz-pane" data-pane="crawler">' +
@@ -1703,6 +1710,384 @@
       : empty(list.length ? "这一栏还没有。" : "看板还是空的。点上面的「去找新机会」，让小助分析一个行业的趋势和机会；也可以「记下我的点子」。");
   }
 
+  // ───────── v187：商业定制——你的情况 × 市场雷达 → 适合你的行业和赚钱的做法 ─────────
+  const CU_SEL = {
+    status: [["", "请选择"], ["job", "上班，想做副业"], ["free", "自由职业、接活"], ["switch", "没在上班，想换个行当"], ["boss", "已经在做生意"], ["retired", "退休了"], ["student", "还在上学"]],
+    money: [["", "不确定"], ["1", "1 万以内"], ["5", "1～5 万"], ["20", "5～20 万"], ["50", "20～50 万"], ["100", "50～100 万"], ["999", "100 万以上"]],
+    time: [["", "不确定"], ["side", "每周 10 小时以内"], ["part", "每周 10～30 小时"], ["full", "全职投入"]],
+    risk: [["", "不确定"], ["safe", "不能亏，要稳"], ["mid", "亏一部分能接受"], ["bold", "全亏了也不影响生活"]],
+    goal: [["", "不确定"], ["extra", "每月多赚几千"], ["replace", "替代工资（月入 1～3 万）"], ["big", "做成一门生意、开公司"]],
+  };
+  const CU_SKILLS = ["销售", "写文案", "拍剪视频", "直播", "编程", "设计", "做饭", "带团队", "财务", "英语", "开车", "装修维修", "教书", "医护", "美容美发", "健身", "摄影", "电商运营", "采购"];
+  const CU_LIKES = ["美食", "宠物", "健身", "旅行", "数码", "母婴", "穿搭", "养生", "游戏", "动漫", "户外露营", "钓鱼", "喝茶", "汽车", "读书", "手工", "花草", "AI 新工具"];
+  const CU_TR = { up: "升温", down: "降温" };
+  const cuF = (key, label, ctrl, cls) => '<div class="bz-cu-f' + (cls ? " " + cls : "") + '"><label for="bzCu-' + key + '">' + label + "</label>" + ctrl + "</div>";
+  const cuIn = (key, ph, max, num) => '<input class="bz-input" id="bzCu-' + key + '" data-cu="' + key + '"' +
+    (num ? ' type="number" min="14" max="99" inputmode="numeric"' : ' maxlength="' + max + '"') + ' placeholder="' + esc(ph) + '">';
+  const cuTa = (key, ph, max, rows) => '<textarea class="bz-input" id="bzCu-' + key + '" data-cu="' + key + '" rows="' + rows + '" maxlength="' + max + '" placeholder="' + esc(ph) + '"></textarea>';
+  const cuSel = (key) => '<select class="bz-select" id="bzCu-' + key + '" data-cu="' + key + '">' + CU_SEL[key].map(([v, t]) => '<option value="' + v + '">' + esc(t) + "</option>").join("") + "</select>";
+  const cuChips = (field, words, label) => '<div class="bz-cu-chips" role="group" aria-label="' + label + '">' + words.map((w) =>
+    '<button type="button" class="bz-cu-chip" data-cu-chip="' + field + '" data-w="' + esc(w) + '" aria-pressed="false">' + esc(w) + "</button>").join("") + "</div>";
+  const cuSplit = (v) => String(v || "").split(/[、，,；;\n]+/).map((s) => s.trim()).filter(Boolean);
+
+  function cuPaneHTML() {
+    return '<div class="bz-pane" data-pane="custom">' +
+      '<section class="bz-hero bz-cu-hero"><h2>商业定制</h2><p>写下你的情况，小助拿它去对照市场雷达里每个行业的热度和机会看板，马上配出适合你的方向；' +
+        "再让 AI 上网查资料，帮你定一个行业和赚钱的做法，写成一份能照着做的方案。</p></section>" +
+      '<div class="bz-cu">' +
+        '<form class="bz-card bz-cu-form" id="bzCuForm" autocomplete="off" novalidate>' +
+          '<div class="bz-card-h"><h3>我的情况</h3><span class="bz-dim" id="bzCuSaved" aria-live="polite"></span></div>' +
+          '<p class="bz-hint">写得越具体，配得越准。填的内容只存在你自己的电脑上，改完会自动保存。</p>' +
+          '<div class="bz-cu-grid">' +
+            cuF("age", "年龄", cuIn("age", "比如 35", 2, true)) + cuF("city", "所在城市", cuIn("city", "比如 广州", 20)) +
+            cuF("status", "现在的状态", cuSel("status"), "w2") +
+            cuF("exp", "阅历", cuTa("exp", "做过什么工作、在什么行业待了几年、管过人没有、做过什么生意。比如：在餐饮行业做了 8 年，当过店长", 600, 3), "w2") +
+            cuF("skills", "技能", cuTa("skills", "会什么，用顿号隔开。比如：销售、剪视频、做饭、Python", 400, 2) + cuChips("skills", CU_SKILLS, "常见技能，点一下加进去"), "w2") +
+            cuF("likes", "兴趣", cuTa("likes", "平时喜欢什么。比如：宠物、户外、喝茶", 300, 2) + cuChips("likes", CU_LIKES, "常见兴趣，点一下加进去"), "w2") +
+            cuF("money", "能拿出来的资金", cuSel("money")) + cuF("time", "每周能投入的时间", cuSel("time")) +
+            cuF("risk", "能承受的亏损", cuSel("risk")) + cuF("goal", "想要的结果", cuSel("goal")) +
+            cuF("res", "手上的资源", cuTa("res", "人脉、渠道、货源、场地、粉丝、证书……没有就不填", 300, 2), "w2") +
+            cuF("avoid", "不想做的", cuIn("avoid", "比如：不想露脸、不想压货、不碰加盟", 200), "w2") +
+            cuF("more", "其他想让 AI 知道的", cuTa("more", "学历、家庭情况、身体情况、以后的打算……可以不填", 400, 2), "w2") +
+          "</div>" +
+          '<div class="bz-cu-foot"><button type="button" class="bz-link danger" data-act="cu-clear">清空重填</button></div>' +
+        "</form>" +
+        '<div class="bz-cu-main">' +
+          '<section class="bz-card bz-cu-go" id="bzCuGo"></section>' +
+          '<section class="bz-card bz-cu-plancard" id="bzCuPlans" hidden></section>' +
+          '<section class="bz-card" id="bzCuPrev"><div class="bz-card-h"><h3>先配一遍</h3><span class="bz-dim" id="bzCuPrevMeta"></span></div>' +
+            '<div id="bzCuPrevBody">' + loading("正在读你的情况和市场数据…") + "</div></section>" +
+        "</div>" +
+      "</div></div>";
+  }
+
+  // ── 表单：读、填、存 ──
+  function cuRead() {
+    const p = {};
+    root.querySelectorAll("#bzCuForm [data-cu]").forEach((el) => { p[el.dataset.cu] = el.value.trim(); });
+    return p;
+  }
+  function cuFill(p, onlyEmpty) {                                  // onlyEmpty：读回来之前你已经动手填了的，只补空着的格子
+    root.querySelectorAll("#bzCuForm [data-cu]").forEach((el) => {
+      const v = (p || {})[el.dataset.cu];
+      if (onlyEmpty && el.value.trim()) return;
+      el.value = v == null || v === 0 ? "" : String(v);
+    });
+    cuSyncChips();
+    const sv = $("bzCuSaved");
+    if (sv) sv.textContent = S.cu.updated ? "上次保存：" + fmtTime(S.cu.updated) : "";
+  }
+  function cuSyncChips() {
+    const vals = {};
+    root.querySelectorAll("#bzCuForm [data-cu]").forEach((el) => { vals[el.dataset.cu] = cuSplit(el.value); });
+    root.querySelectorAll("[data-cu-chip]").forEach((b) => b.setAttribute("aria-pressed", String((vals[b.dataset.cuChip] || []).includes(b.dataset.w))));
+  }
+  function cuChip(field, w) {
+    const el = root.querySelector('#bzCuForm [data-cu="' + field + '"]');
+    if (!el) return;
+    const parts = cuSplit(el.value), i = parts.indexOf(w);
+    if (i >= 0) parts.splice(i, 1); else parts.push(w);
+    el.value = parts.join("、");
+    cuSyncChips();
+    cuQueueSave(300);
+  }
+  function cuQueueSave(ms) {
+    S.cu.dirty = true;
+    clearTimeout(S.cu.timer);
+    const sv = $("bzCuSaved");
+    if (sv) sv.textContent = "正在保存…";
+    S.cu.timer = setTimeout(() => { S.cu.timer = null; cuSave(); }, ms);
+  }
+  async function cuSave() {
+    if (!S.cu.ready && !S.cu.dirty) return;                         // 存着的情况还没读回来、你也没动过：不能拿空表单去盖掉它
+    const seq = ++S.cu.seq, prof = cuRead();
+    let r;
+    try { r = await api("/biz/fit", { profile: prof, save: true }); } catch (e) { r = { ok: false, error: "连不上后台（" + e.message + "）" }; }
+    if (seq !== S.cu.seq) return;                                  // 后面又改了，以最后一次为准
+    const sv = $("bzCuSaved");
+    if (!r || !r.ok) { if (sv) sv.textContent = "没存上：" + ((r && r.error) || "连不上后台"); return; }
+    S.cu.pv = r.preview; S.cu.updated = r.updated || S.cu.updated; S.cu.at = Date.now(); S.cu.err = "";
+    if (sv) sv.textContent = "已保存 " + hhmm(r.updated || Date.now() / 1000);
+    renderCuGo();
+    renderCuPrev();
+  }
+  async function cuLoad() {
+    S.cu.loaded = true;
+    let r;
+    try { r = await api("/biz/fit"); } catch (e) { r = { ok: false, error: "连不上后台（" + e.message + "）" }; }
+    if (!r || !r.ok) { S.cu.loaded = false; S.cu.err = (r && r.error) || "读不到"; renderCuPrev(); return; }
+    S.cu.err = ""; S.cu.updated = r.updated; S.cu.at = Date.now();
+    const typed = S.cu.dirty;
+    cuFill(r.profile, typed);
+    S.cu.ready = true;
+    if (typed) cuQueueSave(200);                                     // 读回来之前你已经改了：合在一起再存、再配
+    else S.cu.pv = r.preview;
+    renderCustom();
+  }
+  async function cuRefresh() {                                     // 只按表单上的情况重新配一遍（市场数据更新了），不存
+    const seq = ++S.cu.seq;
+    let r;
+    try { r = await api("/biz/fit", { profile: cuRead(), save: false }); } catch (e) { return; }
+    if (seq !== S.cu.seq || !r || !r.ok) return;
+    S.cu.pv = r.preview; S.cu.at = Date.now();
+    renderCuGo();
+    renderCuPrev();
+  }
+  function cuEnsure() {                                            // 切到这一页：第一次读存着的情况；隔了一分钟以上，按表单重新配一遍（不存）
+    if (!S.cu.loaded) cuLoad();
+    else if (S.cu.ready && !S.cu.timer && Date.now() - (S.cu.at || 0) > 60000) cuRefresh();
+  }
+  function cuStart() {
+    if (!S.cu.ready && !S.cu.dirty) { toast("还在读你上次填的情况，稍等一下再点。"); return; }
+    clearTimeout(S.cu.timer);
+    S.cu.timer = null;
+    runJob("custom", { profile: cuRead(), web: S.cu.web, depth: S.cu.depth });   // 后台会顺便把这份情况存下来
+  }
+  function cuMap(id) {                                             // 在行业地图上看这个方向
+    if (!S.byId[id]) { toast("行业地图上没有这个方向。"); return; }
+    if (S.lens !== "market") { S.lens = "market"; store.set("lens", "market"); }
+    S.indQ = "";
+    const q = $("bzIndQ");
+    if (q) q.value = "";
+    goPane("industry");
+    setTimeout(() => {
+      selectInd(id);
+      const el = root.querySelector('#bzIndMain [data-ind="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
+      if (el) el.scrollIntoView({ block: "center", behavior: "smooth" });
+    }, 150);
+  }
+
+  // ── 画 ──
+  function renderCustom() {
+    renderCuGo();
+    renderCuPlans();
+    renderCuPrev();
+  }
+  function renderCuGo() {
+    const el = $("bzCuGo");
+    if (!el) return;
+    const pv = S.cu.pv, j = S.job, busy = !!(j && j.running), mine = busy && j.kind === "custom";
+    const ok = !!(pv && pv.enough), miss = (pv && pv.missing) || [];   // 还没读到你的情况之前，按钮先不能点
+    let note = "";
+    if (mine) note = '<span class="bz-cu-busy">正在写：' + esc(j.stage || "…") + "</span>";
+    else if (busy) note = '<span class="bz-warn">「' + esc(j.title) + "」还在写，等它写完再开始。</span>";
+    else if (pv && !ok) note = '<span class="bz-warn">先在左边写写阅历、技能或兴趣（至少一样），才能开始。</span>';
+    else if (miss.length) note = "还没填：" + esc(miss.join("、")) + "。填上会更准，不填也能写。";
+    const sig = [mine ? j.stage : "", busy, ok, note, S.cu.web, S.cu.depth].join("|");
+    if (el.dataset.sig === sig) return;                           // 没变就不重画（不抢焦点）
+    el.dataset.sig = sig;
+    el.innerHTML = '<div class="bz-cu-go-t"><h3>让 AI 给你定制方案</h3><p>按左边填的情况，用上市场雷达的数据和机会看板，再上网查资料，挑出最适合你的 3 个方向：' +
+        "做什么行业、怎么赚钱、要投多少钱、前 90 天怎么做。一般要 3～8 分钟，可以先去做别的。</p></div>" +
+      '<div class="bz-cu-go-b">' + seg("cudepth", [["quick", "快速"], ["deep", "深入"]]) +
+        '<label class="bz-chk"><input type="checkbox" id="bzCuWeb"' + (S.cu.web ? " checked" : "") + ">联网查资料</label>" +
+        '<button type="button" class="bz-btn" id="bzCuRun"' + (busy || !ok ? " disabled" : "") + ">" + (mine ? "正在写方案…" : "生成我的定制方案") + "</button></div>" +
+      (note ? '<p class="bz-note bz-cu-gonote">' + note + "</p>" : "");
+    segSync("cudepth", S.cu.depth);
+  }
+  function cuPlansHTML(plans) {
+    return '<div class="bz-cu-plans">' + plans.map((p, i) =>
+      '<article class="bz-cu-p' + (i === 0 ? " top" : "") + '"><span class="rk">' + esc(p.rank || "方向" + (i + 1)) + (i === 0 ? " · 最推荐" : "") + "</span>" +
+        "<h4>" + esc(p.ind || p.model) + "</h4>" + (p.ind && p.model ? '<p class="mdl">' + esc(p.model) + "</p>" : "") +
+        (p.match != null ? '<div class="bz-cu-meter"><span>匹配度</span><i><b style="width:' + p.match + '%"></b></i><em>' + p.match + "</em></div>" : "") +
+        "<dl>" + [["启动资金", p.money], ["回本", p.payback], ["风险", p.risk]].filter((x) => x[1]).map((x) =>
+          "<dt>" + x[0] + "</dt><dd" + (x[0] === "风险" ? ' class="rk-' + (x[1] === "高" ? "hi" : x[1] === "低" ? "lo" : "mid") + '"' : "") + ">" + esc(x[1]) + "</dd>").join("") + "</dl>" +
+        (p.why ? '<p class="why">' + esc(p.why) + "</p>" : "") + "</article>").join("") + "</div>";
+  }
+  function renderCuPlans() {
+    const el = $("bzCuPlans");
+    if (!el) return;
+    const reps = S.reports.filter((r) => r.kind === "custom");
+    if (!reps.length) { el.hidden = true; return; }
+    el.hidden = false;
+    const r = reps[0], plans = r.plans || [];
+    const sig = reps.map((x) => x.id).join(",");
+    if (el.dataset.sig === sig) return;
+    el.dataset.sig = sig;
+    el.innerHTML = '<div class="bz-card-h"><h3>我的定制方案</h3><span class="bz-dim">' + esc(fmtTime(r.created)) + "，" + esc(r.engine || "AI") + "写的</span></div>" +
+      (r.who ? '<p class="bz-note bz-cu-who">按当时的情况：' + esc(r.who) + "</p>" : "") +
+      (r.summary ? '<p class="bz-cu-sum">' + esc(r.summary) + "</p>" : "") +
+      (plans.length ? cuPlansHTML(plans) : '<p class="bz-hint">这份方案没按约定的格式列出方向，打开看全文。</p>') +
+      '<div class="bz-btns"><button type="button" class="bz-btn sm" data-rep="' + esc(r.id) + '">打开完整方案</button>' +
+        (r.opps ? '<button type="button" class="bz-btn ghost sm" data-goto="opps">方案里的 ' + r.opps + " 个机会已放进机会看板</button>" : "") + "</div>" +
+      (reps.length > 1 ? '<details class="bz-cu-old"><summary>以前的方案（' + (reps.length - 1) + ' 份）</summary><div class="bz-reps">' + reps.slice(1, 13).map(repRow).join("") + "</div></details>" : "");
+  }
+  function cuColor(c) {
+    if (c.kind === "trk") { const g = TRK_GROUPS.find((x) => x[2].includes(c.id)); return g ? g[1] : "#9a8a6a"; }
+    return RAD_SEC[c.sec] || "#888888";
+  }
+  function cuGroup(c) {
+    return c.kind === "trk" ? ((TRK_GROUPS.find((x) => x[2].includes(c.id)) || [])[0] || "新兴赛道") : c.l1;
+  }
+  function cuCandHTML(c, i) {
+    const col = cuColor(c);
+    const why = c.fill ? "你写的情况里没直接对上；它现在很热，一个人也能起步，可以看看。"
+      : c.why.map((x) => esc(x[0]) + "「" + esc(x[1]) + "」").join("、");
+    const mods = c.models.map((m) => '<span class="bz-cu-mod' + (m.money ? " " + m.money : "") + '" title="' + esc(m.desc) + '">' + esc(m.name) + "<small>" + esc(m.need) + "</small></span>").join("");
+    const news = (c.news || []).map((it) => '<li><button type="button" class="bz-link" data-cu-art="' + esc(it.id) + '" title="' + esc(it.title) + '">' +
+      esc(S.trTitle[it.title] || it.title) + "</button><span>" + esc(ago(it.ts)) + "</span></li>").join("");
+    return '<article class="bz-cu-c" data-cu-id="' + esc(c.id) + '">' +
+      '<span class="bz-cu-rk' + (c.fill ? " fill" : "") + '" style="' + (c.fill ? "color:" + col + ";border-color:" + col : "background:" + col) + '">' + (i + 1) + "</span>" +
+      '<div class="bz-cu-cb"><header><h4>' + esc(c.name) + '</h4><span class="bz-dim">' + esc(cuGroup(c)) + "</span>" +
+        (CU_TR[c.trend] ? '<span class="bz-cu-tr ' + c.trend + '" title="最近 24 小时，它在新闻里的占比比 7 天平均' + (c.trend === "up" ? "高" : "低") + '不少">' + CU_TR[c.trend] + "</span>" : "") + "</header>" +
+        '<div class="bz-cu-meter"><span>跟你的匹配</span><i><b style="width:' + c.fit + "%;background:" + col + '"></b></i><em>' + (c.fill ? "没对上" : c.fit) + "</em></div>" +
+        '<div class="bz-cu-meter"><span>市场热度</span><i><b class="h" style="width:' + c.heat + '%"></b></i><em>7 天 ' + c.n7 + " 条</em></div>" +
+        '<p class="bz-cu-row"><b>' + (c.fill ? "为什么列它" : "对上的地方") + "</b>" + why + "</p>" +
+        '<p class="bz-cu-row"><b>适合的做法</b>' + mods + (c.money_txt ? '<span class="bz-cu-money ' + c.money + '">' + esc(c.money_txt) + "</span>" : "") + "</p>" +
+        (news ? '<ul class="bz-cu-news" aria-label="最近的新闻">' + news + "</ul>" : "") +
+        (c.opps && c.opps.length ? '<p class="bz-cu-row"><b>机会看板</b>' + c.opps.map((o) => '<button type="button" class="bz-link" data-goto="opps">' + esc(o.title) + "</button>").join("；") + "</p>" : "") +
+        '<footer><button type="button" class="bz-link" data-cu-map="' + esc(c.id) + '">在行业地图上看</button>' +
+          '<button type="button" class="bz-link" data-cu-research="' + esc(c.name + (c.models[0] ? " " + c.models[0].name : "")) + '">深入研究这个方向</button></footer>' +
+      "</div></article>";
+  }
+  let cuCanvas = null;
+  function cuTextW(t, size, weight) {
+    if (!cuCanvas) cuCanvas = document.createElement("canvas");
+    const ctx = cuCanvas.getContext("2d");
+    ctx.font = (weight || 400) + " " + size + "px " + (getComputedStyle(root).fontFamily || "sans-serif");
+    return ctx.measureText(t).width;
+  }
+  // 横着是「跟你的匹配度」，竖着是「市场热度」（7 天新闻条数，对数刻度）：越靠右上，越是又适合你、市场又热
+  function cuChartSVG(cands, W) {
+    const H = 300, L = 54, R = 14, T = 12, B = 40, pw = W - L - R, ph = H - T - B, r = 11;
+    const mk = (S.cu.pv && S.cu.pv.market) || {};
+    const lg = (n) => Math.log10(1 + Math.max(0, n));
+    const ns = cands.map((c) => c.n7);
+    let hi = lg(Math.max(mk.max || 0, 9, ...ns)) + 0.06, lo = Math.max(0, lg(Math.min(...ns)) - 0.3);
+    if (hi - lo < 1.2) lo = Math.max(0, hi - 1.2);
+    const X = (f) => L + (pw * Math.max(0, Math.min(100, f))) / 100;
+    const Y = (n) => T + ph * (1 - (lg(n) - lo) / (hi - lo));
+    const midX = X(50), midY = mk.mid ? Math.max(T + 16, Math.min(T + ph - 16, Y(mk.mid))) : T + ph / 2;
+    const pts = cands.map((c, i) => ({ c, i, x: X(c.fit), y: Y(c.n7), col: cuColor(c) }));
+    for (let it = 0; it < 60; it++) {                             // 挤在一起的圆点互相推开一点，数字不被盖住
+      let moved = false;
+      for (let a = 0; a < pts.length; a++) {
+        for (let b = a + 1; b < pts.length; b++) {
+          const p = pts[a], q = pts[b];
+          let dx = q.x - p.x, dy = q.y - p.y, d = Math.hypot(dx, dy);
+          if (d < 2 * r + 3) {
+            if (d < 0.01) { dx = 0.6; dy = 0.8; d = 1; }
+            const push = (2 * r + 3 - d) / 2 + 0.2;
+            p.x -= (dx / d) * push; p.y -= (dy / d) * push; q.x += (dx / d) * push; q.y += (dy / d) * push;
+            moved = true;
+          }
+        }
+      }
+      pts.forEach((p) => { p.x = Math.max(L + r + 1, Math.min(L + pw - r - 1, p.x)); p.y = Math.max(T + r + 1, Math.min(T + ph - r - 1, p.y)); });
+      if (!moved) break;
+    }
+    const f1 = (v) => v.toFixed(1);
+    const boxes = [];
+    const hit = (bx) => bx.x0 < L + 1 || bx.x1 > W - 2 || bx.y0 < 1 || bx.y1 > T + ph - 1 ||
+      pts.some((p) => bx.x0 < p.x + r + 2 && bx.x1 > p.x - r - 2 && bx.y0 < p.y + r + 2 && bx.y1 > p.y - r - 2) ||
+      boxes.some((o) => bx.x0 < o.x1 && bx.x1 > o.x0 && bx.y0 < o.y1 && bx.y1 > o.y0);
+    const caps = [];
+    // 角上的说明：「又适合你、市场又热」最要紧，右上角被圆点占了就换到这一块的其他角上
+    const qh = midY - T > 34;
+    [["又适合你、市场又热", "good", 600, [[W - R - 6, T + 15, "end"], [midX + 8, T + 15, "start"]].concat(qh ? [[W - R - 6, midY - 7, "end"], [midX + 8, midY - 7, "start"]] : [])],
+      ["市场热，但和你沾边少", "", 400, [[L + 8, T + 15, "start"]]],
+      ["适合你，市场还不太热", "", 400, [[W - R - 6, T + ph - 8, "end"]]]].forEach(([t, cls, wt, spots]) => {
+      const w = cuTextW(t, 11.5, wt);
+      for (const [x, y, anc] of spots) {
+        const x0 = anc === "end" ? x - w : x;
+        const bx = { x0: x0 - 2, x1: x0 + w + 2, y0: y - 12, y1: y + 4 };
+        if (!hit(bx)) { boxes.push(bx); caps.push('<text class="cap' + (cls ? " " + cls : "") + '" x="' + f1(x) + '" y="' + f1(y) + '" text-anchor="' + anc + '">' + t + "</text>"); break; }
+      }
+    });
+    const labels = pts.map((p) => {                               // 名字：右、左、上、下、四个斜角，挑第一个不压东西的地方；都不行就不写（圆点里的数字对得上下面的列表）
+      const t = p.c.name, w = cuTextW(t, 12, 600), h = 14;
+      const tries = [[r + 5, 4, "start"], [-(r + 5), 4, "end"], [0, -(r + 6), "middle"], [0, r + 15, "middle"],
+        [r + 2, -(r + 3), "start"], [r + 2, r + 13, "start"], [-(r + 2), -(r + 3), "end"], [-(r + 2), r + 13, "end"]];
+      for (const [dx, dy, anc] of tries) {
+        const x = p.x + dx, y = p.y + dy, x0 = anc === "start" ? x : anc === "end" ? x - w : x - w / 2;
+        const bx = { x0: x0 - 1, x1: x0 + w + 1, y0: y - h + 3, y1: y + 3 };
+        if (!hit(bx)) { boxes.push(bx); return { x, y, anc }; }
+      }
+      return null;
+    });
+    let s = '<svg class="bz-cu-svg" viewBox="0 0 ' + W + " " + H + '" width="' + W + '" height="' + H + '" role="group" aria-label="跟你的匹配度和市场热度">' +
+      '<rect class="q-good" x="' + f1(midX) + '" y="' + T + '" width="' + f1(L + pw - midX) + '" height="' + f1(midY - T) + '"/>' +
+      '<line class="grid" x1="' + f1(midX) + '" y1="' + T + '" x2="' + f1(midX) + '" y2="' + (T + ph) + '"/>' +
+      '<line class="grid" x1="' + L + '" y1="' + f1(midY) + '" x2="' + (L + pw) + '" y2="' + f1(midY) + '"/>' +
+      '<line class="axis" x1="' + L + '" y1="' + (T + ph) + '" x2="' + (L + pw) + '" y2="' + (T + ph) + '"/>' +
+      '<line class="axis" x1="' + L + '" y1="' + T + '" x2="' + L + '" y2="' + (T + ph) + '"/>';
+    [10, 100, 1000, 10000].filter((n) => lg(n) > lo + 0.04 && lg(n) < hi - 0.02).forEach((n) => {
+      s += '<text class="tk" x="' + (L - 6) + '" y="' + f1(Y(n) + 4) + '" text-anchor="end">' + n + "</text>";
+    });
+    [0, 50, 100].forEach((f) => { s += '<text class="tk" x="' + f1(X(f)) + '" y="' + (T + ph + 15) + '" text-anchor="' + (f === 0 ? "start" : f === 100 ? "end" : "middle") + '">' + f + "</text>"; });
+    s += '<text class="ax" x="' + f1(L + pw / 2) + '" y="' + (H - 5) + '" text-anchor="middle">跟你的匹配度（越往右越配你）</text>' +
+      '<text class="ax" transform="translate(12 ' + f1(T + ph / 2) + ') rotate(-90)" text-anchor="middle">市场热度：最近 7 天新闻条数</text>' + caps.join("");
+    pts.forEach((p, k) => {
+      const lb = labels[k];
+      s += '<g class="dot' + (p.c.fill ? " fill" : "") + '" data-cu-dot="' + esc(p.c.id) + '" tabindex="0" role="button" aria-label="' +
+        esc(k + 1 + "，" + p.c.name + "，匹配度 " + p.c.fit + "，最近 7 天 " + p.c.n7 + " 条新闻") + '">' +
+        '<circle cx="' + f1(p.x) + '" cy="' + f1(p.y) + '" r="' + r + '" style="' + (p.c.fill ? "stroke:" + p.col : "fill:" + p.col) + '"/>' +
+        '<text class="num" x="' + f1(p.x) + '" y="' + f1(p.y + 4) + '" text-anchor="middle"' + (p.c.fill ? ' style="fill:' + p.col + '"' : "") + ">" + (k + 1) + "</text>" +
+        (lb ? '<text class="lbl" x="' + f1(lb.x) + '" y="' + f1(lb.y) + '" text-anchor="' + lb.anc + '">' + esc(p.c.name) + "</text>" : "") + "</g>";
+    });
+    return s + "</svg>";
+  }
+  function renderCuChart() {
+    const fig = $("bzCuChart"), pv = S.cu.pv;
+    if (!fig || !pv || !pv.cands || !pv.cands.length) return;
+    fig.innerHTML = cuChartSVG(pv.cands, Math.max(420, Math.round(fig.clientWidth || 700)));
+  }
+  function renderCuPrev() {
+    const body = $("bzCuPrevBody"), meta = $("bzCuPrevMeta");
+    if (!body) return;
+    const pv = S.cu.pv;
+    if (!pv) { body.innerHTML = S.cu.err ? empty(esc(S.cu.err)) : loading("正在读你的情况和市场数据…"); return; }
+    const mk = pv.market || {};
+    if (meta) meta.textContent = "不用 AI，按市场雷达最近 7 天的数据" + (mk.at ? "（" + hhmm(mk.at) + " 更新）" : "");
+    const hot = (pv.hot || []).slice(0, 8);
+    const hotHTML = hot.length ? '<div class="bz-cu-hot"><span>雷达上最近 7 天最热：</span>' + hot.map((h) =>
+      '<button type="button" class="bz-chip" data-cu-map="' + esc(h.id) + '">' + esc(h.name) + " <b>" + h.n7 + "</b></button>").join("") + "</div>" : "";
+    if (!pv.enough) {
+      body.innerHTML = '<p class="bz-empty bz-cu-start">先在左边写写你的阅历、技能或兴趣，这里会马上配出适合你的方向，越靠前越配你。</p>' + hotHTML;
+      return;
+    }
+    const cands = pv.cands || [];
+    if (!cands.length) { body.innerHTML = empty("没配出来。多写几句阅历和技能试试。") + hotHTML; return; }
+    S.cu.news = {};
+    cands.forEach((c) => (c.news || []).forEach((it) => { S.cu.news[it.id] = it; }));
+    const nFill = cands.filter((c) => c.fill).length;
+    body.innerHTML = '<p class="bz-hint">' + (mk.window
+      ? "把你写的对上行业分类，再看市场雷达最近 7 天每个方向抓到多少新闻。越靠右上角，越是又适合你、市场又热；圆点上的数字和下面的排名对得上。"
+      : "市场雷达还没抓到新闻，现在只按你的情况配。去「市场雷达」点「现在更新」，这里就会有热度。") +
+      (nFill ? "空心的圆点是你的情况里没对上、但市场热、一个人也能做的方向。" : "") + "</p>" +
+      '<figure class="bz-cu-chart" id="bzCuChart"></figure>' +
+      '<div class="bz-cu-list">' + cands.map(cuCandHTML).join("") + "</div>" +
+      (pv.opps_you && pv.opps_you.length ? '<div class="bz-cu-oppy"><h4>机会看板里跟你沾边的</h4>' + pv.opps_you.map((o) =>
+        '<p><button type="button" class="bz-link" data-goto="opps">' + esc(o.title) + "</button><span>里面提到你写的「" + esc(o.words.slice(0, 3).join("」「")) + "」</span></p>").join("") + "</div>" : "") +
+      hotHTML;
+    renderCuChart();
+  }
+  function cuPeek(id) {                                            // 鼠标在列表的哪一行 / 图上的哪个点，两边一起标出来
+    if (S.cu.peek === id) return;
+    S.cu.peek = id;
+    root.querySelectorAll(".bz-cu-c.on, .bz-cu-svg .dot.on").forEach((e) => e.classList.remove("on"));
+    if (!id) return;
+    root.querySelectorAll('.bz-cu-c[data-cu-id="' + id + '"], .bz-cu-svg .dot[data-cu-dot="' + id + '"]').forEach((e) => e.classList.add("on"));
+  }
+  function cuJump(id) {                                            // 点图上的点：滚到下面那一张卡片
+    const el = root.querySelector('.bz-cu-c[data-cu-id="' + id + '"]');
+    if (!el) return;
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    el.classList.remove("flash");
+    void el.offsetWidth;
+    el.classList.add("flash");
+  }
+  // 方案全文里「推荐方向一览」那几行画成卡片
+  function customBody(text, plans) {
+    const t = String(text || "").replace(/^\s*#\s+[^\n]*\n/, "");
+    const lines = t.split("\n");
+    const a = plans && plans.length ? lines.findIndex((l) => /^\s*#{1,4}\s*.*推荐方向一览/.test(l)) : -1;
+    if (a < 0) return '<div class="md bz-md">' + md(t) + "</div>";
+    let b = lines.length;
+    for (let j = a + 1; j < lines.length; j++) { if (/^\s*#{1,4}\s/.test(lines[j])) { b = j; break; } }
+    return '<div class="md bz-md">' + md(lines.slice(0, a + 1).join("\n")) + "</div>" + cuPlansHTML(plans) +
+      '<div class="md bz-md">' + md(lines.slice(b).join("\n")) + "</div>";
+  }
+
   // ───────── 爬虫管理 ─────────
   function renderCrawlerStatus() {
     const r = S.radar;
@@ -1851,6 +2236,7 @@
     else if (p === "industry") renderIndustry();
     else if (p === "analysis") renderAnalysis();
     else if (p === "opps") renderOpps();
+    else if (p === "custom") renderCustom();
     else if (p === "crawler") renderCrawler();
   }
 
@@ -1872,8 +2258,8 @@
     } else if (j.ok) {
       el.className = "bz-job done";
       el.innerHTML = '<div class="bz-job-t"><b>写好了：' + esc(j.title) + "</b><span>" +
-        (j.opps ? "报告里的 " + j.opps + " 个机会已经放进「趋势与机会」的看板" : "用了 " + mmss(j.ended - j.started)) + "</span></div>" +
-        '<button type="button" class="bz-btn sm" data-rep="' + esc(j.report) + '">打开报告</button>' +
+        (j.opps ? (j.kind === "custom" ? "方案" : "报告") + "里的 " + j.opps + " 个机会已经放进「机会看板」" : "用了 " + mmss(j.ended - j.started)) + "</span></div>" +
+        '<button type="button" class="bz-btn sm" data-rep="' + esc(j.report) + '">' + (j.kind === "custom" ? "打开方案" : "打开报告") + "</button>" +
         '<button type="button" class="bz-btn ghost sm" data-openfolder="' + esc(j.report) + '">打开所在文件夹</button>' +
         '<button type="button" class="bz-link" data-act="jobseen">知道了</button>';
     } else {
@@ -1890,6 +2276,7 @@
       S.job = j;
       renderJob();
       renderBigBtns();
+      if (S.pane === "custom") renderCuGo();                         // v187：商业定制页上也显示写到哪一步了
       if (was && !j.running) { refreshReports(); refreshOpps(); refreshOverview(); }
       if (j.running) S.jobTimer = setTimeout(pollJob, 2000);
     } catch (e) {
@@ -2292,7 +2679,7 @@
       "<span>" + esc(m.engine || "AI") + "写的</span><span>用了你的笔记 " + (m.notes || 0) + " 篇" + (m.radar ? "、市场新闻 " + m.radar + " 条" : "") + (m.web ? "、网页 " + m.web + " 个" : "") + "</span>" +
       (m.opps ? '<button type="button" class="bz-link" data-goto="opps">新增 ' + m.opps + " 个机会，去看板</button>" : "") +
       (r.path ? '<span class="bz-path" title="这份报告在你电脑上的位置">文件：' + esc(r.path) + "</span>" : "");
-    let body = reportBody(r.content, r.chain);
+    let body = m.kind === "custom" ? customBody(r.content, r.plans) : reportBody(r.content, r.chain);   // v187
     if (m.note_ids && m.note_ids.length) {
       body += '<section class="bz-used"><h4>用到的笔记</h4><div class="bz-chips">' + m.note_ids.map((n) =>
         '<button type="button" class="bz-chip" data-note="' + esc(n) + '">' + esc(n.replace(/^\d{8}-\d{6}-/, "").replace(/\.md$/, "").slice(0, 24)) + "</button>").join("") + "</div></section>";
@@ -2301,6 +2688,7 @@
       '<button type="button" class="bz-btn ghost sm" data-openfolder="' + esc(m.id) + '">打开所在文件夹</button>' +
       '<button type="button" class="bz-btn ghost sm" data-kbrep="' + esc(m.id) + '" title="让 AI 把这份报告整理进知识库的主题页">收进知识库</button>' +
       '<button type="button" class="bz-btn ghost sm" data-act="copyrep">复制全文</button>' +
+      (m.kind === "custom" ? '<button type="button" class="bz-btn ghost sm" data-goto="custom">改改情况再写</button>' : "") +
       '<button type="button" class="bz-btn ghost sm" data-act="rerun">重新写一份</button>' +
       '<button type="button" class="bz-btn ghost sm danger" data-act="delrep">删除</button>');
   }
@@ -2440,6 +2828,7 @@
     renderPane(p);
     if ((p === "radar" || p === "industry") && S.ovm && Date.now() - (S.ovmAt || 0) > 30000) refreshOverview("market");   // v182：切过来时数据旧了就刷新
     if (p === "crawler") { loadEngines(); loadRuns(); if (!S.radarSrc) loadRadarSources(); }
+    if (p === "custom") cuEnsure();                                 // v187
   }
   function goPane(p) {
     if (typeof navOpenGroup === "function") navOpenGroup("biz", p);
@@ -2465,6 +2854,7 @@
     }
     else if (name === "indview") { S.indView = v; store.set("indView", v); renderIndustry(); }
     else if (name === "depth") { S.depth = v; segSync(name, v); }
+    else if (name === "cudepth") { S.cu.depth = v === "deep" ? "deep" : "quick"; store.set("cuDepth", S.cu.depth); segSync(name, S.cu.depth); }   // v187
     else if (name === "oppst") { S.oppSt = v; renderOpps(); }
     else if (name === "repkind") { S.repKind = v; renderAnalysis(); }
     else if (name === "rdkind") { S.rdKind = v; renderSources(); }
@@ -2592,7 +2982,13 @@
         }
         else if (act === "rerun" && S.readerRep) {
           const m = S.readerRep.meta;
-          runJob(m.kind, { target: m.target, scope: m.scope, days: m.days || 30, web: m.web_on !== false, depth: m.depth || "quick", lens: m.lens || "mine" });
+          if (m.kind === "custom") runJob("custom", { profile: m.profile, web: m.web_on !== false, depth: m.depth || "quick" });   // v187：按当时的情况再写一份
+          else runJob(m.kind, { target: m.target, scope: m.scope, days: m.days || 30, web: m.web_on !== false, depth: m.depth || "quick", lens: m.lens || "mine" });
+        }
+        else if (act === "cu-clear") {                                // v187：商业定制——清空重填
+          if (!confirm("把「我的情况」全部清空？")) return;
+          root.querySelectorAll("#bzCuForm [data-cu]").forEach((el) => { el.value = ""; });
+          cuSyncChips(); cuQueueSave(50);
         }
         else if (act === "opennote") {
           const name = b.dataset.name;
@@ -2602,6 +2998,12 @@
         }
         return;
       }
+      if ((b = t.closest("[data-cu-chip]"))) { cuChip(b.dataset.cuChip, b.dataset.w); return; }      // v187：商业定制
+      if (t.closest("#bzCuRun")) { cuStart(); return; }
+      if ((b = t.closest("[data-cu-map]"))) { cuMap(b.dataset.cuMap); return; }
+      if ((b = t.closest("[data-cu-research]"))) { runJob("research", { target: b.dataset.cuResearch.slice(0, 60), web: true, depth: "quick" }); return; }
+      if ((b = t.closest("[data-cu-art]"))) { const it = S.cu.news[b.dataset.cuArt]; if (it) openArtPage(it); return; }
+      if ((b = t.closest("[data-cu-dot]"))) { cuJump(b.dataset.cuDot); return; }
       if ((b = t.closest("[data-rep]"))) {
         if (b.closest("#bzJob")) store.set("jobSeen", S.job ? S.job.id : 0);
         openReport(b.dataset.rep);
@@ -2717,6 +3119,8 @@
     });
     root.addEventListener("change", async (e) => {
       const t = e.target;
+      if (t.matches("#bzCuForm select[data-cu]")) { cuQueueSave(120); return; }        // v187：商业定制
+      if (t.id === "bzCuWeb") { S.cu.web = t.checked; store.set("cuWeb", t.checked); return; }
       if (t.matches("[data-opp-st]")) {
         const r = await api("/biz/opp", { action: "update", id: t.dataset.oppSt, status: t.value });
         if (r.ok) { S.opps = r.items; renderOpps(); }
@@ -2752,7 +3156,17 @@
       else if (t.id === "bzBfQ") { S.bf.q = t.value.trim(); clearTimeout(qTimer); qTimer = setTimeout(briefCount, 350); }
       else if (t.id === "bzBfFocus") S.bf.focus = t.value;
       else if (t.id === "bzRepQ") { S.repQ = t.value; renderAnalysis(); }
+      else if (t.matches && t.matches("#bzCuForm [data-cu]")) { cuSyncChips(); cuQueueSave(700); }   // v187：停手 0.7 秒就保存、重新配
     });
+    root.addEventListener("mouseover", (e) => {                       // v187：商业定制——列表和图上的点一起标出来
+      const t = e.target;
+      if (!t.closest || S.pane !== "custom") return;
+      const c = t.closest(".bz-cu-c[data-cu-id], .bz-cu-svg .dot[data-cu-dot]");
+      cuPeek(c ? c.dataset.cuId || c.dataset.cuDot : "");
+    });
+    root.addEventListener("focusin", (e) => { if (e.target.matches && e.target.matches(".bz-cu-svg .dot[data-cu-dot]")) cuPeek(e.target.dataset.cuDot); });
+    let cuRz = null;
+    window.addEventListener("resize", () => { if (S.pane !== "custom") return; clearTimeout(cuRz); cuRz = setTimeout(renderCuChart, 160); });
     root.addEventListener("mouseover", (e) => {
       const t = e.target;
       if (!t.closest) return;
@@ -2783,6 +3197,7 @@
         else if (e.target.matches && e.target.matches("tr[data-run]")) { e.preventDefault(); openRunReport(e.target.dataset.run); }
       }
       if ((e.key === "Enter" || e.key === " ") && e.target.matches && e.target.matches("#bzRadar g.blip[data-rad]")) { e.preventDefault(); selectRad(e.target.dataset.rad); }
+      if ((e.key === "Enter" || e.key === " ") && e.target.matches && e.target.matches(".bz-cu-svg .dot[data-cu-dot]")) { e.preventDefault(); cuJump(e.target.dataset.cuDot); }
     });
     root.addEventListener("toggle", (e) => {
       const d = e.target;

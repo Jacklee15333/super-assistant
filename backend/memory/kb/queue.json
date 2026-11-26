@@ -6,21 +6,9 @@
   "url": "",
   "who": "",
   "added": 1795689410,
-  "status": "pending",
+  "status": "running",
   "tries": 1,
   "error": "AI 池这次没整理成：回复里没有页面",
   "next_try": 1795690438
- },
- {
-  "sid": "research:research-20261126-182834-中华文明起源最新考古成果良渚陶寺石峁遗址与西方早期国家文明判.md",
-  "kind": "research",
-  "title": "🔎 主动研究：中华文明起源最新考古成果：良渚、陶寺、石峁遗址与西方早期国家文明判定标准对比",
-  "url": "",
-  "who": "",
-  "added": 1795689410,
-  "status": "running",
-  "tries": 0,
-  "error": "",
-  "next_try": 0
  }
 ]

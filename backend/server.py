@@ -90,7 +90,7 @@ _LOG_QUIET_PATHS = {"/biz/article_media", "/intake_kind", "/douyin/login",
     "/creator/x_cookie_status",
     "/logs", "/ai_live", "/ai_live_shot", "/version", "/gpu_status", "/creator_profiles", "/creator_avatar", "/creator_scan_all",
     "/scrapling/status", "/sniff/sources",
-    "/biz/job", "/biz/overview", "/biz/taxonomy", "/biz/items", "/biz/reports", "/biz/report", "/biz/opps", "/biz/topics",
+    "/biz/job", "/biz/overview", "/biz/taxonomy", "/biz/items", "/biz/reports", "/biz/report", "/biz/opps", "/biz/topics", "/biz/fit",
     "/kb/overview", "/kb/page", "/kb/search", "/kb/candidates", "/kb/raw", "/kb/raw_item", "/kb/graph",
     "/biz/radar/status", "/biz/radar/plan", "/biz/radar_tops", "/biz/brief_info", "/biz/radar/sources", "/biz/radar/engines", "/biz/radar/runs", "/biz/radar/report",
 }
@@ -5701,6 +5701,9 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(bz.job_status())
                 if path == "/biz/topics":
                     return self._send(bz.get_topics())
+                if path == "/biz/fit":                               # v187：商业定制——你的情况 + 先配一遍
+                    import biz_fit as _bf
+                    return self._send(_bf.get())
                 if path in ("/biz/radar/status", "/biz/radar/sources", "/biz/radar/engines", "/biz/radar/runs"):  # v156/v157：爬虫
                     import biz_crawler as _bc
                     return self._send({"/biz/radar/status": _bc.status, "/biz/radar/sources": _bc.list_sources,
@@ -6671,7 +6674,10 @@ class Handler(BaseHTTPRequestHandler):
                                                web=bool(body.get("web", True)), depth=body.get("depth", "quick"),
                                                lens=body.get("lens", "mine"), grp=body.get("grp", ""), q=body.get("q", ""),
                                                size=body.get("size", ""), notes=bool(body.get("notes", True)),
-                                               focus=body.get("focus", "")))
+                                               focus=body.get("focus", ""), profile=body.get("profile")))   # v187：商业定制带上你的情况
+                if path == "/biz/fit":                               # v187：存你的情况，顺便按它先配一遍
+                    import biz_fit as _bf
+                    return self._send(_bf.post(body))
                 if path == "/biz/translate":                         # v161：外文标题翻成中文
                     import biz_crawler as _bc
                     return self._send(_bc.translate_lines(body.get("lines") or []))

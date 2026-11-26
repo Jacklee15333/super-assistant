@@ -186,12 +186,13 @@ const NAV_GROUPS = {
     { key: "web", label: "网站新动态", view: "sniff", sn: "web" },
     { key: "trend", label: "信息源推荐", view: "trendwatch" },
   ] },
-  // v155：商业。几块都在同一页（#view-biz），用 pane 区分，biz.js 负责切换。v157：整理成五块，市场雷达放最前面
+  // v155：商业。几块都在同一页（#view-biz），用 pane 区分，biz.js 负责切换。v157：整理成五块，市场雷达放最前面；v187：机会看板右边加「商业定制」
   biz: { title: "商业", tabs: [
     { key: "radar", label: "市场雷达", view: "biz", pane: "radar" },
     { key: "industry", label: "行业地图", view: "biz", pane: "industry" },
     { key: "analysis", label: "研究分析", view: "biz", pane: "analysis" },
     { key: "opps", label: "机会看板", view: "biz", pane: "opps" },
+    { key: "custom", label: "商业定制", view: "biz", pane: "custom" },   // v187：按你的情况定行业和赚钱的做法
     { key: "crawler", label: "爬虫管理", view: "biz", pane: "crawler" },
   ] },
   // v163：「资料库」整个改造成「知识库」（参照 LLM Wiki）。四块都在同一页（#view-kb），kb.js 负责切换。
