@@ -537,8 +537,8 @@ def _dedup_feed():
         try:
             if by is None:
                 by = {s.get("id"): s for s in _sources()}
-            ind, trk = _classify(x, by.get(x.get("sid")))
-            _stats_add(x.get("ts"), ind, trk, -1)
+            ind, trk, l3 = _classify(x, by.get(x.get("sid")))
+            _stats_add(x.get("ts"), ind, trk, -1, l3=l3 if "l3" in x else ())
             fixed += 1
         except Exception:
             pass
@@ -903,7 +903,7 @@ def _stats():
     return _ST["stats"]
 
 
-def _stats_add(ts, ind, trk, k=1):
+def _stats_add(ts, ind, trk, k=1, l3=()):
     st = _stats()
     ts = int(ts or time.time())
     l1s = {g.split("/")[0] for g in ind}
@@ -911,7 +911,7 @@ def _stats_add(ts, ind, trk, k=1):
         b["n"] = max(0, b["n"] + k)
         if ind or trk:
             b["cls"] = max(0, b["cls"] + k)
-        for g in list(ind) + list(trk):
+        for g in list(ind) + list(trk) + list(l3 or ()):
             b["g"][g] = max(0, b["g"].get(g, 0) + k)
         for g in l1s:
             b["l1"][g] = max(0, b["l1"].get(g, 0) + k)
@@ -936,17 +936,69 @@ def _stats_catchup():
     n = 0
     for x in todo:
         try:
-            ind, trk = _classify(x, by.get(x.get("sid")))
+            ind, trk, l3 = _classify(x, by.get(x.get("sid")))
         except Exception:
             continue
-        _stats_add(x.get("ts"), ind, trk)
-        x["c"] = 1
+        _stats_add(x.get("ts"), ind, trk, l3=l3)
+        x.update(c=1, ind=ind, trk=trk, l3=l3)
         n += 1
     if n:
         _ST["dirty"] = True
         _flush(force=True)
         _log("统计：补记了 %d 条新闻" % n)
     return n
+
+
+def stats_l3_backfill(cls):
+    """v183：这版以前记进统计的新闻没有三级细分：按现在的分类补记一次（每条只补一次）。cls：{新闻编号: [三级细分]}"""
+    with _LOCK:
+        if _ST.get("l3done"):
+            return 0
+        n = 0
+        for x in _feed():
+            if x.get("c") and "l3" not in x:
+                l3 = cls.get(str(x.get("key")))
+                if l3 is None:
+                    continue
+                if l3:
+                    _stats_add(x.get("ts"), [], [], l3=l3)
+                    n += 1
+                x["l3"] = l3
+                _ST["dirty"] = True
+        _ST["l3done"] = True
+    if n:
+        _log("统计：给以前的 %d 条新闻补上了三级细分" % n)
+    return n
+
+
+def hot_oldest_ts():
+    """v183：内容库里最早那条新闻的时间——比它新的时间段，新闻都还在内容库里。"""
+    with _LOCK:
+        f = _feed()
+        return int(min(x.get("ts", 0) for x in f[-50:])) if f else 0
+
+
+def _archive(gone):
+    """v183：挤出内容库的新闻挪进存档库（SQLite，一个满了再开一个）。调用方拿着 _LOCK。"""
+    try:
+        import biz_archive as BA
+        by = None
+        recs = []
+        for x in gone:
+            if "ind" not in x:
+                try:
+                    if by is None:
+                        by = {s.get("id"): s for s in _sources()}
+                    ind, trk, l3 = _classify(x, by.get(x.get("sid")))
+                    x.update(ind=ind, trk=trk, l3=l3)
+                except Exception:
+                    x.update(ind=[], trk=[], l3=[])
+            recs.append(x)
+        n = BA.add(recs)
+        _ST.setdefault("arch_n", 0)
+        _ST["arch_n"] += n
+    except Exception as e:
+        _log("挪进存档库没成功（这几条先丢了）：%s" % e)
 
 
 def stats_window(days):
@@ -1011,10 +1063,10 @@ def _merge(src, items, first):
             x = {"key": key, "sid": src["id"], "sname": src.get("name", ""), "grp": src.get("group", ""),
                  "title": it["title"][:200], "url": it["url"], "summary": (it.get("summary") or "")[:300],
                  "from": it.get("source", ""), "ts": int(ts), "seen": int(now), "dated": dated}
-            try:                                   # v178：抓到就记进统计（只记一次，记过的打个 c）
-                ind, trk = _classify(x, src)
-                _stats_add(x["ts"], ind, trk)
-                x["c"] = 1
+            try:                                   # v178：抓到就记进统计（只记一次，记过的打个 c）；v183：分类存下来（挪进存档库时要用）
+                ind, trk, l3 = _classify(x, src)
+                _stats_add(x["ts"], ind, trk, l3=l3)
+                x.update(c=1, ind=ind, trk=trk, l3=l3)
             except Exception:
                 pass
             new.append(x)
@@ -1022,9 +1074,12 @@ def _merge(src, items, first):
             feed.extend(new)
             feed.sort(key=lambda x: -x.get("ts", 0))
             cut = now - KEEP_DAYS * 86400
+            gone = feed[MAX_ITEMS:]
             del feed[MAX_ITEMS:]
             while feed and feed[-1].get("ts", 0) < cut:
-                feed.pop()
+                gone.append(feed.pop())
+            if gone:
+                _archive(gone)                     # v183：挤出内容库的不删，挪进存档库
             _ST["ver"] += 1
             _ST["dirty"] = True
     return len(new), [x["key"] for x in new]
@@ -1278,6 +1333,11 @@ def status():
         srcs = _sources()
         feed = _feed()
         n24 = sum(1 for x in feed if x.get("ts", 0) >= now - 86400)
+        try:
+            import biz_archive as BA
+            r["archive"] = BA.info()             # v183：存档库
+        except Exception:
+            pass
         if _ST.get("stats"):                     # v178：内容库只留 8000 条，满了以后按统计算真实条数
             c24 = int((now - 86400) // 3600)
             n24 = max(n24, sum(b["n"] for k, b in _ST["stats"]["hours"].items() if int(k) >= c24))
