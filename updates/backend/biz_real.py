@@ -422,12 +422,26 @@ def _ind_key(rows):
 
 def fetch_period(date):
     rows, page, pages = [], 1, 1
-    while page <= pages and page <= 30:
+    while page <= pages and page <= 40:
         data, pages, _cnt = _em_page(date, page)
         rows += data
         page += 1
         time.sleep(0.25)
-    return rows
+    return dedup(rows)
+
+
+def dedup(rows):
+    """v192：同一家公司会有好几行（更正过的报表等），只留一行：先要标了最新的（ISNEW=1），再按更新时间最新的。
+    不去重的话营收会算重（v191 显示 11535 家，实际 A 股只有五千多家）。"""
+    def k(r):
+        d = "".join(ch for ch in str(r.get("UPDATE_DATE") or r.get("NOTICE_DATE") or "") if ch.isdigit())
+        return (0 if str(r.get("ISNEW", "1")) in ("1", "True", "true") else 1, -int(d[:14] or 0))
+    best = {}
+    for r in sorted(rows, key=k):
+        c = str(r.get("SECURITY_CODE") or r.get("SECUCODE") or "")[:6]
+        if c and c not in best:
+            best[c] = r
+    return list(best.values())
 
 
 def _f(v):
@@ -499,6 +513,7 @@ def update_listed(data):
         st.update(ok=False, err="没找到报完的年报", at=int(time.time()))
         return
     if (data.get("listed") or {}).get("annual") == annual and data["listed"].get("latest") == latest and st.get("ok") \
+            and data["listed"].get("v") == 2 \
             and time.time() - st.get("full_at", 0) < 7 * 86400:
         st["at"] = int(time.time())
         return
@@ -513,7 +528,7 @@ def update_listed(data):
         st.update(ok=False, err="读到了 %d 家，但没认出所处行业（字段 %s）" % (len(a_rows), ik), at=int(time.time()))
         return
     data["listed"] = {"annual": annual, "latest": latest, "annual_name": period_name(annual), "latest_name": period_name(latest),
-                      "companies": len(a_rows), "a": a_agg, "q": q_agg}
+                      "companies": len(a_rows), "a": a_agg, "q": q_agg, "v": 2}      # v2：同一家公司只算一次
     st.update(ok=True, err="", at=int(time.time()), full_at=int(time.time()), n=len(a_rows),
               period=period_name(annual) + ("、" + period_name(latest) if latest != annual else ""))
     _log("东方财富：%s %d 家公司，归到 %d 个行业" % (period_name(annual), len(a_rows), len(a_agg)))
@@ -549,7 +564,7 @@ def start_update(force=False):
 
 def maybe_update():
     d = _data()
-    if not _upd["running"] and time.time() - d.get("updated", 0) > STALE_S:
+    if not _upd["running"] and (time.time() - d.get("updated", 0) > STALE_S or (d.get("listed") and d["listed"].get("v") != 2)):
         start_update()
 
 
@@ -630,6 +645,17 @@ def overview():
         x.update(st.get(s["key"]) or {})
         x["auto"] = s["key"] in ("retail", "ind", "income", "listed")
         srcs.append(x)
+    try:
+        import biz_trade as BT
+        for p in BT.status():
+            srcs.append({"key": "tp_" + p["key"], "name": p["name"], "what": p["what"], "url": p["url"], "auto": False, "crawl": True,
+                         "how": "爬虫抓（直连 → Scrapling 快速 → 真浏览器，管用的记住）；核实时自动抓，也可以在体检卡里点「抓交易平台」",
+                         "n_ok": p.get("n_ok", 0), "n_bad": p.get("n_bad", 0), "last_ok": p.get("last_ok", 0), "at": p.get("at", 0),
+                         "via": p.get("via", ""), "err": p.get("err", "")})
+        srcs = [x for x in srcs if x["key"] not in ("ecom", "trade", "bid")]
+        srcs.sort(key=lambda x: x["key"] == "report")
+    except Exception:
+        pass
     r, inc, i = d.get("retail") or {}, d.get("income") or {}, d.get("ind") or {}
     rr, ir = r.get("rows") or {}, i.get("rows") or {}
     kpi = []
@@ -646,7 +672,7 @@ def overview():
                     "extra": "利润率 %s%%" % ir["总计"]["margin"] if ir["总计"].get("margin") is not None else ""})
     return {"ok": True, "updated": d.get("updated", 0), "updating": dict(_upd), "sources": srcs, "kpi": kpi, "by": by,
             "listed": {k: L.get(k) for k in ("annual", "latest", "annual_name", "latest_name", "companies")},
-            "checks": [_check_brief(c) for c in _checks()[:60]], "now": int(time.time())}
+            "checks": [_check_brief(c) for c in _checks()[:300]], "batch": batch_status(), "now": int(time.time())}
 
 
 def item(gid):
@@ -660,7 +686,17 @@ def item(gid):
         nbs += [dict(x, up=True) for x in links.get(gid.split("/")[0], []) if x["src"] not in have]
     inc = d.get("income") or {}
     chk = next((c for c in _checks() if c.get("gid") == gid), None)
-    return {"ok": True, "id": gid, "listed": a, "listed_q": q, "annual_name": L.get("annual_name", ""), "latest_name": L.get("latest_name", ""),
+    try:
+        import biz_trade as BT
+        trec = BT.get(gid)
+        trade = {"at": trec["at"], "kw": trec["kw"], "lines": BT.lines(trec),
+                 "ccgp": (trec["res"].get("ccgp") or {}).get("items", [])[:5]} if trec else None
+        trade_run = BT.running(gid)
+        trade_plan = BT.plan(gid)
+    except Exception:
+        trade, trade_run, trade_plan = None, False, ("", [])
+    return {"ok": True, "id": gid, "trade": trade, "trade_running": trade_run,
+            "trade_plan": {"kw": trade_plan[0], "plats": trade_plan[1]}, "listed": a, "listed_q": q, "annual_name": L.get("annual_name", ""), "latest_name": L.get("latest_name", ""),
             "nbs": nbs, "income": {k: inc.get(k) for k in ("period", "income", "income_yoy", "median", "spend", "spend_yoy", "urban", "rural")},
             "check": chk}
 
@@ -688,7 +724,7 @@ def resolve(target):
         if t in tx.get(kind, {}):
             d = tx[kind][t]
             if kind == "l3":
-                return d["name"], d["l2"], [d["l2"]]
+                return d["name"], t, [d["l2"]]
             if kind == "trk":
                 return d["name"], t, [r for r in d.get("rel") or [] if r in tx["l2"]][:3] or [t]
             if kind == "l1":
@@ -773,6 +809,7 @@ _HEAD = ("今天是 {today}。你是一位做市场调研的分析师，专门�
          "任务：核实「{name}」的真实市场：① 规模（一年成交多少钱）② 客户（有多少人 / 多少企业在买）"
          "③ 购买力（每个客户一年或一次肯花多少、价格带）④ 利润（做这一行赚不赚钱：毛利率、净利率）；"
          "再补充 ⑤ 交易（电商平台、交易 / 接单平台、招投标里能看到的成交额、销量、报价、采购金额）。\n"
+         "资料③是爬虫在交易平台上直接抓的真实成交、报价和采购公告，是最贴近「钱」的证据，优先用它说交易和购买力，但它只是搜索结果首页的样本，要说明。\n"
          "规矩：只用下面资料里出现过的数字，或你联网查到、能给出网址的数字；每个数字写清楚口径、时间和出处；"
          "查不到就写「待核实」，绝对不要编。行业报告和媒体的数字常互相抄、口径不一，要指出来。"
          "资料①里上市公司的数字只是头部公司的盘子，不等于整个市场；统计局的数字是一整个统计大类的合计。"
@@ -794,6 +831,8 @@ def prompt(spec, local, web_txt):
     return (_HEAD.format(today=datetime.date.today().isoformat(), name=spec["rname"], title=spec["title"]) +
             "=== 资料①：超能小助自动取到的硬数据（统计局、上市公司、市场雷达）===\n%s\n\n" % (local or "（这个方向没有直接对上的统计和上市公司数据）") +
             ("相关的行业（比这个方向宽得多，它们的数字只能当背景，不能当成这个方向的规模）：%s\n\n" % "、".join(BZ._resolve(g)[0] for g in spec.get("rel") or []) if spec.get("rel") else "") +
+            "=== 资料③：爬虫刚在交易平台上直接抓到的（政府采购网的公告条数和金额、1688 / 京东 / 什么值得买的价格带和销量、猪八戒的服务报价）===\n%s\n\n"
+            % (spec.get("trade_txt") or "（这次没抓到）") +
             "=== 资料②：小助刚从网上搜到的网页摘录 ===\n%s\n\n请开始写，第一行是「# %s」。" % ((web_txt or "").strip() or "（这次没有联网或没搜到）", spec["title"]))
 
 
@@ -862,6 +901,24 @@ def run_check(spec):
     BZ._stage(1, "资料：%d 条硬数据" % (local.count("\n") + 1 if local else 0))
     if BZ._stopping():
         raise BZ._Stop()
+    trade_txt = ""
+    try:                                                # v192：先去交易平台抓（政府采购网、1688、京东、什么值得买、猪八戒）
+        import biz_trade as BT
+        key = spec.get("gid") or spec["rname"]
+        rec = BT.get(key)
+        if not rec or time.time() - rec.get("at", 0) > 3 * 86400:
+            kw, plats = BT.plan(key)
+            BZ._stage(2, "上交易平台抓「%s」：%s…" % (kw, "、".join(BT.P_NAME[p] for p in plats)))
+            rec = (BT.probe(key) or {}).get("rec") or BT.get(key)
+        if rec:
+            trade_txt = BT.prompt_text(rec)
+            n_ok = sum(1 for r in rec["res"].values() if r.get("ok"))
+            BZ._stage(2, "交易平台抓到 %d / %d 个" % (n_ok, len(rec["res"])))
+    except Exception as e:
+        BZ._stage(2, "交易平台没抓成（%s），接着查网上资料" % str(e)[:50])
+    if BZ._stopping():
+        raise BZ._Stop()
+    spec["trade_txt"] = trade_txt
     web_txt, web_src = "", []
     if spec["web"]:
         web_txt, web_src = BZ._web(spec, deep, qs=web_queries(spec["rname"], deep))
@@ -872,7 +929,7 @@ def run_check(spec):
     BZ._stage(3, "交给 AI 整理成体检卡…")
     text, engine = BZ._ask(prompt(spec, local, web_txt), spec)
     BZ._stage(4, "核对数字、存结果…")
-    facts = verify(parse_facts(text), local + "\n" + (web_txt or ""))
+    facts = verify(parse_facts(text), local + "\n" + trade_txt + "\n" + (web_txt or ""))
     rid, _n = BZ._save(spec, text, [], [], web_src, engine)
     now = int(time.time())
     key = spec.get("gid") or spec["rname"]
@@ -907,3 +964,143 @@ def context_for(ids, budget=3500):
                 for f in c["facts"][:8]))
     s = "\n".join(out)
     return s[:budget]
+
+
+# ───────────────────────── v192：全部核实（排队一个个来）─────────────────────────
+BATCH_FILE = REAL_DIR / "batch.json"
+_bt = {"thread": None}
+FRESH_DAYS = 30
+
+
+def batch_ids(scope, todo):
+    tx = _tx()
+    l2, trk = list(tx["l2"]), list(tx["trk"])
+    if scope.startswith("sec:") and scope in tx["sec"]:
+        ids = [g for g in l2 if tx["l2"][g]["l1"] in tx["sec"][scope]["l1"]]
+        name = tx["sec"][scope]["name"] + "板块"
+    elif scope.startswith("l1:") and scope[3:] in tx["l1"]:
+        ids, name = list(tx["l1"][scope[3:]]["subs"]), scope[3:]
+    elif scope == "trk":
+        ids, name = trk, "新兴赛道"
+    elif scope == "l2":
+        ids, name = l2, "全部二级行业"
+    else:
+        ids, name = trk + l2, "全部（新兴赛道 + 二级行业）"
+    if todo:
+        cut = time.time() - FRESH_DAYS * 86400
+        done = {c.get("gid") for c in _checks() if c.get("created", 0) >= cut}
+        ids = [g for g in ids if g not in done]
+        name += "里还没核实过的"
+    return ids, name
+
+
+def batch_status():
+    b = _read(BATCH_FILE, {})
+    if not isinstance(b, dict) or not b.get("ids"):
+        return None
+    alive = bool(_bt["thread"] and _bt["thread"].is_alive())
+    n = len(b["ids"])
+    left = n - b.get("i", 0)
+    avg = (b.get("spent", 0) / max(1, b.get("ok", 0) + b.get("bad", 0))) if (b.get("ok", 0) + b.get("bad", 0)) else (240 if b.get("depth") != "deep" else 420)
+    cur = b["ids"][b["i"]] if b.get("i", 0) < n else ""
+    return {"name": b.get("name", ""), "n": n, "i": b.get("i", 0), "ok": b.get("ok", 0), "bad": b.get("bad", 0), "depth": b.get("depth", "quick"),
+            "cur": cur, "cur_name": BZ._resolve(cur)[0] if cur else "", "running": alive and left > 0 and not b.get("stop"),
+            "stopping": alive and bool(b.get("stop")), "paused": (not alive) and left > 0, "done": left <= 0, "started": b.get("started", 0),
+            "eta": int(avg * left), "errs": (b.get("errs") or [])[-5:], "waiting": b.get("waiting", "")}
+
+
+def batch_start(scope="all", depth="quick", todo=True):
+    with _lock:
+        if _bt["thread"] and _bt["thread"].is_alive():
+            return {"ok": False, "error": "已经在一个个核实了，先等它做完或者点停止"}
+        ids, name = batch_ids(scope or "all", bool(todo))
+        if not ids:
+            return {"ok": False, "error": "这个范围里都核实过了（%d 天内），不用再跑。要重新核实，把「跳过核实过的」取消勾选。" % FRESH_DAYS}
+        _write(BATCH_FILE, {"ids": ids, "i": 0, "depth": "deep" if depth == "deep" else "quick", "name": name, "scope": scope,
+                            "started": int(time.time()), "ok": 0, "bad": 0, "spent": 0, "errs": [], "stop": False})
+    return batch_resume()
+
+
+def batch_resume():
+    with _lock:
+        if _bt["thread"] and _bt["thread"].is_alive():
+            return {"ok": True, "running": True}
+        b = _read(BATCH_FILE, {})
+        if not b.get("ids") or b.get("i", 0) >= len(b["ids"]):
+            return {"ok": False, "error": "没有要接着做的"}
+        b["stop"] = False
+        _write(BATCH_FILE, b)
+        _bt["thread"] = threading.Thread(target=_batch_loop, daemon=True, name="biz-real-batch")
+        _bt["thread"].start()
+    _log("开始一个个核实：%s，共 %d 个，从第 %d 个开始" % (b.get("name", ""), len(b["ids"]), b.get("i", 0) + 1))
+    return {"ok": True, "running": True}
+
+
+def batch_stop():
+    with _lock:
+        b = _read(BATCH_FILE, {})
+        if not b:
+            return {"ok": True}
+        b["stop"] = True
+        _write(BATCH_FILE, b)
+    j = BZ.job_status()
+    if j.get("running") and j.get("kind") == "real" and b.get("cur_job") == j.get("id"):
+        BZ.stop()
+    return {"ok": True}
+
+
+def batch_clear():
+    batch_stop()
+    with _lock:
+        _write(BATCH_FILE, {})
+    return {"ok": True}
+
+
+def _bset(**kw):
+    with _lock:
+        b = _read(BATCH_FILE, {})
+        b.update(kw)
+        _write(BATCH_FILE, b)
+        return b
+
+
+def _batch_loop():
+    while True:
+        b = _read(BATCH_FILE, {})
+        if not b.get("ids") or b.get("stop") or b.get("i", 0) >= len(b["ids"]):
+            if b.get("ids") and b.get("i", 0) >= len(b["ids"]):
+                _log("一个个核实做完了：%s，成功 %d 个，没做成 %d 个" % (b.get("name", ""), b.get("ok", 0), b.get("bad", 0)))
+            _bset(waiting="")
+            return
+        gid = b["ids"][b["i"]]
+        if BZ.job_status().get("running"):                 # 别的报告在写：等它写完
+            _bset(waiting="等「%s」写完…" % BZ.job_status().get("title", ""))
+            time.sleep(5)
+            continue
+        t0 = time.time()
+        r = BZ.start("real", scope=gid, web=True, depth=b.get("depth", "quick"))
+        if not r.get("ok"):
+            if "还在做" in str(r.get("error", "")):
+                time.sleep(5)
+                continue
+            b = _bset(i=b["i"] + 1, bad=b.get("bad", 0) + 1, errs=(b.get("errs") or [])[-20:] + [[gid, r.get("error", "")[:100]]])
+            continue
+        _bset(cur_job=r.get("job_id"), waiting="")
+        while True:
+            time.sleep(3)
+            j = BZ.job_status()
+            if not j.get("running") or j.get("id") != r.get("job_id"):
+                break
+        j = BZ.job_status()
+        ok = bool(j.get("ok"))
+        b = _read(BATCH_FILE, {})
+        if b.get("stop") and not ok:                        # 是你点了停止：这一个不算，下次从它接着做
+            return
+        upd = {"i": b["i"] + 1, "spent": b.get("spent", 0) + int(time.time() - t0)}
+        if ok:
+            upd["ok"] = b.get("ok", 0) + 1
+        else:
+            upd["bad"] = b.get("bad", 0) + 1
+            upd["errs"] = (b.get("errs") or [])[-20:] + [[gid, str(j.get("error", ""))[:100]]]
+        _bset(**upd)
+        time.sleep(4)                                       # 让 AI 池喘口气

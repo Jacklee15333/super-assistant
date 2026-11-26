@@ -90,6 +90,7 @@
           saved: [], savedOpen: false, undoId: "", undoT: null,          // v189：存过的、撤销清空
           web: store.get("cuWeb", true) !== false, depth: store.get("cuDepth", "quick") === "deep" ? "deep" : "quick" },   // v187：商业定制
     rm: { data: null, err: "", at: 0, timer: null, sel: store.get("rmSel", ""), item: null, q: "",                 // v191：真实市场
+          pick: "", batchOpen: false, bscope: "all", btodo: true, allChecks: false, ttimer: null,                     // v192：下拉框、全部核实
           metric: ["size", "growth", "margin", "quad"].includes(store.get("rmMetric", "size")) ? store.get("rmMetric", "size") : "size",
           view: store.get("rmView", "map") === "list" ? "list" : "map", depth: store.get("rmDepth", "quick") === "deep" ? "deep" : "quick" },
   };
@@ -2462,6 +2463,7 @@
   // ───────── v191：真实市场（钱在哪里）─────────
   // 市场雷达看「新闻多不多」；这里看「钱」：统计局 + 上市公司财报（自动），具体方向让 AI 联网核实（电商、交易平台、招投标、报告）。
   const RM_METRIC = [["size", "规模"], ["growth", "增长"], ["margin", "利润率"], ["quad", "热度 × 真钱"]];
+  const RM_PLAT = { ccgp: "政府采购网", b2b: "1688", jd: "京东", smzdm: "什么值得买", zbj: "猪八戒" };
   const RM_BASIS_CLS = { "统计局": "gov", "上市公司": "co", "电商平台": "ec", "交易平台": "ec", "招投标": "ec", "行业报告": "rp", "媒体报道": "rp", "估算": "es" };
   function rmPaneHTML() {
     return '<div class="bz-pane" data-pane="real">' +
@@ -2475,13 +2477,18 @@
       '<p class="bz-source" id="bzRmLegend"></p>' +
       '<div class="bz-ind nodet" id="bzRmWrap"><div class="bz-ind-main" id="bzRmMain"></div><aside class="bz-ind-detail" id="bzRmDetail" hidden></aside></div>' +
       '<section class="bz-card bz-rm-checkcard"><div class="bz-card-h"><h3>核实一个具体方向</h3></div>' +
-        '<p class="bz-hint">地图上只有大行业。想做的是更细的生意（比如「外贸企业英文资料制作」「宠物殡葬」），写在这里，AI 会联网查它的规模、客户、购买力、利润和交易数据，整理成一张体检卡。快速约 3～5 分钟，深入会多查电商、招投标和接单平台的报价。</p>' +
-        '<div class="bz-rm-form"><input class="bz-input" id="bzRmTarget" maxlength="40" placeholder="比如：外贸企业英文资料制作、社区团购、宠物殡葬" aria-label="要核实的方向">' +
+        '<p class="bz-hint">市场雷达发现机会，这里核实真钱。从下拉框选一个行业（软件里所有的行业、细分和新兴赛道都在），或者自己写一个更细的方向；也可以点「全部核实」让小助一个个排队核实。' +
+          '每个方向会先让爬虫去政府采购网、1688、京东、什么值得买、猪八戒抓真实的公告、价格和成交，再联网查报告，最后让 AI 整理成体检卡。快速一个约 3～5 分钟。</p>' +
+        '<div class="bz-rm-form"><select class="bz-select" id="bzRmPick" aria-label="选一个行业"><option value="">选一个行业…</option></select>' +
+          '<span class="bz-dim">或者</span><input class="bz-input" id="bzRmTarget" maxlength="40" placeholder="自己写：外贸企业英文资料制作、宠物殡葬…" aria-label="自己写要核实的方向">' +
           seg("rmdepth", [["quick", "快速"], ["deep", "深入"]]) +
-          '<button type="button" class="bz-btn" data-act="rm-check">AI 联网核实</button></div>' +
+          '<button type="button" class="bz-btn" data-act="rm-check">AI 联网核实</button>' +
+          '<button type="button" class="bz-btn ghost" data-act="rm-batch-open">全部核实…</button></div>' +
+        '<div class="bz-rm-batch" id="bzRmBatch"></div>' +
         '<div class="bz-rm-checks" id="bzRmChecks"></div></section>' +
       '<section class="bz-card"><div class="bz-card-h"><h3>信息源（和市场雷达是两套）</h3></div>' +
-        '<p class="bz-hint">市场雷达读的是新闻；这里读的是成交和财报。前四个自动更新；后面几个是 AI 核实时去查的（淘宝、京东这些平台的原始销量要登录才看得到，也不允许程序去抓，所以查的是平台和数据机构公开发布的数字）。</p>' +
+        '<p class="bz-hint">市场雷达读的是新闻；这里读的是成交、采购和财报。前四个自动更新；五个交易平台由爬虫直接去抓（和市场雷达一样：先普通方式，被拦了换 Scrapling 快速模式，再不行开真浏览器，管用的记住），' +
+          '核实一个方向时自动抓，也可以在体检卡里单独点「去平台抓」。京东、1688 有时要登录才给看，遇到就记成「要登录」，不硬闯；最后一个是 AI 核实时联网查的报告。</p>' +
         '<div class="bz-tablewrap" id="bzRmSrc"></div></section>' +
     "</div>";
   }
@@ -2630,12 +2637,70 @@
     return '<table class="bz-ltab bz-rm-src"><thead><tr><th>信息源</th><th>看什么</th><th>怎么取</th><th>状态</th></tr></thead><tbody>' + d.sources.map((s) =>
       "<tr><td class=\"nm\">" + (s.url ? '<a class="bz-link strong" href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.name) + "</a>" : "<b>" + esc(s.name) + "</b>") +
       '</td><td class="ds">' + esc(s.what) + '</td><td class="ds">' + esc(s.how) + "</td><td>" +
-      (!s.auto ? '<span class="bz-dim">核实时用</span>' : s.ok ? '<span class="bz-rm-ok">✓ ' + esc(s.period || "") + (s.n ? "，" + s.n + (s.key === "listed" ? " 家公司" : " 项") : "") + '</span><br><small class="bz-dim">' + esc(ago(s.at)) + "查过</small>"
+      (s.crawl ? (s.n_ok || s.n_bad ? '<span class="' + (s.last_ok ? "bz-rm-ok" : "bz-rm-bad") + '">' + (s.last_ok ? "✓ 抓到过 " + s.n_ok + " 次" : "还没抓到过") + "</span>" +
+          (s.n_bad ? '<small class="bz-dim">，没抓到 ' + s.n_bad + " 次</small>" : "") + (s.via ? '<br><small class="bz-dim">管用的：' + esc(s.via) + "</small>" : "") +
+          (s.err ? '<br><small class="bz-dim" title="' + esc(s.err) + '">上次：' + esc(s.err.slice(0, 40)) + "</small>" : "") : '<span class="bz-dim">还没抓过</span>') :
+        !s.auto ? '<span class="bz-dim">核实时用</span>' : s.ok ? '<span class="bz-rm-ok">✓ ' + esc(s.period || "") + (s.n ? "，" + s.n + (s.key === "listed" ? " 家公司" : " 项") : "") + '</span><br><small class="bz-dim">' + esc(ago(s.at)) + "查过</small>"
         : s.at ? '<span class="bz-rm-bad">没取到</span><br><small class="bz-dim">' + esc(s.err || "") + "</small>" : '<span class="bz-dim">还没取</span>') + "</td></tr>").join("") + "</tbody></table>";
   }
+  // v192：下拉框——软件里所有的行业（新兴赛道、一级、二级、三级细分），核实过的打勾
+  function rmPickOptions() {
+    if (!S.tax) return '<option value="">选一个行业…</option>';
+    const done = {};
+    ((S.rm.data && S.rm.data.checks) || []).forEach((c) => { if (c.gid) done[c.gid] = 1; });
+    const o = (id, label) => '<option value="' + esc(id) + '"' + (S.rm.pick === id ? " selected" : "") + ">" + esc(label) + (done[id] ? " ✓" : "") +
+      (rmBy(id).rev ? "　" + rmYi(rmBy(id).rev) : "") + "</option>";
+    let h = '<option value="">选一个行业…（共 ' + (S.tax.counts ? S.tax.counts.l2 + S.tax.counts.l1 + S.tax.counts.tracks + (S.tax.counts.l3 || 0) : "") + " 个，✓ 是核实过的）</option>";
+    h += '<optgroup label="新兴赛道">' + S.tax.tracks.map((t) => o(t.id, t.name)).join("") + "</optgroup>";
+    S.tax.sectors.forEach((sec) => sec.l1.forEach((n) => {
+      const d = S.byId[n];
+      h += '<optgroup label="' + esc(sec.name + " · " + n) + '">' + o(n, "整个" + n) +
+        d.subs.map((x) => o(x, nameOf(x)) + (S.byId[x].l3 || []).map((y) => o(y, "　└ " + nameOf(y))).join("")).join("") + "</optgroup>";
+    }));
+    return h;
+  }
+  function rmBatchScopes() {
+    const t = S.tax, cut = Date.now() / 1000 - 30 * 86400, done = {};
+    ((S.rm.data && S.rm.data.checks) || []).forEach((c) => { if (c.gid && c.created >= cut) done[c.gid] = 1; });
+    const l2 = [];
+    t.industries.forEach((i) => i.subs.forEach((x) => l2.push(x.id)));
+    const trk = t.tracks.map((x) => x.id);
+    const sc = [["all", "全部：新兴赛道 + 二级行业", trk.concat(l2)], ["trk", "只核实新兴赛道", trk], ["l2", "只核实二级行业", l2]];
+    t.sectors.forEach((sec) => sc.push(["sec:" + sec.key, sec.name + "板块", l2.filter((x) => sec.l1.includes(S.byId[x].l1))]));
+    return sc.map(([k, n, ids]) => ({ k: k, n: n, all: ids.length, todo: ids.filter((x) => !done[x]).length }));
+  }
+  function rmBatchHTML() {
+    const b = S.rm.data && S.rm.data.batch;
+    const hrs = (sec) => (sec >= 3600 ? (sec / 3600).toFixed(1).replace(/\.0$/, "") + " 小时" : Math.max(1, Math.round(sec / 60)) + " 分钟");
+    let h = "";
+    if (b && (b.running || b.stopping || b.paused)) {
+      const pct = b.n ? Math.round((b.i / b.n) * 100) : 0;
+      h += '<div class="bz-rm-bprog"><div class="bz-rm-bprog-h"><b>' + (b.running ? "正在一个个核实" : b.stopping ? "正在停…" : "暂停了") + "：" + esc(b.name) + "</b>" +
+        '<span class="bz-dim">' + b.i + " / " + b.n + " · 成功 " + b.ok + (b.bad ? " · 没做成 " + b.bad : "") + (b.running ? " · 预计还要 " + hrs(b.eta) : "") + "</span></div>" +
+        '<div class="bz-rm-bar"><i style="width:' + pct + '%"></i></div>' +
+        (b.running ? '<p class="bz-dim">' + (b.waiting ? esc(b.waiting) : "现在：" + esc(b.cur_name || "…") + "（进度在页面顶上，可以点开看 AI 在写什么）") + "</p>" : "") +
+        (b.errs && b.errs.length ? '<p class="bz-dim">最近没做成的：' + b.errs.map((e) => esc(nameOf(e[0])) + "（" + esc(e[1]) + "）").join("；") + "</p>" : "") +
+        '<div class="bz-btns">' + (b.running ? '<button type="button" class="bz-btn sm ghost" data-act="rm-batch-stop">停止</button>' :
+          b.paused ? '<button type="button" class="bz-btn sm" data-act="rm-batch-resume">接着做（还剩 ' + (b.n - b.i) + " 个）</button>" +
+            '<button type="button" class="bz-btn sm ghost" data-act="rm-batch-clear">不做了</button>' : "") + "</div></div>";
+      return h;
+    }
+    if (b && b.done) h += '<p class="bz-rm-ok">上一次「' + esc(b.name) + "」做完了：成功 " + b.ok + " 个" + (b.bad ? "，没做成 " + b.bad + " 个" : "") + "。</p>";
+    if (!S.rm.batchOpen || !S.tax) return h;
+    const scs = rmBatchScopes(), cur = scs.find((x) => x.k === S.rm.bscope) || scs[0];
+    const n = S.rm.btodo ? cur.todo : cur.all, per = S.rm.depth === "deep" ? 420 : 240;
+    return h + '<div class="bz-rm-bset"><label>核实哪些<select class="bz-select" id="bzRmBScope">' + scs.map((x) =>
+      '<option value="' + x.k + '"' + (x.k === cur.k ? " selected" : "") + ">" + esc(x.n) + "（" + x.all + " 个，还没核实的 " + x.todo + " 个）</option>").join("") + "</select></label>" +
+      '<label class="bz-rm-chkbox"><input type="checkbox" id="bzRmBTodo"' + (S.rm.btodo ? " checked" : "") + "> 跳过 30 天内核实过的</label>" +
+      '<p>要核实 <b>' + n + "</b> 个，按「" + (S.rm.depth === "deep" ? "深入" : "快速") + "」大约要 <b>" + hrs(n * per) + "</b>。会排队一个个来，一次只占一份 AI 池；" +
+      "期间可以关掉这一页、做别的；关了软件会暂停，下次打开点「接着做」。</p>" +
+      '<div class="bz-btns"><button type="button" class="bz-btn" data-act="rm-batch-start"' + (n ? "" : " disabled") + ">开始核实 " + n + " 个</button>" +
+      '<button type="button" class="bz-btn ghost" data-act="rm-batch-close">取消</button></div></div>';
+  }
   function rmChecksHTML() {
-    const cs = (S.rm.data && S.rm.data.checks) || [];
-    if (!cs.length) return '<p class="bz-dim">还没核实过。</p>';
+    const all = (S.rm.data && S.rm.data.checks) || [];
+    if (!all.length) return '<p class="bz-dim">还没核实过。</p>';
+    const cs = S.rm.allChecks ? all : all.slice(0, 9);
     return cs.map((c) => '<div class="bz-rm-chk"><div class="bz-rm-chk-h"><b>' + esc(c.name) + '</b><span class="bz-dim">' + esc(fmtTime(c.created)) + "</span>" +
       (c.gid ? '<button type="button" class="bz-link" data-rm="' + esc(c.gid) + '">在地图上看</button>' : "") + "</div>" +
       (c.summary ? "<p>" + esc(c.summary) + "</p>" : "") +
@@ -2643,7 +2708,8 @@
       '<div class="bz-btns"><button type="button" class="bz-btn sm" data-rm-chk="' + esc(c.id) + '">看体检卡</button>' +
       (c.report ? '<button type="button" class="bz-btn sm ghost" data-rep="' + esc(c.report) + '">完整报告</button>' : "") +
       '<button type="button" class="bz-btn sm ghost" data-rm-redo="' + esc(c.gid || c.name) + '">重新核实</button>' +
-      '<button type="button" class="bz-link" data-rm-del="' + esc(c.id) + '">删除</button></div></div>').join("");
+      '<button type="button" class="bz-link" data-rm-del="' + esc(c.id) + '">删除</button></div></div>').join("") +
+      (all.length > 9 ? '<p class="bz-rm-more"><button type="button" class="bz-link" data-act="rm-allchecks">' + (S.rm.allChecks ? "收起" : "显示全部 " + all.length + " 个") + "</button></p>" : "");
   }
   function rmFactsHTML(c) {
     if (!c || !c.facts || !c.facts.length) return "";
@@ -2687,6 +2753,16 @@
     facts("购买力").forEach((f) => { buy += factLine(f); });
     if (!buy && it.income && it.income.income) buy = "<p>全国居民人均可支配收入 <b>" + rmNum(it.income.income) + ' 元</b><small class="bz-dim">统计局 · ' + esc(it.income.period || "") + "（这个行业没有单独的消费类目）</small></p>";
     h += rmLine("购买力", buy || '<p class="bz-dim">待核实</p>');
+    const tr = it.trade, tp = it.trade_plan || {};
+    let trade = "";
+    if (tr) trade = tr.lines.map((x) => "<p" + (x.ok ? "" : ' class="bz-dim"') + ">" + esc(x.txt) + (x.ok ? '<small class="bz-dim">爬虫 · ' + esc(x.via || "") + " · " + esc(ago(tr.at)) +
+      (x.url ? ' · <a class="bz-link" href="' + esc(x.url) + '" target="_blank" rel="noopener">去平台看</a>' : "") + "</small>" : "") + "</p>").join("") +
+      (tr.ccgp && tr.ccgp.length ? '<details class="bz-rm-cg"><summary>政府采购网最近的公告</summary>' + tr.ccgp.map((c) => '<p><a class="bz-link" href="' + esc(c.u) + '" target="_blank" rel="noopener">' + esc(c.t) +
+        "</a><small class=\"bz-dim\">" + esc([c.d, c.buyer, c.amt ? (c.amt_k || "金额") + " " + c.amt + " 万元" : ""].filter(Boolean).join(" · ")) + "</small></p>").join("") + "</details>" : "");
+    trade += it.trade_running ? '<p class="bz-dim">爬虫正在抓「' + esc(tp.kw || "") + "」…</p>" :
+      '<p><button type="button" class="bz-link" data-act="rm-trade">' + (tr ? "重新抓一遍" : "去平台抓「" + esc(tp.kw || d.name) + "」") + "</button>" +
+      '<small class="bz-dim">会去：' + esc((tp.plats || []).map((p) => RM_PLAT[p] || p).join("、")) + "（不用 AI，一两分钟）</small></p>";
+    h += rmLine("交易", trade);
     const cust = facts("客户").map(factLine).join("");
     h += rmLine("客户", cust || '<p class="bz-dim">待核实：统计局和财报里没有「多少人在买」，点下面「AI 联网核实」去查。</p>');
     h += '<div class="bz-btns"><button type="button" class="bz-btn" data-act="rm-check-sel">' + (chk ? "重新核实" : "AI 联网核实") + "</button>" +
@@ -2728,6 +2804,9 @@
     }
     rmRenderDetail();
     $("bzRmChecks").innerHTML = rmChecksHTML();
+    $("bzRmBatch").innerHTML = rmBatchHTML();
+    const pk = $("bzRmPick");
+    if (pk && document.activeElement !== pk) pk.innerHTML = rmPickOptions();
     $("bzRmSrc").innerHTML = rmSrcHTML();
   }
   function rmRenderDetail() {
@@ -2743,7 +2822,9 @@
     } catch (e) { S.rm.err = e.message; }
     if (S.pane === "real") renderReal();
     clearTimeout(S.rm.timer);
+    const bt = S.rm.data && S.rm.data.batch;
     if (S.rm.data && S.rm.data.updating && S.rm.data.updating.running) S.rm.timer = setTimeout(() => rmLoad(), 3000);
+    else if (bt && (bt.running || bt.stopping) && S.pane === "real") S.rm.timer = setTimeout(() => rmLoad(), 10000);   // v192
     else if (force && S.rm.sel) rmSelect(S.rm.sel, true);
   }
   async function rmSelect(id, keep) {
@@ -2757,13 +2838,23 @@
     if (det && window.innerWidth < 1100) det.scrollIntoView({ block: "start", behavior: "smooth" });
     try {
       const r = await api("/biz/real/item?id=" + enc(id));
-      if (S.rm.sel === id) { S.rm.item = r; rmRenderDetail(); }
+      if (S.rm.sel === id) {
+        S.rm.item = r; rmRenderDetail();
+        clearTimeout(S.rm.ttimer);
+        if (r.trade_running) S.rm.ttimer = setTimeout(() => { if (S.rm.sel === id && S.pane === "real") rmSelect(id, true); }, 5000);   // v192：爬虫在抓，抓完自动显示
+      }
     } catch (e) { /* 读不到就算了 */ }
   }
   function rmEnsure() {
     if (!S.rm.data || Date.now() - S.rm.at > 60000) rmLoad();
     if (!S.ovm) refreshOverview("market");
     if (S.rm.sel && !(S.rm.item && S.rm.item.id === S.rm.sel)) rmSelect(S.rm.sel, true);
+  }
+  async function rmBatch(action, extra) {
+    const r = await api("/biz/real/batch", Object.assign({ action: action }, extra || {})).catch((e) => ({ ok: false, error: e.message }));
+    if (!r.ok) toast(r.error || "没成");
+    else if (action === "start") { S.rm.batchOpen = false; toast("开始一个个核实了，进度在这里和页面顶上。"); }
+    rmLoad();
   }
   function rmCheck(target, scope) {
     runJob("real", { target: target || "", scope: scope || "", web: true, depth: S.rm.depth });
@@ -3411,7 +3502,7 @@
     else if (name === "oppst") { S.oppSt = v; renderOpps(); }
     else if (name === "rmmetric") { S.rm.metric = v; store.set("rmMetric", v); if (v === "quad" && !S.ovm) refreshOverview("market"); renderReal(); }   // v191
     else if (name === "rmview") { S.rm.view = v; store.set("rmView", v); renderReal(); }
-    else if (name === "rmdepth") { S.rm.depth = v === "deep" ? "deep" : "quick"; store.set("rmDepth", S.rm.depth); segSync(name, S.rm.depth); }
+    else if (name === "rmdepth") { S.rm.depth = v === "deep" ? "deep" : "quick"; store.set("rmDepth", S.rm.depth); segSync(name, S.rm.depth);  if (S.rm.batchOpen) $("bzRmBatch").innerHTML = rmBatchHTML(); }
     else if (name === "repkind") { S.repKind = v; renderAnalysis(); }
     else if (name === "rdkind") { S.rdKind = v; renderSources(); }
   }
@@ -3462,9 +3553,23 @@
         else if (a === "rm-check-sel") rmCheck("", S.rm.sel);
         else if (a === "rm-map") { const id = S.rm.sel; goPane("industry"); if (id) selectInd(id); }
         else if (a === "rm-check") {
-          const v = ($("bzRmTarget").value || "").trim();
-          if (v.length < 2) { toast("先写上要核实的方向，比如「外贸企业英文资料制作」。"); $("bzRmTarget").focus(); return; }
-          rmCheck(v, "");
+          const v = ($("bzRmTarget").value || "").trim(), pk = ($("bzRmPick").value || "").trim();
+          if (v.length >= 2) rmCheck(v, "");                     // 自己写了就按写的
+          else if (pk) rmCheck("", pk);                          // 否则按下拉框选的
+          else { toast("从下拉框选一个行业，或者自己写一个方向；想全核实一遍，点「全部核实」。"); $("bzRmPick").focus(); }
+        }
+        else if (a === "rm-batch-open") { S.rm.batchOpen = !S.rm.batchOpen; $("bzRmBatch").innerHTML = rmBatchHTML(); }
+        else if (a === "rm-batch-close") { S.rm.batchOpen = false; $("bzRmBatch").innerHTML = rmBatchHTML(); }
+        else if (a === "rm-batch-start") { b.disabled = true; rmBatch("start", { scope: S.rm.bscope, depth: S.rm.depth, todo: S.rm.btodo }); }
+        else if (a === "rm-batch-stop") { if (confirm("停止一个个核实？正在写的这一个会停掉，下次可以接着做。")) rmBatch("stop"); }
+        else if (a === "rm-batch-resume") rmBatch("resume");
+        else if (a === "rm-batch-clear") rmBatch("clear");
+        else if (a === "rm-allchecks") { S.rm.allChecks = !S.rm.allChecks; $("bzRmChecks").innerHTML = rmChecksHTML(); }
+        else if (a === "rm-trade") {
+          const id = S.rm.sel;
+          b.disabled = true;
+          await api("/biz/real/trade", { target: id }).catch(() => null);
+          setTimeout(() => rmSelect(id, true), 600);
         }
         return;
       }
@@ -3707,6 +3812,9 @@
     root.addEventListener("change", async (e) => {
       const t = e.target;
       if (t.matches("#bzCuForm select[data-cu]")) { cuQueueSave(120); return; }        // v187：商业定制
+      if (t.id === "bzRmPick") { S.rm.pick = t.value; if (t.value) $("bzRmTarget").value = ""; return; }        // v192：真实市场下拉框
+      if (t.id === "bzRmBScope") { S.rm.bscope = t.value; $("bzRmBatch").innerHTML = rmBatchHTML(); return; }
+      if (t.id === "bzRmBTodo") { S.rm.btodo = t.checked; $("bzRmBatch").innerHTML = rmBatchHTML(); return; }
       if (t.id === "bzCuWeb") { S.cu.web = t.checked; store.set("cuWeb", t.checked); return; }
       if (t.matches("[data-opp-st]")) {
         const r = await api("/biz/opp", { action: "update", id: t.dataset.oppSt, status: t.value });
@@ -3739,6 +3847,7 @@
     root.addEventListener("input", (e) => {
       const t = e.target;
       if (t.id === "bzIndQ") { S.indQ = t.value; clearTimeout(qTimer); qTimer = setTimeout(renderIndustry, 160); }
+      else if (t.id === "bzRmTarget") { if (t.value.trim() && $("bzRmPick").value) { $("bzRmPick").value = ""; S.rm.pick = ""; } }
       else if (t.id === "bzRmQ") { S.rm.q = t.value; clearTimeout(qTimer); qTimer = setTimeout(renderReal, 160); }   // v191
       else if (t.id === "bzRq") { clearTimeout(qTimer); qTimer = setTimeout(() => { S.rq = t.value.trim(); loadRadarFeed(); }, 350); }
       else if (t.id === "bzBfQ") { S.bf.q = t.value.trim(); clearTimeout(qTimer); qTimer = setTimeout(briefCount, 350); }
