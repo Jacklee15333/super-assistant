@@ -2063,7 +2063,8 @@
     const pv = S.cu.pv, j = S.job, busy = !!(j && j.running), mine = busy && j.kind === "custom";
     const ok = !!(pv && pv.enough), miss = (pv && pv.missing) || [];   // 还没读到你的情况之前，按钮先不能点
     let note = "";
-    if (mine) note = '<span class="bz-cu-busy">正在写：' + esc(j.stage || "…") + '</span><button type="button" class="bz-link" data-act="ailive">看实时画面</button>';
+    if (mine) note = '<button type="button" class="bz-cu-busy cx-ail-tg" data-ail-toggle="biz">正在写：' + esc(j.stage || "…") +
+      '<span class="cx-ail-caret">' + (window.cxAiLive ? window.cxAiLive.caret("biz") : "") + "</span></button>";   // v190：点它在下面展开实时画面
     else if (busy) note = '<span class="bz-warn">「' + esc(j.title) + "」还在写，等它写完再开始。</span>";
     else if (pv && !ok) note = '<span class="bz-warn">先在左边写写阅历、技能或兴趣（至少一样），才能开始。</span>';
     else if (miss.length) note = "还没填：" + esc(miss.join("、")) + "。填上会更准，不填也能写。";
@@ -2075,8 +2076,10 @@
       '<div class="bz-cu-go-b">' + seg("cudepth", [["quick", "快速"], ["deep", "深入"]]) +
         '<label class="bz-chk"><input type="checkbox" id="bzCuWeb"' + (S.cu.web ? " checked" : "") + ">联网查资料</label>" +
         '<button type="button" class="bz-btn" id="bzCuRun"' + (busy || !ok ? " disabled" : "") + ">" + (mine ? "正在写方案…" : "生成我的定制方案") + "</button></div>" +
-      (note ? '<p class="bz-note bz-cu-gonote">' + note + "</p>" : "");
+      (note ? '<p class="bz-note bz-cu-gonote">' + note + "</p>" : "") +
+      '<div class="cx-ail-slot" id="bzCuLive" hidden></div>';
     segSync("cudepth", S.cu.depth);
+    bzLivePlace();
   }
   function cuPlansHTML(plans) {
     return '<div class="bz-cu-plans">' + plans.map((p, i) =>
@@ -2450,18 +2453,19 @@
   const mmss = (s) => { s = Math.max(0, s | 0); return pad((s / 60) | 0) + ":" + pad(s % 60); };
   function renderJob() {
     const j = S.job, el = $("bzJob");
-    if (!j || (!j.running && (!j.ended || store.get("jobSeen", 0) >= j.id))) { el.hidden = true; return; }
+    if (!j || (!j.running && (!j.ended || store.get("jobSeen", 0) >= j.id))) { el.hidden = true; bzLivePlace(); return; }
     el.hidden = false;
     if (j.running) {
       el.className = "bz-job running";
-      el.innerHTML = '<div class="bz-job-t"><b>' + esc(j.title) + "</b><span>" + esc(j.stage || "") + "</span></div>" +
+      const cr = window.cxAiLive ? window.cxAiLive.caret("biz") : "";            // v190：点标题在下面展开 AI 实时画面
+      el.innerHTML = '<button type="button" class="bz-job-t cx-ail-tg" data-ail-toggle="biz"><b><span class="bz-job-tt">' + esc(j.title) + '</span><span class="cx-ail-caret">' + cr + "</span></b><span>" + esc(j.stage || "") + "</span></button>" +
         '<ol class="bz-steps">' + (j.steps || []).map((s, i) => {
           const n = i + 1, cls = n < j.step ? "done" : n === j.step ? "on" : "";
           return '<li class="' + cls + (n === 2 && !j.web ? " skip" : "") + '">' + esc(s) + "</li>";
         }).join("") + "</ol>" +
         '<span class="bz-job-time" title="已经用了多久">' + mmss(j.now - j.started) + "</span>" +
-        '<button type="button" class="bz-btn ghost sm" data-act="ailive" title="看 AI 池正在怎么写：浏览器画面、正在写的字、每一步">看实时画面</button>' +   // v189
-        '<button type="button" class="bz-btn ghost sm" data-act="stopjob">停止</button>';
+        '<button type="button" class="bz-btn ghost sm" data-act="stopjob">停止</button>' +
+        '<div class="cx-ail-slot" id="bzJobLive" hidden></div>';
     } else if (j.ok) {
       el.className = "bz-job done";
       el.innerHTML = '<div class="bz-job-t"><b>写好了：' + esc(j.title) + "</b><span>" +
@@ -2474,6 +2478,16 @@
       el.innerHTML = '<div class="bz-job-t"><b>没写完：' + esc(j.title) + "</b><span>" + esc(j.error || "") + "</span></div>" +
         '<button type="button" class="bz-link" data-act="jobseen">知道了</button>';
     }
+    bzLivePlace();
+  }
+  // v190：商业的 AI 实时画面放哪：在商业定制页、写的是定制方案 →「正在写：…」下面；别的 → 顶上进度条下面；没在写 → 收走
+  function bzLivePlace() {
+    if (!window.cxAiLive) return;
+    const j = S.job, run = !!(j && j.running);
+    const cu = $("bzCuLive"), top = $("bzJobLive");
+    const slot = !run ? null : (S.pane === "custom" && j.kind === "custom" && cu) ? cu : top;
+    [cu, top].forEach((x) => { if (x && x !== slot) x.hidden = true; });
+    window.cxAiLive.place("biz", slot || null);
   }
   async function pollJob() {
     clearTimeout(S.jobTimer);
@@ -3036,6 +3050,7 @@
     if ((p === "radar" || p === "industry") && S.ovm && Date.now() - (S.ovmAt || 0) > 30000) refreshOverview("market");   // v182：切过来时数据旧了就刷新
     if (p === "crawler") { loadEngines(); loadRuns(); if (!S.radarSrc) loadRadarSources(); }
     if (p === "custom") cuEnsure();                                 // v187
+    bzLivePlace();                                                  // v190：实时画面跟着放到这一页看得见的地方
   }
   function goPane(p) {
     if (typeof navOpenGroup === "function") navOpenGroup("biz", p);
@@ -3196,7 +3211,7 @@
         else if (act === "cu-save") cuSaveNow();                        // v189：保存（也存一份）
         else if (act === "cu-undo") { const id = S.cu.undoId; S.cu.undoId = ""; cuShowUndo(); if (id) cuRestore(id, "撤销了，清空前的情况都回来了。"); }
         else if (act === "cu-saved") { S.cu.savedOpen = !S.cu.savedOpen; renderCuSaved(); }
-        else if (act === "ailive") { if (window.cxAiLive) window.cxAiLive.open(); }   // v189：AI 池实时画面
+        else if (act === "ailive") { if (window.cxAiLive) window.cxAiLive.open("biz"); }   // v190：展开标题下面的实时画面
         else if (act === "cu-build-add") cuBuildAdd();                 // v188：阅历「帮我写」拼好的那句加进去
         else if (act === "opennote") {
           const name = b.dataset.name;

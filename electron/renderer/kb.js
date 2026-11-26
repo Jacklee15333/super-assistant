@@ -50,6 +50,7 @@
     root.innerHTML =
       '<div class="kb-scroll" id="kbScroll"><div class="kb-wrap">' +
         '<div class="kb-status" id="kbStatus" aria-live="polite"></div>' +
+        '<div class="cx-ail-slot kb-live" id="kbLive" hidden></div>' +
         '<div class="kb-pane" data-pane="pages"><div class="kb-cols">' +
           '<aside class="kb-list">' +
             '<input class="kb-input" id="kbQ" type="search" placeholder="在主题页里搜：比如 五粮液、库存" aria-label="搜索主题页">' +
@@ -114,15 +115,20 @@
     if (root.classList.contains("active")) pollT = setTimeout(refresh, S.ov && S.ov.running ? 3000 : 12000);
   }
 
-  function renderStatus() {
+  function renderStatus() {                                       // v190：画完把 AI 实时画面放到「正在收录」下面（没在收录就收走）
+    renderStatus0();
+    const o = S.ov;
+    if (window.cxAiLive) window.cxAiLive.place("kb", o && o.ok !== false && o.running ? $("kbLive") : null);
+  }
+  function renderStatus0() {
     const el = $("kbStatus"), o = S.ov;
     if (!o) { el.innerHTML = "<span>正在读取…</span>"; return; }
     if (o.ok === false) { el.innerHTML = '<span class="kb-bad">' + esc(o.error) + "</span>"; return; }
     const c = o.config || {};
     const parts = ["<span><b>" + o.pages.length + "</b> 个主题页 · 来自 <b>" + o.n_sources + "</b> 份资料</span>"];
     if (o.running) {
-      parts.push('<span class="kb-run"><i class="kb-dot" aria-hidden="true"></i>正在收录「' + esc(o.running.title) + "」：" + esc(o.running.stage || "…") +
-        "（" + mmss(o.now - o.running.started) + "）</span>" + '<button type="button" class="kb-link" data-act="ailive">看实时画面</button>' +   // v189
+      parts.push('<button type="button" class="kb-run cx-ail-tg" data-ail-toggle="kb"><i class="kb-dot" aria-hidden="true"></i>正在收录「' + esc(o.running.title) + "」：" + esc(o.running.stage || "…") +
+        "（" + mmss(o.now - o.running.started) + '）<span class="cx-ail-caret">' + (window.cxAiLive ? window.cxAiLive.caret("kb") : "") + "</span></button>" +   // v190：点它在下面展开实时画面
         '<button type="button" class="kb-link" data-act="stop">停止</button>');
     } else if (c.paused) {
       parts.push('<span class="kb-warn">收录暂停了' + (o.n_pending ? "，队列里还有 " + o.n_pending + " 份" : "") + '</span><button type="button" class="kb-link" data-act="resume">继续收录</button>');
@@ -669,7 +675,7 @@
       const act = b.dataset.act;
       if (act === "overview") { S.sel = ""; renderPages(); renderOverview(); }
       else if (act === "paste") openPaste();
-      else if (act === "ailive") { if (window.cxAiLive) window.cxAiLive.open(); }     // v189：AI 池实时画面
+      else if (act === "ailive") { if (window.cxAiLive) window.cxAiLive.open("kb"); }     // v190
       else if (act === "stop") { const r = await api("/kb/stop", {}).catch(() => ({})); toast(r.ok ? "正在停。停下后收录会先暂停，要继续点「继续收录」。" : (r.error || "没停成")); refresh(); }
       else if (act === "resume") { await api("/kb/config", { paused: false }); refresh(); }
       else if (act === "clear-failed") { await api("/kb/clear_failed", {}); refresh(); }
