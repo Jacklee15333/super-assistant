@@ -31,8 +31,12 @@ PLATFORMS = [
      "what": "政府、学校、医院、国企近半年的采购和中标公告有多少条，抽几条看预算和中标金额"},
     {"key": "b2b", "name": "1688（阿里巴巴批发）", "kind": "批发", "url": "https://www.1688.com/",
      "what": "批发价格带、货源多不多、成交件数：进货要多少钱、上游卖得动不动"},
+    {"key": "ywg", "name": "义乌购（义乌小商品批发）", "kind": "批发", "url": "https://www.yiwugo.com/",
+     "what": "不用登录的批发价：义乌商贸城几万家商户的出厂 / 批发价格带（1688 要登录时靠它）"},
     {"key": "jd", "name": "京东", "kind": "零售", "url": "https://www.jd.com/",
      "what": "零售价格带和评价数（评价数大致反映卖了多少）"},
+    {"key": "sn", "name": "苏宁易购", "kind": "零售", "url": "https://www.suning.com/",
+     "what": "不用登录的零售价：家电、数码、日用、食品的标价和评价数（京东要登录时靠它）"},
     {"key": "smzdm", "name": "什么值得买", "kind": "到手价", "url": "https://www.smzdm.com/",
      "what": "消费者实际下单的到手价、点「值」的人多不多"},
     {"key": "zbj", "name": "猪八戒网", "kind": "服务接单", "url": "https://www.zbj.com/",
@@ -172,7 +176,7 @@ def parse_goods(h, price_rx=None):
     """商品列表页 → 价格带、销量 / 评价数、商品数（不同网站写法不一样，先认结构化数据，再认页面文字）。"""
     prices = []
     for rx in ([price_rx] if price_rx else []) + [r'"(?:price|priceInfo|salePrice|jdPrice|p)"\s*:\s*"?(\d+(?:\.\d+)?)"?',
-                                                   r"[¥￥]\s*(\d+(?:\.\d+)?)"]:
+                                                   r"[¥￥]\s*(\d+(?:\.\d+)?)", r"价格\s*[:：]?\s*[¥￥]?\s*(\d+(?:\.\d+)?)"]:
         prices += [float(x) for x in re.findall(rx, h)[:200]]
         if len(prices) >= 8:
             break
@@ -267,6 +271,14 @@ def b2b_url(kw):
     return "https://s.1688.com/selloffer/offer_search.htm?keywords=" + urllib.parse.quote(kw.encode("gbk", "ignore"))
 
 
+def ywg_url(kw):
+    return "https://www.yiwugo.com/search/s.htm?q=" + urllib.parse.quote(kw)
+
+
+def sn_url(kw):
+    return "https://search.suning.com/" + urllib.parse.quote(kw) + "/"
+
+
 def jd_url(kw):
     return "https://search.jd.com/Search?enc=utf-8&keyword=" + urllib.parse.quote(kw)
 
@@ -285,7 +297,11 @@ PROBES = {
     "jd": lambda kw, tr: probe_goods("jd", jd_url(kw), kw, tr, r'<i[^>]*>\s*(\d+(?:\.\d+)?)\s*</i>'),
     "smzdm": lambda kw, tr: probe_goods("smzdm", smzdm_url(kw), kw, tr, r'z-highlight[^>]*>\s*(?:<[^>]+>\s*)*(\d+(?:\.\d+)?)\s*元'),
     "zbj": lambda kw, tr: probe_goods("zbj", zbj_url(kw), kw, tr),
+    "ywg": lambda kw, tr: probe_goods("ywg", ywg_url(kw), kw, tr),
+    "sn": lambda kw, tr: probe_goods("sn", sn_url(kw), kw, tr),
 }
+LOGIN_SKIP_N = 3            # 连着 3 次都要登录 → 先跳过 7 天（省时间），用不用登录的平台顶上
+LOGIN_SKIP_DAYS = 7
 
 
 # ───────────────────────── 一个方向去哪些平台、用什么词搜 ─────────────────────────
@@ -310,14 +326,14 @@ def plan(target):
     plats = ["ccgp"]
     if trk:
         plats += ["zbj"] if trk in SERVICE_TRK else []
-        plats += ["b2b", "jd", "smzdm"] if trk not in ("t:ai", "t:data", "t:edu", "t:creator", "t:local") else []
+        plats += ["b2b", "ywg", "jd", "sn", "smzdm"] if trk not in ("t:ai", "t:data", "t:edu", "t:creator", "t:local") else []
     elif l1:
         if l1 not in NO_RETAIL_L1 and sec in GOODS_SECS and l1 not in SERVICE_L1:
-            plats += ["b2b", "jd", "smzdm"]
+            plats += ["b2b", "ywg", "jd", "sn", "smzdm"]
         if l1 in SERVICE_L1 or kw in ("IT服务", "软件开发", "专业服务", "教育", "广告营销"):
             plats += ["zbj"]
     else:                                                 # 自己写的方向：都查一遍
-        plats += ["b2b", "jd", "smzdm", "zbj"]
+        plats += ["b2b", "ywg", "jd", "sn", "smzdm", "zbj"]
     return kw, list(dict.fromkeys(plats))
 
 
@@ -336,6 +352,10 @@ def probe(target, only=None):
         for p in plats:
             trace = []
             t0 = time.time()
+            sk = _skip_why(p)
+            if sk:
+                res[p] = {"ok": False, "skipped": True, "error": sk, "trace": [], "ms": 0}
+                continue
             try:
                 r = PROBES[p](kw, trace)
                 r.update(ok=True, trace=trace, ms=int((time.time() - t0) * 1000))
@@ -365,10 +385,24 @@ def probe_async(target):
     return {"ok": True, "running": True}
 
 
+def _skip_why(p):
+    s = _read(STATE_FILE, {}).get(p) or {}
+    if s.get("login_streak", 0) >= LOGIN_SKIP_N:
+        left = s.get("login_at", 0) + LOGIN_SKIP_DAYS * 86400 - time.time()
+        if left > 0:
+            return "连着 %d 次都要登录才给看，先跳过（%d 天后再试）" % (s["login_streak"], max(1, int(left / 86400) + 1))
+    return ""
+
+
 def _note(p, r):
     with _lock:
         st = _read(STATE_FILE, {})
         s = st.setdefault(p, {})
+        if r.get("ok"):
+            s["login_streak"] = 0
+        elif "登录" in str(r.get("error", "")) or "空壳" in str(r.get("error", "")):
+            s["login_streak"] = s.get("login_streak", 0) + 1
+            s["login_at"] = int(time.time())
         s["at"] = int(time.time())
         s["n_ok" if r.get("ok") else "n_bad"] = s.get("n_ok" if r.get("ok") else "n_bad", 0) + 1
         if r.get("ok"):
@@ -394,6 +428,7 @@ def status():
     for p in PLATFORMS:
         x = dict(p)
         x.update(st.get(p["key"]) or {})
+        x["skip"] = _skip_why(p["key"])
         out.append(x)
     return out
 
@@ -413,7 +448,7 @@ def lines(rec):
     for p, r in (rec.get("res") or {}).items():
         nm = P_NAME.get(p, p)
         if not r.get("ok"):
-            out.append({"p": p, "ok": False, "txt": "%s：没抓到（%s）" % (nm, r.get("error", "")[:80])})
+            out.append({"p": p, "ok": False, "txt": "%s：%s（%s）" % (nm, "跳过" if r.get("skipped") else "没抓到", r.get("error", "")[:80])})
             continue
         if p == "ccgp":
             s = "%s：近半年搜「%s」有 %s 条采购公告" % (nm, rec["kw"], r["total"] if r.get("total") is not None else "?")

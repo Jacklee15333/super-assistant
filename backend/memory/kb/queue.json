@@ -12,25 +12,13 @@
   "next_try": 1795692902
  },
  {
-  "sid": "report:20261126-215651-real",
-  "kind": "report",
-  "title": "真实市场核实：智能驾驶",
-  "url": "",
-  "who": "",
-  "added": 1795701416,
-  "status": "running",
-  "tries": 0,
-  "error": "",
-  "next_try": 0
- },
- {
   "sid": "report:20261126-214735-real",
   "kind": "report",
   "title": "真实市场核实：人形机器人与具身智能",
   "url": "",
   "who": "",
   "added": 1795701416,
-  "status": "pending",
+  "status": "running",
   "tries": 0,
   "error": "",
   "next_try": 0
