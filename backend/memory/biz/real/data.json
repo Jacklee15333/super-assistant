@@ -3,7 +3,7 @@
   "retail": {
    "ok": true,
    "err": "",
-   "at": 1795701664,
+   "at": 1795702522,
    "url": "https://www.stats.gov.cn/sj/zxfb/202611/t20261116_1965839.html",
    "n": 21,
    "period": "2026年1—10月"
@@ -11,7 +11,7 @@
   "ind": {
    "ok": true,
    "err": "",
-   "at": 1795701664,
+   "at": 1795702522,
    "url": "https://www.stats.gov.cn/sj/zxfb/202610/t20261027_1965697.html",
    "n": 40,
    "period": "2026年1—9月"
@@ -19,7 +19,7 @@
   "income": {
    "ok": true,
    "err": "",
-   "at": 1795701664,
+   "at": 1795702523,
    "url": "https://www.stats.gov.cn/sj/zxfb/202610/t20261019_1965612.html",
    "n": 8,
    "period": "2026年前三季度"
@@ -27,7 +27,7 @@
   "listed": {
    "ok": true,
    "err": "",
-   "at": 1795701686,
+   "at": 1795702524,
    "full_at": 1795701686,
    "n": 5585,
    "period": "2025年全年、2026年前三季度",
@@ -530,7 +530,7 @@
   },
   "url": "https://www.stats.gov.cn/sj/zxfb/202610/t20261019_1965612.html"
  },
- "updated": 1795701723,
+ "updated": 1795702558,
  "listed": {
   "annual": "2025-12-31",
   "latest": "2026-09-30",
@@ -13331,8 +13331,8 @@
   }
  },
  "last_report": {
-  "at": 1795701723,
-  "secs": 72,
+  "at": 1795702558,
+  "secs": 37,
   "lines": [
    {
     "ok": true,

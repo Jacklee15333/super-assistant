@@ -156,16 +156,16 @@
   "交通运输/航运港口",
   "综合/综合"
  ],
- "i": 4,
+ "i": 5,
  "depth": "quick",
  "name": "全部（新兴赛道 + 二级行业）里还没核实过的",
  "scope": "all",
  "started": 1795698452,
- "ok": 4,
+ "ok": 5,
  "bad": 0,
- "spent": 1626,
+ "spent": 2220,
  "errs": [],
  "stop": false,
- "cur_job": 4,
+ "cur_job": 2,
  "waiting": ""
 }

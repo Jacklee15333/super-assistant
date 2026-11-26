@@ -10,17 +10,5 @@
   "tries": 3,
   "error": "AI 池这次没整理成：回复里没有页面",
   "next_try": 1795692902
- },
- {
-  "sid": "report:20261126-214735-real",
-  "kind": "report",
-  "title": "真实市场核实：人形机器人与具身智能",
-  "url": "",
-  "who": "",
-  "added": 1795701416,
-  "status": "running",
-  "tries": 0,
-  "error": "",
-  "next_try": 0
  }
 ]

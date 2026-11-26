@@ -1395,3 +1395,7 @@ body.dark .view-biz .bz-kind.k-custom { color: #b8a2f0; }
 .view-biz .bz-rm-tp-h .bz-btn { flex: none; }
 .view-biz .bz-rm-tp .bz-rm-tbar-in { margin-top: 0; }
 .view-biz .bz-rm-mapbar { margin-top: 4px; }
+
+/* ===== v196：行业地图也是一个标签 ===== */
+.view-biz .bz-rm-tp-map { padding-top: 10px; }
+.view-biz .bz-rm-tp-map .bz-rm-mapbar { margin-top: 0; }
