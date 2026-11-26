@@ -298,5 +298,1664 @@
     "ms": 10928
    }
   }
+ },
+ "t:robot": {
+  "target": "t:robot",
+  "kw": "人形机器人",
+  "at": 1795700395,
+  "res": {
+   "ccgp": {
+    "total": 105,
+    "win": 24,
+    "items": [
+     {
+      "t": "哈尔滨工程大学 人形机器人 群智计算平台采购项目比选公告",
+      "u": "http://www.ccgp.gov.cn/cggg/zygg/qtgg/202611/t20261126_27765863.htm",
+      "d": "2026-11-26",
+      "buyer": "哈尔滨工程大学",
+      "kind": "",
+      "amt": 78.0,
+      "amt_k": "预算金额"
+     },
+     {
+      "t": "上海交通大学 人形机器人 实践教学平台(第二次)公开招标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/zygg/gkzb/202611/t20261126_27763084.htm",
+      "d": "2026-12-17",
+      "buyer": "上海交通大学",
+      "kind": "公开招标公告",
+      "amt": 120.6,
+      "amt_k": "预算金额"
+     },
+     {
+      "t": "浙江国际招投标有限公司关于浙江工业大学具身智能与 人形机器人 实验平台采购中标结果公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/zbgg/202611/t20261126_27760232.htm",
+      "d": "2026-11-26",
+      "buyer": "浙江工业大学",
+      "kind": "中标结果公告",
+      "amt": 17.95,
+      "amt_k": "总中标金额"
+     },
+     {
+      "t": "上海交通大学 人形机器人 实践教学平台流标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/zygg/qtgg/202611/t20261126_27759882.htm",
+      "d": "2026-11-26",
+      "buyer": "上海交通大学",
+      "kind": "废标/流标的原因投标人不足3家，本次招标失败，作流标处理。三、其他补充事宜四、凡对本次公告"
+     },
+     {
+      "t": "浙江旅游职业学院双足 人形机器人 及具身智能导览套装项目公开招标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/gkzb/202611/t20261125_27753494.htm",
+      "d": "2026-12-15",
+      "buyer": "浙江旅游职业学院",
+      "kind": "公开招标公告"
+     },
+     {
+      "t": "华中科技大学 人形机器人 多任务运动采集测量系统采购项目成交公告",
+      "u": "http://www.ccgp.gov.cn/cggg/zygg/cjgg/202611/t20261124_27747378.htm",
+      "d": "2026-11-24",
+      "buyer": "华中科技大学",
+      "kind": "成交公告"
+     },
+     {
+      "t": "华中师范大学 人形机器人 课程实践平台等设备采购项目公开招标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/zygg/gkzb/202611/t20261124_27744006.htm",
+      "d": "2026-12-15",
+      "buyer": "华中师范大学",
+      "kind": "公开招标公告"
+     },
+     {
+      "t": "大连理工大学 人形机器人 采购项目公开招标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/zygg/gkzb/202611/t20261124_27742569.htm",
+      "d": "2026-12-18",
+      "buyer": "大连理工大学",
+      "kind": "公开招标公告"
+     }
+    ],
+    "amt_mid": 78.0,
+    "amt_n": 3,
+    "url": "http://search.ccgp.gov.cn/bxsearch?searchtype=1&page_index=1&bidSort=0&buyerName=&projectId=&pinMu=0&bidType=0&dbselect=bidx&kw=%E4%BA%BA%E5%BD%A2%E6%9C%BA%E5%99%A8%E4%BA%BA&start_time=2026%3A05%3A30&end_time=2026%3A11%3A26&timeType=6&displayZone=&zoneId=&pppStatus=0&agentName=",
+    "via": "direct",
+    "days": 180,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 683
+     }
+    ],
+    "ms": 4028
+   },
+   "b2b": {
+    "ok": false,
+    "error": "Scrapling 快速：要登录或被拦（login.1688）；Scrapling 浏览器：Scrapling 浏览器打开超时（timeout）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 137,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 403,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 90389,
+      "why": "Scrapling 浏览器打开超时（timeout）"
+     }
+    ],
+    "ms": 90931
+   },
+   "jd": {
+    "ok": false,
+    "error": "Scrapling 快速：页面是空壳（只有 4 个字）；Scrapling 浏览器：要登录或被拦（passport.jd.com）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 312,
+      "why": "页面是空壳（只有 4 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 604,
+      "why": "页面是空壳（只有 4 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 17179,
+      "why": "要登录或被拦（passport.jd.com）"
+     }
+    ],
+    "ms": 18096
+   },
+   "smzdm": {
+    "band": {
+     "n": 3,
+     "min": 3999.0,
+     "p25": 3999.0,
+     "mid": 39999.0,
+     "p75": 159900.0,
+     "max": 159900.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "url": "https://search.smzdm.com/?c=faxian&v=b&s=%E4%BA%BA%E5%BD%A2%E6%9C%BA%E5%99%A8%E4%BA%BA",
+    "via": "browser",
+    "ok": true,
+    "trace": [
+     {
+      "m": "Scrapling 浏览器",
+      "ok": true,
+      "ms": 30277
+     }
+    ],
+    "ms": 30279
+   }
+  }
+ },
+ "t:autodrive": {
+  "target": "t:autodrive",
+  "kw": "自动驾驶",
+  "at": 1795700565,
+  "res": {
+   "ccgp": {
+    "total": 77,
+    "win": 19,
+    "items": [
+     {
+      "t": "广西城建咨询设计有限公司关于智能网联汽车技术专业 自动驾驶 算法实训设备项目（项目编号：GXZC2026-J1-003767-GXCJ）成交结果公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/cjgg/202611/t20261124_27744459.htm",
+      "d": "2026-11-24",
+      "buyer": "广西物流职业技术学院",
+      "kind": "成交结果公告",
+      "amt": 100.95,
+      "amt_k": "成交金额"
+     },
+     {
+      "t": "北京市高级别 自动驾驶 示范区创新展示中心运维服务公开招标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/gkzb/202611/t20261124_27742272.htm",
+      "d": "2026-12-15",
+      "buyer": "北京市智慧城市基础设施与智能网联汽车协同发展工作办公室",
+      "kind": "公开招标公告",
+      "amt": 893.35,
+      "amt_k": "预算金额"
+     },
+     {
+      "t": "国家 自动驾驶 汽车质量检验检测中心项目(第四批)专用设备购置-第二部分公开招标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/gkzb/202611/t20261123_27737900.htm",
+      "d": "2026-12-14",
+      "buyer": "北京市产品质量监督检验研究院",
+      "kind": "公开招标公告",
+      "amt": 3152.3,
+      "amt_k": "预算金额"
+     },
+     {
+      "t": "国家 自动驾驶 汽车质量检验检测中心项目（第四批）专用设备购置-第四部分中标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/zbgg/202611/t20261123_27733472.htm",
+      "d": "2026-11-23",
+      "buyer": "北京市产品质量监督检验研究院",
+      "kind": "中标公告",
+      "amt": 1754.6,
+      "amt_k": "总中标金额"
+     },
+     {
+      "t": "国家 自动驾驶 汽车质量检验检测中心项目（第四批）专用设备购置-第一部分中标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/zbgg/202611/t20261123_27733462.htm",
+      "d": "2026-11-23",
+      "buyer": "北京市产品质量监督检验研究院",
+      "kind": "中标公告"
+     },
+     {
+      "t": "浙江天成项目管理有限公司关于杭州技师学院 自动驾驶 汽车测试运维平台采购项目的更正公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/gzgg/202611/t20261120_27720900.htm",
+      "d": "2026-11-18",
+      "buyer": "杭州技师学院（杭州交通高级技工学校）",
+      "kind": "更正公告"
+     },
+     {
+      "t": "浙江天成项目管理有限公司关于杭州技师学院 自动驾驶 汽车测试运维平台采购项目的公开招标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/gkzb/202611/t20261119_27719140.htm",
+      "d": "2026-12-09",
+      "buyer": "杭州技师学院（杭州交通高级技工学校）",
+      "kind": "公开招标公告"
+     },
+     {
+      "t": "国家 自动驾驶 汽车质量检验检测中心项目（第五批）专用设备购置-第一部分（量值溯源测试设备）（第6包：机动车安全和环保性能测试装备溯源能力建设项目）公开招标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/gkzb/202611/t20261118_27710933.htm",
+      "d": "2026-12-09",
+      "buyer": "北京市产品质量监督检验研究院",
+      "kind": "公开招标公告"
+     }
+    ],
+    "amt_mid": 1324.0,
+    "amt_n": 4,
+    "url": "http://search.ccgp.gov.cn/bxsearch?searchtype=1&page_index=1&bidSort=0&buyerName=&projectId=&pinMu=0&bidType=0&dbselect=bidx&kw=%E8%87%AA%E5%8A%A8%E9%A9%BE%E9%A9%B6&start_time=2026%3A05%3A30&end_time=2026%3A11%3A26&timeType=6&displayZone=&zoneId=&pppStatus=0&agentName=",
+    "via": "direct",
+    "days": 180,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 720
+     }
+    ],
+    "ms": 4137
+   },
+   "b2b": {
+    "ok": false,
+    "error": "Scrapling 快速：要登录或被拦（login.1688）；Scrapling 浏览器：Scrapling 浏览器打开超时（timeout）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 129,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 421,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 114376,
+      "why": "Scrapling 浏览器打开超时（timeout）"
+     }
+    ],
+    "ms": 114926
+   },
+   "jd": {
+    "ok": false,
+    "error": "Scrapling 快速：页面是空壳（只有 4 个字）；Scrapling 浏览器：要登录或被拦（passport.jd.com）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 303,
+      "why": "页面是空壳（只有 4 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 558,
+      "why": "页面是空壳（只有 4 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 35846,
+      "why": "要登录或被拦（passport.jd.com）"
+     }
+    ],
+    "ms": 36707
+   },
+   "smzdm": {
+    "ok": false,
+    "error": "普通方式：页面是空壳（只有 0 个字）；Scrapling 快速：页面是空壳（只有 0 个字）",
+    "trace": [
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 10384,
+      "why": "没认出商品 / 公告列表"
+     },
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 124,
+      "why": "页面是空壳（只有 0 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 374,
+      "why": "页面是空壳（只有 0 个字）"
+     }
+    ],
+    "ms": 10883
+   }
+  }
+ },
+ "t:ev": {
+  "target": "t:ev",
+  "kw": "新能源车",
+  "at": 1795700708,
+  "res": {
+   "ccgp": {
+    "total": 29,
+    "win": 3,
+    "items": [
+     {
+      "t": "集结贵州—2026山地英雄会全国汽摩 新能源车 集结大会（贵阳站）公开招标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/gkzb/202611/t20261124_27741432.htm",
+      "d": "2026-11-24",
+      "buyer": "贵阳市花溪区文体广电旅游局",
+      "kind": "公开招标公告",
+      "amt": 125.0,
+      "amt_k": "预算金额"
+     },
+     {
+      "t": "吐鲁番市托克逊县公安局租赁130辆执法执勤 新能源车 服务项目更正公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/gzgg/202611/t20261121_27731188.htm",
+      "d": "2026-11-06",
+      "buyer": "托克逊县公安局",
+      "kind": "更正公告"
+     },
+     {
+      "t": "吐鲁番市托克逊县公安局租赁130辆执法执勤 新能源车 服务项目更正公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/gzgg/202611/t20261120_27728564.htm",
+      "d": "2026-11-06",
+      "buyer": "托克逊县公安局",
+      "kind": "更正公告"
+     },
+     {
+      "t": "抚州市华鑫工程咨询有限公司关于宜黄县公安局执法执勤车辆（ 新能源车 ）采购项目(项目编号：FZHX-2026-X120)成交结果公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/zbgg/202611/t20261120_27727450.htm",
+      "d": "2026-11-20",
+      "buyer": "宜黄县公安局",
+      "kind": "成交结果公告",
+      "amt": 43.06,
+      "amt_k": "总中标金额"
+     },
+     {
+      "t": "资阳市市容环境卫生服务中心资阳市城区生活垃圾收集处理能力提升改造项目- 新能源车 充电设备中标（成交）结果公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/cjgg/202611/t20261119_27713143.htm",
+      "d": "2026-11-19",
+      "buyer": "资阳市市容环境卫生服务中心",
+      "kind": "中标（成交）结果公告"
+     },
+     {
+      "t": "宁波市镇海区政务服务中心关于宁波市镇海区机关事务管理局纯电 新能源车 （第二次）项目的询价公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/xjgg/202611/t20261117_27695456.htm",
+      "d": "2026-11-27",
+      "buyer": "宁波市镇海区机关事务管理局",
+      "kind": "询价公告"
+     },
+     {
+      "t": "抚州市华鑫工程咨询有限公司关于宜黄县公安局执法执勤车辆（ 新能源车 ）采购项目（项目编号：FZHX-2026-X120）询价采购公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/jzxtpgg/202611/t20261113_27678626.htm",
+      "d": "2026-11-20",
+      "buyer": "宜黄县公安局",
+      "kind": "询价采购公告"
+     },
+     {
+      "t": "江西省江咨赣东建设咨询有限公司关于2026年市级公务用车平台车辆更新采购项目（ 新能源车 ）（项目编号：JZGD2026010428）的变更公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/gzgg/202611/t20261112_27667986.htm",
+      "d": "2026-11-04",
+      "buyer": "抚州市机关事务管理中心",
+      "kind": "更正信息更正事项：采购公告"
+     }
+    ],
+    "amt_mid": 84.0,
+    "amt_n": 2,
+    "url": "http://search.ccgp.gov.cn/bxsearch?searchtype=1&page_index=1&bidSort=0&buyerName=&projectId=&pinMu=0&bidType=0&dbselect=bidx&kw=%E6%96%B0%E8%83%BD%E6%BA%90%E8%BD%A6&start_time=2026%3A05%3A30&end_time=2026%3A11%3A26&timeType=6&displayZone=&zoneId=&pppStatus=0&agentName=",
+    "via": "direct",
+    "days": 180,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 692
+     }
+    ],
+    "ms": 24139
+   },
+   "b2b": {
+    "ok": false,
+    "error": "Scrapling 快速：要登录或被拦（login.1688）；Scrapling 浏览器：Scrapling 浏览器打开超时（timeout）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 127,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 462,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 90375,
+      "why": "Scrapling 浏览器打开超时（timeout）"
+     }
+    ],
+    "ms": 90966
+   },
+   "jd": {
+    "ok": false,
+    "error": "Scrapling 快速：页面是空壳（只有 4 个字）；Scrapling 浏览器：要登录或被拦（passport.jd.com）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 386,
+      "why": "页面是空壳（只有 4 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 572,
+      "why": "页面是空壳（只有 4 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 10683,
+      "why": "要登录或被拦（passport.jd.com）"
+     }
+    ],
+    "ms": 11643
+   },
+   "smzdm": {
+    "ok": false,
+    "error": "普通方式：页面是空壳（只有 0 个字）；Scrapling 快速：页面是空壳（只有 0 个字）",
+    "trace": [
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 11258,
+      "why": "没认出商品 / 公告列表"
+     },
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 120,
+      "why": "页面是空壳（只有 0 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 407,
+      "why": "页面是空壳（只有 0 个字）"
+     }
+    ],
+    "ms": 11787
+   }
+  }
+ },
+ "t:lowalt": {
+  "target": "t:lowalt",
+  "kw": "低空经济",
+  "at": 1795700827,
+  "res": {
+   "ccgp": {
+    "total": 248,
+    "win": 66,
+    "items": [
+     {
+      "t": "长三角 低空经济 综合测试验证基地一期设备采购招标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/gkzb/202611/t20261126_27763941.htm",
+      "d": "2026-12-17",
+      "buyer": "芜湖市湾沚区航空产业发展服务中心",
+      "kind": "公开招标公告",
+      "amt": 4000.0,
+      "amt_k": "预算金额"
+     },
+     {
+      "t": "鲁渝 低空经济 协同创新中心项目建设无人机设备采购(WZQ26A00769)中标（成交）结果公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/cjgg/202611/t20261125_27756083.htm",
+      "d": "2026-11-25",
+      "buyer": "重庆市万州职业教育中心",
+      "kind": "中标（成交）结果公告"
+     },
+     {
+      "t": "枣阳市 低空经济 高质量发展实施方案（2026-2028年）公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/jzxcs/202611/t20261125_27752239.htm",
+      "d": "2026-11-25",
+      "buyer": "枣阳市通用航空发展中心",
+      "kind": "竞争性磋商公告",
+      "amt": 40.0,
+      "amt_k": "预算金额"
+     },
+     {
+      "t": "兰州航空职业技术学院 低空经济 实训教学设备类项目中标（成交）结果公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/zbgg/202611/t20261125_27750641.htm",
+      "d": "2026-11-25",
+      "buyer": "兰州航空职业技术学院",
+      "kind": "中标（成交）结果公告",
+      "amt": 265.56,
+      "amt_k": "总中标金额"
+     },
+     {
+      "t": "屈家岭 低空经济 产业片区建设发展规划中标（成交）结果公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/zbgg/202611/t20261124_27744642.htm",
+      "d": "2026-11-24",
+      "buyer": "荆门市屈家岭管理区交通运输局（住房和城乡建设局）",
+      "kind": "中标（成交）结果公告"
+     },
+     {
+      "t": "省贸促会机关2026陕西省 低空经济 产业(上海)招商推介会项目中标（成交）结果公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/cjgg/202611/t20261124_27742787.htm",
+      "d": "2026-11-24",
+      "buyer": "省贸促会机关",
+      "kind": "中标（成交）结果公告"
+     },
+     {
+      "t": "宿迁学院 低空经济 无人机实验室项目更正公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/gzgg/202611/t20261124_27740445.htm",
+      "d": "2026-11-02",
+      "buyer": "宿迁学院",
+      "kind": "更正公告"
+     },
+     {
+      "t": "威海市数字经济监测分析和 低空经济 数据融合场景建设项目结果公告（采购包1）",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/zbgg/202611/t20261123_27739322.htm",
+      "d": "2026-11-23",
+      "buyer": "威海市大数据局",
+      "kind": "中标公告"
+     }
+    ],
+    "amt_mid": 265.6,
+    "amt_n": 3,
+    "url": "http://search.ccgp.gov.cn/bxsearch?searchtype=1&page_index=1&bidSort=0&buyerName=&projectId=&pinMu=0&bidType=0&dbselect=bidx&kw=%E4%BD%8E%E7%A9%BA%E7%BB%8F%E6%B5%8E&start_time=2026%3A05%3A30&end_time=2026%3A11%3A26&timeType=6&displayZone=&zoneId=&pppStatus=0&agentName=",
+    "via": "direct",
+    "days": 180,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 737
+     }
+    ],
+    "ms": 4209
+   },
+   "b2b": {
+    "ok": false,
+    "error": "Scrapling 快速：要登录或被拦（login.1688）；Scrapling 浏览器：Scrapling 浏览器打开超时（timeout）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 159,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 403,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 90483,
+      "why": "Scrapling 浏览器打开超时（timeout）"
+     }
+    ],
+    "ms": 91046
+   },
+   "jd": {
+    "ok": false,
+    "error": "Scrapling 快速：页面是空壳（只有 4 个字）；Scrapling 浏览器：要登录或被拦（passport.jd.com）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 357,
+      "why": "页面是空壳（只有 4 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 534,
+      "why": "页面是空壳（只有 4 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 8794,
+      "why": "要登录或被拦（passport.jd.com）"
+     }
+    ],
+    "ms": 9687
+   },
+   "smzdm": {
+    "ok": false,
+    "error": "普通方式：页面是空壳（只有 0 个字）；Scrapling 快速：页面是空壳（只有 0 个字）",
+    "trace": [
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 9841,
+      "why": "没认出商品 / 公告列表"
+     },
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 119,
+      "why": "页面是空壳（只有 0 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 381,
+      "why": "页面是空壳（只有 0 个字）"
+     }
+    ],
+    "ms": 10342
+   }
+  }
+ },
+ "t:space": {
+  "target": "t:space",
+  "kw": "商业航天",
+  "at": 1795700946,
+  "res": {
+   "ccgp": {
+    "total": 22,
+    "win": 8,
+    "items": [
+     {
+      "t": "北方工业大学2026年度北方拔尖学者科研专项—AI在 商业航天 领域应用项目中标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/zbgg/202611/t20261120_27725194.htm",
+      "d": "2026-11-20",
+      "buyer": "北方工业大学",
+      "kind": "中标公告",
+      "amt": 161.9,
+      "amt_k": "总中标金额"
+     },
+     {
+      "t": "浙江金穗工程项目管理有限公司关于温州市 商业航天 发射场选址方案项目中标(成交)结果公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/zbgg/202611/t20261114_27686737.htm",
+      "d": "2026-11-14",
+      "buyer": "温州市发展和改革委员会",
+      "kind": "中标(成交)结果公告",
+      "amt": 89.8,
+      "amt_k": "总中标金额"
+     },
+     {
+      "t": "浙江金穗工程项目管理有限公司关于温州市 商业航天 产业发展规划研究项目中标(成交)结果公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/zbgg/202611/t20261114_27685490.htm",
+      "d": "2026-11-14",
+      "buyer": "温州市发展和改革委员会",
+      "kind": "中标(成交)结果公告",
+      "amt": 71.5,
+      "amt_k": "总中标金额"
+     },
+     {
+      "t": "浙江金穗工程项目管理有限公司关于温州市 商业航天 发射场选址方案项目的竞争性磋商公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/jzxcs/202611/t20261103_27608504.htm",
+      "d": "2026-11-13",
+      "buyer": "温州市发展和改革委员会",
+      "kind": "竞争性磋商公告",
+      "amt": 90.0,
+      "amt_k": "预算金额"
+     },
+     {
+      "t": "浙江金穗工程项目管理有限公司关于温州市 商业航天 产业发展规划研究项目的竞争性磋商公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/jzxcs/202611/t20261102_27605632.htm",
+      "d": "2026-11-12",
+      "buyer": "温州市发展和改革委员会",
+      "kind": "竞争性磋商公告"
+     },
+     {
+      "t": "北方工业大学2026年度北方拔尖学者科研专项—AI在 商业航天 领域应用项目公开招标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/gkzb/202610/t20261029_27584669.htm",
+      "d": "2026-11-20",
+      "buyer": "北方工业大学",
+      "kind": "公开招标公告"
+     },
+     {
+      "t": "浙江省成套招标代理有限公司关于杭州国际人才学术产业交流会（ 商业航天 ）专场活动项目中标(成交)结果公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/zbgg/202609/t20260922_27384028.htm",
+      "d": "2026-09-22",
+      "buyer": "中共杭州市西湖区委组织部",
+      "kind": "中标(成交)结果公告"
+     },
+     {
+      "t": "浙江省成套招标代理有限公司关于杭州国际人才学术产业交流会（ 商业航天 ）专场活动项目的竞争性磋商公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/jzxcs/202609/t20260911_27313756.htm",
+      "d": "2026-09-21",
+      "buyer": "中共杭州市西湖区委组织部",
+      "kind": "竞争性磋商公告"
+     }
+    ],
+    "amt_mid": 89.9,
+    "amt_n": 4,
+    "url": "http://search.ccgp.gov.cn/bxsearch?searchtype=1&page_index=1&bidSort=0&buyerName=&projectId=&pinMu=0&bidType=0&dbselect=bidx&kw=%E5%95%86%E4%B8%9A%E8%88%AA%E5%A4%A9&start_time=2026%3A05%3A30&end_time=2026%3A11%3A26&timeType=6&displayZone=&zoneId=&pppStatus=0&agentName=",
+    "via": "direct",
+    "days": 180,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 726
+     }
+    ],
+    "ms": 4185
+   },
+   "b2b": {
+    "ok": false,
+    "error": "Scrapling 快速：要登录或被拦（login.1688）；Scrapling 浏览器：Scrapling 浏览器打开超时（timeout）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 131,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 401,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 90376,
+      "why": "Scrapling 浏览器打开超时（timeout）"
+     }
+    ],
+    "ms": 90910
+   },
+   "jd": {
+    "ok": false,
+    "error": "Scrapling 快速：页面是空壳（只有 4 个字）；Scrapling 浏览器：要登录或被拦（passport.jd.com）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 289,
+      "why": "页面是空壳（只有 4 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 574,
+      "why": "页面是空壳（只有 4 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 8770,
+      "why": "要登录或被拦（passport.jd.com）"
+     }
+    ],
+    "ms": 9633
+   },
+   "smzdm": {
+    "ok": false,
+    "error": "普通方式：页面是空壳（只有 0 个字）；Scrapling 快速：页面是空壳（只有 0 个字）",
+    "trace": [
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 9718,
+      "why": "没认出商品 / 公告列表"
+     },
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 118,
+      "why": "页面是空壳（只有 0 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 451,
+      "why": "页面是空壳（只有 0 个字）"
+     }
+    ],
+    "ms": 10289
+   }
+  }
+ },
+ "t:energy": {
+  "target": "t:energy",
+  "kw": "储能",
+  "at": 1795701086,
+  "res": {
+   "ccgp": {
+    "total": 308,
+    "win": 88,
+    "items": [
+     {
+      "t": "华北电力大学开放型混合 储能 设备公开招标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/zygg/gkzb/202611/t20261126_27765169.htm",
+      "d": "2026-12-18",
+      "buyer": "华北电力大学",
+      "kind": "公开招标公告",
+      "amt": 54.0,
+      "amt_k": "预算金额"
+     },
+     {
+      "t": "德州职业技术学院设备购置更新项目——新型 储能 研究中心结果公告（采购包1）",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/zbgg/202611/t20261125_27757399.htm",
+      "d": "2026-11-25",
+      "buyer": "德州职业技术学院（德州市技师学院）",
+      "kind": "中标公告",
+      "amt": 58.36,
+      "amt_k": "总中标金额"
+     },
+     {
+      "t": "武汉大学水风光清洁能源互补运行与控制模拟交叉集成创新支撑中心项目-铅酸 储能 电池公开招标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/zygg/gkzb/202611/t20261125_27754844.htm",
+      "d": "2026-11-25",
+      "buyer": "武汉大学",
+      "kind": "公开招标公告",
+      "amt": 64.0,
+      "amt_k": "预算金额"
+     },
+     {
+      "t": "山东科技大学 储能 学院实验室升级改造项目结果公告（采购包1）",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/zbgg/202611/t20261124_27748442.htm",
+      "d": "2026-11-24",
+      "buyer": "山东科技大学",
+      "kind": "中标公告",
+      "amt": 13.11,
+      "amt_k": "总中标金额"
+     },
+     {
+      "t": "混合 储能 半实物仿真测试平台设备研试制委托开发公开招标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/zygg/gkzb/202611/t20261124_27747875.htm",
+      "d": "2026-12-15",
+      "buyer": "北京交通大学",
+      "kind": "公开招标公告"
+     },
+     {
+      "t": "枣庄职业学院新能源 储能 电化学实验室仪器设备采购项目竞争性磋商公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/jzxcs/202611/t20261123_27739332.htm",
+      "d": "2026-11-23",
+      "buyer": "枣庄职业学院",
+      "kind": "竞争性磋商公告"
+     },
+     {
+      "t": "中国科学院大连化学物理研究所 储能 电池用高通量自动化反应炉平台采购项目公开招标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/zygg/gkzb/202611/t20261123_27736496.htm",
+      "d": "2026-12-15",
+      "buyer": "中国科学院大连化学物理研究所",
+      "kind": "公开招标公告"
+     },
+     {
+      "t": "严寒地区 储能 与氢能创新平台设备采购项目中标(成交)结果公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/zbgg/202611/t20261123_27733637.htm",
+      "d": "2026-11-23",
+      "buyer": "东北电力大学",
+      "kind": "中标(成交)结果公告"
+     }
+    ],
+    "amt_mid": 56.2,
+    "amt_n": 4,
+    "url": "http://search.ccgp.gov.cn/bxsearch?searchtype=1&page_index=1&bidSort=0&buyerName=&projectId=&pinMu=0&bidType=0&dbselect=bidx&kw=%E5%82%A8%E8%83%BD&start_time=2026%3A05%3A30&end_time=2026%3A11%3A26&timeType=6&displayZone=&zoneId=&pppStatus=0&agentName=",
+    "via": "direct",
+    "days": 180,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 773
+     }
+    ],
+    "ms": 4171
+   },
+   "b2b": {
+    "ok": false,
+    "error": "Scrapling 快速：要登录或被拦（login.1688）；Scrapling 浏览器：Scrapling 浏览器打开超时（timeout）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 131,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 425,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 92361,
+      "why": "Scrapling 浏览器打开超时（timeout）"
+     }
+    ],
+    "ms": 92917
+   },
+   "jd": {
+    "ok": false,
+    "error": "Scrapling 快速：页面是空壳（只有 4 个字）；Scrapling 浏览器：要登录或被拦（passport.jd.com）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 283,
+      "why": "页面是空壳（只有 4 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 564,
+      "why": "页面是空壳（只有 4 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 8873,
+      "why": "要登录或被拦（passport.jd.com）"
+     }
+    ],
+    "ms": 9721
+   },
+   "smzdm": {
+    "band": {
+     "n": 8,
+     "min": 450.0,
+     "p25": 612.25,
+     "mid": 665.5,
+     "p75": 1311.0,
+     "max": 2099.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "url": "https://search.smzdm.com/?c=faxian&v=b&s=%E5%82%A8%E8%83%BD",
+    "via": "browser",
+    "ok": true,
+    "trace": [
+     {
+      "m": "Scrapling 浏览器",
+      "ok": true,
+      "ms": 28364
+     }
+    ],
+    "ms": 28365
+   }
+  }
+ },
+ "t:chip": {
+  "target": "t:chip",
+  "kw": "国产替代",
+  "at": 1795701225,
+  "res": {
+   "ccgp": {
+    "total": 6,
+    "win": 1,
+    "items": [
+     {
+      "t": "成都中医药大学虚拟化平台 国产替代 建设项目中标（成交）结果公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/zbgg/202611/t20261123_27737653.htm",
+      "d": "2026-11-23",
+      "buyer": "成都中医药大学",
+      "kind": "中标（成交）结果公告",
+      "amt": 211.56,
+      "amt_k": "总中标金额"
+     },
+     {
+      "t": "成都中医药大学虚拟化平台 国产替代 建设项目招标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/gkzb/202610/t20261029_27586792.htm",
+      "d": "2026-11-20",
+      "buyer": "成都中医药大学",
+      "kind": "公开招标公告",
+      "amt": 215.0,
+      "amt_k": "预算金额"
+     },
+     {
+      "t": "成都高新技术产业开发区电子信息产业局2026年成都高新区电子信息产业“ 国产替代 ”系列专题研究(二次)中标（成交）结果公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/cjgg/202608/t20260826_27208476.htm",
+      "d": "2026-08-26",
+      "buyer": "成都高新技术产业开发区电子信息产业局",
+      "kind": "中标（成交）结果公告",
+      "amt": 170.0,
+      "amt_k": "成交金额"
+     },
+     {
+      "t": "成都高新技术产业开发区电子信息产业局2026年成都高新区电子信息产业“ 国产替代 ”系列专题研究(二次)竞争性磋商公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/jzxcs/202608/t20260812_27120692.htm",
+      "d": "2026-08-26",
+      "buyer": "成都高新技术产业开发区电子信息产业局",
+      "kind": "竞争性磋商公告",
+      "amt": 175.0,
+      "amt_k": "预算金额"
+     },
+     {
+      "t": "成都高新技术产业开发区电子信息产业局2026年成都高新区电子信息产业“ 国产替代 ”系列专题研究结果公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/qtgg/202608/t20260807_27092507.htm",
+      "d": "2026-08-07",
+      "buyer": "成都高新技术产业开发区电子信息产业局",
+      "kind": ""
+     },
+     {
+      "t": "成都高新技术产业开发区电子信息产业局2026年成都高新区电子信息产业“ 国产替代 ”系列专题研究竞争性磋商公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/jzxcs/202607/t20260724_27003759.htm",
+      "d": "2026-08-07",
+      "buyer": "成都高新技术产业开发区电子信息产业局",
+      "kind": "竞争性磋商公告"
+     }
+    ],
+    "amt_mid": 193.3,
+    "amt_n": 4,
+    "url": "http://search.ccgp.gov.cn/bxsearch?searchtype=1&page_index=1&bidSort=0&buyerName=&projectId=&pinMu=0&bidType=0&dbselect=bidx&kw=%E5%9B%BD%E4%BA%A7%E6%9B%BF%E4%BB%A3&start_time=2026%3A05%3A30&end_time=2026%3A11%3A26&timeType=6&displayZone=&zoneId=&pppStatus=0&agentName=",
+    "via": "direct",
+    "days": 180,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 680
+     }
+    ],
+    "ms": 4225
+   },
+   "b2b": {
+    "ok": false,
+    "error": "Scrapling 快速：要登录或被拦（login.1688）；Scrapling 浏览器：Scrapling 浏览器打开超时（timeout）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 127,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 393,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 90400,
+      "why": "Scrapling 浏览器打开超时（timeout）"
+     }
+    ],
+    "ms": 90921
+   },
+   "jd": {
+    "ok": false,
+    "error": "Scrapling 快速：页面是空壳（只有 4 个字）；Scrapling 浏览器：要登录或被拦（passport.jd.com）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 357,
+      "why": "页面是空壳（只有 4 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 588,
+      "why": "页面是空壳（只有 4 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 8917,
+      "why": "要登录或被拦（passport.jd.com）"
+     }
+    ],
+    "ms": 9863
+   },
+   "smzdm": {
+    "ok": false,
+    "error": "普通方式：页面是空壳（只有 0 个字）；Scrapling 快速：页面是空壳（只有 0 个字）",
+    "trace": [
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 29819,
+      "why": "没认出商品 / 公告列表"
+     },
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 121,
+      "why": "页面是空壳（只有 0 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 454,
+      "why": "页面是空壳（只有 0 个字）"
+     }
+    ],
+    "ms": 30394
+   }
+  }
+ },
+ "t:biotech": {
+  "target": "t:biotech",
+  "kw": "创新药",
+  "at": 1795701348,
+  "res": {
+   "ccgp": {
+    "total": 12,
+    "win": 0,
+    "items": [
+     {
+      "t": "云南中医药大学基于腴清方治疗肥胖型2型糖尿病的中药 创新药 研究服务项目单一来源采购的公示",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/dylygg/202611/t20261124_27740306.htm",
+      "d": "2026-11-24",
+      "buyer": "云南中医药大学项目名称：云南中医药大学基于腴清方治疗肥胖型2型糖尿病的中药创新药",
+      "kind": "单一来源公告",
+      "amt": 75.0,
+      "amt_k": "预算金额"
+     },
+     {
+      "t": "云南中医药大学基于腴清方治疗肥胖型2型糖尿病的中药 创新药 研究项目（三次）成交结果公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/cjgg/202610/t20261021_27535084.htm",
+      "d": "2026-10-21",
+      "buyer": "云南中医药大学",
+      "kind": "成交结果公告",
+      "amt": 125.0,
+      "amt_k": "成交金额"
+     },
+     {
+      "t": "苏州市医疗保障局关于2026年度全国 创新药 高质量发展大会活动策划执行和会务服务项目的成交公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/cjgg/202610/t20261013_27482052.htm",
+      "d": "2026-10-13",
+      "buyer": "苏州市医疗保障局",
+      "kind": "成交公告",
+      "amt": 197.12,
+      "amt_k": "成交金额"
+     },
+     {
+      "t": "云南中医药大学基于腴清方治疗肥胖型2型糖尿病的中药 创新药 研究项目（三次）竞争性磋商公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/jzxcs/202610/t20261009_27449587.htm",
+      "d": "2026-10-09",
+      "buyer": "云南中医药大学",
+      "kind": "竞争性磋商公告",
+      "amt": 130.0,
+      "amt_k": "预算金额"
+     },
+     {
+      "t": "云南中医药大学基于腴清方治疗肥胖型2型糖尿病的中药 创新药 研究项目（二次）终止公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/fblbgg/202609/t20260930_27431707.htm",
+      "d": "2026-09-30",
+      "buyer": "云南中医药大学",
+      "kind": "终止公告"
+     },
+     {
+      "t": "苏州市医疗保障局关于2026年度全国 创新药 高质量发展大会活动策划执行和会务服务项目的更正公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/gzgg/202609/t20260930_27425012.htm",
+      "d": "2026-09-29",
+      "buyer": "苏州市医疗保障局",
+      "kind": "更正公告"
+     },
+     {
+      "t": "苏州市医疗保障局关于2026年度全国 创新药 高质量发展大会活动策划执行和会务服务项目的采购公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/jzxcs/202609/t20260929_27420180.htm",
+      "d": "2026-10-13",
+      "buyer": "苏州市医疗保障局",
+      "kind": "竞争性磋商公告"
+     },
+     {
+      "t": "云南中医药大学基于腴清方治疗肥胖型2型糖尿病的中药 创新药 研究项目（二次）竞争性磋商公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/jzxcs/202609/t20260916_27338492.htm",
+      "d": "2026-09-16",
+      "buyer": "云南中医药大学",
+      "kind": "竞争性磋商公告"
+     }
+    ],
+    "amt_mid": 127.5,
+    "amt_n": 4,
+    "url": "http://search.ccgp.gov.cn/bxsearch?searchtype=1&page_index=1&bidSort=0&buyerName=&projectId=&pinMu=0&bidType=0&dbselect=bidx&kw=%E5%88%9B%E6%96%B0%E8%8D%AF&start_time=2026%3A05%3A30&end_time=2026%3A11%3A26&timeType=6&displayZone=&zoneId=&pppStatus=0&agentName=",
+    "via": "direct",
+    "days": 180,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 683
+     }
+    ],
+    "ms": 4626
+   },
+   "b2b": {
+    "ok": false,
+    "error": "Scrapling 快速：要登录或被拦（login.1688）；Scrapling 浏览器：Scrapling 浏览器打开超时（timeout）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 164,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 394,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 90390,
+      "why": "Scrapling 浏览器打开超时（timeout）"
+     }
+    ],
+    "ms": 90949
+   },
+   "jd": {
+    "ok": false,
+    "error": "Scrapling 快速：页面是空壳（只有 4 个字）；Scrapling 浏览器：要登录或被拦（passport.jd.com）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 295,
+      "why": "页面是空壳（只有 4 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 640,
+      "why": "页面是空壳（只有 4 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 8979,
+      "why": "要登录或被拦（passport.jd.com）"
+     }
+    ],
+    "ms": 9916
+   },
+   "smzdm": {
+    "ok": false,
+    "error": "普通方式：页面是空壳（只有 0 个字）；Scrapling 快速：页面是空壳（只有 0 个字）",
+    "trace": [
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 12662,
+      "why": "没认出商品 / 公告列表"
+     },
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 108,
+      "why": "页面是空壳（只有 0 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 434,
+      "why": "页面是空壳（只有 0 个字）"
+     }
+    ],
+    "ms": 13205
+   }
+  }
+ },
+ "t:silver": {
+  "target": "t:silver",
+  "kw": "养老",
+  "at": 1795701470,
+  "res": {
+   "ccgp": {
+    "total": 4887,
+    "win": 1031,
+    "items": [
+     {
+      "t": "寿阳县人民医院竞争性磋商西洛镇区域 养老 服务中心工程项目的竞争性磋商公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/jzxcs/202611/t20261126_27765765.htm",
+      "d": "2026-12-07",
+      "buyer": "寿阳县人民医院",
+      "kind": "竞争性磋商公告",
+      "amt": 120.53,
+      "amt_k": "预算金额"
+     },
+     {
+      "t": "伊春市民政局公办 养老 机构护理型床位购置(二次)采购更正公告（第一次）",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/gzgg/202611/t20261126_27765701.htm",
+      "d": "2026-11-22",
+      "buyer": "伊春市民政局",
+      "kind": "更正公告"
+     },
+     {
+      "t": "左云县民政和人力资源社会保障局（左云县医疗保障局）竞争性磋商左云县政府购买社区居家 养老 服务采购项目的竞争性磋商公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/jzxcs/202611/t20261126_27765349.htm",
+      "d": "2026-12-07",
+      "buyer": "左云县民政和人力资源社会保障局（左云县医疗保障局）",
+      "kind": "竞争性磋商公告",
+      "amt": 72.0,
+      "amt_k": "预算金额"
+     },
+     {
+      "t": "宁波正洋工程管理有限公司关于余姚市姚东区域 养老 服务中心建设项目设计服务的竞争性磋商公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/jzxcs/202611/t20261126_27765250.htm",
+      "d": "2026-12-07",
+      "buyer": "余姚市老龄事业发展促进中心",
+      "kind": "竞争性磋商公告",
+      "amt": 95.53,
+      "amt_k": "预算金额"
+     },
+     {
+      "t": "2027年度广州市番禺区石楼镇居家 养老 服务项目招标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/gkzb/202611/t20261126_27764585.htm",
+      "d": "2026-12-17",
+      "buyer": "广州市番禺区石楼镇人民政府",
+      "kind": "公开招标公告"
+     },
+     {
+      "t": "桐城市公建民营 养老 机构电动护理床及附带相关设备采购项目（三次）成交结果公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/cjgg/202611/t20261126_27764577.htm",
+      "d": "2026-11-26",
+      "buyer": "桐城市民政局",
+      "kind": "成交结果公告"
+     },
+     {
+      "t": "武汉市新洲区道观河风景旅游区管理处武汉市新洲区道观河 养老 服务综合体建设项目竞争性磋商公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/jzxcs/202611/t20261126_27764511.htm",
+      "d": "2026-11-26",
+      "buyer": "武汉市新洲区道观河风景旅游区管理处",
+      "kind": "竞争性磋商公告"
+     },
+     {
+      "t": "2027年丁蜀镇画溪社区居家 养老 服务中心运营及助餐项目采购公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/gkzb/202611/t20261126_27764216.htm",
+      "d": "2026-12-21",
+      "buyer": "宜兴市丁蜀镇人民政府",
+      "kind": "公开招标公告"
+     }
+    ],
+    "amt_mid": 95.5,
+    "amt_n": 3,
+    "url": "http://search.ccgp.gov.cn/bxsearch?searchtype=1&page_index=1&bidSort=0&buyerName=&projectId=&pinMu=0&bidType=0&dbselect=bidx&kw=%E5%85%BB%E8%80%81&start_time=2026%3A05%3A30&end_time=2026%3A11%3A26&timeType=6&displayZone=&zoneId=&pppStatus=0&agentName=",
+    "via": "direct",
+    "days": 180,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 767
+     }
+    ],
+    "ms": 4454
+   },
+   "zbj": {
+    "band": {
+     "n": 105,
+     "min": 40.0,
+     "p25": 250.5,
+     "mid": 1200.0,
+     "p75": 3588.0,
+     "max": 300000.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "url": "https://www.zbj.com/fw/?k=%E5%85%BB%E8%80%81",
+    "via": "fast",
+    "ok": true,
+    "trace": [
+     {
+      "m": "Scrapling 快速",
+      "ok": true,
+      "ms": 1028
+     }
+    ],
+    "ms": 1032
+   },
+   "b2b": {
+    "ok": false,
+    "error": "Scrapling 快速：要登录或被拦（login.1688）；Scrapling 浏览器：Scrapling 浏览器打开超时（timeout）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 121,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 473,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 90442,
+      "why": "Scrapling 浏览器打开超时（timeout）"
+     }
+    ],
+    "ms": 91038
+   },
+   "jd": {
+    "ok": false,
+    "error": "Scrapling 快速：页面是空壳（只有 4 个字）；Scrapling 浏览器：要登录或被拦（passport.jd.com）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 317,
+      "why": "页面是空壳（只有 4 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 585,
+      "why": "页面是空壳（只有 4 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 9693,
+      "why": "要登录或被拦（passport.jd.com）"
+     }
+    ],
+    "ms": 10597
+   },
+   "smzdm": {
+    "band": {
+     "n": 4,
+     "min": 43.8,
+     "p25": 47.82,
+     "mid": 59.9,
+     "p75": 59.9,
+     "max": 59.9
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "url": "https://search.smzdm.com/?c=faxian&v=b&s=%E5%85%BB%E8%80%81",
+    "via": "browser",
+    "ok": true,
+    "trace": [
+     {
+      "m": "Scrapling 浏览器",
+      "ok": true,
+      "ms": 10384
+     }
+    ],
+    "ms": 10386
+   }
+  }
+ },
+ "t:pet": {
+  "target": "t:pet",
+  "kw": "宠物",
+  "at": 1795701510,
+  "res": {
+   "ccgp": {
+    "total": 82,
+    "win": 18,
+    "items": [
+     {
+      "t": "榆林职业技术学院采购农学院 宠物 医院改建教学设备货物项目竞争性谈判公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/jzxtpgg/202611/t20261126_27762423.htm",
+      "d": "2026-12-02",
+      "buyer": "榆林职业技术学院",
+      "kind": "竞争性谈判公告",
+      "amt": 36.98,
+      "amt_k": "预算金额"
+     },
+     {
+      "t": "山东畜牧兽医职业学院2026年 宠物 养护与驯导专业群课程资源建设项目结果公告（采购包1）",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/zbgg/202611/t20261123_27739379.htm",
+      "d": "2026-11-23",
+      "buyer": "山东畜牧兽医职业学院",
+      "kind": "中标公告",
+      "amt": 41.8,
+      "amt_k": "总中标金额"
+     },
+     {
+      "t": "临沂市 宠物 别墅用品项目涉及付庄八线、付庄六线35#-39#杆电力迁改项目（二次）竞争性磋商公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/jzxcs/202611/t20261118_27711768.htm",
+      "d": "2026-11-30",
+      "buyer": "临沂市罗庄区罗庄街道办事处机关",
+      "kind": "竞争性磋商公告",
+      "amt": 370000.0,
+      "amt_k": "预算金额"
+     },
+     {
+      "t": "临沂市 宠物 别墅用品项目涉及付庄八线、付庄六线35#-39#杆电力迁改项目其他电力系统安装(废标公告)",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/qtgg/202611/t20261117_27703243.htm",
+      "d": "2026-11-17",
+      "buyer": "临沂市罗庄区罗庄街道办事处",
+      "kind": "废标公告"
+     },
+     {
+      "t": "广西金证招标代理有限公司关于 宠物 医疗技术专业实训室教学设备购置项目的竞争性谈判公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/jzxtpgg/202611/t20261117_27697778.htm",
+      "d": "2026-11-24",
+      "buyer": "广西农业工程职业技术学院",
+      "kind": "竞争性谈判公告"
+     },
+     {
+      "t": "邯郸科技职业学院 宠物 医疗技术专业实训室建设项目(三次)中标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/zbgg/202611/t20261116_27690854.htm",
+      "d": "2026-11-16",
+      "buyer": "邯郸科技职业学院",
+      "kind": "中标公告"
+     },
+     {
+      "t": "宠物 医疗实训中心设备(CQS26A01691)中标（成交）结果公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/zbgg/202611/t20261114_27685218.htm",
+      "d": "2026-10-23",
+      "buyer": "重庆农业职业学院",
+      "kind": "中标（成交）结果公告"
+     },
+     {
+      "t": "敦化市职业教育中心 宠物 实训基地建设项目中标(成交)结果公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/zbgg/202611/t20261112_27667134.htm",
+      "d": "2026-11-12",
+      "buyer": "敦化市职业教育中心（敦化技师学院、敦化开放大学）",
+      "kind": "中标(成交)结果公告"
+     }
+    ],
+    "amt_mid": 41.8,
+    "amt_n": 3,
+    "url": "http://search.ccgp.gov.cn/bxsearch?searchtype=1&page_index=1&bidSort=0&buyerName=&projectId=&pinMu=0&bidType=0&dbselect=bidx&kw=%E5%AE%A0%E7%89%A9&start_time=2026%3A05%3A30&end_time=2026%3A11%3A26&timeType=6&displayZone=&zoneId=&pppStatus=0&agentName=",
+    "via": "direct",
+    "days": 180,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 966
+     }
+    ],
+    "ms": 4682
+   },
+   "b2b": {
+    "ok": false,
+    "error": "Scrapling 快速：要登录或被拦（login.1688）；Scrapling 浏览器：要登录或被拦（captcha）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 160,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 419,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 9465,
+      "why": "要登录或被拦（captcha）"
+     }
+    ],
+    "ms": 10045
+   },
+   "jd": {
+    "ok": false,
+    "error": "Scrapling 快速：页面是空壳（只有 4 个字）；Scrapling 浏览器：要登录或被拦（passport.jd.com）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 557,
+      "why": "页面是空壳（只有 4 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 587,
+      "why": "页面是空壳（只有 4 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 9185,
+      "why": "要登录或被拦（passport.jd.com）"
+     }
+    ],
+    "ms": 10330
+   },
+   "smzdm": {
+    "band": {
+     "n": 10,
+     "min": 2.55,
+     "p25": 5.65,
+     "mid": 9.9,
+     "p75": 29.4,
+     "max": 239.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "url": "https://search.smzdm.com/?c=faxian&v=b&s=%E5%AE%A0%E7%89%A9",
+    "via": "browser",
+    "ok": true,
+    "trace": [
+     {
+      "m": "Scrapling 浏览器",
+      "ok": true,
+      "ms": 10374
+     }
+    ],
+    "ms": 10376
+   }
+  }
  }
 }

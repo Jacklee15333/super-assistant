@@ -1,36 +1,37 @@
 {
  "ccgp": {
   "pref": "direct",
-  "at": 1795698983,
-  "n_ok": 2,
-  "last_ok": 1795698983,
+  "at": 1795701514,
+  "n_ok": 13,
+  "last_ok": 1795701514,
   "via": "普通方式",
   "err": ""
  },
  "zbj": {
   "pref": "fast",
-  "at": 1795698459,
-  "n_ok": 1,
-  "last_ok": 1795698459,
+  "at": 1795701354,
+  "n_ok": 2,
+  "last_ok": 1795701354,
   "via": "Scrapling 快速",
   "err": ""
  },
  "b2b": {
-  "at": 1795699096,
-  "n_bad": 1,
-  "err": "Scrapling 快速：要登录或被拦（login.1688）；Scrapling 浏览器：Scrapling 浏览器打开超时（timeout）"
+  "at": 1795701486,
+  "n_bad": 11,
+  "err": "Scrapling 快速：要登录或被拦（login.1688）；Scrapling 浏览器：要登录或被拦（captcha）"
  },
  "jd": {
-  "at": 1795699120,
-  "n_bad": 1,
+  "at": 1795701497,
+  "n_bad": 11,
   "err": "Scrapling 快速：页面是空壳（只有 4 个字）；Scrapling 浏览器：要登录或被拦（passport.jd.com）"
  },
  "smzdm": {
   "pref": "browser",
-  "at": 1795699132,
-  "n_ok": 1,
-  "last_ok": 1795699132,
+  "at": 1795701509,
+  "n_ok": 5,
+  "last_ok": 1795701509,
   "via": "Scrapling 浏览器",
-  "err": ""
+  "err": "",
+  "n_bad": 6
  }
 }

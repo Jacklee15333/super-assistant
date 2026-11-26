@@ -53,6 +53,8 @@ SOURCES = [
      "how": "自动，每季度发布", "url": NBS_LIST},
     {"key": "listed", "name": "东方财富·上市公司业绩报表", "what": "规模、增长、利润：每个行业 A 股公司的营收、净利润、毛利率（头部玩家的盘子）",
      "how": "自动，每季财报后更新", "url": "https://data.eastmoney.com/bbsj/yjbb.html"},
+    {"key": "concept", "name": "东方财富·概念板块", "what": "新兴赛道（AI、低空经济、宠物经济…）的相关上市公司：板块里的公司财报加起来",
+     "how": "自动，跟着上市公司业绩一起更新", "url": "https://quote.eastmoney.com/center/boardlist.html#concept_board"},
     {"key": "ecom", "name": "电商平台（淘宝天猫、京东、拼多多、抖音电商）", "what": "交易和购买力：卖了多少、什么价位卖得动",
      "how": "AI 核实时查平台和数据机构公开的数据（原始数据要登录，不直接抓）", "url": ""},
     {"key": "trade", "name": "交易 / 接单平台（1688、猪八戒、一品威客）", "what": "服务和批发的报价、有没有人下单",
@@ -481,19 +483,28 @@ def _f(v):
 _DIAG = {}
 
 
-def aggregate(rows):
-    """一期财报 → 每个二级行业（和一级行业）的合计：家数、营收、上年营收、净利润、上年净利润、毛利率中位数、营收前五。"""
+def aggregate(rows, groups=None):
+    """一期财报 → 每个二级行业（和一级行业）的合计：家数、营收、上年营收、净利润、上年净利润、毛利率中位数、营收前五。
+    v194：传了 groups（股票代码 → [新兴赛道编号…]）就按它分组——新兴赛道用东方财富概念板块的成分股。"""
     if not rows:
         return {}, ""
     rows = [r for r in rows if is_a_share(r)]
-    ik = _ind_key(rows)
-    _DIAG.clear()
+    ik = _ind_key(rows) if groups is None else ""
+    if groups is None:
+        _DIAG.clear()
     miss = {}
     yk = _pick_key(rows, ["YSTZ", "TOTAL_OPERATE_INCOME_YOY"])
     pk = _pick_key(rows, ["SJLTZ", "PARENT_NETPROFIT_YOY"])
     agg = {}
     for r in rows:
-        gid = sw_id(r.get(ik), fuzzy=True)
+        if groups is not None:
+            gs = groups.get(str(r.get("SECURITY_CODE") or "")[:6]) or []
+            gid = "x" if gs else ""
+            if not gs:
+                continue
+        else:
+            gid = sw_id(r.get(ik), fuzzy=True)
+            gs = [gid, gid.split("/")[0]] if gid else []
         rev, npf = _f(r.get("TOTAL_OPERATE_INCOME")), _f(r.get("PARENT_NETPROFIT"))
         if not gid:
             nm_ = str(r.get(ik) or "（空）")
@@ -503,7 +514,7 @@ def aggregate(rows):
             continue
         ry, py, gm = _f(r.get(yk)), _f(r.get(pk)), _f(r.get("XSMLL"))
         name = r.get("SECURITY_NAME_ABBR") or r.get("SECURITY_CODE") or ""
-        for g in {gid, gid.split("/")[0]}:
+        for g in set(gs):
             a = agg.setdefault(g, {"n": 0, "rev": 0.0, "rev0": 0.0, "rev_b": 0.0, "np": 0.0, "np0": 0.0, "np_b": 0.0, "gm": [], "top": []})
             a["n"] += 1
             a["rev"] += rev
@@ -517,7 +528,8 @@ def aggregate(rows):
             if gm is not None and -100 < gm < 100:
                 a["gm"].append(gm)
             a["top"].append((rev, name, npf))
-    _DIAG.update(key=ik, rows=len(rows), mapped=len(rows) - sum(miss.values()), miss=sorted(miss.items(), key=lambda x: -x[1])[:12])
+    if groups is None:
+        _DIAG.update(key=ik, rows=len(rows), mapped=len(rows) - sum(miss.values()), miss=sorted(miss.items(), key=lambda x: -x[1])[:12])
     out = {}
     for g, a in agg.items():
         top = sorted(a["top"], key=lambda x: -x[0])[:6]
@@ -528,6 +540,93 @@ def aggregate(rows):
                   "gm": round(statistics.median(a["gm"]), 1) if len(a["gm"]) >= 2 else (round(a["gm"][0], 1) if a["gm"] else None),
                   "top": [[nm, round(rv / 1e8, 1), round((p or 0) / 1e8, 1)] for rv, nm, p in top]}
     return out, ik
+
+
+# ───────────────────────── v194：新兴赛道 ← 东方财富概念板块 ─────────────────────────
+# 新兴赛道（AI、低空经济、宠物经济…）在申万分类里没有自己的行业，所以拿东方财富的概念板块：板块里有哪些公司，就把这些公司的财报加起来。
+# 注意：概念股不一定全靠这一块赚钱（比如做 AI 的大公司，大部分营收可能来自别的业务），界面上写明「相关上市公司」。
+TRACK_BOARDS = {
+    "t:ai": ["人工智能", "AIGC概念", "AI智能体"], "t:compute": ["算力概念", "东数西算", "液冷概念"],
+    "t:robot": ["人形机器人", "具身智能"], "t:autodrive": ["无人驾驶", "汽车智能化"], "t:ev": ["新能源车"],
+    "t:lowalt": ["低空经济", "飞行汽车"], "t:space": ["商业航天", "卫星互联网", "卫星导航"],
+    "t:energy": ["储能", "光伏概念", "氢能源", "风能"], "t:chip": ["国产芯片", "半导体概念", "信创"],
+    "t:biotech": ["创新药", "减肥药"], "t:silver": ["银发经济", "养老概念"], "t:pet": ["宠物经济"],
+    "t:newcons": ["谷子经济", "IP经济", "新零售"], "t:discount": ["零售", "量贩零食", "新零售"], "t:tea": ["新茶饮", "咖啡", "食品概念"],
+    "t:livecom": ["直播电商", "网红经济"], "t:crossborder": ["跨境电商"], "t:creator": ["短剧互动游戏", "网红经济", "文化传媒"],
+    "t:edu": ["在线教育", "职业教育", "教育"], "t:local": ["外卖", "社区团购", "即时零售", "新零售"], "t:data": ["数据要素", "信创", "数据确权"],
+    "t:future": ["量子技术", "可控核聚变", "脑机接口", "合成生物"],
+}
+PUSH2 = ["https://push2.eastmoney.com", "https://79.push2.eastmoney.com", "https://17.push2.eastmoney.com", "https://29.push2.eastmoney.com"]
+
+
+def _push2_all(fs, fields="f12,f14"):
+    """东方财富行情列表（分页拿全）→ [{f12: 代码, f14: 名字}, …]。几个服务器轮着试。"""
+    import random
+    last = None
+    for host in PUSH2:
+        out, pn, total = [], 1, None
+        try:
+            while True:
+                q = {"pn": str(pn), "pz": "100", "po": "1", "np": "1", "ut": "bd1d9ddb04089700cf9c27f6f7426281", "fltt": "2",
+                     "invt": "2", "fid": "f12", "fs": fs, "fields": fields}
+                j = json.loads(_get(host + "/api/qt/clist/get?" + urllib.parse.urlencode(q), timeout=20))
+                d = (j or {}).get("data") or {}
+                diff = d.get("diff") or []
+                if isinstance(diff, dict):
+                    diff = list(diff.values())
+                total = int(d.get("total") or 0)
+                out += diff
+                if not diff or len(out) >= total or pn >= 60:
+                    return out
+                pn += 1
+                time.sleep(random.uniform(0.5, 1.2))
+        except Exception as e:
+            last = e
+    raise RuntimeError("东方财富概念板块打不开：%s" % str(last)[:80])
+
+
+def match_boards(boards, tid):
+    """新兴赛道 → 用哪几个概念板块：先找名字一样的，再找名字里含着的。"""
+    names = {b.get("f14", ""): b.get("f12", "") for b in boards if b.get("f14")}
+    got = []
+    for c in TRACK_BOARDS.get(tid, []):
+        if c in names:
+            got.append((c, names[c]))
+        else:
+            hit = [(n, code) for n, code in names.items() if c in n and len(n) <= len(c) + 8]
+            if hit:
+                got.append(sorted(hit, key=lambda x: len(x[0]))[0])
+    return list(dict.fromkeys(got))[:3]
+
+
+def update_tracks(data, a_rows, q_rows):
+    """新兴赛道的上市公司数字：概念板块成分股 × 财报。失败不影响别的。"""
+    st = data.setdefault("st", {}).setdefault("concept", {})
+    _upd["stage"] = "东方财富：读概念板块（新兴赛道）…"
+    boards = _push2_all("m:90 t:3 f:!50")
+    groups, used = {}, {}
+    for tid in TRACK_BOARDS:
+        bs = match_boards(boards, tid)
+        used[tid] = [n for n, _c in bs]
+        for name, code in bs:
+            _upd["stage"] = "东方财富：读「%s」板块的公司…" % name
+            try:
+                for x in _push2_all("b:%s f:!50" % code):
+                    c = str(x.get("f12") or "")[:6]
+                    if c:
+                        groups.setdefault(c, set()).add(tid)
+            except Exception as e:
+                _log("概念板块「%s」没读到：%s" % (name, str(e)[:60]))
+            time.sleep(0.6)
+    groups = {c: list(v) for c, v in groups.items()}
+    ta, _ = aggregate(a_rows, groups)
+    tq, _ = aggregate(q_rows, groups) if q_rows else ({}, "")
+    for tid in ta:
+        ta[tid]["boards"] = used.get(tid, [])
+    st.update(ok=True, err="", at=int(time.time()), n=len(ta), period="%d 个概念板块" % len(boards),
+              n_trk=len(ta), miss=[t for t in TRACK_BOARDS if not used.get(t)])
+    _log("东方财富概念板块：%d 个板块，%d 个新兴赛道对上了" % (len(boards), len(ta)))
+    return ta, tq
 
 
 def update_listed(data):
@@ -551,7 +650,7 @@ def update_listed(data):
         st.update(ok=False, err="没找到报完的年报", at=int(time.time()))
         return
     if (data.get("listed") or {}).get("annual") == annual and data["listed"].get("latest") == latest and st.get("ok") \
-            and data["listed"].get("v") == 3 \
+            and data["listed"].get("v") == 4 \
             and time.time() - st.get("full_at", 0) < 7 * 86400:
         st["at"] = int(time.time())
         return
@@ -559,15 +658,23 @@ def update_listed(data):
     a_rows = [r for r in fetch_period(annual) if is_a_share(r)]
     a_agg, ik = aggregate(a_rows)
     diag = dict(_DIAG)
-    q_agg = {}
+    q_agg, q_rows = {}, []
     if latest != annual:
         _upd["stage"] = "东方财富：读 %s…" % period_name(latest)
-        q_agg, _ = aggregate(fetch_period(latest))
+        q_rows = fetch_period(latest)
+        q_agg, _ = aggregate(q_rows)
+    try:                                                # v194：新兴赛道
+        ta, tq = update_tracks(data, a_rows, q_rows)
+        a_agg.update(ta)
+        q_agg.update(tq)
+    except Exception as e:
+        data.setdefault("st", {}).setdefault("concept", {}).update(ok=False, err=str(e)[:120], at=int(time.time()))
+        _log("新兴赛道没取到：%s" % str(e)[:100])
     if not a_agg:
         st.update(ok=False, err="读到了 %d 家，但没认出所处行业（字段 %s）" % (len(a_rows), ik), at=int(time.time()))
         return
     data["listed"] = {"annual": annual, "latest": latest, "annual_name": period_name(annual), "latest_name": period_name(latest),
-                      "companies": len(a_rows), "a": a_agg, "q": q_agg, "v": 3, "diag": diag}   # v3：只算 A 股、行业名完全对上
+                      "companies": len(a_rows), "a": a_agg, "q": q_agg, "v": 4, "diag": diag}   # v3：只算 A 股、行业名完全对上；v4：新兴赛道（概念板块）
     st.update(ok=True, err="", at=int(time.time()), full_at=int(time.time()), n=len(a_rows),
               period=period_name(annual) + ("、" + period_name(latest) if latest != annual else ""),
               mapped=diag.get("mapped", 0), n_ind=len([g for g in a_agg if "/" in g]), field=ik,
@@ -579,7 +686,8 @@ def update_listed(data):
 
 
 # ───────────────────────── 更新 ─────────────────────────
-SRC_SHORT = {"retail": "统计局·社会消费品零售", "ind": "统计局·工业企业利润", "income": "统计局·居民收入和消费支出", "listed": "东方财富·上市公司业绩"}
+SRC_SHORT = {"retail": "统计局·社会消费品零售", "ind": "统计局·工业企业利润", "income": "统计局·居民收入和消费支出", "listed": "东方财富·上市公司业绩",
+             "concept": "东方财富·概念板块（新兴赛道）"}
 
 
 def _do_update(force):
@@ -603,7 +711,7 @@ def _do_update(force):
         if a.get("ok"):
             n_ok += 1
             new = a.get("period") != b.get("period") or a.get("n") != b.get("n") or not b.get("ok")
-            unit = " 家公司" if k == "listed" else " 项"
+            unit = " 家公司" if k == "listed" else " 个新兴赛道对上了" if k == "concept" else " 项"
             s = "%s：%s，%s%s" % (nm, a.get("period", ""), a.get("n", ""), unit)
             if k == "listed" and a.get("n_ind"):
                 s += "，归到 %d 个二级行业（认出行业的 %s 家）" % (a["n_ind"], a.get("mapped", "?"))
@@ -632,7 +740,7 @@ def start_update(force=False):
 
 def maybe_update():
     d = _data()
-    if not _upd["running"] and (time.time() - d.get("updated", 0) > STALE_S or (d.get("listed") and d["listed"].get("v") != 3)):
+    if not _upd["running"] and (time.time() - d.get("updated", 0) > STALE_S or (d.get("listed") and d["listed"].get("v") != 4)):
         start_update()
 
 
@@ -711,7 +819,7 @@ def overview():
     for s in SOURCES:
         x = dict(s)
         x.update(st.get(s["key"]) or {})
-        x["auto"] = s["key"] in ("retail", "ind", "income", "listed")
+        x["auto"] = s["key"] in ("retail", "ind", "income", "listed", "concept")
         srcs.append(x)
     try:
         import biz_trade as BT
