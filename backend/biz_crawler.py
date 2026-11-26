@@ -241,7 +241,7 @@ def save_config(auto=None, every=None, workers=None, sc_fast=None, sc_browser=No
     if auto is not None:
         c["auto"] = bool(auto)
     if every is not None:
-        c["every"] = max(5, min(int(every), 24 * 60))           # v159：最短 5 分钟
+        c["every"] = max(1, min(int(every), 24 * 60))           # v159：最短 5 分钟；v167：1 ＝「实时」，一轮抓完马上接着下一轮
     if (c["auto"], c["every"]) != old:
         c["sched_from"] = int(time.time())                     # v159：改了自动更新，从保存这一刻重新开始计时
         _wake.set()
@@ -913,6 +913,11 @@ def list_sources():
             "config": get_config(), "status": status()}
 
 
+def _looks_url(t):
+    t = (t or "").strip()
+    return bool(re.match(r"^https?://\S+$", t, re.I) or re.match(r"^[\w-]+(\.[\w-]+)+(/\S*)?$", t) and " " not in t)
+
+
 def source_action(body):
     body = body or {}
     act = body.get("action", "")
@@ -941,10 +946,37 @@ def source_action(body):
                 host = urllib.parse.urlsplit(url).netloc.lower()
                 s = {"id": "u" + hashlib.md5(url.encode("utf-8")).hexdigest()[:8], "kind": "site", "url": url,
                      "name": str(body.get("name") or "").strip()[:30] or (host[4:] if host.startswith("www.") else host)}
-            s.update(group="mine", hint=hint, desc="", enabled=True, added=int(time.time()))
+            grp = body.get("group") if body.get("group") in GROUP_NAME else "mine"     # v167：可以放进指定的分类
+            s.update(group=grp, hint=hint, desc="", enabled=True, added=int(time.time()))
             srcs.insert(0, s)
             _save_sources()
-            return {"ok": True, "id": s["id"]}
+            return {"ok": True, "id": s["id"], "kind": s["kind"], "name": s["name"]}
+        if act == "add_batch":                       # v167：一次加好多个，每行一个网址或关键词
+            lines = [x.strip() for x in re.split(r"[\r\n]+", str(body.get("text") or "")) if x.strip()][:200]
+            grp = body.get("group") if body.get("group") in GROUP_NAME else "mine"
+            added, bad = [], []
+            for ln in lines:
+                if _looks_url(ln):
+                    r = None
+                    url = ln if re.match(r"^https?://", ln, re.I) else "https://" + ln
+                    if any((x.get("url") or "").rstrip("/").lower() == url.rstrip("/").lower() for x in srcs):
+                        bad.append([ln, "已经在清单里了"]); continue
+                    host = urllib.parse.urlsplit(url).netloc.lower()
+                    ns = {"id": "u" + hashlib.md5(url.encode("utf-8")).hexdigest()[:8], "kind": "site", "url": url,
+                          "name": (host[4:] if host.startswith("www.") else host)[:30]}
+                else:
+                    kw = re.sub(r"\s+", " ", ln).strip()[:30]
+                    if len(kw) < 2:
+                        bad.append([ln, "关键词至少两个字"]); continue
+                    if any((x.get("kw") or "").lower() == kw.lower() for x in srcs):
+                        bad.append([ln, "已经在清单里了"]); continue
+                    ns = {"id": "k" + hashlib.md5(kw.encode("utf-8")).hexdigest()[:8], "kind": "kw", "kw": kw, "name": kw}
+                ns.update(group=grp, hint=[], desc="", enabled=True, added=int(time.time()))
+                srcs.insert(0, ns)
+                added.append(ns["name"])
+            if added:
+                _save_sources()
+            return {"ok": True, "added": len(added), "names": added[:20], "bad": bad[:50]}
         if act == "add_catalog":
             ids = [i for i in (body.get("ids") or []) if i in _CAT_BY_ID]
             have = {s["id"] for s in srcs}
