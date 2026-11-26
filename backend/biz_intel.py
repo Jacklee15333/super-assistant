@@ -383,6 +383,21 @@ def _signal(src, key, title, summary, who, url, ts, extra=None, hints=None, hint
     return r
 
 
+def classify_radar(title, summary, hints=None, grp=""):
+    """v178：给爬虫用——一条新闻归到哪些细分行业、赛道（和 _radar_items 同一套算法），抓到时就记进统计。"""
+    it = _signal("radar", "", title or "", summary or "", "", "", 0, hints=hints or [],
+                 hint_w=2 if grp in ("media", "corpkw", "indkw", "mine") else 1)
+    return it["ind"], it["trk"]
+
+
+def _round_since():
+    try:
+        import biz_crawler as BC
+        return int(BC.round_started() or 0)
+    except Exception:
+        return 0
+
+
 def _cached_file(key, path, build):
     try:
         sig = (int(path.stat().st_mtime), path.stat().st_size)
@@ -534,9 +549,14 @@ def radar_run(rid):
 
 def radar_tops(days=1, n=6):
     """v168：雷达上每个行业、细分行业、赛道最新的几条新闻，一次算好给界面，点圆点马上就能看到，不用再等。"""
-    days = int(days or 1) or 1
-    cut = time.time() - days * 86400
-    win = [it for it in _radar_items() if it["ts"] >= cut]
+    days = int(days if days is not None else 1)             # v178：-1＝这一轮扫描，0＝累计
+    win = _radar_items()
+    if days < 0:
+        since = _round_since()
+        win = [it for it in win if since and int(it.get("seen") or 0) >= since]
+    elif days > 0:
+        cut = time.time() - days * 86400
+        win = [it for it in win if it["ts"] >= cut]
     win.sort(key=lambda x: -x["ts"])
     out = {}
     for it in win:
@@ -585,13 +605,7 @@ def overview(days=30, lens="mine"):
             "reports": len(_reports()), "opps": len(_read_json(OPPS_FILE, [])), "now": int(now)}
 
 
-def _overview_market(days=7):
-    """v156：市场实时——只看市场雷达抓到的新闻。热度＝这段时间的条数；第二个数＝最近 24 小时。"""
-    days = int(days or 7) or 7
-    now = time.time()
-    cut, cut24 = now - days * 86400, now - 86400
-    allr = _radar_items()
-    win = [it for it in allr if it["ts"] >= cut]
+def _heat_of(win, cut24):
     heat, l1h = {}, {}
     for it in win:
         d = 1 if it["ts"] >= cut24 else 0
@@ -603,17 +617,50 @@ def _overview_market(days=7):
             h = l1h.setdefault(g, [0, 0])
             h[0] += 1
             h[1] += d
-    hot, rising, rec_n, base = _terms_stats(win, now - (6 * 3600 if days <= 1 else 86400), hot_by="n")
+    return heat, l1h
+
+
+def _overview_market(days=7):
+    """v156：市场实时——只看市场雷达抓到的新闻。热度＝这段时间的条数；第二个数＝最近 24 小时。
+    v178：days＝-1 这一轮扫描；0 累计（从开始到现在）；其它＝最近几天（2、3、7、30、365…）。
+    条数用爬虫记的统计（内容库只留最新 8000 条，统计一直在），「正在升温」「提得最多」按还存着的新闻算。"""
+    try:
+        days = int(days)
+    except Exception:
+        days = 1
+    now = time.time()
+    cut24 = now - 86400
+    allr = _radar_items()
+    since, st = 0, None
+    if days < 0:                                            # 这一轮扫描：这一轮抓到的
+        since = _round_since()
+        win = [it for it in allr if since and int(it.get("seen") or 0) >= since]
+        span = max(1 / 24, (now - since) / 86400) if since else 1
+    else:
+        win = [it for it in allr if not days or it["ts"] >= now - days * 86400]
+        try:
+            import biz_crawler as BC
+            st = BC.stats_window(days)
+        except Exception as e:
+            _log("统计读不到，先按还存着的新闻算：%s" % e)
+        if st:
+            since = st["since"]
+        span = days if days > 0 else (max(1.0, (now - since) / 86400) if since else 1)
+    if st:
+        heat, l1h, n_win, n_cls, n24 = st["heat"], st["l1"], st["n"], st["cls"], st["n24"]
+    else:
+        heat, l1h = _heat_of(win, cut24)
+        n_win, n_cls, n24 = len(win), sum(1 for x in win if x["ind"] or x["trk"]), sum(1 for x in win if x["ts"] >= cut24)
+    hot, rising, rec_n, base = _terms_stats(win, now - (6 * 3600 if days in (-1, 1) else 86400), hot_by="n")
     win.sort(key=lambda x: -x["ts"])
     try:
         import biz_crawler as BC
         rs = BC.status()
     except Exception as e:
         rs = {"ok": False, "error": str(e)}
-    return {"ok": True, "lens": "market", "days": days, "heat": heat, "l1": l1h, "models": {}, "hot": hot,
-            "rising": rising, "latest": [_pub(x) for x in win[:80]],
-            "counts": {"radar": len(allr), "window": len(win), "today": sum(1 for x in win if x["ts"] >= cut24),
-                       "recent": rec_n, "base": round(base, 3), "classified": sum(1 for x in win if x["ind"] or x["trk"])},
+    return {"ok": True, "lens": "market", "days": days, "span": round(span, 3), "since": int(since or 0), "heat": heat, "l1": l1h,
+            "models": {}, "hot": hot, "rising": rising, "latest": [_pub(x) for x in win[:80]],
+            "counts": {"radar": len(allr), "window": n_win, "today": n24, "recent": rec_n, "base": round(base, 3), "classified": n_cls},
             "radar": rs, "reports": len(_reports()), "now": int(now)}
 
 
@@ -621,7 +668,12 @@ def items(ind="", trk="", mdl="", q="", src="all", days=0, limit=60, biz=False, 
           since=0):
     allit = _radar_items() if lens == "market" else _all_items()
     grps = {g for g in (grp or "").split(",") if g and g != "all"}
-    cut = time.time() - int(days) * 86400 if days else 0
+    days = int(days or 0)
+    if days < 0 and lens == "market":                      # v178：这一轮扫描抓到的
+        rs = _round_since()
+        since = max(int(since or 0), rs) if rs else int(time.time()) + 1
+        days = 0
+    cut = time.time() - days * 86400 if days > 0 else 0
     ql = (q or "").strip().lower()
     out = []
     for it in allit:

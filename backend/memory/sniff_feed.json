@@ -1,137 +1,5 @@
 [
   {
-    "kind": "概念",
-    "title": "中国推动COP31多项合作，绿色产业出海迎来新机遇",
-    "summary": "",
-    "importance": "中",
-    "source_title": "21世纪经济报道",
-    "link": "https://www.21jingji.com",
-    "category": "趋势瞭望台",
-    "key": "c0580dd24d09c422",
-    "ts": "2026-11-25 20:04"
-  },
-  {
-    "kind": "概念",
-    "title": "在新旧动能切换阵痛中突围：中国经济正越过结构跃迁的‘临界点’",
-    "summary": "",
-    "importance": "中",
-    "source_title": "21世纪经济报道",
-    "link": "https://www.21jingji.com",
-    "category": "趋势瞭望台",
-    "key": "0ae8de32828a9125",
-    "ts": "2026-11-25 20:04"
-  },
-  {
-    "kind": "概念",
-    "title": "具身智能训练数据瓶颈与多样化采集",
-    "summary": "文章指出，具身智能（embodied AI）在训练过程中面临数据获取瓶颈，行业正在探索多样化的采集方法以提升模型泛化能力。该趋势说明了物理交互式AI需要更广泛、真实的数据来源，推动相关技术研究与产业落地的创新。",
-    "importance": "中",
-    "source_title": "财新",
-    "link": "https://www.caixin.com",
-    "category": "趋势瞭望台",
-    "key": "e7d11f4b48d226f5",
-    "ts": "2026-11-25 20:04"
-  },
-  {
-    "kind": "发布",
-    "title": "中国发布首部半导体设备与零部件质量标准",
-    "summary": "中国近日公布了首个关于半导体设备和零部件的质量标准，该标准已纳入出口管制合规要求。标准对设备制造商与供应商提出了更为细致的质量指标，旨在提升国产半导体设备的国际竞争力。",
-    "importance": "高",
-    "source_title": "财新",
-    "link": "https://www.caixin.com",
-    "category": "趋势瞭望台",
-    "key": "d2b197b8be7f1847",
-    "ts": "2026-11-25 20:04"
-  },
-  {
-    "kind": "概念",
-    "title": "AI在美国资管业务中的战略角色",
-    "summary": "报道讨论了AI技术如何成为美国资产管理行业的“第二曲线”，强调AI在客户画像、风险评估与投资组合优化中的核心作用。此概念强调了金融科技与传统资产管理的融合，使 AI 能够在高频、低成本的决策流程中发挥作用。",
-    "importance": "低",
-    "source_title": "财新",
-    "link": "https://www.caixin.com",
-    "category": "趋势瞭望台",
-    "key": "d943a6f52e8e00f3",
-    "ts": "2026-11-25 20:04"
-  },
-  {
-    "kind": "发布",
-    "title": "神舟二十四号飞船发射升空",
-    "summary": "文中提到中国执行了神舟二十四号飞船的发射任务，搭载外籍航天员组成国际乘组。该任务体现了中外航天合作的进展，同时表明中国正在积极推进载人航空航天探索与技术验证。",
-    "importance": "高",
-    "source_title": "财新",
-    "link": "https://www.caixin.com",
-    "category": "趋势瞭望台",
-    "key": "cbee0426fead6ab5",
-    "ts": "2026-11-25 20:04"
-  },
-  {
-    "kind": "发布",
-    "title": "中国共产党地方委员会工作条例",
-    "summary": "依据中共中央最新文件，发布了地方委员会工作条例。该条例细化地方党委的职责与权力，提升基层治理效能，为加强党的基层组织建设提供了制度保障。",
-    "importance": "高",
-    "source_title": "中国政府网",
-    "link": "https://www.gov.cn",
-    "category": "趋势瞭望台",
-    "key": "f8f874aa81e311f5",
-    "ts": "2026-11-25 20:05"
-  },
-  {
-    "kind": "发布",
-    "title": "基金会管理条例",
-    "summary": "新颁布的基金会管理条例规范了非盈利基金会的设立、运营与监管，推动社会公益事业依法化、规范化。条例为基金会提供透明治理框架，有利提升公众对公益活动的信任。",
-    "importance": "中",
-    "source_title": "中国政府网",
-    "link": "https://www.gov.cn",
-    "category": "趋势瞭望台",
-    "key": "1fe74311df2122e8",
-    "ts": "2026-11-25 20:05"
-  },
-  {
-    "kind": "发布",
-    "title": "中医药传统知识保护条例",
-    "summary": "该条例针对中医药传统知识进行保护，强调传统药材、处方与经验的知识产权归属。通过明确保护范围与标准，促成古老医药文化与现代创新的融合，为行业健康发展提供法律支撑。",
-    "importance": "高",
-    "source_title": "中国政府网",
-    "link": "https://www.gov.cn",
-    "category": "趋势瞭望台",
-    "key": "7b7a6ec65dd7934a",
-    "ts": "2026-11-25 20:05"
-  },
-  {
-    "kind": "发布",
-    "title": "国务院办公厅关于2027年部分节假日安排的通知",
-    "summary": "本通知调整2027年部分节假日的安排，旨在进一步完善节假日制度，兼顾民众休息与工作调度。通知中可能会调整部分节假日连休组合，以适应社会经济发展与公众需求。",
-    "importance": "中",
-    "source_title": "中国政府网",
-    "link": "https://www.gov.cn",
-    "category": "趋势瞭望台",
-    "key": "5bc14568962d0dd4",
-    "ts": "2026-11-25 20:05"
-  },
-  {
-    "kind": "发布",
-    "title": "中国—东盟自贸区3.0版升级议定书将生效实施",
-    "summary": "中国与东盟签署了自贸区3.0版升级议定书，意味着双方将进一步加强贸易便利化与投资合作。议定书覆盖关税、投资、服务贸易等领域，将为区域经济一体化带来新的发展机遇。",
-    "importance": "高",
-    "source_title": "中国政府网",
-    "link": "https://www.gov.cn",
-    "category": "趋势瞭望台",
-    "key": "647a00b22713b328",
-    "ts": "2026-11-25 20:05"
-  },
-  {
-    "kind": "概念",
-    "title": "双友好医院建设提速及孕产妇儿童就医便利化",
-    "summary": "双友好医院概念强调为孕产妇、儿童提供更便利的医疗服务。该模式以提升服务质量、扩展医疗覆盖面为目标，在国家卫生健康委推动下加速建设，助力健康中国目标。",
-    "importance": "中",
-    "source_title": "中国政府网",
-    "link": "https://www.gov.cn",
-    "category": "趋势瞭望台",
-    "key": "4dc38baa6b1fc98b",
-    "ts": "2026-11-25 20:05"
-  },
-  {
     "kind": "发布",
     "title": "科前生物 获得兽用生物制品临床试验批件",
     "summary": "据其标题，武汉科前生物股份有限公司已获得兽用生物制品的临床试验批件，标志着该公司在动物保健领域的一项新产品进入临床研究阶段。该批件的批准意味着其研发的生物制品能够进一步推向临床应用与市场，为兽医行业提供新的治疗方案。",
@@ -10998,5 +10866,137 @@
     "category": "趋势瞭望台",
     "key": "6ac66d56393a47d3",
     "ts": "2026-11-26 14:20"
+  },
+  {
+    "kind": "发布",
+    "title": "GPT-6.2 Astra beats Googlers' code golf records",
+    "summary": "Astra是首个在代码高尔夫挑战中超越Google工程师的模型，属于AI代码生成领域。代码高尔夫是测试模型在有限token内完成复杂任务的能力，此成果可能反映模型在代码压缩和优化方面的突破。",
+    "importance": "高",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "1007e870f264d9fc",
+    "ts": "2026-11-26 14:54"
+  },
+  {
+    "kind": "功能",
+    "title": "Google releases Cogentic papers on integer factorization",
+    "summary": "Google发布Cogentic系列论文，涉及整数分解、离散对数等密码学难题，属于数学算法与计算机安全领域。此研究可能推动现代加密系统的优化或量子计算时代的算法演进。",
+    "importance": "高",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "4362a2a04e0bb69c",
+    "ts": "2026-11-26 14:54"
+  },
+  {
+    "kind": "功能",
+    "title": "OpenAI破解矩阵乘法指数，答案是9/4，连破8大世纪数学悬案",
+    "summary": "OpenAI通过AI技术破解了多个长期未解的数学难题，包括矩阵乘法指数问题，这一突破展现了AI在理论数学领域的潜力。AI不仅可用于应用层面，还能推动基础科学研究，标志着AI在数学、算法等领域的功能边界不断扩展。",
+    "importance": "高",
+    "source_title": "36氪",
+    "link": "https://36kr.com",
+    "category": "趋势瞭望台",
+    "key": "782b72002482abab",
+    "ts": "2026-11-26 14:54"
+  },
+  {
+    "kind": "发布",
+    "title": "腾讯混元开源DFly2",
+    "summary": "腾讯宣布其混元大模型推出DFly2版本并开源，这属于大模型领域的最新进展。DFly2的发布将进一步推动开源社区对大模型的研究与应用，可能在多个技术场景中带来新的可能性，如自然语言处理、代码生成等。",
+    "importance": "中",
+    "source_title": "钛媒体",
+    "link": "https://www.tmtpost.com",
+    "category": "趋势瞭望台",
+    "key": "5698f0960a7d23bc",
+    "ts": "2026-11-26 14:54"
+  },
+  {
+    "kind": "概念",
+    "title": "Agent模拟社会",
+    "summary": "境瞳智能发布了83亿Agent模拟社会，这一概念属于人工智能在社会模拟与预测领域的创新应用。通过大规模Agent建模，可以用于模拟复杂社会行为、经济趋势或政策影响，对社会科学和商业决策具有潜在价值。",
+    "importance": "中",
+    "source_title": "钛媒体",
+    "link": "https://www.tmtpost.com",
+    "category": "趋势瞭望台",
+    "key": "9b07460cd1b150ab",
+    "ts": "2026-11-26 14:54"
+  },
+  {
+    "kind": "概念",
+    "title": "物理AI研发底座共建趋势",
+    "summary": "物理AI领域正出现从各自研发转向共享底座的行业协作新趋势，通过整合产业链研发资源降低重复建设成本。这一变化属于人工智能与物理仿真交叉领域的技术演进，可能推动行业从分散的算法开发转向标准化的基础设施建设，对机器人、自动驾驶等需要复杂物理建模的领域具有重要意义",
+    "importance": "高",
+    "source_title": "雷峰网",
+    "link": "https://www.leiphone.com",
+    "category": "趋势瞭望台",
+    "key": "a77327b12e2a4c6b",
+    "ts": "2026-11-26 14:54"
+  },
+  {
+    "kind": "发布",
+    "title": "小鹏发布高阶通用人形机器人IRON",
+    "summary": "小鹏推出全新高阶人形机器人IRON，实现大模型端侧部署与毫秒级响应。该产品属于机器人与人工智能融合领域，标志着端侧智能算力与复杂任务执行能力的突破，可能推动机器人在更多实际场景中的应用。",
+    "importance": "高",
+    "source_title": "品玩",
+    "link": "https://www.pingwest.com",
+    "category": "趋势瞭望台",
+    "key": "62650c2dcd0aa1ea",
+    "ts": "2026-11-26 14:55"
+  },
+  {
+    "kind": "功能",
+    "title": "OpenAI在ChatGPT推出对话与办公统一体验",
+    "summary": "OpenAI在ChatGPT中引入对话与办公统一体验功能，属于自然语言处理与办公软件整合方向。该功能可能提升AI在办公场景的效率，通过更流畅的交互方式解决多任务处理需求。",
+    "importance": "中",
+    "source_title": "品玩",
+    "link": "https://www.pingwest.com",
+    "category": "趋势瞭望台",
+    "key": "dfcb83f632ff1fd6",
+    "ts": "2026-11-26 14:55"
+  },
+  {
+    "kind": "发布",
+    "title": "SOTA模型MAGI-2接入海马云RunningHub",
+    "summary": "全球领先的SOTA模型MAGI-2已接入海马云RunningHub平台，属于人工智能模型部署与服务化方向。这表明高性能模型正加速向产业端落地，或为开发者和企业提供更易用的AI能力调用方式。",
+    "importance": "中",
+    "source_title": "品玩",
+    "link": "https://www.pingwest.com",
+    "category": "趋势瞭望台",
+    "key": "e9cf1dd6f15f330e",
+    "ts": "2026-11-26 14:55"
+  },
+  {
+    "kind": "概念",
+    "title": "纽约州立法暂停AI聊天玩具生产销售",
+    "summary": "纽约州通过法律暂停AI聊天玩具的生产销售，为期五年，属于人工智能伦理与监管趋势。该政策反映AI玩具可能带来的安全风险或社会影响，或将推动行业对AI产品合规性的重新审视。",
+    "importance": "中",
+    "source_title": "品玩",
+    "link": "https://www.pingwest.com",
+    "category": "趋势瞭望台",
+    "key": "ad53b5e67c2a5e2c",
+    "ts": "2026-11-26 14:55"
+  },
+  {
+    "kind": "发布",
+    "title": "浙江人形机器人SPIRE 2.0搭建可复用技能体系",
+    "summary": "浙江人形机器人SPIRE 2.0通过搭建可复用技能体系，实现人形机器人产业化加速。该产品属于机器人智能化方向，其技能复用特性可能降低人形机器人在不同场景中的应用成本，促进规模化发展。",
+    "importance": "中",
+    "source_title": "品玩",
+    "link": "https://www.pingwest.com",
+    "category": "趋势瞭望台",
+    "key": "73f83ca9d6658b2c",
+    "ts": "2026-11-26 14:55"
+  },
+  {
+    "kind": "功能",
+    "title": "OpenAI研究团队宣称确立方阵乘法精确计算复杂度",
+    "summary": "OpenAI团队声称在方阵乘法精确计算复杂度领域取得突破，属于人工智能基础算法优化方向。该成果可能提升大模型训练效率，解决高维数据处理中的计算瓶颈问题，对AI算力发展具有潜在意义。",
+    "importance": "中",
+    "source_title": "品玩",
+    "link": "https://www.pingwest.com",
+    "category": "趋势瞭望台",
+    "key": "1814c8fee879ebff",
+    "ts": "2026-11-26 14:55"
   }
 ]

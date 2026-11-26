@@ -42,6 +42,9 @@ SEEN_FILE = BIZ_DIR / "radar_seen.json"
 CFG_FILE = BIZ_DIR / "radar_config.json"
 RESUME_FILE = BIZ_DIR / "radar_resume.json"  # v177：这一轮扫到哪了（关了软件、异常退出、点了停止，下次接着扫）
 RESUME_DAYS = 1.0                              # 超过一天没接着扫的就不接了（新闻已经旧了，从头扫）
+STATS_FILE = BIZ_DIR / "radar_stats.json"    # v178：每条新闻抓到时记一笔（按小时、按天、累计）——新闻删了统计还在，「1 年」「累计」靠它
+HOUR_KEEP_H = 8 * 24                           # 按小时的留 8 天（24 小时～7 天用）
+DAY_KEEP_D = 400                               # 按天的留 400 天（1 个月、1 年用）
 RUNS_FILE = BIZ_DIR / "radar_runs.json"      # v157：每一轮的抓取记录（结果报告用），留最近 40 轮
 KEEP_DAYS = 45
 MAX_ITEMS = 8000
@@ -162,7 +165,7 @@ _CAT_BY_ID = {c[0]: c for c in CATALOG}
 
 _LOCK = threading.RLock()
 _ST = {"sources": None, "feed": None, "seen": None, "ver": 0, "dirty": False, "flushed": 0.0, "sc": (0.0, False),
-       "runs": None, "ck": None, "ck_at": 0.0}
+       "runs": None, "ck": None, "ck_at": 0.0, "stats": None, "sdirty": False}
 _run = {"running": False, "stop": False, "total": 0, "done": 0, "new": 0, "fail": 0, "current": [],
         "started": 0, "ended": 0, "trigger": "", "rid": "", "recs": [], "log": [],
         "plan": [], "ck": False, "resumes": 0}
@@ -407,6 +410,10 @@ def _flush(force=False):
             return
         _write_json(FEED_FILE, _ST["feed"] or [])
         _write_json(SEEN_FILE, list(_ST["seen"] or [])[-30000:])
+        if _ST.get("sdirty") and _ST.get("stats") is not None:      # v178：统计和内容库一起存
+            _stats_prune(_ST["stats"])
+            _write_json(STATS_FILE, _ST["stats"])
+            _ST["sdirty"] = False
         _ST["dirty"] = False
         _ST["flushed"] = time.time()
 
@@ -726,6 +733,113 @@ def _norm_url(u):
         return u
 
 
+# ───────────────────────── v178：统计（累计 / 按时间）——内容库只留最新 8000 条，统计一直在 ─────────────────────────
+def _classify(x, src):
+    """一条新闻归到哪些细分行业、赛道（和市场雷达同一套关键词归类，不用 AI）。"""
+    import biz_intel as BI
+    s = src or {}
+    return BI.classify_radar(x.get("title", ""), x.get("summary", ""), s.get("hint") or [], s.get("group") or x.get("grp", ""))
+
+
+def _sbucket():
+    return {"n": 0, "cls": 0, "g": {}, "l1": {}}
+
+
+def _stats():
+    """调用方拿着 _LOCK。"""
+    if _ST.get("stats") is None:
+        d = _read_json(STATS_FILE, None)
+        if not isinstance(d, dict) or d.get("v") != 1:
+            d = {"v": 1, "since": 0, "total": _sbucket(), "hours": {}, "days": {}}
+        _ST["stats"] = d
+    return _ST["stats"]
+
+
+def _stats_add(ts, ind, trk):
+    st = _stats()
+    ts = int(ts or time.time())
+    l1s = {g.split("/")[0] for g in ind}
+    for b in (st["total"], st["hours"].setdefault(str(ts // 3600), _sbucket()), st["days"].setdefault(str(ts // 86400), _sbucket())):
+        b["n"] += 1
+        if ind or trk:
+            b["cls"] += 1
+        for g in list(ind) + list(trk):
+            b["g"][g] = b["g"].get(g, 0) + 1
+        for g in l1s:
+            b["l1"][g] = b["l1"].get(g, 0) + 1
+    if not st["since"] or ts < st["since"]:
+        st["since"] = ts
+    _ST["sdirty"] = True
+
+
+def _stats_prune(st):
+    now = time.time()
+    hcut, dcut = int(now // 3600) - HOUR_KEEP_H, int(now // 86400) - DAY_KEEP_D
+    st["hours"] = {k: v for k, v in st["hours"].items() if int(k) >= hcut}
+    st["days"] = {k: v for k, v in st["days"].items() if int(k) >= dcut}
+
+
+def _stats_catchup():
+    """内容库里还没记进统计的（第一次用这一版时的那 8000 条、或者当时归类出错的）补记上。调用方拿着 _LOCK。"""
+    todo = [x for x in _feed() if not x.get("c")]
+    if not todo:
+        return 0
+    by = {s.get("id"): s for s in _sources()}
+    n = 0
+    for x in todo:
+        try:
+            ind, trk = _classify(x, by.get(x.get("sid")))
+        except Exception:
+            continue
+        _stats_add(x.get("ts"), ind, trk)
+        x["c"] = 1
+        n += 1
+    if n:
+        _ST["dirty"] = True
+        _flush(force=True)
+        _log("统计：补记了 %d 条新闻" % n)
+    return n
+
+
+def stats_window(days):
+    """v178：一段时间里每个细分行业 / 赛道 / 行业有多少条新闻。days：0＝累计；8 天以内按小时算；更长按天算。"""
+    now = time.time()
+    with _LOCK:
+        _stats_catchup()
+        st = _stats()
+        days = float(days or 0)
+        if days <= 0:
+            bs = [st["total"]]
+        elif days <= 8:
+            cut = int((now - days * 86400) // 3600)
+            bs = [b for k, b in st["hours"].items() if int(k) >= cut]
+        else:
+            cut = int((now - days * 86400) // 86400)
+            bs = [b for k, b in st["days"].items() if int(k) >= cut]
+        c24 = int((now - 86400) // 3600)
+        b24 = [b for k, b in st["hours"].items() if int(k) >= c24]
+        heat, l1 = {}, {}
+        for bl, j in ((bs, 0), (b24, 1)):
+            for b in bl:
+                for g, c in b["g"].items():
+                    heat.setdefault(g, [0, 0])[j] += c
+                for g, c in b["l1"].items():
+                    l1.setdefault(g, [0, 0])[j] += c
+        return {"heat": heat, "l1": l1, "n": sum(b["n"] for b in bs), "cls": sum(b["cls"] for b in bs),
+                "n24": sum(b["n"] for b in b24), "since": int(st["since"] or 0)}
+
+
+def round_started():
+    """v178：「这一轮扫描」从什么时候开始：正在扫就是正在扫的这一轮，没在扫就是最近扫完的那一轮。"""
+    with _LOCK:
+        if _run["running"] and _run.get("trigger") != "single":
+            return int(_run["started"] or 0)
+        for r in _runs():
+            if r.get("trigger") != "single":
+                return int(r.get("started") or 0)
+    return 0
+
+
 def _merge(src, items, first):
     """去重后放进内容库，返回 (新的条数, 新内容的编号)。"""
     now = time.time()
@@ -746,9 +860,16 @@ def _merge(src, items, first):
                 ts = now
             if not dated:
                 ts = now - 3 * 86400 if first else now       # 第一次抓到的旧文章不算「刚发生」
-            new.append({"key": key, "sid": src["id"], "sname": src.get("name", ""), "grp": src.get("group", ""),
-                        "title": it["title"][:200], "url": it["url"], "summary": (it.get("summary") or "")[:300],
-                        "from": it.get("source", ""), "ts": int(ts), "seen": int(now), "dated": dated})
+            x = {"key": key, "sid": src["id"], "sname": src.get("name", ""), "grp": src.get("group", ""),
+                 "title": it["title"][:200], "url": it["url"], "summary": (it.get("summary") or "")[:300],
+                 "from": it.get("source", ""), "ts": int(ts), "seen": int(now), "dated": dated}
+            try:                                   # v178：抓到就记进统计（只记一次，记过的打个 c）
+                ind, trk = _classify(x, src)
+                _stats_add(x["ts"], ind, trk)
+                x["c"] = 1
+            except Exception:
+                pass
+            new.append(x)
         if new:
             feed.extend(new)
             feed.sort(key=lambda x: -x.get("ts", 0))
@@ -1007,6 +1128,9 @@ def status():
         srcs = _sources()
         feed = _feed()
         n24 = sum(1 for x in feed if x.get("ts", 0) >= now - 86400)
+        if _ST.get("stats"):                     # v178：内容库只留 8000 条，满了以后按统计算真实条数
+            c24 = int((now - 86400) // 3600)
+            n24 = max(n24, sum(b["n"] for k, b in _ST["stats"]["hours"].items() if int(k) >= c24))
         n7 = sum(1 for x in feed if x.get("ts", 0) >= now - 7 * 86400)
         en = sum(1 for s in srcs if s.get("enabled"))
         bad = sum(1 for s in srcs if s.get("enabled") and s.get("err"))
