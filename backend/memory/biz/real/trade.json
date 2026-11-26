@@ -1957,5 +1957,372 @@
     "ms": 10376
    }
   }
+ },
+ "t:newcons": {
+  "target": "t:newcons",
+  "kw": "新消费",
+  "at": 1795703577,
+  "res": {
+   "ccgp": {
+    "total": 15,
+    "win": 4,
+    "items": [
+     {
+      "t": "华诚工程咨询集团有限公司关于浙江省商务厅 新消费 创新大赛系列活动项目中标(成交)结果公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/zbgg/202610/t20261025_27557944.htm",
+      "d": "2026-10-25",
+      "buyer": "浙江省商务厅（本级）",
+      "kind": "中标(成交)结果公告",
+      "amt": 49.7,
+      "amt_k": "总中标金额"
+     },
+     {
+      "t": "华诚工程咨询集团有限公司关于浙江省商务厅 新消费 创新大赛系列活动项目的竞争性磋商公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/jzxcs/202610/t20261014_27489779.htm",
+      "d": "2026-10-23",
+      "buyer": "浙江省商务厅（本级）",
+      "kind": "竞争性磋商公告",
+      "amt": 50.0,
+      "amt_k": "预算金额"
+     },
+     {
+      "t": "2026年“苏 新消费 ·金秋惠购”“苏 新消费 · 暖冬购物季”促消费活动项目成交公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/cjgg/202609/t20260915_27326211.htm",
+      "d": "2026-09-15",
+      "buyer": "江苏省商务厅（机关）",
+      "kind": "成交公告",
+      "amt": 394.0,
+      "amt_k": "成交金额"
+     },
+     {
+      "t": "2026年“苏 新消费 ·金秋惠购”“苏 新消费 · 暖冬购物季”促消费活动项目采购公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/jzxcs/202609/t20260903_27260683.htm",
+      "d": "2026-09-14",
+      "buyer": "江苏省商务厅（机关）",
+      "kind": "竞争性磋商公告",
+      "amt": 396.0,
+      "amt_k": "预算金额"
+     },
+     {
+      "t": "巴塘县经济信息和商务合作局巴塘县特色农产品 新消费 供给拓展项目中标（成交）结果公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/cjgg/202609/t20260902_27250246.htm",
+      "d": "2026-09-02",
+      "buyer": "巴塘县经济信息和商务合作局",
+      "kind": "中标（成交）结果公告"
+     },
+     {
+      "t": "巴塘县经济信息和商务合作局巴塘县特色农产品 新消费 供给拓展项目竞争性磋商公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/jzxcs/202608/t20260811_27112277.htm",
+      "d": "2026-09-01",
+      "buyer": "巴塘县经济信息和商务合作局",
+      "kind": "竞争性磋商公告"
+     },
+     {
+      "t": "浙江省国际技术设备招标有限公司关于浙江省商务厅2026浙江省 新消费 创新大赛资源对接会承办服务成交结果公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/zbgg/202608/t20260801_27054586.htm",
+      "d": "2026-08-01",
+      "buyer": "浙江省商务厅（本级）",
+      "kind": "成交结果公告"
+     },
+     {
+      "t": "耀华建设管理有限公司关于余杭区低空即时配送融合 新消费 场景培育项目中标(成交)结果公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/zbgg/202607/t20260730_27037271.htm",
+      "d": "2026-07-30",
+      "buyer": "杭州市余杭区交通运输局",
+      "kind": "中标(成交)结果公告"
+     }
+    ],
+    "amt_mid": 222.0,
+    "amt_n": 4,
+    "url": "http://search.ccgp.gov.cn/bxsearch?searchtype=1&page_index=1&bidSort=0&buyerName=&projectId=&pinMu=0&bidType=0&dbselect=bidx&kw=%E6%96%B0%E6%B6%88%E8%B4%B9&start_time=2026%3A05%3A30&end_time=2026%3A11%3A26&timeType=6&displayZone=&zoneId=&pppStatus=0&agentName=",
+    "via": "direct",
+    "days": 180,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 702
+     }
+    ],
+    "ms": 4152
+   },
+   "b2b": {
+    "ok": false,
+    "error": "Scrapling 快速：要登录或被拦（login.1688）；Scrapling 浏览器：Scrapling 浏览器打开超时（timeout）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 130,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 404,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 90389,
+      "why": "Scrapling 浏览器打开超时（timeout）"
+     }
+    ],
+    "ms": 90925
+   },
+   "ywg": {
+    "ok": false,
+    "error": "Scrapling 快速：页面是空壳（只有 3 个字）；Scrapling 浏览器：页面是空壳（只有 241 个字）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 90,
+      "why": "页面是空壳（只有 3 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 391,
+      "why": "页面是空壳（只有 3 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 8076,
+      "why": "页面是空壳（只有 241 个字）"
+     }
+    ],
+    "ms": 8558
+   },
+   "jd": {
+    "ok": false,
+    "error": "Scrapling 快速：页面是空壳（只有 4 个字）；Scrapling 浏览器：要登录或被拦（passport.jd.com）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 275,
+      "why": "页面是空壳（只有 4 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 567,
+      "why": "页面是空壳（只有 4 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 8705,
+      "why": "要登录或被拦（passport.jd.com）"
+     }
+    ],
+    "ms": 9548
+   },
+   "sn": {
+    "ok": false,
+    "error": "Scrapling 快速：要登录或被拦（请登录）；Scrapling 浏览器：要登录或被拦（Captcha）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 512,
+      "why": "要登录或被拦（请登录）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 537,
+      "why": "要登录或被拦（请登录）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 9816,
+      "why": "要登录或被拦（Captcha）"
+     }
+    ],
+    "ms": 10867
+   },
+   "smzdm": {
+    "band": {
+     "n": 4,
+     "min": 3799.0,
+     "p25": 3836.5,
+     "mid": 4074.0,
+     "p75": 5774.0,
+     "max": 6299.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "url": "https://search.smzdm.com/?c=faxian&v=b&s=%E6%96%B0%E6%B6%88%E8%B4%B9",
+    "via": "browser",
+    "ok": true,
+    "trace": [
+     {
+      "m": "Scrapling 浏览器",
+      "ok": true,
+      "ms": 10576
+     }
+    ],
+    "ms": 10577
+   }
+  }
+ },
+ "t:discount": {
+  "target": "t:discount",
+  "kw": "量贩零食",
+  "at": 1795703844,
+  "res": {
+   "ccgp": {
+    "total": 0,
+    "win": 0,
+    "items": [],
+    "amt_mid": null,
+    "amt_n": 0,
+    "url": "http://search.ccgp.gov.cn/bxsearch?searchtype=1&page_index=1&bidSort=0&buyerName=&projectId=&pinMu=0&bidType=0&dbselect=bidx&kw=%E9%87%8F%E8%B4%A9%E9%9B%B6%E9%A3%9F&start_time=2026%3A05%3A30&end_time=2026%3A11%3A26&timeType=6&displayZone=&zoneId=&pppStatus=0&agentName=",
+    "via": "direct",
+    "days": 180,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 572
+     }
+    ],
+    "ms": 1176
+   },
+   "b2b": {
+    "ok": false,
+    "error": "Scrapling 快速：要登录或被拦（login.1688）；Scrapling 浏览器：Scrapling 浏览器打开超时（timeout）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 159,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 409,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 90404,
+      "why": "Scrapling 浏览器打开超时（timeout）"
+     }
+    ],
+    "ms": 90974
+   },
+   "ywg": {
+    "ok": false,
+    "error": "Scrapling 快速：页面是空壳（只有 3 个字）；Scrapling 浏览器：页面是空壳（只有 241 个字）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 75,
+      "why": "页面是空壳（只有 3 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 367,
+      "why": "页面是空壳（只有 3 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 20097,
+      "why": "页面是空壳（只有 241 个字）"
+     }
+    ],
+    "ms": 20540
+   },
+   "jd": {
+    "ok": false,
+    "error": "Scrapling 快速：页面是空壳（只有 4 个字）；Scrapling 浏览器：要登录或被拦（passport.jd.com）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 433,
+      "why": "页面是空壳（只有 4 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 560,
+      "why": "页面是空壳（只有 4 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 60186,
+      "why": "要登录或被拦（passport.jd.com）"
+     }
+    ],
+    "ms": 61182
+   },
+   "sn": {
+    "ok": false,
+    "error": "Scrapling 快速：要登录或被拦（请登录）；Scrapling 浏览器：要登录或被拦（Captcha）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 396,
+      "why": "要登录或被拦（请登录）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 647,
+      "why": "要登录或被拦（请登录）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 38023,
+      "why": "要登录或被拦（Captcha）"
+     }
+    ],
+    "ms": 39066
+   },
+   "smzdm": {
+    "band": {
+     "n": 16,
+     "min": 12.9,
+     "p25": 20.65,
+     "mid": 31.1,
+     "p75": 68.8,
+     "max": 129.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "url": "https://search.smzdm.com/?c=faxian&v=b&s=%E9%87%8F%E8%B4%A9%E9%9B%B6%E9%A3%9F",
+    "via": "browser",
+    "ok": true,
+    "trace": [
+     {
+      "m": "Scrapling 浏览器",
+      "ok": true,
+      "ms": 48092
+     }
+    ],
+    "ms": 48094
+   }
+  }
  }
 }

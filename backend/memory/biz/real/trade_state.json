@@ -1,11 +1,12 @@
 {
  "ccgp": {
   "pref": "direct",
-  "at": 1795701514,
-  "n_ok": 13,
-  "last_ok": 1795701514,
+  "at": 1795703845,
+  "n_ok": 16,
+  "last_ok": 1795703845,
   "via": "普通方式",
-  "err": ""
+  "err": "",
+  "login_streak": 0
  },
  "zbj": {
   "pref": "fast",
@@ -16,22 +17,41 @@
   "err": ""
  },
  "b2b": {
-  "at": 1795701486,
-  "n_bad": 11,
-  "err": "Scrapling 快速：要登录或被拦（login.1688）；Scrapling 浏览器：要登录或被拦（captcha）"
+  "at": 1795703670,
+  "n_bad": 13,
+  "err": "Scrapling 快速：要登录或被拦（login.1688）；Scrapling 浏览器：Scrapling 浏览器打开超时（timeout）",
+  "login_streak": 2,
+  "login_at": 1795703670
  },
  "jd": {
-  "at": 1795701497,
-  "n_bad": 11,
-  "err": "Scrapling 快速：页面是空壳（只有 4 个字）；Scrapling 浏览器：要登录或被拦（passport.jd.com）"
+  "at": 1795703754,
+  "n_bad": 13,
+  "err": "Scrapling 快速：页面是空壳（只有 4 个字）；Scrapling 浏览器：要登录或被拦（passport.jd.com）",
+  "login_streak": 2,
+  "login_at": 1795703754
  },
  "smzdm": {
   "pref": "browser",
-  "at": 1795701509,
-  "n_ok": 5,
-  "last_ok": 1795701509,
+  "at": 1795703843,
+  "n_ok": 7,
+  "last_ok": 1795703843,
   "via": "Scrapling 浏览器",
   "err": "",
-  "n_bad": 6
+  "n_bad": 6,
+  "login_streak": 0
+ },
+ "ywg": {
+  "login_streak": 2,
+  "login_at": 1795703692,
+  "at": 1795703692,
+  "n_bad": 2,
+  "err": "Scrapling 快速：页面是空壳（只有 3 个字）；Scrapling 浏览器：页面是空壳（只有 241 个字）"
+ },
+ "sn": {
+  "login_streak": 2,
+  "login_at": 1795703794,
+  "at": 1795703794,
+  "n_bad": 2,
+  "err": "Scrapling 快速：要登录或被拦（请登录）；Scrapling 浏览器：要登录或被拦（Captcha）"
  }
 }

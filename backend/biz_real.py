@@ -879,6 +879,58 @@ def _checks():
     return c if isinstance(c, list) else []
 
 
+# ───────────────────────── v197：核实过的数字放到行业地图上 ─────────────────────────
+_UNIT = [("万亿", 10000.0), ("千亿", 1000.0), ("百亿", 100.0), ("十亿", 10.0), ("亿", 1.0), ("千万", 0.1), ("百万", 0.01), ("万", 0.0001)]
+
+
+def money_yi(value):
+    """「1904亿—1973亿元」「1.2万亿元」「486.7 亿元」「约 3000 万美元」→ 亿元（取第一个数）。不是钱（人、%、元/人…）返回 None。"""
+    v = _digits(str(value or "")).replace(" ", "")
+    if not v or "%" in v or re.search(r"[人户家个台辆件]|元/|/人|/年|/次|/单|/月", v):
+        return None
+    m = re.search(r"(\d+(?:\.\d+)?)\s*(万亿|千亿|百亿|十亿|亿|千万|百万|万)?\s*(美元|美金|欧元)?\s*元?", v)
+    if not m:
+        return None
+    n = float(m.group(1))
+    unit = m.group(2) or ""
+    if not unit:
+        rest = v[m.end():]
+        u2 = next((u for u, _k in _UNIT if rest.startswith(u)), "")
+        unit = u2
+    if not unit:
+        if "元" in v and n >= 1e6:                     # 「358000000 元」
+            return round(n / 1e8, 2)
+        return None
+    yi = n * dict(_UNIT)[unit]
+    if m.group(3) or "美元" in v:
+        yi *= 7.1                                       # 美元按 7.1 换成人民币（大概数）
+    return round(yi, 2) if yi > 0 else None
+
+
+_GOOD_BASIS = ("统计局", "上市公司", "行业报告", "电商平台", "交易平台", "招投标", "媒体报道")
+
+
+def best_size(c):
+    """一条核实记录里，最能代表「这个市场一年多少钱」的那个数：要是钱、尺子是规模；对上原文的优先，再看口径，再看指标名里有没有「市场规模」。"""
+    best, bk = None, None
+    for f in c.get("facts") or []:
+        if f.get("dim") not in ("规模", "交易"):
+            continue
+        yi = money_yi(f.get("value"))
+        if yi is None:
+            continue
+        k = (1 if f.get("dim") == "规模" else 0, 1 if f.get("ok") else 0, 1 if f.get("basis") in _GOOD_BASIS else 0,
+             1 if "市场规模" in (f.get("metric") or "") else 0, 1 if f.get("basis") != "估算" else 0)
+        if bk is None or k > bk:
+            best, bk = dict(f, yi=yi), k
+    return best
+
+
+def _first(c, dim):
+    f = next((f for f in c.get("facts") or [] if f.get("dim") == dim and f.get("chk") != "待核实" and re.search(r"\d", f.get("value", ""))), None)
+    return {"value": f["value"], "metric": f["metric"], "ok": bool(f.get("ok")), "basis": f.get("basis", "")} if f else None
+
+
 def _check_brief(c):
     return {"id": c["id"], "target": c["target"], "gid": c.get("gid", ""), "name": c.get("name") or c["target"],
             "created": c.get("created", 0), "report": c.get("report", ""), "summary": c.get("summary", ""),
@@ -905,9 +957,20 @@ def overview():
     chk = {}
     for c in _checks():
         if c.get("gid") and c["gid"] not in chk:
-            chk[c["gid"]] = c["id"]
-    for g, cid in chk.items():
-        by.setdefault(g, {})["chk"] = cid
+            chk[c["gid"]] = c
+    for g, c in chk.items():
+        b = by.setdefault(g, {})
+        b["chk"] = c["id"]
+        b["v_at"] = c.get("created", 0)
+        b["v_n"], b["v_ok"] = len(c.get("facts") or []), sum(1 for f in c.get("facts") or [] if f.get("ok"))
+        bs = best_size(c)                               # v197：核实出来的市场规模（亿元）放到地图上
+        if bs:
+            b.update(v_size=bs["yi"], v_size_txt=bs["value"], v_size_m=bs.get("metric", ""), v_size_ok=bool(bs.get("ok")),
+                     v_size_b=bs.get("basis", ""), v_size_when=bs.get("when", ""))
+        for dim, k in (("客户", "v_cust"), ("购买力", "v_buy"), ("利润", "v_prof")):
+            x = _first(c, dim)
+            if x:
+                b[k] = x
     st = d.get("st") or {}
     srcs = []
     for s in SOURCES:

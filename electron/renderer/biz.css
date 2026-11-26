@@ -1399,3 +1399,9 @@ body.dark .view-biz .bz-kind.k-custom { color: #b8a2f0; }
 /* ===== v196：行业地图也是一个标签 ===== */
 .view-biz .bz-rm-tp-map { padding-top: 10px; }
 .view-biz .bz-rm-tp-map .bz-rm-mapbar { margin-top: 0; }
+
+/* ===== v197：核实过的数字放到地图格子上 ===== */
+.view-biz .bz-tile .vf { display: block; font-size: 10px; line-height: 1.3; font-weight: 600; color: #b0702a; opacity: .95; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.view-biz .bz-tile .vf.ok { color: #2f8f5b; }
+.view-biz .bz-tile.h4 .vf, .view-biz .bz-tile.h5 .vf { color: #fff; opacity: .9; }
+.view-biz .bz-map .bz-tile .vf { font-size: 9.5px; }
