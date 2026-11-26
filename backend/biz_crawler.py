@@ -40,6 +40,8 @@ SRC_FILE = BIZ_DIR / "radar_sources.json"
 FEED_FILE = BIZ_DIR / "radar_feed.json"
 SEEN_FILE = BIZ_DIR / "radar_seen.json"
 CFG_FILE = BIZ_DIR / "radar_config.json"
+RESUME_FILE = BIZ_DIR / "radar_resume.json"  # v177：这一轮扫到哪了（关了软件、异常退出、点了停止，下次接着扫）
+RESUME_DAYS = 1.0                              # 超过一天没接着扫的就不接了（新闻已经旧了，从头扫）
 RUNS_FILE = BIZ_DIR / "radar_runs.json"      # v157：每一轮的抓取记录（结果报告用），留最近 40 轮
 KEEP_DAYS = 45
 MAX_ITEMS = 8000
@@ -160,9 +162,10 @@ _CAT_BY_ID = {c[0]: c for c in CATALOG}
 
 _LOCK = threading.RLock()
 _ST = {"sources": None, "feed": None, "seen": None, "ver": 0, "dirty": False, "flushed": 0.0, "sc": (0.0, False),
-       "runs": None}
+       "runs": None, "ck": None, "ck_at": 0.0}
 _run = {"running": False, "stop": False, "total": 0, "done": 0, "new": 0, "fail": 0, "current": [],
-        "started": 0, "ended": 0, "trigger": "", "rid": "", "recs": [], "log": []}
+        "started": 0, "ended": 0, "trigger": "", "rid": "", "recs": [], "log": [],
+        "plan": [], "ck": False, "resumes": 0}
 _sched = {"started": False}
 _wake = threading.Event()               # v159：改了自动更新设置时叫醒定时器
 
@@ -375,6 +378,7 @@ def plan():
                 d["failing"] += 1
         failing = [{"name": s.get("name", ""), "err": s.get("err", "")} for s in srcs if s.get("err")]
         runs = [r for r in _runs() if r.get("trigger") != "single"]
+        rs = _resume_info()
     order = [k for k, _n, _d in GROUPS]
     groups = sorted(by.values(), key=lambda d: order.index(d["key"]) if d["key"] in order else 99)
     last = None
@@ -383,7 +387,7 @@ def plan():
         last = {k: r.get(k) for k in ("id", "started", "ended", "trigger", "total", "ok", "fail", "new", "via", "stopped")}
     n_scope = len(_pick_sources(c["scope"], c["groups"]))
     n_all = len(_pick_sources(c["scope"], c["groups"], force=True))
-    return {"ok": True, "config": c, "next_run": next_run(c), "now": int(time.time()), "groups": groups, "enabled": len(srcs), "failing": failing[:40],
+    return {"ok": True, "config": c, "next_run": next_run(c), "resume": rs, "now": int(time.time()), "groups": groups, "enabled": len(srcs), "failing": failing[:40],
             "n_scope": n_scope, "n_all": n_all, "last": last, "lib": library_info(), "scrapling": _scrapling_ok(),
             "group_names": [[k, n, d] for k, n, d in GROUPS]}
 
@@ -818,7 +822,73 @@ def _crawl_src(src):
                 pass
             _run["done"] += 1
             _run["recs"].append(rec)
-        _flush()
+        _ck_tick()
+
+
+# ───────────────────────── v177：扫到哪了随时记下来——软件关了、异常退出、点了停止，下次点扫描接着扫 ─────────────────────────
+def _ck_load():
+    """上一轮没扫完留下的进度（只在第一次用时读文件）。调用方拿着 _LOCK。"""
+    if _ST.get("ck") is None:
+        d = _read_json(RESUME_FILE, {})
+        _ST["ck"] = d if isinstance(d, dict) else {}
+    return _ST["ck"]
+
+
+def _ck_write():
+    """把这一轮要扫哪些、已经扫完哪些记下来。调用方拿着 _LOCK。"""
+    recs = list(_run["recs"])
+    ck = {"rid": _run["rid"], "started": _run["started"], "trigger": _run["trigger"], "plan": list(_run.get("plan") or []),
+          "done": [r.get("id") for r in recs], "new": _run["new"], "fail": _run["fail"], "recs": recs,
+          "log": list(_run["log"])[-300:], "updated": int(time.time()), "stopped": bool(_run["stop"]),
+          "resumes": int(_run.get("resumes") or 0)}
+    _ST["ck"] = ck
+    try:
+        _write_json(RESUME_FILE, ck)
+    except Exception as e:
+        _log("记扫描进度没成功（不影响抓）：%s" % e)
+
+
+def _ck_clear():
+    _ST["ck"] = {}
+    try:
+        RESUME_FILE.unlink()
+    except Exception:
+        pass
+
+
+def _pending():
+    """上一轮没扫完的进度 + 剩下还要扫的信息源；没有（或超过一天了）就是 (None, [])。调用方拿着 _LOCK。"""
+    ck = _ck_load()
+    if _run["running"] or not ck or not ck.get("plan"):
+        return None, []
+    if time.time() - float(ck.get("updated") or 0) > RESUME_DAYS * 86400:
+        return None, []
+    done = set(ck.get("done") or [])
+    by = {s.get("id"): s for s in _sources() if s.get("enabled")}
+    left = [by[i] for i in ck["plan"] if i not in done and i in by]
+    return (ck, left) if left else (None, [])
+
+
+def _resume_info():
+    """给界面看：上次没扫完的那一轮扫到哪了。调用方拿着 _LOCK。"""
+    ck, left = _pending()
+    if not ck:
+        return None
+    dn = len(ck.get("done") or [])
+    return {"rid": ck.get("rid"), "started": ck.get("started"), "updated": ck.get("updated"), "done": dn, "total": dn + len(left),
+            "left": len(left), "new": int(ck.get("new") or 0), "stopped": bool(ck.get("stopped"))}
+
+
+def _ck_tick():
+    """抓的时候每隔几秒把抓到的新闻、信息源状态、这一轮扫到哪了一起存下来：软件突然关了，下次接着扫，抓到的也不丢。"""
+    with _LOCK:
+        if _run.get("ck") and time.time() - (_ST.get("ck_at") or 0) >= 6:
+            _flush(force=True)
+            _save_sources()
+            _ck_write()
+            _ST["ck_at"] = time.time()
+            return
+    _flush()
 
 
 def _runs():
@@ -845,26 +915,40 @@ def _crawl_all(srcs):
             for r in recs:
                 if r.get("ok"):
                     via[r["via"]] = via.get(r["via"], 0) + 1
+            stopped = bool(_run["stop"])
             msg = "这一轮抓完：%d 个信息源，成功 %d 个，新抓到 %d 条%s" % (
-                _run["total"], sum(1 for r in recs if r.get("ok")), _run["new"], "（中途停止）" if _run["stop"] else "")
+                _run["total"], sum(1 for r in recs if r.get("ok")), _run["new"],
+                ("（中途停止，扫到 %d 个；下次点扫描会接着扫剩下的）" % len(recs)) if stopped else "")
             _run["log"].append([now, msg])
+            if _run.get("ck"):                     # v177：扫完了就清掉进度；点了停止就记下扫到哪，下次接着扫
+                if stopped:
+                    _ck_write()
+                else:
+                    _ck_clear()
             rec = {"id": _run["rid"], "started": _run["started"], "ended": now, "trigger": _run["trigger"],
                    "total": _run["total"], "done": len(recs), "ok": sum(1 for r in recs if r.get("ok")),
-                   "fail": sum(1 for r in recs if not r.get("ok")), "new": _run["new"], "stopped": bool(_run["stop"]),
-                   "via": via, "sources": recs, "log": list(_run["log"])[-300:]}
+                   "fail": sum(1 for r in recs if not r.get("ok")), "new": _run["new"], "stopped": stopped,
+                   "resumed": int(_run.get("resumes") or 0), "via": via, "sources": recs, "log": list(_run["log"])[-300:]}
             runs = _runs()
+            runs[:] = [x for x in runs if x.get("id") != rec["id"]]      # 接着扫的：替换这一轮之前停下时的那条记录
             runs.insert(0, rec)
             del runs[40:]
             _write_json(RUNS_FILE, runs)
         _log(msg)
 
 
-def start(sids=None, trigger="manual", scope=None, groups=None, force=False):
+def start(sids=None, trigger="manual", scope=None, groups=None, force=False, fresh=False):
     cfg = get_config()
     with _LOCK:
         if _run["running"]:
             return {"ok": False, "error": "正在抓，等这一轮抓完再说"}
-        if sids:
+        ck, left = (None, []) if sids else _pending()       # v177：上次没扫完（关了软件、异常退出、点了停止）→ 接着扫剩下的
+        if ck and fresh:                                     # 点了「从头扫」
+            _ck_clear()
+            ck, left = None, []
+        if ck:
+            srcs = left
+        elif sids:
             srcs = [s for s in _sources() if s["id"] in sids]
             trigger = "single" if trigger == "manual" else trigger
         elif trigger == "auto":
@@ -878,23 +962,38 @@ def start(sids=None, trigger="manual", scope=None, groups=None, force=False):
             return {"ok": False, "error": "清单里没有打开的信息源"}
         _run["cfg"] = dict(cfg)
         now = int(time.time())
-        _run.update(running=True, stop=False, total=len(srcs), done=0, new=0, fail=0, current=[], started=now,
-                    ended=0, trigger=trigger, rid=datetime.datetime.now().strftime("%Y%m%d-%H%M%S"), recs=[],
-                    log=[[now, "开始抓（%s）：%d 个信息源" % ({"auto": "自动", "single": "单个"}.get(trigger, "手动"), len(srcs))]])
+        who = {"auto": "自动", "single": "单个"}.get(trigger, "手动")
+        if ck:
+            done = list(ck.get("done") or [])
+            msg = "接着上次的进度扫（%s）：上次扫到 %d / %d，还剩 %d 个" % (who, len(done), len(done) + len(srcs), len(srcs))
+            _run.update(running=True, stop=False, total=len(done) + len(srcs), done=len(done), new=int(ck.get("new") or 0),
+                        fail=int(ck.get("fail") or 0), current=[], started=int(ck.get("started") or now), ended=0, trigger=trigger,
+                        rid=ck.get("rid") or datetime.datetime.now().strftime("%Y%m%d-%H%M%S"), recs=list(ck.get("recs") or []),
+                        log=list(ck.get("log") or [])[-280:] + [[now, msg]], plan=done + [s["id"] for s in srcs],
+                        ck=True, resumes=int(ck.get("resumes") or 0) + 1)
+        else:
+            msg = "开始抓（%s）：%d 个信息源" % (who, len(srcs))
+            _run.update(running=True, stop=False, total=len(srcs), done=0, new=0, fail=0, current=[], started=now,
+                        ended=0, trigger=trigger, rid=datetime.datetime.now().strftime("%Y%m%d-%H%M%S"), recs=[],
+                        log=[[now, msg]], plan=[s["id"] for s in srcs], ck=not sids, resumes=0)
+        if _run["ck"]:
+            _ck_write()                                      # 一开始就记下这一轮要扫哪些
+            _ST["ck_at"] = time.time()
     if not sids:
         c = get_config()
         c["last_run"] = int(time.time())
         _write_json(CFG_FILE, c)
     threading.Thread(target=_crawl_all, args=(srcs,), daemon=True, name="biz-radar-run").start()
-    _log("开始抓（%s）：%d 个信息源" % ({"auto": "自动", "single": "单个"}.get(trigger, "手动"), len(srcs)))
-    return {"ok": True, "total": len(srcs), "rid": _run["rid"]}
+    _log(msg)
+    return {"ok": True, "total": _run["total"], "rid": _run["rid"], "done": _run["done"], "new": _run["new"],
+            "left": len(srcs), "resumed": bool(ck)}
 
 
 def stop():
     with _LOCK:
         if _run["running"]:
             _run["stop"] = True
-            _run["log"].append([int(time.time()), "你点了停止：正在抓的这几个抓完就停"])
+            _run["log"].append([int(time.time()), "你点了停止：正在抓的这几个抓完就停（下次点扫描会接着扫剩下的）"])
     return {"ok": True}
 
 
@@ -902,7 +1001,8 @@ def status():
     cfg = get_config()
     now = time.time()
     with _LOCK:
-        r = {k: (list(v) if isinstance(v, list) else v) for k, v in _run.items() if k not in ("recs", "log")}
+        r = {k: (list(v) if isinstance(v, list) else v) for k, v in _run.items() if k not in ("recs", "log", "plan")}
+        rs = _resume_info()                       # v177：上次没扫完的
         r["log"] = list(_run["log"])[-16:]
         srcs = _sources()
         feed = _feed()
@@ -914,6 +1014,8 @@ def status():
     r.update(ok=True, auto=cfg["auto"], every=cfg["every"], last_run=cfg["last_run"], next_run=int(nxt),
              sources=len(srcs), enabled=en, failing=bad, items=len(feed), items_24h=n24, items_7d=n7,
              scrapling=_scrapling_ok(), now=int(now))
+    if rs:
+        r["resume"] = rs
     return r
 
 

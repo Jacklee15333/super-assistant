@@ -6687,7 +6687,7 @@ class Handler(BaseHTTPRequestHandler):
                     if path == "/biz/radar/run":
                         return self._send(_bc.start([body["id"]] if body.get("id") else None,
                                                     scope=body.get("scope"), groups=body.get("groups"),
-                                                    force=bool(body.get("force"))))
+                                                    force=bool(body.get("force")), fresh=bool(body.get("fresh"))))   # v177：fresh＝不接着上次，从头扫
                     if path == "/biz/radar/library":                 # v170：从推荐库加信息源
                         return self._send(_bc.library_import(int(body.get("min_w") or 1),
                                                              tuple(body.get("kinds") or ("site", "kw"))))

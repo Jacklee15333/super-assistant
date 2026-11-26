@@ -941,3 +941,74 @@ body.dark .view-biz { --bz-up: #6cc08b; --bz-warn: #e0a24a; --bz-bad: #e5907a; }
 .view-biz .bz-rad-svg .rim .rn, .view-biz .bz-rad-svg .rim tspan { fill-opacity: .75; }
 .view-biz .bz-rad-svg .secl { font: 600 19px var(--sans); }
 .view-biz .bz-rad-svg .secn { fill: var(--text-dim); font-weight: 400; }
+
+/* ── v177：饼按真实像素画、一打开就能看到全貌；名字不挤、圆点不压字；右边栏和饼一样高、往下滑；点一片 / 一圈 / 一个点，一次只突出一个 ── */
+.view-biz .bz-scroll { scrollbar-gutter: stable; }
+.view-biz .bz-pane[data-pane="radar"] { padding-bottom: 16px; }
+.view-biz #bzRadar.bz-radar { display: grid; grid-template-columns: minmax(0, 1fr); justify-content: center; align-items: start; column-gap: 26px; row-gap: 0; padding-top: 4px; }
+.view-biz #bzRadar.bz-radar[hidden] { display: none; }
+.view-biz #bzRadar .bz-rad-l { min-width: 0; }
+.view-biz #bzRadar .bz-rad-stage { position: relative; max-width: 100%; margin: 0 auto; }
+.view-biz #bzRadar .bz-rad-svg { width: 100%; height: auto; display: block; overflow: visible; }
+.view-biz #bzRadar .bz-rad-r { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+.view-biz #bzRadar.one .bz-rad-legend { order: 2; }
+.view-biz #bzRadar.one .bz-rad-r { order: 3; margin-top: 14px; }
+.view-biz #bzRadar .bz-rad-legend { grid-column: 1 / -1; margin: 18px 0 0; padding-top: 10px; border-top: 1px dashed var(--line); }
+.view-biz #bzRadar .bz-rad-legend .lg-how { color: var(--accent); }
+.view-biz .bz-rad-r .bz-ptabs { flex: none; }
+.view-biz .bz-rp-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 6px; }
+.view-biz .bz-rad-r > .bz-rad-sel { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+.view-biz .bz-rad-selh { flex: none; padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--line); }
+.view-biz .bz-rad-nav { display: flex; align-items: center; gap: 14px; }
+.view-biz .bz-rad-nav .bz-link.dim { color: var(--text-dim); }
+.view-biz .bz-rad-quiet { margin: 8px 0 0; font-size: 12px; line-height: 1.65; color: var(--text-dim); }
+.view-biz .bz-rad-sel .bz-rp-scroll > .bz-btn { margin-top: 10px; width: 100%; }
+.view-biz .bz-rad-svg .fx { transition: opacity .25s ease; }
+.view-biz .bz-rad-svg .band-c { fill-opacity: .11; stroke: var(--bg-elev); stroke-width: 1.5; cursor: pointer; transition: fill-opacity .18s, opacity .25s, stroke .2s; }
+.view-biz .bz-rad-svg .band-c.alt { fill-opacity: .065; }
+.view-biz .bz-rad-svg .wsec:not(.in):hover .band-c { fill-opacity: .18; }
+.view-biz .bz-rad-svg .wsec:not(.in):hover .band-c.alt { fill-opacity: .13; }
+.view-biz .bz-rad-svg .wsec.in .cell:hover .band-c { fill-opacity: .26; }
+.view-biz .bz-rad-svg .wsec.pop .band-c { fill-opacity: .22; }
+.view-biz .bz-rad-svg .wsec.pop .band-c.alt { fill-opacity: .15; }
+.view-biz .bz-rad-svg .wsec.pop .cell:hover .band-c { fill-opacity: .32; }
+.view-biz .bz-rad-svg .cell.cpop .band-c { fill-opacity: .32; stroke: currentColor; stroke-width: 2.2; }
+.view-biz .bz-rad-svg .wsec, .view-biz .bz-rad-svg .cell { transition: transform .34s cubic-bezier(.2, .9, .3, 1.2), filter .34s; }
+.view-biz .bz-rad-svg .wsec.pop { transform: translate(var(--px), var(--py)); filter: drop-shadow(0 6px 12px rgba(0, 0, 0, .22)); }
+.view-biz .bz-rad-svg .cell.cpop { transform: translate(var(--cx), var(--cy)); filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .26)); }
+.view-biz .bz-rad-svg .sec-ol { fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linejoin: round; opacity: 0; pointer-events: none; transition: opacity .25s; }
+.view-biz .bz-rad-svg .wsec.pop .sec-ol { opacity: .9; }
+.view-biz .bz-rad-svg .band { cursor: pointer; }
+.view-biz .bz-rad-svg .secl { font: 600 16px var(--sans); cursor: pointer; }
+.view-biz .bz-rad-svg .secl .secn { font: 400 12.5px var(--sans); fill: var(--text-dim); }
+.view-biz .bz-rad-svg .wsec.pop .secl { font-weight: 750; }
+.view-biz .bz-rad-svg .lead { fill: none; stroke: currentColor; stroke-width: 1.2; stroke-opacity: .6; pointer-events: none; }
+.view-biz .bz-rad-svg .rim { font: 400 12.5px var(--sans); letter-spacing: 0; stroke: none; pointer-events: none; }
+.view-biz .bz-rad-svg .rim .rn { fill-opacity: .7; }
+.view-biz .bz-rad-svg .cell.cpop .rim { font-weight: 650; }
+.view-biz .bz-rad-svg.foc .fx:not(.hl) { opacity: .26; }
+.view-biz .bz-rad-svg.foc .wsec:not(.in):hover .fx:not(.hl) { opacity: .5; }
+.view-biz .bz-rad-svg.foc .wsec.in .cell:hover .fx:not(.hl) { opacity: .62; }
+.view-biz .bz-rad-svg .blip .dot { transform-box: fill-box; transform-origin: center; transition: transform .25s cubic-bezier(.2, .9, .3, 1.3), fill-opacity .15s; }
+.view-biz .bz-rad-svg .blip.sel .dot { transform: scale(1.45); fill-opacity: 1; stroke: var(--bg-elev); stroke-width: 2; }
+.view-biz .bz-rad-svg .blip.peek .dot { transform: scale(1.6); fill-opacity: 1; stroke: var(--text); stroke-width: 1.5; }
+.view-biz .bz-rad-svg.foc .blip.peek { opacity: 1; }
+.view-biz .bz-rad-svg .cell.peek .band-c { fill-opacity: .3; }
+.view-biz .bz-rad-svg.foc .cell.peek .fx { opacity: 1; }
+.view-biz .bz-rad-svg .blip.quiet { cursor: pointer; }
+.view-biz .bz-rad-hl { pointer-events: none; }
+.view-biz .bz-rad-hl .hl-halo { fill: none; stroke-width: 2; animation: bz-halo 1.6s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes bz-halo { 0% { transform: scale(.85); stroke-opacity: .9; } 100% { transform: scale(1.9); stroke-opacity: 0; } }
+.view-biz .bz-rad-hl rect { fill: var(--bg-elev); stroke: currentColor; stroke-width: 1.5; filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .18)); }
+.view-biz .bz-rad-hl text { font: 600 13px var(--sans); fill: var(--text); }
+@media (prefers-reduced-motion: reduce) {
+  .view-biz .bz-rad-svg .wsec, .view-biz .bz-rad-svg .cell, .view-biz .bz-rad-svg .blip .dot { transition: none; }
+  .view-biz .bz-rad-hl .hl-halo { animation: none; }
+}
+/* v177：扫描没扫完 → 接着扫 */
+.view-biz .bz-rad-st.warn { color: var(--bz-warn); }
+.view-biz .bz-rad-st.warn i { background: var(--bz-warn); opacity: 1; }
+.view-biz .bz-resume { background: color-mix(in srgb, var(--accent) 8%, transparent); border-radius: 12px; padding: 12px 14px !important; margin: 0 0 10px; border-top: 0 !important; }
+.view-biz .bz-resume h3 { margin-top: 0; }
+.view-biz .bz-resume p { margin: 0 0 8px; font-size: 13px; line-height: 1.7; }
+.view-biz .bz-sec-off .bz-upd-sum, .view-biz .bz-sec-off .bz-cats, .view-biz .bz-sec-off .bz-force, .view-biz .bz-sec-off .bz-failrow { opacity: .45; }
