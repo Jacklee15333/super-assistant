@@ -1066,3 +1066,17 @@ body.dark .view-biz { --bz-up: #6cc08b; --bz-warn: #e0a24a; --bz-bad: #e5907a; }
 .view-biz .bz-map .bz-tile.l3 { flex: 1 1 58px; padding: 2px 5px; font-size: 10.5px; line-height: 1.25; border-radius: 5px; }
 .view-biz .bz-map .bz-tile.l3 .ct { font-size: 9.5px; }
 .view-biz .bz-tile .gap { top: 4px; right: 4px; width: 5px; height: 5px; }
+
+/* ── v184：不同板块不同颜色（和市场雷达的饼一样），同一种颜色越深新闻越多 ── */
+.view-biz .bz-map .bz-tile.h1 { background: color-mix(in srgb, var(--c, #888) 10%, var(--bg-elev)); }
+.view-biz .bz-map .bz-tile.h2 { background: color-mix(in srgb, var(--c, #888) 22%, var(--bg-elev)); }
+.view-biz .bz-map .bz-tile.h3 { background: color-mix(in srgb, var(--c, #888) 38%, var(--bg-elev)); }
+.view-biz .bz-map .bz-tile.h4 { background: color-mix(in srgb, var(--c, #888) 58%, var(--bg-elev)); }
+.view-biz .bz-map .bz-tile.h5 { background: color-mix(in srgb, var(--c, #888) 82%, #000); color: #fff; }
+.view-biz .bz-map .bz-l1 { border-top: 3px solid var(--c, var(--line)); }
+.view-biz .bz-map .bz-band > header h4 { color: var(--c, var(--text)); }
+.view-biz .bz-legend .h1 { background: color-mix(in srgb, var(--text-dim) 10%, var(--bg-elev)); }
+.view-biz .bz-legend .h2 { background: color-mix(in srgb, var(--text-dim) 22%, var(--bg-elev)); }
+.view-biz .bz-legend .h3 { background: color-mix(in srgb, var(--text-dim) 38%, var(--bg-elev)); }
+.view-biz .bz-legend .h4 { background: color-mix(in srgb, var(--text-dim) 58%, var(--bg-elev)); }
+.view-biz .bz-legend .h5 { background: color-mix(in srgb, var(--text-dim) 82%, #000); }
