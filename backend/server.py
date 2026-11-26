@@ -79,7 +79,7 @@ def _clog(tag, msg):
 
 # 这些接口是前端**定时高频轮询**或页面加载时被动拉取的（查状态/进度/列表/配置），
 # 一旦打印就会把控制台刷爆、淹没真正有用的操作日志，所以一律静音、不记。
-_LOG_QUIET_PATHS = {"/intake_kind", "/douyin/login", 
+_LOG_QUIET_PATHS = {"/biz/article_media", "/intake_kind", "/douyin/login", 
     "/ping", "/video_note_subs", "/x_note_rebuild_status", "/video_failed", "/video_note_tidy_status", "/phone_inbox/status", "/feishu_inbox/status", "/feishu_inbox/alive", "/feishu_inbox/incoming", "/video_progress", "/video_health", "/video_deps", "/video_notes", "/creator_profiles_batch", "/creator/avatars_status", "/creator/discover",
     "/video_note_analyze_progress", "/labels/job", "/labels/all", "/sniff/feed", "/sniff/discover", "/video_note_analyze_batch",
     "/chat_progress", "/heartbeat/status", "/lumi/status", "/lumi/evolve_status",
@@ -5710,6 +5710,9 @@ class Handler(BaseHTTPRequestHandler):
                 if path == "/biz/article":                           # v160：点开新闻，在软件里看正文
                     import biz_crawler as _bc
                     return self._send(_bc.article(q1("url")))
+                if path == "/biz/article_media":                     # v179：新闻里的视频 → 把里面的话转成文字
+                    import biz_crawler as _bc
+                    return self._send(_bc.media_status(q1("url"), start=q1("start") == "1"))
                 if path == "/biz/article_tr":                        # v161：外文新闻翻译成中文
                     import biz_crawler as _bc
                     return self._send(_bc.translate_article(q1("url")))

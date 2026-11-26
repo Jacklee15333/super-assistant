@@ -1028,3 +1028,17 @@ body.dark .view-biz { --bz-up: #6cc08b; --bz-warn: #e0a24a; --bz-bad: #e5907a; }
 /* v178：时间选项多了，顶上这一行收紧一点，不换行 */
 .view-biz .bz-pane[data-pane="radar"] > .bz-bar .bz-seg[data-seg="mdays"] button { padding: 5px 9px; }
 .view-biz .bz-pane[data-pane="radar"] > .bz-bar #bzRq { flex: 1 1 150px; min-width: 120px; max-width: 320px; width: auto; }
+
+/* ── v179：原文链接放在最上面；跟着「阅读原文」读出来的原文、视频里说的话各成一段 ── */
+.view-biz .bz-art-links { margin: 4px 0 14px; padding: 8px 12px; border-radius: 10px; background: var(--bg-active); font-size: 12.5px; color: var(--text-dim); }
+.view-biz .bz-art-src.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+.view-biz .bz-art-src.top + .bz-art-src.top { margin-top: 3px; }
+.view-biz .bz-art-src.top .k { flex: none; font-weight: 600; color: var(--text); }
+.view-biz .bz-art-src.top small { flex-basis: 100%; font-size: 11.5px; }
+.view-biz .bz-art-links .bz-art-tip { margin: 6px 0 0; }
+.view-biz .bz-art-sec { margin-top: 18px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.view-biz .bz-art-sec h4 { margin: 0 0 8px; font-size: 14.5px; font-weight: 650; }
+.view-biz .bz-art-sec h4 small { margin-left: 8px; font-size: 12px; font-weight: 400; color: var(--text-dim); }
+.view-biz .bz-art-sec .bz-art-ot { font-weight: 600; }
+.view-biz .bz-art-sec .bz-art-note { font-size: 12px; color: var(--text-dim); }
+.view-biz .bz-art-sec .bz-art-note a { color: var(--accent); }
