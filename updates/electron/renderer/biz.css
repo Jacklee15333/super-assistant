@@ -1354,3 +1354,25 @@ body.dark .view-biz .bz-kind.k-custom { color: #b8a2f0; }
 .view-biz .bz-rm-more { grid-column: 1 / -1; text-align: center; margin: 4px 0 0; }
 .view-biz .bz-rm-cg summary { cursor: pointer; font-size: 12px; color: var(--text-dim); margin: 2px 0 4px; }
 .view-biz .bz-rm-cg p { margin: 0 0 5px; font-size: 12px; }
+
+/* ===== v193：更新汇报、正在核实（点开实时画面）、交易平台全部抓 ===== */
+.view-biz .bz-spin { display: inline-block; width: 11px; height: 11px; margin-right: 6px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: bzspin .8s linear infinite; vertical-align: -1px; }
+@keyframes bzspin { to { transform: rotate(360deg); } }
+.view-biz #bzRmUpdBtn.busy { opacity: .85; cursor: progress; }
+.view-biz .bz-rm-report { margin: 10px 0 2px; padding: 10px 14px; border: 1px solid color-mix(in srgb, #2f8f5b 45%, var(--line)); border-radius: 10px; background: color-mix(in srgb, #2f8f5b 6%, var(--bg-elev)); }
+.view-biz .bz-rm-report[hidden] { display: none; }
+.view-biz .bz-rm-report-h { display: flex; gap: 10px; align-items: center; margin-bottom: 4px; }
+.view-biz .bz-rm-report-h .bz-x { margin-left: auto; }
+.view-biz .bz-rm-report p { margin: 3px 0; font-size: 12.5px; line-height: 1.6; }
+.view-biz .bz-rm-run:empty { display: none; }
+.view-biz .bz-rm-run { margin: 0 0 12px; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); border-radius: 10px; background: var(--bg-elev); }
+.view-biz .bz-rm-run-t { display: flex; align-items: center; gap: 4px; width: 100%; border: 0; background: none; padding: 0; color: var(--text); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.view-biz .bz-rm-run-t .bz-spin { color: var(--accent); }
+.view-biz .bz-rm-run-t .cx-ail-caret { margin-left: auto; font-size: 12.5px; color: var(--accent); white-space: nowrap; }
+.view-biz .bz-rm-run-t:hover b { color: var(--accent); }
+.view-biz .bz-rm-run-s { margin: 4px 0 0 17px; font-size: 12.5px; color: var(--text-dim); }
+.view-biz .bz-rm-run .cx-ail-slot { margin-top: 10px; }
+.view-biz .bz-rm-tbar-in { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; align-items: start; padding: 10px 12px; margin: 0 0 12px; border-radius: 10px; background: var(--bg-hover); }
+.view-biz .bz-rm-tbar-in p { margin: 4px 0 0; font-size: 12.5px; line-height: 1.65; }
+.view-biz .bz-rm-tprog p { margin: 0 0 6px; font-size: 12.5px; }
+@media (max-width: 1000px) { .view-biz .bz-rm-tbar-in { grid-template-columns: 1fr; } }

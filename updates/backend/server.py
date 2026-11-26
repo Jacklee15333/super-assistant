@@ -6709,8 +6709,12 @@ class Handler(BaseHTTPRequestHandler):
                     if act == "start":
                         return self._send(_br.batch_start(body.get("scope", "all"), body.get("depth", "quick"), body.get("todo", True)))
                     return self._send({"resume": _br.batch_resume, "stop": _br.batch_stop, "clear": _br.batch_clear}.get(act, _br.batch_stop)())
-                if path == "/biz/real/trade":                        # v192：只抓交易平台（不用 AI）
+                if path == "/biz/real/trade":                        # v192：只抓交易平台（不用 AI）；v193：all＝全部抓一遍，stop＝停
                     import biz_trade as _bt
+                    if body.get("action") == "all":
+                        return self._send(_bt.batch_start(body.get("scope", "all")))
+                    if body.get("action") == "stop":
+                        return self._send(_bt.batch_stop())
                     return self._send(_bt.probe_async(body.get("target", "")))
                 if path == "/biz/real/check_delete":
                     import biz_real as _br

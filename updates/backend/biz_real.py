@@ -391,13 +391,33 @@ def _sw_names():
     return _SW
 
 
-def sw_id(name):
+def sw_id(name, fuzzy=False):
+    """申万二级行业名 → 行业地图编号。v193：默认只认名字完全对上的（去掉「Ⅱ」），
+    v192 的「名字里含有」会把「上海证券交易所」这种字段也认成「证券」，大多数行业就空了。"""
     n = re.sub(r"[ⅡⅢⅠ]+$|(II|III)$", "", (name or "").strip())
     sw = _sw_names()
     if n in sw:
         return sw[n]
-    hits = [v for k, v in sw.items() if "/" in v and len(k) >= 2 and (k in n or n in k)]
-    return hits[0] if len(hits) == 1 else ""
+    if fuzzy and 2 <= len(n) <= 8:
+        hits = [v for k, v in sw.items() if "/" in v and len(k) >= 2 and (k == n[:len(k)] or n == k[:len(n)])]
+        return hits[0] if len(hits) == 1 else ""
+    return ""
+
+
+IND_KEYS = ["PUBLISHNAME", "INDUSTRY", "BOARD_NAME", "INDUSTRY_NAME", "SW_INDUSTRY", "HY"]
+_NOT_A = re.compile(r"股转|三板|中小企业股份|新三板|NEEQ|B股|港股|美股", re.I)
+
+
+def is_a_share(r):
+    """只算沪深京 A 股：业绩报表里还混着新三板（六千多家）、B 股。"""
+    for k in ("TRADE_MARKET", "SECURITY_TYPE", "TRADE_MARKET_ZJG"):
+        v = r.get(k)
+        if isinstance(v, str) and _NOT_A.search(v):
+            return False
+    code = str(r.get("SECURITY_CODE") or "")
+    if code[:3] in ("200", "900"):                      # B 股
+        return False
+    return True
 
 
 def _pick_key(rows, cands):
@@ -408,15 +428,22 @@ def _pick_key(rows, cands):
 
 
 def _ind_key(rows):
-    """哪个字段是「所处行业」：看哪个字段的值最能对上申万二级行业名。"""
+    """哪个字段是「所处行业」：先看常见的几个字段名，按全部行里能完全对上申万二级行业名的多少挑；都对不上再看别的字段。"""
+    def hits(k):
+        return sum(1 for r in rows if isinstance(r.get(k), str) and sw_id(r[k]))
     best, bn = "PUBLISHNAME", 0
-    keys = set()
-    for r in rows[:80]:
-        keys |= {k for k, v in r.items() if isinstance(v, str)}
-    for k in keys:
-        n = sum(1 for r in rows[:200] if isinstance(r.get(k), str) and sw_id(r[k]))
+    for k in IND_KEYS:
+        n = hits(k)
         if n > bn:
             best, bn = k, n
+    if bn < len(rows) * 0.3:
+        keys = set()
+        for r in rows[:300]:
+            keys |= {k for k, v in r.items() if isinstance(v, str)}
+        for k in keys - set(IND_KEYS):
+            n = hits(k)
+            if n > bn:
+                best, bn = k, n
     return best
 
 
@@ -451,18 +478,28 @@ def _f(v):
         return None
 
 
+_DIAG = {}
+
+
 def aggregate(rows):
     """一期财报 → 每个二级行业（和一级行业）的合计：家数、营收、上年营收、净利润、上年净利润、毛利率中位数、营收前五。"""
     if not rows:
         return {}, ""
+    rows = [r for r in rows if is_a_share(r)]
     ik = _ind_key(rows)
+    _DIAG.clear()
+    miss = {}
     yk = _pick_key(rows, ["YSTZ", "TOTAL_OPERATE_INCOME_YOY"])
     pk = _pick_key(rows, ["SJLTZ", "PARENT_NETPROFIT_YOY"])
     agg = {}
     for r in rows:
-        gid = sw_id(r.get(ik))
+        gid = sw_id(r.get(ik), fuzzy=True)
         rev, npf = _f(r.get("TOTAL_OPERATE_INCOME")), _f(r.get("PARENT_NETPROFIT"))
-        if not gid or rev is None or rev <= 0:
+        if not gid:
+            nm_ = str(r.get(ik) or "（空）")
+            miss[nm_] = miss.get(nm_, 0) + 1
+            continue
+        if rev is None or rev <= 0:
             continue
         ry, py, gm = _f(r.get(yk)), _f(r.get(pk)), _f(r.get("XSMLL"))
         name = r.get("SECURITY_NAME_ABBR") or r.get("SECURITY_CODE") or ""
@@ -480,6 +517,7 @@ def aggregate(rows):
             if gm is not None and -100 < gm < 100:
                 a["gm"].append(gm)
             a["top"].append((rev, name, npf))
+    _DIAG.update(key=ik, rows=len(rows), mapped=len(rows) - sum(miss.values()), miss=sorted(miss.items(), key=lambda x: -x[1])[:12])
     out = {}
     for g, a in agg.items():
         top = sorted(a["top"], key=lambda x: -x[0])[:6]
@@ -513,13 +551,14 @@ def update_listed(data):
         st.update(ok=False, err="没找到报完的年报", at=int(time.time()))
         return
     if (data.get("listed") or {}).get("annual") == annual and data["listed"].get("latest") == latest and st.get("ok") \
-            and data["listed"].get("v") == 2 \
+            and data["listed"].get("v") == 3 \
             and time.time() - st.get("full_at", 0) < 7 * 86400:
         st["at"] = int(time.time())
         return
     _upd["stage"] = "东方财富：读 %s 年报…" % annual[:4]
-    a_rows = fetch_period(annual)
+    a_rows = [r for r in fetch_period(annual) if is_a_share(r)]
     a_agg, ik = aggregate(a_rows)
+    diag = dict(_DIAG)
     q_agg = {}
     if latest != annual:
         _upd["stage"] = "东方财富：读 %s…" % period_name(latest)
@@ -528,23 +567,52 @@ def update_listed(data):
         st.update(ok=False, err="读到了 %d 家，但没认出所处行业（字段 %s）" % (len(a_rows), ik), at=int(time.time()))
         return
     data["listed"] = {"annual": annual, "latest": latest, "annual_name": period_name(annual), "latest_name": period_name(latest),
-                      "companies": len(a_rows), "a": a_agg, "q": q_agg, "v": 2}      # v2：同一家公司只算一次
+                      "companies": len(a_rows), "a": a_agg, "q": q_agg, "v": 3, "diag": diag}   # v3：只算 A 股、行业名完全对上
     st.update(ok=True, err="", at=int(time.time()), full_at=int(time.time()), n=len(a_rows),
-              period=period_name(annual) + ("、" + period_name(latest) if latest != annual else ""))
+              period=period_name(annual) + ("、" + period_name(latest) if latest != annual else ""),
+              mapped=diag.get("mapped", 0), n_ind=len([g for g in a_agg if "/" in g]), field=ik,
+              miss=diag.get("miss", [])[:6])
+    if diag.get("rows") and diag.get("mapped", 0) < diag["rows"] * 0.6:
+        st["warn"] = "只有 %d / %d 家认出了行业（字段 %s），没认出的多是：%s" % (
+            diag.get("mapped", 0), diag["rows"], ik, "、".join("%s %d 家" % x for x in diag.get("miss", [])[:5]))
     _log("东方财富：%s %d 家公司，归到 %d 个行业" % (period_name(annual), len(a_rows), len(a_agg)))
 
 
 # ───────────────────────── 更新 ─────────────────────────
+SRC_SHORT = {"retail": "统计局·社会消费品零售", "ind": "统计局·工业企业利润", "income": "统计局·居民收入和消费支出", "listed": "东方财富·上市公司业绩"}
+
+
 def _do_update(force):
     data = _data()
+    t0 = time.time()
+    before = {k: dict((data.get("st") or {}).get(k) or {}) for k in SRC_SHORT}
+    errs = {}
     for name, fn in (("统计局", lambda: update_nbs(data, force)), ("东方财富", lambda: update_listed(data))):
         _upd["stage"] = "正在读%s…" % name
         try:
             fn()
         except Exception as e:
+            errs[name] = str(e)[:100]
             _log("%s没更新成：%s" % (name, str(e)[:100]))
         data["updated"] = int(time.time())
         _write(DATA_FILE, data)
+    # v193：更新完写一份汇报——每个信息源取到哪一期、和上次比有没有新的
+    lines, n_ok = [], 0
+    for k, nm in SRC_SHORT.items():
+        a, b = (data.get("st") or {}).get(k) or {}, before.get(k) or {}
+        if a.get("ok"):
+            n_ok += 1
+            new = a.get("period") != b.get("period") or a.get("n") != b.get("n") or not b.get("ok")
+            unit = " 家公司" if k == "listed" else " 项"
+            s = "%s：%s，%s%s" % (nm, a.get("period", ""), a.get("n", ""), unit)
+            if k == "listed" and a.get("n_ind"):
+                s += "，归到 %d 个二级行业（认出行业的 %s 家）" % (a["n_ind"], a.get("mapped", "?"))
+            s += "——有新数据" if new else "——和上次一样（还没出新的一期）"
+            lines.append({"ok": True, "new": new, "txt": s, "warn": a.get("warn", "")})
+        else:
+            lines.append({"ok": False, "txt": "%s：没取到（%s）" % (nm, a.get("err") or errs.get("东方财富" if k == "listed" else "统计局") or "原因不明")})
+    data["last_report"] = {"at": int(time.time()), "secs": int(time.time() - t0), "lines": lines, "n_ok": n_ok, "n": len(SRC_SHORT)}
+    _write(DATA_FILE, data)
 
 
 def start_update(force=False):
@@ -564,7 +632,7 @@ def start_update(force=False):
 
 def maybe_update():
     d = _data()
-    if not _upd["running"] and (time.time() - d.get("updated", 0) > STALE_S or (d.get("listed") and d["listed"].get("v") != 2)):
+    if not _upd["running"] and (time.time() - d.get("updated", 0) > STALE_S or (d.get("listed") and d["listed"].get("v") != 3)):
         start_update()
 
 
@@ -647,9 +715,11 @@ def overview():
         srcs.append(x)
     try:
         import biz_trade as BT
+        cov = BT.coverage()
         for p in BT.status():
-            srcs.append({"key": "tp_" + p["key"], "name": p["name"], "what": p["what"], "url": p["url"], "auto": False, "crawl": True,
-                         "how": "爬虫抓（直连 → Scrapling 快速 → 真浏览器，管用的记住）；核实时自动抓，也可以在体检卡里点「抓交易平台」",
+            c = cov.get(p["key"]) or {}
+            srcs.append({"fit": c.get("fit", 0), "done": c.get("done", 0), "key": "tp_" + p["key"], "name": p["name"], "what": p["what"], "url": p["url"], "auto": False, "crawl": True,
+                         "how": "爬虫抓（直连 → Scrapling 快速 → 真浏览器，管用的记住）；核实时自动抓，也可以在体检卡里点「去平台抓」，或点上面「交易平台全部抓一遍」",
                          "n_ok": p.get("n_ok", 0), "n_bad": p.get("n_bad", 0), "last_ok": p.get("last_ok", 0), "at": p.get("at", 0),
                          "via": p.get("via", ""), "err": p.get("err", "")})
         srcs = [x for x in srcs if x["key"] not in ("ecom", "trade", "bid")]
@@ -670,9 +740,9 @@ def overview():
     if ir.get("总计"):
         kpi.append({"k": "规上工业营业收入", "v": ir["总计"]["rev"], "unit": "亿元", "yoy": ir["总计"]["rev_yoy"], "period": i.get("period", ""),
                     "extra": "利润率 %s%%" % ir["总计"]["margin"] if ir["总计"].get("margin") is not None else ""})
-    return {"ok": True, "updated": d.get("updated", 0), "updating": dict(_upd), "sources": srcs, "kpi": kpi, "by": by,
+    return {"ok": True, "updated": d.get("updated", 0), "updating": dict(_upd), "report": d.get("last_report"), "sources": srcs, "kpi": kpi, "by": by,
             "listed": {k: L.get(k) for k in ("annual", "latest", "annual_name", "latest_name", "companies")},
-            "checks": [_check_brief(c) for c in _checks()[:300]], "batch": batch_status(), "now": int(time.time())}
+            "checks": [_check_brief(c) for c in _checks()[:300]], "batch": batch_status(), "tbatch": _tbatch(), "now": int(time.time())}
 
 
 def item(gid):
@@ -992,6 +1062,14 @@ def batch_ids(scope, todo):
         ids = [g for g in ids if g not in done]
         name += "里还没核实过的"
     return ids, name
+
+
+def _tbatch():
+    try:
+        import biz_trade as BT
+        return BT.batch_status()
+    except Exception:
+        return None
 
 
 def batch_status():

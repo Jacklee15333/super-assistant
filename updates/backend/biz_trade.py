@@ -447,3 +447,81 @@ def prompt_text(rec):
         body += "\n  政府采购网最近的几条：" + "；".join("%s %s%s%s" % (it.get("d", ""), it["t"], ("（%s）" % it["buyer"]) if it.get("buyer") else "",
                                                        "，%s %s 万元" % (it.get("amt_k", "金额"), _yuan(it["amt"])) if it.get("amt") else "") for it in items[:5])
     return "（%s 爬虫在平台上直接抓的，口径写「交易平台」「电商平台」或「招投标」）\n%s" % (d, body)
+
+
+# ───────────────────────── v193：全部抓一遍（不用 AI，只跑爬虫）─────────────────────────
+_tb = {"running": False, "stop": False, "ids": [], "i": 0, "ok": 0, "bad": 0, "cur": "", "started": 0, "ended": 0, "name": "", "skipped": 0}
+
+
+def batch_start(scope="all", fresh_days=3):
+    with _lock:
+        if _tb["running"]:
+            return {"ok": False, "error": "已经在一个个抓了"}
+        tx = BZ._tx()
+        l2, trk = list(tx["l2"]), list(tx["trk"])
+        if scope.startswith("sec:") and scope in tx["sec"]:
+            ids, name = [g for g in l2 if tx["l2"][g]["l1"] in tx["sec"][scope]["l1"]], tx["sec"][scope]["name"] + "板块"
+        elif scope == "trk":
+            ids, name = trk, "新兴赛道"
+        else:
+            ids, name = trk + l2, "全部（新兴赛道 + 二级行业）"
+        old = _read(TRADE_FILE, {})
+        cut = time.time() - fresh_days * 86400
+        keep = [g for g in ids if (old.get(g) or {}).get("at", 0) < cut]
+        _tb.update(running=True, stop=False, ids=keep, i=0, ok=0, bad=0, cur="", started=int(time.time()), ended=0, name=name,
+                   skipped=len(ids) - len(keep))
+    threading.Thread(target=_tb_loop, daemon=True, name="biz-trade-batch").start()
+    _log("开始一个个抓交易平台：%s，%d 个（%d 天内抓过的 %d 个跳过）" % (name, len(keep), fresh_days, len(ids) - len(keep)))
+    return {"ok": True, "n": len(keep), "skipped": len(ids) - len(keep)}
+
+
+def batch_stop():
+    _tb["stop"] = True
+    return {"ok": True}
+
+
+def _tb_loop():
+    try:
+        for i, g in enumerate(list(_tb["ids"])):
+            if _tb["stop"]:
+                break
+            _tb.update(i=i, cur=g)
+            try:
+                r = probe(g)
+                rec = (r or {}).get("rec") or {}
+                if any(x.get("ok") for x in (rec.get("res") or {}).values()):
+                    _tb["ok"] += 1
+                else:
+                    _tb["bad"] += 1
+            except Exception:
+                _tb["bad"] += 1
+            _tb["i"] = i + 1
+    finally:
+        _tb.update(running=False, cur="", ended=int(time.time()))
+        _log("一个个抓交易平台结束：抓到 %d 个，没抓到 %d 个" % (_tb["ok"], _tb["bad"]))
+
+
+def batch_status():
+    if not _tb["started"]:
+        return None
+    d = {k: _tb[k] for k in ("running", "stop", "i", "ok", "bad", "started", "ended", "name", "skipped")}
+    d["n"] = len(_tb["ids"])
+    d["cur_name"] = BZ._resolve(_tb["cur"])[0] if _tb["cur"] else ""
+    done = _tb["ok"] + _tb["bad"]
+    d["eta"] = int((time.time() - _tb["started"]) / done * (d["n"] - done)) if done else d["n"] * 25
+    return d
+
+
+def coverage():
+    """每个平台：适用的行业有多少个、抓过的有多少个（给信息源表格说明「哪些会去抓」）。"""
+    tx = BZ._tx()
+    ids = list(tx["trk"]) + list(tx["l2"])
+    data = _read(TRADE_FILE, {})
+    out = {p["key"]: {"fit": 0, "done": 0} for p in PLATFORMS}
+    for g in ids:
+        _kw, plats = plan(g)
+        for p in plats:
+            out[p]["fit"] += 1
+            if p in ((data.get(g) or {}).get("res") or {}):
+                out[p]["done"] += 1
+    return out
