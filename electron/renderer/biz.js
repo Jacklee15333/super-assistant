@@ -156,6 +156,7 @@
             '<div id="bzListWrap"><p class="bz-filter" id="bzFeedFilter" hidden></p><div class="bz-feed" id="bzFeed"></div>' +
             '<nav class="bz-pager" id="bzPager" aria-label="翻页" hidden></nav></div></section></div>' +
           '<aside class="bz-side">' +
+            '<section class="bz-card bz-scan-card" id="bzScanCard"><div class="bz-card-h"><h3>扫描结果</h3></div><p class="bz-hint" id="bzScanHint"></p><div id="bzScanList"></div></section>' +
             '<section class="bz-card"><div class="bz-card-h"><h3>正在升温</h3></div><p class="bz-hint" id="bzRisingHint"></p><div class="bz-terms" id="bzRising"></div></section>' +
             '<section class="bz-card"><div class="bz-card-h"><h3>提得最多</h3></div><div class="bz-chips" id="bzHot"></div></section>' +
             '<section class="bz-card"><div class="bz-card-h"><h3>最近的简报</h3></div><div class="bz-reps" id="bzBriefs"></div></section>' +
@@ -311,7 +312,9 @@
     if (lw) lw.hidden = v !== "list";
     if (gw) gw.hidden = v !== "list";
     const cols = $("bzCols");
-    if (cols) cols.classList.toggle("wide", v === "radar");     // v168：雷达模式下右边栏挪到下面，雷达能放大
+    if (cols) cols.classList.toggle("wide", v === "radar");
+    const scard = $("bzScanCard");
+    if (scard) scard.hidden = v !== "radar";     // v168：雷达模式下右边栏挪到下面，雷达能放大
     if (v === "radar") renderRadarScan();
   }
   function setRview(v, ind) {
@@ -327,36 +330,41 @@
     if (card && ind) card.scrollIntoView({ block: "start" });
   }
   const RAD_SEC = { "科技": "#3b6fd1", "消费": "#c4613a", "医药": "#2f8f5b", "制造": "#7a5cc2", "周期资源": "#a0711a", "金融地产": "#c23b6a", "公用交运": "#2a8a9a" };
-  // v168：新兴赛道太笼统，按方向再分成 5 块，每块自己一种颜色
+  // v168：新兴赛道按方向分成 5 块；v169：去掉「赛道·」
   const TRK_GROUPS = [
-    ["赛道·智能科技", "#0f8fb3", ["t:ai", "t:compute", "t:chip", "t:data", "t:robot", "t:future"]],
-    ["赛道·新能源与出行", "#3a9a3a", ["t:ev", "t:energy", "t:autodrive", "t:lowalt", "t:space"]],
-    ["赛道·新消费", "#d9822b", ["t:newcons", "t:discount", "t:tea", "t:pet"]],
-    ["赛道·内容与电商", "#b5508f", ["t:livecom", "t:crossborder", "t:creator", "t:edu", "t:local"]],
-    ["赛道·健康养老", "#5a8f7b", ["t:biotech", "t:silver"]],
+    ["智能科技", "#0f8fb3", ["t:ai", "t:compute", "t:chip", "t:data", "t:robot", "t:future"]],
+    ["新能源与出行", "#3a9a3a", ["t:ev", "t:energy", "t:autodrive", "t:lowalt", "t:space"]],
+    ["新消费", "#d9822b", ["t:newcons", "t:discount", "t:tea", "t:pet"]],
+    ["内容与电商", "#b5508f", ["t:livecom", "t:crossborder", "t:creator", "t:edu", "t:local"]],
+    ["健康养老", "#5a8f7b", ["t:biotech", "t:silver"]],
   ];
+  // v169：细分到底——大块是板块，里面每个一级行业（或赛道）一小格，圆点是二级行业
   function radarModel() {
     const ov = S.ovm, t = S.tax;
     if (!ov || !t) return null;
     const d = S.mdays, l1 = ov.l1 || {}, hh = ov.heat || {};
-    const hv = (id) => l1[id] || hh[id] || [0, 0];       // 一级行业的条数在 l1 里，赛道在 heat 里
-    const mk = (id, name, sec) => ({ id, name, n: hv(id)[0], t: hv(id)[1], sec });
-    const groups = t.sectors.map((sec) => ({ key: sec.key, name: sec.name, color: RAD_SEC[sec.name] || "#888", items: sec.l1.map((id) => mk(id, nameOf(id), sec.name)) }));
-    const known = new Set(t.tracks.map((x) => x.id)), used = new Set();
-    TRK_GROUPS.forEach(([name, color, ids]) => {
-      const its = ids.filter((id) => known.has(id)).map((id) => { used.add(id); return mk(id, nameOf(id), name); });
-      if (its.length) groups.push({ key: name, name, color, items: its, trk: true });
-    });
-    const rest = t.tracks.filter((x) => !used.has(x.id));             // 以后新加的赛道，先放「赛道·其他」
-    if (rest.length) groups.push({ key: "trk-other", name: "赛道·其他", color: "#9a8a6a", items: rest.map((x) => mk(x.id, x.name, "赛道·其他")), trk: true });
-    let max = 1, total = 0;
-    groups.forEach((g) => g.items.forEach((it) => {
-      max = Math.max(max, it.n);
+    const hv = (id) => hh[id] || l1[id] || [0, 0];
+    const items = [];
+    const mk = (id, name, parent, sec, color) => {
+      const it = { id, name, parent, sec, color, n: hv(id)[0], t: hv(id)[1] };
       it.hot = d > 1 && it.t >= 3 && it.t >= (it.n * 2) / d;          // 最近 24 小时的量明显高于这段时间的日均
-      it.color = g.color;
-    }));
-    groups.forEach((g) => { g.n = g.items.reduce((a, x) => a + x.n, 0); total += g.n; });
-    return { groups, max, total };
+      items.push(it);
+      return it;
+    };
+    const wedges = t.sectors.map((sec) => {
+      const color = RAD_SEC[sec.name] || "#888";
+      return { name: sec.name, color, cells: sec.l1.map((l) => ({ id: l, name: nameOf(l), items: ((S.byId[l] || {}).subs || []).map((x) => mk(x, nameOf(x), nameOf(l), sec.name, color)) })) };
+    });
+    const known = new Set(t.tracks.map((x) => x.id)), used = new Set();
+    const trkW = TRK_GROUPS.map(([name, color, ids]) => ({ name, color, trk: true,
+      cells: ids.filter((id) => known.has(id)).map((id) => { used.add(id); return { id, name: nameOf(id), items: [mk(id, nameOf(id), name, name, color)] }; }) }));
+    const rest = t.tracks.filter((x) => !used.has(x.id));
+    if (rest.length) trkW.push({ name: "其他新方向", color: "#9a8a6a", trk: true, cells: rest.map((x) => ({ id: x.id, name: x.name, items: [mk(x.id, x.name, "其他新方向", "其他新方向", "#9a8a6a")] })) });
+    const all = wedges.concat(trkW.filter((w) => w.cells.length));
+    let max = 1;
+    items.forEach((it) => { max = Math.max(max, it.n); });
+    all.forEach((w) => { w.n = 0; w.cells.forEach((c) => { c.n = c.items.reduce((a, x) => a + x.n, 0); w.n += c.n; }); });
+    return { wedges: all, items, max };
   }
   function renderRadarScan() {
     const el = $("bzRadar");
@@ -364,72 +372,77 @@
     const M = radarModel();
     if (!M) { el.innerHTML = loading(S.ovmErr ? "读不到：" + S.ovmErr : "正在扫描…"); return; }
     if (!(S.ovm.counts && S.ovm.counts.radar)) { el.innerHTML = empty('爬虫还没抓到东西。点上面的<button type="button" class="bz-link" data-act="upd-open">现在更新</button>马上抓一次。'); return; }
-    // v168：雷达放大；每一块扇形里的圆点按「一圈一圈」排，保证都在自己那块里、互不重叠；同一块里新闻多的排在里圈
-    const W = 720, C = W / 2, R = 310, R0 = 70, GAP = 0.02;
-    const weights = M.groups.map((g) => Math.max(2.4, g.items.length));
-    const wsum = weights.reduce((a, b) => a + b, 0);
+    // 外圈一圈写一级行业 / 赛道的名字，里面的圆点按条数从多到少由里往外排，保证都在自己那一格里
+    const R = 400, R0 = 26, RD = R - 118, C = 0;
+    const cellsN = M.wedges.reduce((a, w) => a + w.cells.length, 0);
+    const unit = (Math.PI * 2 - M.wedges.length * 0.03) / M.wedges.reduce((a, w) => a + w.cells.reduce((b, c) => b + Math.max(1, Math.min(4, c.items.length * 0.55 + 0.6)), 0), 0);
     let a0 = -Math.PI / 2;
     const pt = (r, a) => [C + r * Math.cos(a), C + r * Math.sin(a)];
-    let wedges = "", labels = "", blips = "", spokes = "";
+    const arc = (r1, r2, x, y) => {
+      const [p1x, p1y] = pt(r2, x), [p2x, p2y] = pt(r2, y), [p3x, p3y] = pt(r1, y), [p4x, p4y] = pt(r1, x), lg = y - x > Math.PI ? 1 : 0;
+      return "M" + p1x.toFixed(1) + "," + p1y.toFixed(1) + " A" + r2 + "," + r2 + " 0 " + lg + " 1 " + p2x.toFixed(1) + "," + p2y.toFixed(1) +
+        " L" + p3x.toFixed(1) + "," + p3y.toFixed(1) + " A" + r1 + "," + r1 + " 0 " + lg + " 0 " + p4x.toFixed(1) + "," + p4y.toFixed(1) + " Z";
+    };
+    let wedges = "", labels = "", rim = "", blips = "", spokes = "";
     const pos = [];
-    const sizeOf = (n) => (n ? 5 + 13 * Math.sqrt(n / M.max) : 3);
-    M.groups.forEach((g, gi) => {
-      const span = (weights[gi] / wsum) * Math.PI * 2, a1 = a0 + span;
-      const [x0, y0] = pt(R, a0), [x1, y1] = pt(R, a1), [i0x, i0y] = pt(R0, a0), [i1x, i1y] = pt(R0, a1);
-      wedges += '<path d="M' + i0x.toFixed(1) + "," + i0y.toFixed(1) + " L" + x0.toFixed(1) + "," + y0.toFixed(1) + " A" + R + "," + R + " 0 " + (span > Math.PI ? 1 : 0) + " 1 " + x1.toFixed(1) + "," + y1.toFixed(1) +
-        " L" + i1x.toFixed(1) + "," + i1y.toFixed(1) + " A" + R0 + "," + R0 + " 0 0 0 " + i0x.toFixed(1) + "," + i0y.toFixed(1) +
-        ' Z" class="wedge' + (S.radSel && g.items.some((x) => x.id === S.radSel) ? " on" : "") + '" fill="' + g.color + '" fill-opacity="' + (gi % 2 ? 0.07 : 0.12) + '"/>';
-      spokes += '<line x1="' + i0x.toFixed(1) + '" y1="' + i0y.toFixed(1) + '" x2="' + x0.toFixed(1) + '" y2="' + y0.toFixed(1) + '" class="sp"/>';
-      // 块名写在外圈，跟着扇形中线
-      const am = a0 + span / 2, [lx, ly] = pt(R + 20, am);
-      const anchor = Math.abs(Math.cos(am)) < 0.3 ? "middle" : Math.cos(am) > 0 ? "start" : "end";
-      const dy = Math.sin(am) > 0.3 ? 14 : Math.sin(am) < -0.3 ? -2 : 5;
-      labels += '<text x="' + lx.toFixed(1) + '" y="' + (ly + dy).toFixed(1) + '" text-anchor="' + anchor + '" class="secl" fill="' + g.color + '">' + esc(g.name) +
-        '<tspan class="secn"> ' + g.n + "</tspan></text>";
-      // 圆点：有新闻的按条数从多到少，从里圈往外一圈圈排；没新闻的小灰点排在最外圈
-      const act = g.items.filter((x) => x.n).sort((p, q) => q.n - p.n), quiet = g.items.filter((x) => !x.n);
-      const aIn = a0 + GAP, aSpan = span - GAP * 2;
-      let r = R0 + 32, k = 0;
-      while (k < act.length) {
-        const slots = Math.max(1, Math.floor((r * aSpan) / 66));
-        const row = act.slice(k, k + slots);
-        row.forEach((it, j) => {
-          const a = aIn + aSpan * ((j + 0.5) / row.length);
-          const [x, y] = pt(r, a);
-          pos.push({ it, g, x, y, size: sizeOf(it.n), lab: k + j < 2 || (r > R0 + 120 && k + j < 4) });
+    const sizeOf = (n) => (n ? 3.2 + 10 * Math.sqrt(n / M.max) : 2);
+    const selCell = S.radSel && M.items.find((x) => x.id === S.radSel);
+    M.wedges.forEach((w, wi) => {
+      const ws = a0;
+      w.cells.forEach((c, ci) => {
+        const span = unit * Math.max(1, Math.min(4, c.items.length * 0.55 + 0.6)), a1 = a0 + span;
+        const on = selCell && (selCell.parent === c.name || selCell.id === c.id);
+        wedges += '<path d="' + arc(R0, R, a0, a1) + '" class="wedge' + (on ? " on" : "") + '" fill="' + w.color + '" fill-opacity="' + (ci % 2 ? 0.07 : 0.13) + '"/>';
+        // 一级行业 / 赛道名字：沿着半径写在外圈里面，左半边翻过来免得倒着
+        const am = (a0 + a1) / 2, deg = (am * 180) / Math.PI, flip = Math.cos(am) < 0;
+        const [tx, ty] = pt(R - 8, am);
+        rim += '<text x="' + tx.toFixed(1) + '" y="' + ty.toFixed(1) + '" class="rim' + (c.n ? "" : " q") + (on ? " on" : "") + '" text-anchor="' + (flip ? "start" : "end") + '" dominant-baseline="middle" transform="rotate(' +
+          (flip ? deg + 180 : deg).toFixed(1) + " " + tx.toFixed(1) + " " + ty.toFixed(1) + ')" fill="' + w.color + '">' + esc(c.name.length > 7 ? c.name.slice(0, 6) + "…" : c.name) + (c.n ? '<tspan class="rn"> ' + c.n + "</tspan>" : "") + "</text>";
+        // 圆点
+        const act = c.items.filter((x) => x.n).sort((p, q) => q.n - p.n), quiet = c.items.filter((x) => !x.n);
+        const aIn = a0 + span * 0.12, aSpan = span * 0.76;
+        // 先按里圈放得下几个分好行，再把这些行均匀铺满整格的深度（不挤在中心）
+        const rows = [];
+        let r = R0 + 22, k = 0;
+        while (k < act.length) {
+          const slots = Math.max(1, Math.floor((r * aSpan) / 26));
+          rows.push(act.slice(k, k + slots));
+          k += slots;
+          r += 27;
+        }
+        const r1 = R0 + 30, r2 = RD - 6;
+        rows.forEach((row, i) => {
+          const rr = rows.length === 1 ? r1 + (r2 - r1) * (0.08 + 0.8 * (1 - Math.log(1 + row[0].n) / Math.log(1 + M.max))) : r1 + ((r2 - r1) * i) / Math.max(rows.length - 1, Math.min(6, act.length));
+          row.forEach((it, j) => { const [x, y] = pt(rr, aIn + aSpan * ((j + 0.5) / row.length)); pos.push({ it, x, y, size: sizeOf(it.n) }); });
         });
-        k += row.length;
-        r += 60;
-        if (r > R - 36) r = R - 36;                          // 实在太多就挤在最外一圈
-      }
-      quiet.forEach((it, j) => {
-        const a = aIn + aSpan * ((j + 0.5) / quiet.length), [x, y] = pt(R - 12, a);
-        pos.push({ it, g, x, y, size: 3, lab: false });
+        quiet.forEach((it, j) => { const [x, y] = pt(RD + 8, aIn + aSpan * ((j + 0.5) / quiet.length)); pos.push({ it, x, y, size: 2 }); });
+        a0 = a1;
       });
-      a0 = a1;
+      // 板块：外面一条彩色的弧 + 名字
+      const we = a0;
+      wedges += '<path d="' + arc(R + 4, R + 12, ws, we) + '" fill="' + w.color + '" class="band"/>';
+      const am = (ws + we) / 2, [lx, ly] = pt(R + 30, am);
+      const anchor = Math.abs(Math.cos(am)) < 0.3 ? "middle" : Math.cos(am) > 0 ? "start" : "end";
+      const dy = Math.sin(am) > 0.3 ? 16 : Math.sin(am) < -0.3 ? -2 : 6;
+      labels += '<text x="' + lx.toFixed(1) + '" y="' + (ly + dy).toFixed(1) + '" text-anchor="' + anchor + '" class="secl" fill="' + w.color + '">' + esc(w.name) + '<tspan class="secn"> ' + w.n + "</tspan></text>";
+      spokes += '<line x1="' + pt(R0, ws)[0].toFixed(1) + '" y1="' + pt(R0, ws)[1].toFixed(1) + '" x2="' + pt(R + 12, ws)[0].toFixed(1) + '" y2="' + pt(R + 12, ws)[1].toFixed(1) + '" class="sp"/>';
+      a0 += 0.03;
     });
-    // 名字互相压住的，条数少的那个不写（鼠标移上去能看到）
-    const boxes = [];
-    pos.filter((p) => p.lab && p.it.n).sort((p, q) => q.it.n - p.it.n).forEach((p) => {
-      const nm = p.it.name.length > 6 ? 6 : p.it.name.length;
-      const w = nm * 15 + 4, bx = p.x - w / 2, by = p.y + p.size + 2, h = 17;
-      if (boxes.some((o) => bx < o[0] + o[2] && bx + w > o[0] && by < o[1] + o[3] && by + h > o[1])) { p.lab = false; return; }
-      boxes.push([bx, by, w, h]);
-    });
+    void cellsN;
     S.radPos = {};
-    S.radVB = { x: -170, y: -50, w: W + 340, h: W + 100, C: C, R: R };
-    pos.forEach(({ it, g, x, y, size, lab }) => {
-      S.radPos[it.id] = { x, y, color: g.color };
+    S.radVB = { x: -R - 170, y: -R - 64, w: (R + 170) * 2, h: (R + 64) * 2, C: C, R: R };
+    pos.forEach(({ it, x, y, size }) => {
+      S.radPos[it.id] = { x, y, color: it.color };
       const sel = S.radSel === it.id;
-      const name = it.name.length > 6 ? it.name.slice(0, 5) + "…" : it.name;
       blips += '<g class="blip' + (it.n ? "" : " quiet") + (it.hot ? " hot" : "") + (sel ? " sel" : "") + '" data-rad="' + esc(it.id) + '" tabindex="' + (it.n ? 0 : -1) + '" role="button" aria-label="' +
-        esc(it.name + "，" + it.n + " 条新闻" + (it.hot ? "，正在升温" : "")) + '">' +
-        '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + (size + 8).toFixed(1) + '" class="hit"/>' +
-        (it.hot ? '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + (size + 4).toFixed(1) + '" class="ring" stroke="' + g.color + '"/>' : "") +
-        '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + size.toFixed(1) + '" fill="' + g.color + '" class="dot"/>' +
-        ((lab || sel) && it.n ? '<text x="' + x.toFixed(1) + '" y="' + (y + size + 15).toFixed(1) + '" text-anchor="middle" class="bl">' + esc(name) + "</text>" : "") + "</g>";
+        esc(it.name + "（" + it.parent + "），" + it.n + " 条新闻" + (it.hot ? "，正在升温" : "")) + '">' +
+        '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + (size + 7).toFixed(1) + '" class="hit"/>' +
+        (it.hot ? '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + (size + 3.5).toFixed(1) + '" class="ring" stroke="' + it.color + '"/>' : "") +
+        '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + size.toFixed(1) + '" fill="' + it.color + '" class="dot"/>' +
+        (sel ? '<text x="' + x.toFixed(1) + '" y="' + (y + size + 15).toFixed(1) + '" text-anchor="middle" class="bl">' + esc(it.name) + "</text>" : "") + "</g>";
     });
-    const rings = [0.25, 0.5, 0.75, 1].map((k) => '<circle cx="' + C + '" cy="' + C + '" r="' + (R * k).toFixed(1) + '" class="rg"/>').join("");
+    labels = rim + labels;
+    const rings = [0.33, 0.66, 1].map((k) => '<circle cx="0" cy="0" r="' + (R0 + (RD - R0) * k).toFixed(1) + '" class="rg"/>').join("");
     const svg = '<svg class="bz-rad-svg" viewBox="' + S.radVB.x + " " + S.radVB.y + " " + S.radVB.w + " " + S.radVB.h + '" role="img" aria-label="市场雷达：按行业分好类的新闻，越靠近中心新闻越多">' +
       '<defs><radialGradient id="bzRadBg"><stop offset="0" stop-color="var(--accent)" stop-opacity=".10"/><stop offset="1" stop-color="var(--accent)" stop-opacity=".02"/></radialGradient>' +
       '<linearGradient id="bzSweep" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="var(--accent)" stop-opacity="0"/><stop offset="1" stop-color="var(--accent)" stop-opacity=".28"/></linearGradient></defs>' +
@@ -509,7 +522,7 @@
   function showLive(it) {
     const box = $("bzRadLive"), vb = S.radVB;
     if (!box || !vb) return;
-    const tgt = (it.ind && it.ind[0] ? it.ind[0].split("/")[0] : "") || (it.trk && it.trk[0]) || "";
+    const tgt = (it.ind && it.ind[0]) || (it.trk && it.trk[0]) || "";
     const ps = S.radPos[tgt] || { x: vb.C, y: vb.C, color: "var(--accent)" };
     const lx = ((ps.x - vb.x) / vb.w) * 100, ly = ((ps.y - vb.y) / vb.h) * 100;
     if (it.url) S.artItems[it.id] = it;
@@ -533,38 +546,49 @@
 
   function renderRadPanel(M) {
     const el = $("bzRadPanel");
-    if (!el) return;
     M = M || radarModel();
-    if (!M) return;
+    renderScanCard(M);
+    if (!el || !M) return;
     const win = S.mdays <= 1 ? "最近 24 小时" : "最近 " + S.mdays + " 天";
-    const all = [];
-    M.groups.forEach((g) => g.items.forEach((it) => { if (it.n) all.push(Object.assign({ color: g.color }, it)); }));
-    all.sort((a, b) => b.n - a.n);
-    const sel = S.radSel && all.find((x) => x.id === S.radSel);
+    const all = M.items.filter((x) => x.n).sort((a, b) => b.n - a.n);
+    const sel = S.radSel && M.items.find((x) => x.id === S.radSel);
     if (!sel) {
-      const quiet = M.groups.reduce((a, g) => a + g.items.filter((x) => !x.n).length, 0);
-      el.innerHTML = '<h4 class="bz-rad-h">扫描结果<small>' + win + "，" + all.length + " 个行业和赛道有新闻" + (quiet ? "，" + quiet + " 个没动静" : "") + "</small></h4>" +
-        '<p class="bz-hint">点雷达上的圆点，或者下面的名字，看那个行业的新闻。</p>' +
-        '<ol class="bz-rad-rank">' + all.slice(0, 16).map((x) =>
-          '<li><button type="button" data-rad="' + esc(x.id) + '"><i style="background:' + x.color + '"></i><span class="nm">' + esc(x.name) + "</span>" +
-          '<span class="sc">' + esc(x.sec.replace("赛道·", "")) + "</span>" + '<span class="hotc">' + (x.hot ? '<span class="hot">升温</span>' : "") + "</span>" +
-          '<span class="bar"><b style="width:' + Math.max(4, Math.round((x.n / M.max) * 100)) + "%;background:" + x.color + '"></b></span><span class="n">' + x.n + "</span></button></li>").join("") + "</ol>" +
-        (all.length > 16 ? '<p class="bz-hint">还有 ' + (all.length - 16) + " 个，在雷达上点。</p>" : "");
+      const hot = all.filter((x) => x.hot);
+      el.innerHTML = '<h4 class="bz-rad-h">怎么看这张雷达</h4>' +
+        '<ul class="bz-rad-how"><li>一大块是一个<b>板块</b>，外圈一格是一个<b>一级行业</b>或新方向，里面每个圆点是一个<b>细分行业</b>。</li>' +
+        "<li>同一格里新闻越多，圆点越靠里、越大；带圈的是最近明显变多的。</li><li>鼠标移上去看名字，点一下在这里看它的新闻。</li></ul>" +
+        '<div class="bz-rad-stats"><div><b>' + all.length + "</b><span>个细分有新闻</span></div><div><b>" + hot.length + "</b><span>个正在升温</span></div><div><b>" +
+        all.reduce((a, x) => a + x.n, 0) + "</b><span>条次（" + win + "，一条可能归到好几处）</span></div></div>" +
+        (hot.length ? '<h5 class="bz-rad-sub">正在升温的细分</h5><div class="bz-chips">' + hot.slice(0, 12).map((x) =>
+          '<button type="button" class="bz-chip" data-rad="' + esc(x.id) + '"><i class="dot" style="background:' + x.color + '"></i>' + esc(x.name) + " <b>" + x.n + "</b></button>").join("") + "</div>" : "");
       return;
     }
-    const subs = (S.byId[sel.id] && S.byId[sel.id].subs) || [];
-    const heat = S.ovm.heat || {};
-    const subHtml = subs.map((x) => [x, (heat[x] || [0])[0]]).filter((x) => x[1]).sort((a, b) => b[1] - a[1]).map(([x, n]) =>
-      '<button type="button" class="bz-chip" data-rad-list="' + esc(x) + '">' + esc(nameOf(x)) + " <b>" + n + "</b></button>").join("");
+    const sibs = M.items.filter((x) => x.parent === sel.parent && x.id !== sel.id && x.n).sort((a, b) => b.n - a.n);
     const tops = S.radTops && S.radTops.days === S.mdays ? S.radTops.tops : null;
     const news = tops ? (tops[sel.id] || []) : S.radNews[sel.id + "|" + S.mdays];
-    el.innerHTML = '<div class="bz-rad-sel"><button type="button" class="bz-link" data-act="rad-clear">‹ 全部行业</button>' +
-      '<h4 class="bz-rad-h"><i style="background:' + sel.color + '"></i>' + esc(sel.name) + "<small>" + esc(sel.sec) + "</small></h4>" +
+    const l1 = sel.id.includes("/") ? sel.id.split("/")[0] : "";
+    el.innerHTML = '<div class="bz-rad-sel"><button type="button" class="bz-link" data-act="rad-clear">‹ 怎么看</button>' +
+      '<h4 class="bz-rad-h"><i style="background:' + sel.color + '"></i>' + esc(sel.name) + "<small>" + esc(sel.sec + (sel.parent !== sel.sec ? " · " + sel.parent : "")) + "</small></h4>" +
       '<p class="bz-rad-num"><b>' + sel.n + "</b> 条新闻（" + win + "）" + (S.mdays > 1 ? "，最近 24 小时 " + sel.t + " 条" : "") + (sel.hot ? ' <span class="hot">正在升温</span>' : "") + "</p>" +
-      (subHtml ? '<p class="bz-hint">细分到：</p><div class="bz-chips">' + subHtml + "</div>" : "") +
+      (sibs.length ? '<p class="bz-hint">同一格' + (l1 ? "「" + esc(sel.parent) + "」" : "") + "里的其他细分：</p><div class=\"bz-chips\">" + sibs.slice(0, 10).map((x) =>
+        '<button type="button" class="bz-chip" data-rad="' + esc(x.id) + '">' + esc(x.name) + " <b>" + x.n + "</b></button>").join("") + "</div>" : "") +
       '<h5 class="bz-rad-sub">最新的几条</h5><div class="bz-feed compact">' + (news ? (news.length ? news.map(itemRow).join("") : empty("没读到。")) : loading()) + "</div>" +
-      '<button type="button" class="bz-btn" data-rad-list="' + esc(sel.id) + '">看「' + esc(sel.name) + "」全部 " + sel.n + " 条新闻</button></div>";
+      '<button type="button" class="bz-btn" data-rad-list="' + esc(sel.id) + '">看「' + esc(sel.name) + "」全部 " + sel.n + " 条新闻</button>" +
+      (l1 ? '<button type="button" class="bz-link bz-rad-l1" data-rad-list="' + esc(l1) + '">看整个「' + esc(sel.parent) + "」的新闻</button>" : "") + "</div>";
     if (!news && !tops) loadRadNews(sel.id);
+  }
+  function renderScanCard(M) {                 // v169：「扫描结果」挪到雷达下面，和「正在升温」并排
+    const el = $("bzScanList"), hd = $("bzScanHint");
+    if (!el) return;
+    if (!M) { el.innerHTML = ""; return; }
+    const win = S.mdays <= 1 ? "最近 24 小时" : "最近 " + S.mdays + " 天";
+    const all = M.items.filter((x) => x.n).sort((a, b) => b.n - a.n);
+    if (hd) hd.textContent = win + "，" + all.length + " 个细分行业和新方向有新闻，按条数排。点名字在雷达上看。";
+    el.innerHTML = '<ol class="bz-rad-rank">' + all.slice(0, 20).map((x) =>
+      '<li><button type="button" data-rad="' + esc(x.id) + '"' + (x.id === S.radSel ? ' class="on"' : "") + '><i style="background:' + x.color + '"></i><span class="nm">' + esc(x.name) + "</span>" +
+      '<span class="sc">' + esc(x.parent) + "</span>" + '<span class="hotc">' + (x.hot ? '<span class="hot">升温</span>' : "") + "</span>" +
+      '<span class="bar"><b style="width:' + Math.max(4, Math.round((x.n / M.max) * 100)) + "%;background:" + x.color + '"></b></span><span class="n">' + x.n + "</span></button></li>").join("") + "</ol>" +
+      (all.length > 20 ? '<p class="bz-hint">还有 ' + (all.length - 20) + " 个，在雷达上点。</p>" : "");
   }
   async function loadRadTops() {                // v168：每个行业最新几条一次读好，点圆点马上就有
     const d = S.mdays;
@@ -579,11 +603,10 @@
     if (!tip) return;
     if (!show || !ps || !vb) { tip.hidden = true; return; }
     const M = radarModel();
-    let it = null;
-    if (M) M.groups.forEach((g) => g.items.forEach((x) => { if (x.id === id) it = x; }));
+    const it = M && M.items.find((x) => x.id === id);
     if (!it) { tip.hidden = true; return; }
     const tops = S.radTops && S.radTops.days === S.mdays ? (S.radTops.tops[id] || []) : [];
-    tip.innerHTML = '<b style="color:' + it.color + '">' + esc(it.name) + "</b><small>" + esc(it.sec) + "</small>" +
+    tip.innerHTML = '<b style="color:' + it.color + '">' + esc(it.name) + "</b><small>" + esc(it.sec + (it.parent !== it.sec ? " · " + it.parent : "")) + "</small>" +
       "<p>" + (it.n ? it.n + " 条新闻" + (S.mdays > 1 ? "，最近 24 小时 " + it.t + " 条" : "") + (it.hot ? ' <span class="hot">升温</span>' : "") : "这段时间没有新闻") + "</p>" +
       (tops[0] ? '<p class="t">最新：' + esc(S.trTitle[tops[0].title] || tops[0].title) + "</p>" : "") + (it.n ? '<p class="h">点一下看详情</p>' : "");
     const lx = ((ps.x - vb.x) / vb.w) * 100, ly = ((ps.y - vb.y) / vb.h) * 100;
@@ -601,8 +624,8 @@
   }
   function selectRad(id) {
     S.radSel = S.radSel === id ? "" : id;
-    root.querySelectorAll("#bzRadar .blip").forEach((g) => g.classList.toggle("sel", g.dataset.rad === S.radSel));
-    renderRadPanel();
+    radTip("", false);
+    renderRadarScan();                         // 重画：选中的那一格、外圈名字一起高亮
   }
 
   // ───────── v161：右边的阅读栏（正文 + 翻译） ─────────
@@ -1217,8 +1240,10 @@
     return '<div class="bz-rd-src' + (s.enabled ? "" : " off") + '">' +
       '<label class="bz-sw" title="打开 / 关掉"><input type="checkbox" data-rd-toggle="' + esc(s.id) + '"' + (s.enabled ? " checked" : "") + ' aria-label="盯不盯 ' + esc(s.name) + '"><i></i></label>' +
       '<div class="bz-rd-main"><div class="bz-rd-name"><b>' + esc(s.name) + "</b>" + hints + (s.n7 ? '<span class="bz-dim">近 7 天 ' + s.n7 + " 条</span>" : "") + "</div>" +
-      '<div class="bz-rd-url">' + esc(tgt) + "</div>" + st + "</div>" +
-      '<div class="bz-rd-acts"><button type="button" class="bz-link" data-rd-items="' + esc(s.id) + '">看抓到的</button>' +
+      '<div class="bz-rd-url">' + esc(tgt) + "</div>" + st + (s.off_why && !s.enabled ? '<span class="bz-rd-st err">' + esc(s.off_why) + "</span>" : "") + "</div>" +
+      '<div class="bz-rd-acts"><select class="bz-select sm bz-rd-w w' + (s.w || 3) + '" data-rd-w="' + esc(s.id) + '" title="权重：越高抓得越勤（5、4 每轮都抓；3 隔 3 轮；2 隔 8 轮；1 隔 24 轮）" aria-label="权重">' +
+        [5, 4, 3, 2, 1].map((v) => '<option value="' + v + '"' + (v === (s.w || 3) ? " selected" : "") + ">权重 " + v + "</option>").join("") + "</select>" +
+        '<button type="button" class="bz-link" data-rd-items="' + esc(s.id) + '">看抓到的</button>' +
       '<button type="button" class="bz-link" data-rd-one="' + esc(s.id) + '">抓一次</button>' +
       '<button type="button" class="bz-link danger" data-rd-del="' + esc(s.id) + '">删除</button></div></div>';
   }
@@ -1234,9 +1259,13 @@
     else {
       $("bzRdCount").textContent = d.sources.length + " 个，打开的 " + d.sources.filter((x) => x.enabled).length + " 个";
       let html = "";
-      d.groups.forEach((g) => {
+      S.rdShowAll = S.rdShowAll || {};
+      d.groups.forEach((g) => {                     // v170：每组按权重从高到低；太多的先显示前 50 个
         const rows = d.sources.filter((x) => (x.group || "mine") === g.key);
-        if (rows.length) html += '<div class="bz-rd-grp"><h4>' + esc(g.name) + "</h4>" + rows.map(rdRow).join("") + "</div>";
+        if (!rows.length) return;
+        const on = rows.filter((x) => x.enabled).length, all = S.rdShowAll[g.key], shown = all ? rows : rows.slice(0, 50);
+        html += '<div class="bz-rd-grp"><h4>' + esc(g.name) + ' <small class="bz-dim">' + rows.length + " 个，打开 " + on + " 个</small></h4>" + shown.map(rdRow).join("") +
+          (rows.length > 50 ? '<button type="button" class="bz-link bz-rd-more" data-rd-more="' + esc(g.key) + '">' + (all ? "收起" : "显示全部 " + rows.length + " 个") + "</button>" : "") + "</div>";
       });
       $("bzRdMine").innerHTML = html || empty("清单是空的。从下面推荐的里挑几个，或者在右边自己加。");
       $("bzRdCatalog").innerHTML = d.catalog.map((g) => {
@@ -1421,7 +1450,9 @@
     const gsel = new Set(sc === "groups" ? (c.groups || []) : sc === "all" ? p.groups.map((g) => g.key) : (c.groups && c.groups.length ? c.groups : p.groups.map((g) => g.key)));
     const failOnly = sc === "failed";
     const selGroups = p.groups.filter((g) => gsel.has(g.key));
-    const nScope = failOnly ? nFail : selGroups.reduce((a, g) => a + g.n, 0);
+    const force = !!S.updForce;                // v170：这次全部都抓（不按权重轮流）
+    const nScope = failOnly ? nFail : selGroups.reduce((a, g) => a + (force ? g.n : (g.due != null ? g.due : g.n)), 0);
+    const nAllSel = selGroups.reduce((a, g) => a + g.n, 0);
     const last = p.last;
     const lastDur = last && last.ended ? last.ended - last.started : 0;
     const est = lastDur && last.total ? Math.max(20, Math.round((lastDur / last.total) * nScope)) : 0;
@@ -1429,7 +1460,8 @@
     (p.group_names || []).forEach(([k, n, d]) => { gdesc[k] = d; });
     const cats = p.groups.map((g) => {
       const on = gsel.has(g.key);
-      const what = [g.site ? g.site + " 个网站" : "", g.kw ? g.kw + " 个关键词" : ""].filter(Boolean).join(" + ");
+      const what = [g.site ? g.site + " 个网站" : "", g.kw ? g.kw + " 个关键词" : ""].filter(Boolean).join(" + ") +
+        (!force && g.due != null && g.due < g.n ? " · 这次轮到 " + g.due + " 个" : "");
       return '<label class="bz-cat' + (on ? " on" : "") + (failOnly ? " off" : "") + '" title="' + esc(gdesc[g.key] || "") + '"><input type="checkbox" data-upd-grp="' + esc(g.key) + '"' + (on ? " checked" : "") + (failOnly ? " disabled" : "") + ">" +
         '<span class="bz-cat-b"><b>' + esc(g.name) + "</b><small>" + esc(what) + (g.failing ? ' · <em class="bad">' + g.failing + " 个上次没抓成</em>" : "") + "</small></span></label>";
     }).join("");
@@ -1453,12 +1485,19 @@
       '<div class="bz-dlg-b">' + info +
       '<section class="bz-sec"><h3>这次抓哪些</h3>' +
         '<div class="bz-upd-sum"><span>' + (failOnly ? "只重抓上次没抓成的 <b>" + nFail + " 个</b>"
-          : "<b>" + (allOn ? "全部 " : "") + selGroups.length + " 类</b>，共 <b>" + nScope + " 个</b>信息源") + "</span>" +
+          : "<b>" + (allOn ? "全部 " : "") + selGroups.length + " 类</b>，这次抓 <b>" + nScope + " 个</b>信息源" + (nScope < nAllSel ? '<small>（一共 ' + nAllSel + " 个：权重高的每次都抓，低的轮着抓）</small>" : "")) + "</span>" +
           (failOnly ? "" : '<span class="sp"></span><button type="button" class="bz-link" data-act="upd-all"' + (allOn ? " disabled" : "") + '>全选</button><button type="button" class="bz-link" data-act="upd-none">全不选</button>') + "</div>" +
         '<div class="bz-cats" role="group" aria-label="要抓的分类">' + cats + "</div>" +
+        (!failOnly && nAllSel > nScope || force ? '<label class="bz-sw-inline bz-force"><span class="bz-sw"><input type="checkbox" id="bzUpdForce"' + (force ? " checked" : "") + '><i></i></span>这次全部都抓（' + nAllSel + " 个，会慢不少）</label>" : "") +
         (nFail ? '<div class="bz-failrow"><label class="bz-sw-inline"><span class="bz-sw"><input type="checkbox" id="bzUpdFailOnly"' + (failOnly ? " checked" : "") + '><i></i></span>只重抓上次没抓成的 ' + nFail + " 个</label>" +
           '<details class="bz-fails"><summary>看原因</summary><ul>' + p.failing.map((f) => "<li><b>" + esc(f.name) + "</b>：" + esc(f.err) + "</li>").join("") + "</ul></details></div>" : "") +
       "</section>" +
+      (p.lib && p.lib.ok && p.lib.new ? '<section class="bz-sec bz-lib"><h3>扩充信息源</h3>' +
+        '<p>推荐库里还有 <b>' + p.lib.new + " 个</b>权威信息源没加：<b>" + p.lib.sites + "</b> 个网站（部委、交易所、行业协会、主流和行业媒体、海外机构、各省市政府），<b>" + p.lib.kws +
+        "</b> 个搜索关键词（行业地图里的代表公司、细分行业、产品和技术）。加进来后按权重轮流抓，不会每次都全抓。</p>" +
+        '<div class="bz-lib-acts"><button type="button" class="bz-btn" data-lib="1">全部加进来（' + p.lib.new + " 个）</button>" +
+        '<button type="button" class="bz-btn ghost" data-lib="3">只加权重中以上的（' + ["s5", "s4", "s3", "k5", "k4", "k3"].reduce((a, k) => a + (p.lib.by[k] || 0), 0) + " 个）</button>" +
+        '<button type="button" class="bz-btn ghost" data-lib="site">只加网站（' + p.lib.sites + " 个）</button></div></section>" : "") +
       '<section class="bz-sec"><h3>添加扫描对象</h3>' +
         '<div class="bz-add-bar"><div class="bz-tog2" role="tablist">' +
           '<button type="button" role="tab" data-addmode="one" aria-selected="' + (A.mode === "one") + '">一个</button>' +
@@ -1576,7 +1615,8 @@
     if (scope === "groups" && !groups.length) { toast("至少勾上一类。"); return; }
     await updSave();
     S.updDone = ""; S.updRes = null;
-    await radarRun(null, { scope: scope, groups: groups });
+    await radarRun(null, { scope: scope, groups: groups, force: !!S.updForce && scope !== "failed" });
+    S.updForce = false;
     renderUpd();
   }
 
@@ -2081,6 +2121,20 @@
         return;
       }
       if ((b = t.closest("[data-addmode]"))) { S.updAdd.mode = b.dataset.addmode; S.updAdd.msg = ""; renderUpd(); const f = $(b.dataset.addmode === "one" ? "bzAddOne" : "bzAddMany"); if (f) f.focus(); return; }
+      if ((b = t.closest("[data-rd-more]"))) { S.rdShowAll[b.dataset.rdMore] = !S.rdShowAll[b.dataset.rdMore]; renderSources(); return; }
+      if ((b = t.closest("[data-lib]"))) {                 // v170：从推荐库加信息源
+        const v = b.dataset.lib;
+        b.disabled = true;
+        const body = v === "site" ? { min_w: 1, kinds: ["site"] } : { min_w: +v };
+        const r = await api("/biz/radar/library", body).catch((e) => ({ ok: false, error: e.message }));
+        if (!r.ok) { toast(r.error || "没加成"); b.disabled = false; return; }
+        toast("加进来 " + r.added + " 个信息源，清单里现在一共 " + r.total + " 个。");
+        S.radarSrc = null;
+        if (typeof loadRadarSources === "function") loadRadarSources();
+        try { S.plan = await api("/biz/radar/plan"); } catch (e) {}
+        renderUpd(); pollRadar();
+        return;
+      }
       if ((b = t.closest("[data-rview]"))) { setRview(b.dataset.rview, b.dataset.rview === "list" ? S.rind : ""); return; }
       if ((b = t.closest("[data-rad-list]"))) { setRview("list", b.dataset.radList); return; }
       if ((b = t.closest("[data-rad]"))) { selectRad(b.dataset.rad); return; }
@@ -2126,9 +2180,14 @@
       else if (t.id === "bzUpdEvery" && t.value === "custom") { S.updCustom = true; renderUpd(); const n = $("bzUpdEveryN"); if (n) { n.focus(); n.select(); } }
       else if (t.id === "bzUpdEvery") { S.updCustom = false; updSave(); }
       else if (["bzUpdAuto", "bzUpdEveryN", "bzUpdWorkers", "bzUpdScFast", "bzUpdScBrowser"].includes(t.id) || t.id === "bzUpdFailOnly" || t.matches("[data-upd-grp]")) updSave();
+      else if (t.id === "bzUpdForce") { S.updForce = t.checked; renderUpd(); }
       else if (t.id === "bzBfGrp") { S.bf.grp = t.value; briefCount(); }
       else if (t.id === "bzBfNotes") S.bf.notes = t.checked;
       else if (t.id === "bzBfWeb") S.bf.web = t.checked;
+      else if (t.matches("[data-rd-w]")) {               // v170：改权重
+        const r = await api("/biz/radar/source", { action: "set_w", id: t.dataset.rdW, w: +t.value }).catch((e) => ({ ok: false, error: e.message }));
+        if (!r.ok) toast(r.error || "没改成"); else { const x = S.radarSrc && S.radarSrc.sources.find((y) => y.id === t.dataset.rdW); if (x) x.w = r.w; t.className = "bz-select sm bz-rd-w w" + r.w; }
+      }
       else if (t.matches("[data-rd-toggle]")) {
         const r = await api("/biz/radar/source", { action: "toggle", id: t.dataset.rdToggle, enabled: t.checked });
         if (r.ok) loadRadarSources(); else toast(r.error || "没改成");

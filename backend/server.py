@@ -6686,7 +6686,11 @@ class Handler(BaseHTTPRequestHandler):
                     import biz_crawler as _bc
                     if path == "/biz/radar/run":
                         return self._send(_bc.start([body["id"]] if body.get("id") else None,
-                                                    scope=body.get("scope"), groups=body.get("groups")))
+                                                    scope=body.get("scope"), groups=body.get("groups"),
+                                                    force=bool(body.get("force"))))
+                    if path == "/biz/radar/library":                 # v170：从推荐库加信息源
+                        return self._send(_bc.library_import(int(body.get("min_w") or 1),
+                                                             tuple(body.get("kinds") or ("site", "kw"))))
                     if path == "/biz/radar/stop":
                         return self._send(_bc.stop())
                     if path == "/biz/radar/config":

@@ -259,15 +259,102 @@ def save_config(auto=None, every=None, workers=None, sc_fast=None, sc_browser=No
     return {"ok": True, "config": c, "next_run": next_run(c), "now": int(time.time())}
 
 
-def _pick_sources(scope, groups):
-    """v158：「现在更新」按设置挑要抓的信息源（只挑打开的）。"""
+# ───────────────────────── v170：权重（1～5）和轮流抓 ─────────────────────────
+W_DEFAULT = {"news": 5, "policy": 5, "corp": 4, "media": 4, "global": 4, "corpkw": 4, "indkw": 4, "mine": 4}   # 原来清单里的默认都每轮抓
+W_MULT = {3: 3, 2: 8, 1: 24}          # 权重 3：隔 3 轮抓一次；2：隔 8 轮；1：隔 24 轮（5、4 每轮都抓）
+W_NAME = {5: "最高", 4: "高", 3: "中", 2: "低", 1: "最低"}
+
+
+def _w(s):
+    try:
+        return max(1, min(5, int(s.get("w") or W_DEFAULT.get(s.get("group"), 3))))
+    except Exception:
+        return 3
+
+
+def _due(s, c=None, now=None):
+    """这一轮该不该抓它：权重高的每轮都抓，低的按间隔轮着抓（间隔按「扫描频率」算，最少按 20 分钟算）。"""
+    w = _w(s)
+    if w >= 4:
+        return True
+    c = c or get_config()
+    now = now or time.time()
+    gap = max(int(c.get("every") or 60), 20) * 60 * W_MULT.get(w, 1)
+    last = int(s.get("at") or 0)
+    if not last:                       # 还没抓过的：按编号错开，别一加进来就全挤在同一轮
+        off = int(hashlib.md5(str(s.get("id")).encode("utf-8")).hexdigest()[:6], 16) % gap
+        last = int(s.get("added") or 0) - off
+    return now - last >= gap - 30
+
+
+def _pick_sources(scope, groups, force=False):
+    """v158：「现在更新」按设置挑要抓的信息源（只挑打开的）。v170：按权重轮流（force＝这次全都抓），权重高的先抓。"""
     srcs = [s for s in _sources() if s.get("enabled")]
     if scope == "groups":
         gs = set(groups or [])
         srcs = [s for s in srcs if s.get("group") in gs]
     elif scope == "failed":
         srcs = [s for s in srcs if s.get("err")]
+    if scope != "failed" and not force:
+        c, now = get_config(), time.time()
+        srcs = [s for s in srcs if _due(s, c, now)]
+    srcs.sort(key=lambda s: -_w(s))
     return srcs
+
+
+def library_info():
+    """推荐库里还有多少没加进清单（按权重分）。"""
+    try:
+        import biz_sources_lib as SL
+        lib = SL.library()
+    except Exception as e:
+        return {"ok": False, "error": "读不到推荐库：%s" % e}
+    with _LOCK:
+        srcs = _sources()
+        have_u = {(x.get("url") or "").rstrip("/").lower() for x in srcs if x.get("url")}
+        have_k = {(x.get("kw") or "").lower() for x in srcs if x.get("kw")}
+        have_i = {x["id"] for x in srcs}
+    new = [x for x in lib if x["id"] not in have_i and ((x["kind"] == "site" and x["url"].rstrip("/").lower() not in have_u) or
+                                                        (x["kind"] == "kw" and x["kw"].lower() not in have_k))]
+    by = {}
+    for x in new:
+        k = "%s%d" % ("s" if x["kind"] == "site" else "k", x["w"])
+        by[k] = by.get(k, 0) + 1
+    return {"ok": True, "total": len(lib), "new": len(new), "by": by,
+            "sites": sum(1 for x in new if x["kind"] == "site"), "kws": sum(1 for x in new if x["kind"] == "kw"),
+            "have": len(srcs)}
+
+
+def library_import(min_w=1, kinds=("site", "kw")):
+    """把推荐库里权重不低于 min_w 的加进清单（已经有的跳过）。"""
+    try:
+        import biz_sources_lib as SL
+        lib = SL.library()
+    except Exception as e:
+        return {"ok": False, "error": "读不到推荐库：%s" % e}
+    now = int(time.time())
+    with _LOCK:
+        srcs = _sources()
+        have_u = {(x.get("url") or "").rstrip("/").lower() for x in srcs if x.get("url")}
+        have_k = {(x.get("kw") or "").lower() for x in srcs if x.get("kw")}
+        have_i = {x["id"] for x in srcs}
+        added = 0
+        for x in lib:
+            if x["w"] < int(min_w or 1) or x["kind"] not in kinds or x["id"] in have_i:
+                continue
+            if x["kind"] == "site" and x["url"].rstrip("/").lower() in have_u:
+                continue
+            if x["kind"] == "kw" and x["kw"].lower() in have_k:
+                continue
+            s = dict(x)
+            s.update(enabled=True, added=now)
+            srcs.append(s)
+            have_i.add(x["id"])
+            added += 1
+        srcs.sort(key=lambda s: -_w(s))
+        _save_sources()
+    _log("从推荐库加进 %d 个信息源" % added)
+    return {"ok": True, "added": added, "total": len(srcs)}
 
 
 def plan():
@@ -276,10 +363,13 @@ def plan():
     with _LOCK:
         srcs = [s for s in _sources() if s.get("enabled")]
         by = {}
+        now_ = time.time()
         for s in srcs:
             g = s.get("group") or "mine"
-            d = by.setdefault(g, {"key": g, "name": GROUP_NAME.get(g, g), "n": 0, "site": 0, "kw": 0, "failing": 0})
+            d = by.setdefault(g, {"key": g, "name": GROUP_NAME.get(g, g), "n": 0, "site": 0, "kw": 0, "failing": 0, "due": 0})
             d["n"] += 1
+            if _due(s, c, now_):
+                d["due"] += 1
             d["kw" if s.get("kind") == "kw" else "site"] += 1
             if s.get("err"):
                 d["failing"] += 1
@@ -292,8 +382,9 @@ def plan():
         r = runs[0]
         last = {k: r.get(k) for k in ("id", "started", "ended", "trigger", "total", "ok", "fail", "new", "via", "stopped")}
     n_scope = len(_pick_sources(c["scope"], c["groups"]))
+    n_all = len(_pick_sources(c["scope"], c["groups"], force=True))
     return {"ok": True, "config": c, "next_run": next_run(c), "now": int(time.time()), "groups": groups, "enabled": len(srcs), "failing": failing[:40],
-            "n_scope": n_scope, "last": last, "scrapling": _scrapling_ok(),
+            "n_scope": n_scope, "n_all": n_all, "last": last, "lib": library_info(), "scrapling": _scrapling_ok(),
             "group_names": [[k, n, d] for k, n, d in GROUPS]}
 
 
@@ -712,6 +803,9 @@ def _crawl_src(src):
         err = _human(e, src.get("kind"))
         with _LOCK:
             src.update(at=int(time.time()), err=err, fails=int(src.get("fails") or 0) + 1, trace=trace)
+            if src.get("lib") and src["fails"] >= 5:          # v170：推荐库加进来的，连续 5 次抓不成先关掉（不删）
+                src["enabled"] = False
+                src["off_why"] = "连续 5 次没抓成，先关了：" + err[:80]
             _run["fail"] += 1
         rec.update(ok=False, err=err, n=0, new=0)
         _runlog("%s：没抓成（%s）" % (name, err[:80]))
@@ -765,7 +859,7 @@ def _crawl_all(srcs):
         _log(msg)
 
 
-def start(sids=None, trigger="manual", scope=None, groups=None):
+def start(sids=None, trigger="manual", scope=None, groups=None, force=False):
     cfg = get_config()
     with _LOCK:
         if _run["running"]:
@@ -774,10 +868,10 @@ def start(sids=None, trigger="manual", scope=None, groups=None):
             srcs = [s for s in _sources() if s["id"] in sids]
             trigger = "single" if trigger == "manual" else trigger
         elif trigger == "auto":
-            srcs = [s for s in _sources() if s.get("enabled")]          # 自动更新一直抓全部
+            srcs = _pick_sources("all", None)                            # 自动更新：全部分类，按权重轮流
         else:
             sc = scope or cfg.get("scope") or "all"
-            srcs = _pick_sources(sc, groups if groups is not None else cfg.get("groups"))
+            srcs = _pick_sources(sc, groups if groups is not None else cfg.get("groups"), force=force)
             if not srcs:
                 return {"ok": False, "error": {"groups": "选中的这几类里没有打开的信息源", "failed": "上一轮没有没抓成的信息源"}.get(sc, "清单里没有打开的信息源")}
         if not srcs:
@@ -898,6 +992,8 @@ def list_sources():
     have_t = {(s.get("url") or s.get("kw") or "").strip().lower() for s in srcs}
     for s in srcs:
         s["n7"] = cnt.get(s["id"], 0)
+        s["w"] = _w(s)
+    srcs.sort(key=lambda s: (-s["w"], not s.get("enabled")))      # v170：按权重排
     cat = []
     for key, name, desc in GROUPS:
         if key == "mine":
@@ -951,6 +1047,13 @@ def source_action(body):
             srcs.insert(0, s)
             _save_sources()
             return {"ok": True, "id": s["id"], "kind": s["kind"], "name": s["name"]}
+        if act == "set_w":                           # v170：改权重
+            s = next((x for x in srcs if x["id"] == body.get("id")), None)
+            if not s:
+                return {"ok": False, "error": "找不到这个信息源"}
+            s["w"] = max(1, min(5, int(body.get("w") or 3)))
+            _save_sources()
+            return {"ok": True, "w": s["w"]}
         if act == "add_batch":                       # v167：一次加好多个，每行一个网址或关键词
             lines = [x.strip() for x in re.split(r"[\r\n]+", str(body.get("text") or "")) if x.strip()][:200]
             grp = body.get("group") if body.get("group") in GROUP_NAME else "mine"
