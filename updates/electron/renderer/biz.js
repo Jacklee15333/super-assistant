@@ -390,7 +390,10 @@
       boxes.push([bx, by, w, h]);
       labOf.add(p.it.id);
     });
+    S.radPos = {};
+    S.radVB = { x: -70, y: -30, w: W + 140, h: W + 60, C: C, R: R };
     pos.forEach(({ it, g, x, y, size }) => {
+      S.radPos[it.id] = { x, y, color: g.color };
       const sel = S.radSel === it.id, lab = labOf.has(it.id);
       blips += '<g class="blip' + (it.n ? "" : " quiet") + (it.hot ? " hot" : "") + (sel ? " sel" : "") + '" data-rad="' + esc(it.id) + '" tabindex="' + (it.n ? 0 : -1) + '" role="button" aria-label="' +
         esc(it.name + "，" + it.n + " 条新闻" + (it.hot ? "，正在升温" : "")) + '">' +
@@ -407,12 +410,100 @@
       '<g class="sweep" style="transform-origin:' + C + "px " + C + 'px"><path d="M' + C + "," + C + " L" + (C + R) + "," + C + " A" + R + "," + R + " 0 0 0 " + pt(R, -0.55)[0].toFixed(1) + "," + pt(R, -0.55)[1].toFixed(1) + ' Z" fill="url(#bzSweep)"/>' +
         '<line x1="' + C + '" y1="' + C + '" x2="' + (C + R) + '" y2="' + C + '" class="sw-l"/></g>' +
       '<circle cx="' + C + '" cy="' + C + '" r="4" class="ctr"/>' + labels + blips + "</svg>";
-    el.innerHTML = '<div class="bz-rad-l">' + svg +
+    const oldLive = $("bzRadLive");                         // 重画雷达时，正在亮的那几条留着接着演
+    el.innerHTML = '<div class="bz-rad-l"><div class="bz-rad-bar" id="bzRadBar" aria-live="polite"></div>' +
+      '<div class="bz-rad-stage">' + svg + '<div class="bz-rad-live" id="bzRadLive"></div></div>' +
       '<p class="bz-rad-legend"><span><i class="lg-near"></i>越靠近中心、圆点越大，新闻越多</span>' + (S.mdays > 1 ? '<span><i class="lg-hot"></i>带圈的：最近 24 小时明显变多</span>' : "") +
       '<span><i class="lg-quiet"></i>边上的小灰点：这段时间没新闻</span></p></div>' +
       '<div class="bz-rad-r" id="bzRadPanel"></div>';
+    if (oldLive && oldLive.children.length) { const nl = $("bzRadLive"); nl.replaceWith(oldLive); }
     renderRadPanel(M);
+    renderRadBar();
   }
+
+  // ───────── v167：雷达真的在扫——只在爬虫抓的时候转；抓到的新闻在雷达上亮 5 秒，再归进它的行业 ─────────
+  const FREQ = [[1, "实时（一轮抓完接着下一轮）"], [5, "每 5 分钟"], [10, "每 10 分钟"], [20, "每 20 分钟"], [30, "每 30 分钟"], [60, "每 1 小时"], [120, "每 2 小时"], [240, "每 4 小时"]];
+  function renderRadBar() {
+    const el = $("bzRadBar"), r = S.radar, rd = $("bzRadar");
+    if (rd) rd.classList.toggle("scanning", !!(r && r.running));
+    if (!el) return;
+    if (!r) { el.innerHTML = ""; return; }
+    const val = r.auto ? String(r.every) : "off";
+    const opts = FREQ.map(([v, t]) => [String(v), t]);
+    if (r.auto && !FREQ.some(([v]) => v === r.every)) opts.push([String(r.every), "每 " + everyText(r.every)]);
+    opts.push(["off", "不自动扫（只手动）"]);
+    const sel = '<label class="bz-rad-freq">扫描频率 <select class="bz-select sm" id="bzRadFreq">' +
+      opts.map(([v, t]) => '<option value="' + v + '"' + (v === val ? " selected" : "") + ">" + esc(t) + "</option>").join("") + "</select></label>";
+    if (r.running) {
+      const pct = r.total ? Math.round((r.done / r.total) * 100) : 0;
+      el.innerHTML = '<span class="bz-rad-st on"><i></i>正在扫描</span><span class="bz-rad-pg"><b>' + r.done + " / " + r.total + "</b> 个信息源 · 这一轮新发现 <b>" + r.new + "</b> 条</span>" +
+        '<span class="bz-prog sm" aria-hidden="true"><i style="width:' + pct + '%"></i></span><span class="sp"></span>' + sel +
+        '<button type="button" class="bz-link" data-act="rd-stop">停止</button>';
+    } else {
+      const nx = r.next_run;
+      el.innerHTML = '<span class="bz-rad-st"><i></i>待机</span><span class="bz-rad-pg">' +
+        (r.auto ? (r.every <= 1 ? "实时扫描：马上开始下一轮" : "下次扫描 " + (nx ? (nx <= Date.now() / 1000 + 30 ? "马上" : hhmm(nx).slice(0, 5)) : "—")) : "自动扫描关着") +
+        (r.last_run ? " · 上次 " + ago(r.last_run) : "") + '</span><span class="sp"></span>' + sel +
+        '<button type="button" class="bz-link" data-act="rd-run">现在扫一次</button>';
+    }
+  }
+  async function setFreq(v) {
+    const body = v === "off" ? { auto: false } : { auto: true, every: +v };
+    const r = await api("/biz/radar/config", body).catch((e) => ({ ok: false, error: e.message }));
+    if (!r.ok) { toast(r.error || "没存上"); return; }
+    const f = FREQ.find((x) => String(x[0]) === v);
+    toast(v === "off" ? "自动扫描关了，要扫时点「现在扫一次」。" : +v <= 1 ? "改成实时扫描了：一轮抓完接着下一轮。" : "改好了：" + (f ? f[1] : "每 " + v + " 分钟") + "扫一次，从现在开始计时。");
+    pollRadar();
+  }
+  const LIVE = { rid: "", since: 0, seen: new Set(), queue: [], active: 0, last: 0, timer: 0, busy: false };
+  async function liveTick(r, force) {
+    if (S.pane !== "radar" || S.rview !== "radar" || !$("bzRadLive")) return;
+    if (force) { LIVE.last = 0; LIVE.busy = false; }
+    if (LIVE.rid !== r.rid) { LIVE.rid = r.rid; LIVE.since = r.started || Math.floor(Date.now() / 1000); LIVE.seen = new Set(); LIVE.queue = []; }
+    if (LIVE.busy || Date.now() - LIVE.last < 2000) return;
+    LIVE.busy = true; LIVE.last = Date.now();
+    let d = null;
+    try { d = await api("/biz/items?lens=market&days=0&since=" + LIVE.since + "&limit=60"); } catch (e) {}
+    LIVE.busy = false;
+    ((d && d.items) || []).slice().reverse().forEach((it) => {
+      if (LIVE.seen.has(it.id)) return;
+      LIVE.seen.add(it.id);
+      LIVE.queue.push(it);
+    });
+    if (LIVE.queue.length > 24) LIVE.queue = LIVE.queue.slice(-24);    // 一下子抓到太多，只演最新的
+    pumpLive();
+  }
+  function pumpLive() {
+    clearTimeout(LIVE.timer);
+    if (!LIVE.queue.length) return;
+    if (LIVE.active < 4 && $("bzRadLive")) showLive(LIVE.queue.shift());
+    LIVE.timer = setTimeout(pumpLive, 900);
+  }
+  function showLive(it) {
+    const box = $("bzRadLive"), vb = S.radVB;
+    if (!box || !vb) return;
+    const tgt = (it.ind && it.ind[0] ? it.ind[0].split("/")[0] : "") || (it.trk && it.trk[0]) || "";
+    const ps = S.radPos[tgt] || { x: vb.C, y: vb.C, color: "var(--accent)" };
+    const lx = ((ps.x - vb.x) / vb.w) * 100, ly = ((ps.y - vb.y) / vb.h) * 100;
+    if (it.url) S.artItems[it.id] = it;
+    const zh = S.trTitle[it.title] || it.title;
+    const el = document.createElement("div");
+    el.className = "bz-live" + (lx > 58 ? " left" : "");
+    el.style.left = lx + "%"; el.style.top = ly + "%";
+    el.innerHTML = '<i class="ping" style="border-color:' + ps.color + '"></i>' +
+      '<button type="button" class="card" data-art="' + esc(it.id) + '" title="点一下看这条新闻">' +
+      '<span class="t">' + esc(zh.length > 30 ? zh.slice(0, 30) + "…" : zh) + "</span>" +
+      '<span class="g" style="color:' + ps.color + '">→ ' + esc(tgt ? nameOf(tgt) : "还没归类") + "</span></button>";
+    box.appendChild(el);
+    LIVE.active++;
+    setTimeout(() => {
+      el.classList.add("into");                              // 5 秒后收进它的行业
+      const g = root.querySelector('#bzRadar g.blip[data-rad="' + CSS.escape(tgt) + '"]');
+      if (g) { g.classList.add("flash"); setTimeout(() => g.classList.remove("flash"), 1200); }
+      setTimeout(() => { el.remove(); LIVE.active = Math.max(0, LIVE.active - 1); }, 700);
+    }, 5000);
+  }
+
   function renderRadPanel(M) {
     const el = $("bzRadPanel");
     if (!el) return;
@@ -656,6 +747,7 @@
     const i = $("bzStripI");
     if (i) { i.hidden = S.lens !== "market"; if (!i.hidden) i.innerHTML = stripHTML(true); }
     renderBigBtns();
+    renderRadBar();
   }
   function lensVis() {
     segSync("lens", S.lens);
@@ -1231,8 +1323,8 @@
   }
 
   // ───────── v158：「现在更新」面板 ─────────
-  const EVERY = [[5, "5 分钟"], [10, "10 分钟"], [20, "20 分钟"], [30, "30 分钟"], [60, "1 小时"], [120, "2 小时"], [240, "4 小时"], [480, "8 小时"]];
-  const everyText = (m) => (m >= 60 && m % 60 === 0 ? m / 60 + " 小时" : m + " 分钟");
+  const EVERY = [[1, "实时"], [5, "5 分钟"], [10, "10 分钟"], [20, "20 分钟"], [30, "30 分钟"], [60, "1 小时"], [120, "2 小时"], [240, "4 小时"], [480, "8 小时"]];
+  const everyText = (m) => (m <= 1 ? "实时" : m >= 60 && m % 60 === 0 ? m / 60 + " 小时" : m + " 分钟");
   const sw = (id, on, label, hint) => '<label class="bz-set"><span class="bz-sw"><input type="checkbox" id="' + id + '"' + (on ? " checked" : "") + '><i></i></span>' +
     '<span class="bz-set-t"><b>' + label + "</b>" + (hint ? "<small>" + hint + "</small>" : "") + "</span></label>";
   function openModal(id) {
@@ -1268,6 +1360,7 @@
     const p = S.plan;
     if (!p) { el.innerHTML = dlgHead("bzUpdT", "现在更新") + '<div class="bz-dlg-b">' + loading() + "</div>"; return; }
     if (p.ok === false) { el.innerHTML = dlgHead("bzUpdT", "现在更新") + '<div class="bz-dlg-b">' + empty("读不到爬虫的设置：" + esc(p.error || "")) + "</div>"; return; }
+    const keepTop = (el.querySelector(".bz-dlg-b") || {}).scrollTop || 0;
     const c = p.config, nFail = p.failing.length;
     const sc = c.scope === "failed" && !nFail ? "all" : (c.scope || "all");
     // v166：勾了哪几类。「全部」就是每类都勾上；只重抓没抓成的时候，保留之前勾的（只是先不用）
@@ -1282,63 +1375,84 @@
     (p.group_names || []).forEach(([k, n, d]) => { gdesc[k] = d; });
     const cats = p.groups.map((g) => {
       const on = gsel.has(g.key);
-      const what = [g.site ? g.site + " 个网站" : "", g.kw ? g.kw + " 个搜索关键词" : ""].filter(Boolean).join(" + ");
-      return '<label class="bz-cat' + (on ? " on" : "") + (failOnly ? " off" : "") + '"><input type="checkbox" data-upd-grp="' + esc(g.key) + '"' + (on ? " checked" : "") + (failOnly ? " disabled" : "") + ">" +
-        '<span class="bz-cat-b"><b>' + esc(g.name) + "</b><small>" + esc(what) + (gdesc[g.key] ? " · " + esc(gdesc[g.key]) : "") + "</small>" +
-        (g.failing ? '<em class="bad">上次 ' + g.failing + " 个没抓成</em>" : "") + "</span></label>";
+      const what = [g.site ? g.site + " 个网站" : "", g.kw ? g.kw + " 个关键词" : ""].filter(Boolean).join(" + ");
+      return '<label class="bz-cat' + (on ? " on" : "") + (failOnly ? " off" : "") + '" title="' + esc(gdesc[g.key] || "") + '"><input type="checkbox" data-upd-grp="' + esc(g.key) + '"' + (on ? " checked" : "") + (failOnly ? " disabled" : "") + ">" +
+        '<span class="bz-cat-b"><b>' + esc(g.name) + "</b><small>" + esc(what) + (g.failing ? ' · <em class="bad">' + g.failing + " 个上次没抓成</em>" : "") + "</small></span></label>";
     }).join("");
     const allOn = selGroups.length === p.groups.length;
-    el.innerHTML = dlgHead("bzUpdT", "现在更新", "让爬虫马上去网上抓一轮最新新闻。不用 AI、不占 AI 池，随时可以停。") +
-      '<div class="bz-dlg-b">' +
-      '<section class="bz-sec"><h3><span class="bz-no">1</span>这次抓哪些</h3>' +
-        '<div class="bz-upd-sum"><span>' + (failOnly ? "这次只重抓上次没抓成的 <b>" + nFail + " 个</b>信息源"
-          : "这次抓 <b>" + (allOn ? "全部 " : "") + selGroups.length + " 类</b>，一共 <b>" + nScope + " 个</b>信息源") + "</span>" +
-          (failOnly ? "" : '<span class="sp"></span><button type="button" class="bz-link" data-act="upd-all"' + (allOn ? " disabled" : "") + '>全选</button><button type="button" class="bz-link" data-act="upd-none">全不选</button>') + "</div>" +
-        '<p class="bz-note bz-flat">信息源按类型分成下面几类，勾上的这次就抓，不想抓的点一下取消。一般全选就行，只想快点看某一类时才取消别的。</p>' +
-        '<div class="bz-cats" role="group" aria-label="要抓的分类">' + cats + "</div>" +
-        (nFail ? '<label class="bz-set bz-failonly"><span class="bz-sw"><input type="checkbox" id="bzUpdFailOnly"' + (failOnly ? " checked" : "") + '><i></i></span>' +
-          '<span class="bz-set-t"><b>只重抓上次没抓成的 ' + nFail + " 个</b><small>打开后上面的分类先不管，只把上次失败的再试一遍，很快</small></span></label>" +
-          '<details class="bz-fails"><summary>上次没抓成的是哪些、为什么</summary><ul>' + p.failing.map((f) => "<li><b>" + esc(f.name) + "</b>：" + esc(f.err) + "</li>").join("") + "</ul></details>" : "") +
-        '<p class="bz-note">清单里要加网站、关掉不想要的，在顶上的「爬虫管理」标签里改。</p>' +
-      "</section>" +
-      '<section class="bz-sec"><h3><span class="bz-no">2</span>点了之后会发生什么</h3><ol class="bz-flow">' +
-        "<li><b>同时开 " + c.workers + " 个</b>，把这 " + nScope + " 个信息源轮流抓一遍。</li>" +
-        "<li><b>网站</b>：先找 RSS 订阅（最准，带发布时间）→ 没有就从网页里挑文章链接" +
-          (c.sc_fast || c.sc_browser ? " → 被拦或是动态网页，换 Scrapling" + (c.sc_fast ? "快速模式" : "") + (c.sc_fast && c.sc_browser ? " → 还不行用" : "") + (c.sc_browser ? "真浏览器打开" : "") : "（Scrapling 补救在下面设置里关掉了）") +
-          "。哪种方法管用会记住，下次直接用。" + (p.scrapling ? "" : '<span class="bz-warn">Scrapling 还没装好，动态网页可能抓不到。</span>') + "</li>" +
+    const A = S.updAdd || (S.updAdd = { mode: "one", group: "mine", msg: "" });
+    const grpOpts = [["mine", "我自己加的"]].concat((p.group_names || []).filter(([k]) => k !== "mine").map(([k, n]) => [k, n]));
+    // v167：说明文字都收进「怎么抓的」，点了才看
+    const info = S.updInfo ? '<div class="bz-upd-info"><ol class="bz-flow">' +
+        "<li><b>抓哪些</b>：信息源按类型分成几类，勾上的这次就抓。一般全选；只想快点看某一类才取消别的。自动更新那一轮总是抓全部。</li>" +
+        "<li><b>同时开 " + c.workers + " 个</b>，把勾上的信息源轮流抓一遍。</li>" +
+        "<li><b>网站</b>：先找 RSS 订阅 → 没有就从网页里挑文章链接" + (c.sc_fast || c.sc_browser ? " → 被拦或是动态网页，换 Scrapling" + (c.sc_fast ? "快速模式" : "") + (c.sc_fast && c.sc_browser ? " → 还不行用" : "") + (c.sc_browser ? "真浏览器打开" : "") : "") +
+          "。哪种方法管用会记住。" + (p.scrapling ? "" : '<span class="bz-warn">Scrapling 还没装好，动态网页可能抓不到。</span>') + "</li>" +
         "<li><b>关键词</b>：去 Google 新闻（要开代理）、必应新闻、百度资讯找最新报道。</li>" +
-        "<li><b>去重</b>：以前抓过的文章不再算，只留新的。</li>" +
-        "<li><b>归类</b>：按关键词把新闻归到行业和赛道（不用 AI）。</li>" +
-        "<li><b>抓完</b>：新的出现在「最新新闻」第一页，标着「新」；「正在升温」「提得最多」跟着重算；这一轮的详细记录在「爬虫管理」的抓取记录里。</li>" +
-      "</ol>" +
-        '<p class="bz-note">' + (last ? "上一轮：" + esc(fmtTime(last.started)) + "（" + (TRIG[last.trigger] || "手动") + "），" + last.total + " 个信息源用了 " + dur(lastDur) +
-          "，成功 " + last.ok + " 个、没抓成 " + last.fail + " 个，新抓到 " + last.new + " 条。" : "还没抓过。") +
-          (est ? "这次预计 " + dur(est) + " 左右。" : "") + "</p>" +
+        "<li><b>去重、归类</b>：抓过的不再算；按关键词把新闻归到行业和赛道（不用 AI）。</li>" +
+        "<li><b>抓完</b>：新的出现在「最新新闻」，雷达上会亮一下再归进它的行业；详细记录在「爬虫管理」的抓取记录里。</li></ol>" +
+        '<p class="bz-note">' + (last ? "上一轮：" + esc(fmtTime(last.started)) + "（" + (TRIG[last.trigger] || "手动") + "），" + last.total + " 个用了 " + dur(lastDur) +
+          "，成功 " + last.ok + "、没抓成 " + last.fail + "，新抓到 " + last.new + " 条。" : "还没抓过。") + "</p></div>" : "";
+    el.innerHTML = '<div class="bz-dlg-h"><div><h2 id="bzUpdT">现在更新</h2><p>不用 AI，随时可以停' + (est ? "，这次大约 " + dur(est) : "") + "</p></div>" +
+        '<button type="button" class="bz-info-btn" data-act="upd-info" aria-expanded="' + !!S.updInfo + '" title="怎么抓的、上一轮情况"><span aria-hidden="true">i</span>怎么抓的</button>' +
+        '<button type="button" class="bz-x" data-close aria-label="关闭">×</button></div>' +
+      '<div class="bz-dlg-b">' + info +
+      '<section class="bz-sec"><h3>这次抓哪些</h3>' +
+        '<div class="bz-upd-sum"><span>' + (failOnly ? "只重抓上次没抓成的 <b>" + nFail + " 个</b>"
+          : "<b>" + (allOn ? "全部 " : "") + selGroups.length + " 类</b>，共 <b>" + nScope + " 个</b>信息源") + "</span>" +
+          (failOnly ? "" : '<span class="sp"></span><button type="button" class="bz-link" data-act="upd-all"' + (allOn ? " disabled" : "") + '>全选</button><button type="button" class="bz-link" data-act="upd-none">全不选</button>') + "</div>" +
+        '<div class="bz-cats" role="group" aria-label="要抓的分类">' + cats + "</div>" +
+        (nFail ? '<div class="bz-failrow"><label class="bz-sw-inline"><span class="bz-sw"><input type="checkbox" id="bzUpdFailOnly"' + (failOnly ? " checked" : "") + '><i></i></span>只重抓上次没抓成的 ' + nFail + " 个</label>" +
+          '<details class="bz-fails"><summary>看原因</summary><ul>' + p.failing.map((f) => "<li><b>" + esc(f.name) + "</b>：" + esc(f.err) + "</li>").join("") + "</ul></details></div>" : "") +
       "</section>" +
-      '<section class="bz-sec"><h3><span class="bz-no">3</span>设置</h3><div class="bz-sets">' +
+      '<section class="bz-sec"><h3>添加扫描对象</h3>' +
+        '<div class="bz-add-bar"><div class="bz-tog2" role="tablist">' +
+          '<button type="button" role="tab" data-addmode="one" aria-selected="' + (A.mode === "one") + '">一个</button>' +
+          '<button type="button" role="tab" data-addmode="batch" aria-selected="' + (A.mode === "batch") + '">一批</button></div>' +
+          '<label class="bz-add-grp">放进 <select class="bz-select sm" id="bzAddGrp">' + grpOpts.map(([k, n]) => '<option value="' + esc(k) + '"' + (k === A.group ? " selected" : "") + ">" + esc(n) + "</option>").join("") + "</select></label></div>" +
+        (A.mode === "one"
+          ? '<div class="bz-add-one"><input class="bz-input" id="bzAddOne" placeholder="网址或关键词，比如 https://www.cls.cn/telegraph 或 宁德时代" aria-label="网址或关键词">' +
+            '<button type="button" class="bz-btn" data-act="add-one">添加</button></div>'
+          : '<textarea class="bz-input bz-add-many" id="bzAddMany" rows="5" placeholder="每行一个，网址和关键词可以混着写：&#10;https://www.cls.cn/telegraph&#10;36kr.com/newsflashes&#10;宁德时代&#10;固态电池" aria-label="一批网址或关键词"></textarea>' +
+            '<div class="bz-add-one"><span class="bz-note">网址按网站抓，其他的按关键词去新闻搜索</span><span class="sp"></span><button type="button" class="bz-btn" data-act="add-batch">全部添加</button></div>') +
+        (A.msg ? '<p class="bz-add-msg" role="status">' + A.msg + "</p>" : "") +
+      "</section>" +
+      '<section class="bz-sec"><h3>设置</h3><div class="bz-sets">' +
         autoSetHTML(p) +
-        '<div class="bz-set"><span class="bz-set-t"><b>同时抓几个</b><small>越多越快，但太多容易被网站拦</small></span>' +
-          '<select class="bz-select sm" id="bzUpdWorkers" aria-label="同时抓几个">' + [2, 4, 6, 8].map((v) => '<option value="' + v + '"' + (v === c.workers ? " selected" : "") + ">" + v + " 个</option>").join("") + "</select></div>" +
-        sw("bzUpdScFast", c.sc_fast, "被拦时用 Scrapling 快速模式补救", "几秒一个，能过大部分拦截") +
-        sw("bzUpdScBrowser", c.sc_browser, "还不行就用真浏览器打开", "十几秒一个、慢，但财联社、华尔街见闻这类动态网页只能靠它") +
+        '<div class="bz-set"><span class="bz-set-t"><b>同时抓几个</b></span>' +
+          '<select class="bz-select sm" id="bzUpdWorkers" aria-label="同时抓几个" title="越多越快，但太多容易被网站拦">' + [2, 4, 6, 8].map((v) => '<option value="' + v + '"' + (v === c.workers ? " selected" : "") + ">" + v + " 个</option>").join("") + "</select></div>" +
+        sw("bzUpdScFast", c.sc_fast, "被拦时用 Scrapling 快速模式补救", "") +
+        sw("bzUpdScBrowser", c.sc_browser, "还不行就用真浏览器打开（慢）", "") +
       "</div></section>" +
       "</div>" +
       '<div class="bz-dlg-f"><span class="bz-note" id="bzUpdSaved"></span><span class="sp"></span>' +
         '<button type="button" class="bz-btn ghost" data-close>取消</button>' +
         '<button type="button" class="bz-btn lg" data-act="upd-start" data-autofocus' + (nScope ? "" : " disabled") + ">开始更新（" + nScope + " 个信息源）</button></div>";
+    if (keepTop) el.querySelector(".bz-dlg-b").scrollTop = keepTop;
+  }
+  async function addSources(text) {
+    const A = S.updAdd;
+    A.group = ($("bzAddGrp") || {}).value || A.group;
+    const r = await api("/biz/radar/source", { action: "add_batch", text: text, group: A.group }).catch((e) => ({ ok: false, error: e.message }));
+    if (!r.ok) { A.msg = '<span class="bad">' + esc(r.error || "没加上") + "</span>"; renderUpd(); return; }
+    A.msg = (r.added ? '<span class="ok">加好了 ' + r.added + " 个：" + esc(r.names.slice(0, 6).join("、")) + (r.added > 6 ? " 等" : "") + "。下次扫描就会抓。</span>" : "") +
+      (r.bad.length ? ' <span class="bad">' + r.bad.length + " 个没加：" + esc(r.bad.slice(0, 4).map((x) => x[0] + "（" + x[1] + "）").join("、")) + (r.bad.length > 4 ? " 等" : "") + "</span>" : "");
+    try { S.plan = await api("/biz/radar/plan"); } catch (e) {}
+    renderUpd();
+    if (S.pane === "crawler") loadRadarSources();
   }
   function autoSetHTML(p) {
     const c = p.config, custom = S.updCustom || !EVERY.some(([v]) => v === c.every);
     const nx = p.next_run, now = p.now || Date.now() / 1000;
     const st = c.auto
-      ? "已保存，按这个设置在跑：每 " + everyText(c.every) + "自动抓一轮，下一次在 " + (nx ? (nx <= now + 30 ? "马上" : hhmm(nx).slice(0, 5) + "（" + until(nx) + "）") : "—") + "。"
-      : "自动更新关着：只有点「现在更新」才会抓。";
+      ? (c.every <= 1 ? "实时：一轮抓完接着下一轮。" : "每 " + everyText(c.every) + "一轮，下一次 " + (nx ? (nx <= now + 30 ? "马上" : hhmm(nx).slice(0, 5) + "（" + until(nx) + "）") : "—") + "。")
+      : "关着：只有手动点才会抓。";
     return '<div class="bz-set bz-set-auto"><span class="bz-sw"><input type="checkbox" id="bzUpdAuto"' + (c.auto ? " checked" : "") + ' aria-describedby="bzUpdAutoSt"><i></i></span>' +
-      '<span class="bz-set-t"><b>自动更新</b><small>软件开着时按间隔自动抓一轮（自动的那轮总是抓全部）。改了马上保存，并从保存这一刻开始重新计时。</small></span>' +
+      '<span class="bz-set-t"><b>自动更新</b></span>' +
       '<span class="bz-every"><select class="bz-select sm" id="bzUpdEvery" aria-label="多久自动更新一次"' + (c.auto ? "" : " disabled") + ">" +
-        EVERY.map(([v, t]) => '<option value="' + v + '"' + (!custom && v === c.every ? " selected" : "") + ">每 " + t + "</option>").join("") +
+        EVERY.map(([v, t]) => '<option value="' + v + '"' + (!custom && v === c.every ? " selected" : "") + ">" + (v <= 1 ? "实时（抓完接着抓）" : "每 " + t) + "</option>").join("") +
         '<option value="custom"' + (custom ? " selected" : "") + ">自己填…</option></select>" +
-      (custom ? '<label class="bz-every-n">每 <input type="number" class="bz-input" id="bzUpdEveryN" min="5" max="1440" step="1" value="' + c.every + '"' + (c.auto ? "" : " disabled") +
+      (custom ? '<label class="bz-every-n">每 <input type="number" class="bz-input" id="bzUpdEveryN" min="1" max="1440" step="1" value="' + c.every + '"' + (c.auto ? "" : " disabled") +
         ' aria-label="每隔几分钟"> 分钟</label>' : "") + "</span></div>" +
       '<p class="bz-autost' + (c.auto ? " on" : "") + '" id="bzUpdAutoSt" aria-live="polite">' + esc(st) + "</p>";
   }
@@ -1378,7 +1492,7 @@
     if (sel !== "custom") return +sel;
     const n = $("bzUpdEveryN");
     let v = n ? Math.round(+n.value) : 0;
-    if (!v || v < 5) { v = 5; if (n) toast("最短每 5 分钟一次，已经按 5 分钟存。"); }
+    if (!v || v < 1) { v = 1; }
     return Math.min(v, 1440);
   }
   function updScope() {                       // v166：从界面上读出「抓哪些」
@@ -1637,19 +1751,21 @@
       if (!r.running) S.newCut = r.started || r.last_run || 0;
       renderStrips();
       if (S.updOpen && r.running) renderUpd();
+      if (r.running) liveTick(r);
       if (S.pane === "crawler") { renderCrawlerStatus(); renderRuns(); }
       if (was && !r.running) {
+        if (LIVE.rid === wasRid) liveTick({ rid: wasRid, started: LIVE.since }, true);   // 最后一批也亮一下
         refreshOverview("market"); loadRadarSources(); loadEngines(); loadRuns();
         if (S.rdSid) loadRdItems();
         if (S.readerRun && S.readerRun === wasRid && !$("bzReader").hidden) openRunReport(wasRid);
         loadRadarFeed(true);
         if (S.updOpen && wasRid) { S.updDone = wasRid; S.updRes = null; renderUpd(); openUpdResult(wasRid); }
-        else toast("爬虫这一轮抓完了，新抓到 " + r.new + " 条。");
+        else if (r.trigger !== "auto") toast("爬虫这一轮抓完了，新抓到 " + r.new + " 条。");
       } else if (!was && r.running && S.pane === "crawler") loadRuns();
     }
     const active = root.classList.contains("active");
     if (r && r.running) S.radarTimer = setTimeout(pollRadar, 2500);
-    else if (active) S.radarTimer = setTimeout(pollRadar, 30000);
+    else if (active) S.radarTimer = setTimeout(pollRadar, r && r.auto && r.every <= 5 ? 5000 : 15000);
   }
   async function openUpdResult(rid) {
     let d;
@@ -1788,6 +1904,13 @@
           toast(r.added ? "排进知识库的队列了，AI 池空了就整理。在左栏「知识库 → 整理记录」能看进度。" : "这条之前已经收过了。");
         }
         else if (act === "upd-start") { b.disabled = true; updStart(); }
+        else if (act === "upd-info") { S.updInfo = !S.updInfo; renderUpd(); }
+        else if (act === "add-one" || act === "add-batch") {
+          const t = act === "add-one" ? ($("bzAddOne").value || "").trim() : ($("bzAddMany").value || "").trim();
+          if (!t) { toast(act === "add-one" ? "先填网址或关键词。" : "先填要加的，每行一个。"); return; }
+          b.disabled = true;
+          await addSources(t);
+        }
         else if (act === "upd-all" || act === "upd-none") {
           root.querySelectorAll("[data-upd-grp]").forEach((x) => { x.checked = act === "upd-all"; });
           updSave();
@@ -1903,6 +2026,7 @@
         if (r.ok) { toast("加进去 " + r.added + " 个，下一轮就会抓。"); loadRadarSources(); } else toast(r.error || "没加上");
         return;
       }
+      if ((b = t.closest("[data-addmode]"))) { S.updAdd.mode = b.dataset.addmode; S.updAdd.msg = ""; renderUpd(); const f = $(b.dataset.addmode === "one" ? "bzAddOne" : "bzAddMany"); if (f) f.focus(); return; }
       if ((b = t.closest("[data-rview]"))) { setRview(b.dataset.rview, b.dataset.rview === "list" ? S.rind : ""); return; }
       if ((b = t.closest("[data-rad-list]"))) { setRview("list", b.dataset.radList); return; }
       if ((b = t.closest("[data-rad]"))) { selectRad(b.dataset.rad); return; }
@@ -1943,6 +2067,8 @@
         if (r.ok) { S.opps = r.items; renderOpps(); }
       } else if (t.id === "bzTaskScope") store.set("taskScope", t.value);
       else if (t.id === "bzPgSize") { S.rsize = +t.value; store.set("rsize", S.rsize); loadRadarFeed(); }
+      else if (t.id === "bzRadFreq") setFreq(t.value);
+      else if (t.id === "bzAddGrp") { if (S.updAdd) S.updAdd.group = t.value; }
       else if (t.id === "bzUpdEvery" && t.value === "custom") { S.updCustom = true; renderUpd(); const n = $("bzUpdEveryN"); if (n) { n.focus(); n.select(); } }
       else if (t.id === "bzUpdEvery") { S.updCustom = false; updSave(); }
       else if (["bzUpdAuto", "bzUpdEveryN", "bzUpdWorkers", "bzUpdScFast", "bzUpdScBrowser"].includes(t.id) || t.id === "bzUpdFailOnly" || t.matches("[data-upd-grp]")) updSave();
@@ -1969,6 +2095,7 @@
     root.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.isComposing) {
         if (e.target.id === "bzTaskTarget") { e.preventDefault(); startTask(); }
+        else if (e.target.id === "bzAddOne") { e.preventDefault(); const b = root.querySelector('[data-act="add-one"]'); if (b) b.click(); }
         else if (e.target.matches && e.target.matches("tr[data-run]")) { e.preventDefault(); openRunReport(e.target.dataset.run); }
       }
       if ((e.key === "Enter" || e.key === " ") && e.target.matches && e.target.matches("#bzRadar g.blip[data-rad]")) { e.preventDefault(); selectRad(e.target.dataset.rad); }
