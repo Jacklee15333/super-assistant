@@ -1,0 +1,302 @@
+{
+ "t:ai": {
+  "target": "t:ai",
+  "kw": "人工智能",
+  "at": 1795698460,
+  "res": {
+   "ccgp": {
+    "total": 3379,
+    "win": 928,
+    "items": [
+     {
+      "t": "钦州市政府采购中心关于钦州幼儿师范高等专科学校智能工程学院 人工智能 技术应用专业实训室设备采购及安装的竞争性谈判公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/jzxtpgg/202611/t20261126_27765581.htm",
+      "d": "2026-12-02",
+      "buyer": "钦州幼儿师范高等专科学校",
+      "kind": "竞争性谈判公告",
+      "amt": 137.65,
+      "amt_k": "预算金额"
+     },
+     {
+      "t": "宁波市国际招标有限公司关于宁波市海曙区人民医院 人工智能 建设项目中标(成交)结果公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/zbgg/202611/t20261126_27765492.htm",
+      "d": "2026-11-26",
+      "buyer": "宁波市海曙区人民医院",
+      "kind": "中标(成交)结果公告",
+      "amt": 160.0,
+      "amt_k": "总中标金额"
+     },
+     {
+      "t": "陕西省图书馆（陕西省古籍保护中心） 人工智能 等相关创新场景应用建设项目-陕西省图书馆AI馆员(二次)竞争性磋商公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/jzxcs/202611/t20261126_27765378.htm",
+      "d": "2026-12-07",
+      "buyer": "陕西省图书馆（陕西省古籍保护中心）",
+      "kind": "竞争性磋商公告",
+      "amt": 40.0,
+      "amt_k": "预算金额"
+     },
+     {
+      "t": "“ 人工智能 技术与应用专业实训基地”项目结果公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/zbgg/202611/t20261126_27765316.htm",
+      "d": "2026-11-26",
+      "buyer": "东莞市机电工程学校",
+      "kind": "中标公告",
+      "amt": 250.0,
+      "amt_k": "总中标金额"
+     },
+     {
+      "t": "基于 人工智能 的应用系统建设-算力(BNQ26A00419)询价公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/xjgg/202611/t20261126_27765208.htm",
+      "d": "2026-11-26",
+      "buyer": "重庆市巴南区人民医院",
+      "kind": "询价公告"
+     },
+     {
+      "t": "浙江豪圣建设项目管理有限公司关于浙江工业大学电子信息及 人工智能 创新实验平台（嵌入式AI开发板、Al视觉机械臂、AI移动机器人）（二次）中标(成交)结果公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/zbgg/202611/t20261126_27765119.htm",
+      "d": "2026-11-26",
+      "buyer": "浙江工业大学",
+      "kind": "中标(成交)结果公告"
+     },
+     {
+      "t": "隆昌市人民医院 人工智能 辅助诊断系统采购项目招标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/gkzb/202611/t20261126_27764916.htm",
+      "d": "2026-12-17",
+      "buyer": "隆昌市人民医院",
+      "kind": "公开招标公告"
+     },
+     {
+      "t": "湖南省疾病预防控制中心艾滋病综合防控 人工智能 应用服务项目项目竞争性磋商邀请公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/jzxcs/202611/t20261126_27764825.htm",
+      "d": "2026-11-26",
+      "buyer": "肖老师",
+      "kind": "竞争性磋商邀请公告"
+     }
+    ],
+    "amt_mid": 148.8,
+    "amt_n": 4,
+    "url": "http://search.ccgp.gov.cn/bxsearch?searchtype=1&page_index=1&bidSort=0&buyerName=&projectId=&pinMu=0&bidType=0&dbselect=bidx&kw=%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD&start_time=2026%3A05%3A30&end_time=2026%3A11%3A26&timeType=6&displayZone=&zoneId=&pppStatus=0&agentName=",
+    "via": "direct",
+    "days": 180,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 767
+     }
+    ],
+    "ms": 4171
+   },
+   "zbj": {
+    "band": {
+     "n": 94,
+     "min": 50.0,
+     "p25": 109.5,
+     "mid": 500.0,
+     "p75": 1800.0,
+     "max": 16888.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "url": "https://www.zbj.com/fw/?k=%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD",
+    "via": "fast",
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 360,
+      "why": "要登录或被拦（安全验证）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": true,
+      "ms": 1282
+     }
+    ],
+    "ms": 1647
+   }
+  }
+ },
+ "t:compute": {
+  "target": "t:compute",
+  "kw": "算力",
+  "at": 1795699133,
+  "res": {
+   "ccgp": {
+    "total": 1184,
+    "win": 326,
+    "items": [
+     {
+      "t": "湖北经济学院超长期特别国债资金支持设备更新项目（云金融 算力 底座）第二次公开招标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/gkzb/202611/t20261126_27765767.htm",
+      "d": "2026-11-26",
+      "buyer": "湖北经济学院",
+      "kind": "公开招标公告",
+      "amt": 475.0,
+      "amt_k": "预算金额"
+     },
+     {
+      "t": "智算 算力 服务项目（二次））竞争性磋商公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/jzxcs/202611/t20261126_27765530.htm",
+      "d": "2026-12-07",
+      "buyer": "伊犁哈萨克自治州公安局",
+      "kind": "竞争性磋商公告",
+      "amt": 106.0,
+      "amt_k": "预算金额"
+     },
+     {
+      "t": "基于人工智能的应用系统建设- 算力 (BNQ26A00419)询价公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/xjgg/202611/t20261126_27765208.htm",
+      "d": "2026-11-26",
+      "buyer": "重庆市巴南区人民医院",
+      "kind": "询价公告",
+      "amt": 99.0,
+      "amt_k": "预算金额"
+     },
+     {
+      "t": "面向 算力 网场景的威胁情报能力增强与配套服务升级项目中标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/zygg/zbgg/202611/t20261126_27765096.htm",
+      "d": "2026-11-26",
+      "buyer": "zycgr21071303",
+      "kind": "中标公告",
+      "amt": 78.5,
+      "amt_k": "总中标金额"
+     },
+     {
+      "t": "中国共产党四川省委员会党校四川省数字治理与智慧党建重点实验室定制化 算力 解决方案(二次)招标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/gkzb/202611/t20261126_27764821.htm",
+      "d": "2026-12-21",
+      "buyer": "中国共产党四川省委员会党校",
+      "kind": "公开招标公告"
+     },
+     {
+      "t": "四川省人工影响天气中心（四川省气象防灾减灾中心）四川省人工影响天气水资源保障工程-人工影响天气指挥能力建设-人工影响天气业务所需 算力 资源扩展建设采购更正公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/gzgg/202611/t20261126_27763955.htm",
+      "d": "2026-11-03",
+      "buyer": "四川省人工影响天气中心（四川省气象防灾减灾中心）",
+      "kind": "更正公告"
+     },
+     {
+      "t": "2026-2027年度福建省水利厅政务云资源、网络专线和高性能 算力 租用服务项目公开招标招标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/gkzb/202611/t20261126_27762958.htm",
+      "d": "2026-11-26",
+      "buyer": "福建省洪水预警报中心",
+      "kind": "公开招标招标公告"
+     },
+     {
+      "t": "智算 算力 服务项目废标公告",
+      "u": "http://www.ccgp.gov.cn/cggg/dfgg/qtgg/202611/t20261126_27761789.htm",
+      "d": "2026-11-26",
+      "buyer": "伊犁哈萨克自治州公安局",
+      "kind": "废标公告"
+     }
+    ],
+    "amt_mid": 102.5,
+    "amt_n": 4,
+    "url": "http://search.ccgp.gov.cn/bxsearch?searchtype=1&page_index=1&bidSort=0&buyerName=&projectId=&pinMu=0&bidType=0&dbselect=bidx&kw=%E7%AE%97%E5%8A%9B&start_time=2026%3A05%3A30&end_time=2026%3A11%3A26&timeType=6&displayZone=&zoneId=&pppStatus=0&agentName=",
+    "via": "direct",
+    "days": 180,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 649
+     }
+    ],
+    "ms": 4024
+   },
+   "b2b": {
+    "ok": false,
+    "error": "Scrapling 快速：要登录或被拦（login.1688）；Scrapling 浏览器：Scrapling 浏览器打开超时（timeout）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 172,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 441,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 111989,
+      "why": "Scrapling 浏览器打开超时（timeout）"
+     }
+    ],
+    "ms": 112604
+   },
+   "jd": {
+    "ok": false,
+    "error": "Scrapling 快速：页面是空壳（只有 4 个字）；Scrapling 浏览器：要登录或被拦（passport.jd.com）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 312,
+      "why": "页面是空壳（只有 4 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 638,
+      "why": "页面是空壳（只有 4 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 21555,
+      "why": "要登录或被拦（passport.jd.com）"
+     }
+    ],
+    "ms": 22506
+   },
+   "smzdm": {
+    "band": {
+     "n": 8,
+     "min": 318.0,
+     "p25": 2791.25,
+     "mid": 10249.0,
+     "p75": 21249.0,
+     "max": 250000.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "url": "https://search.smzdm.com/?c=faxian&v=b&s=%E7%AE%97%E5%8A%9B",
+    "via": "browser",
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 190,
+      "why": "页面是空壳（只有 0 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 386,
+      "why": "页面是空壳（只有 0 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": true,
+      "ms": 10348
+     }
+    ],
+    "ms": 10928
+   }
+  }
+ }
+}

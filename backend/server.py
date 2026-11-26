@@ -128,6 +128,8 @@ _LOG_PATH_LABEL = {
     "/biz/stop": "停止商业分析",
     "/biz/radar/run": "市场雷达：现在抓一次",
     "/biz/real/update": "真实市场：现在更新统计局和上市公司数据",
+    "/biz/real/batch": "真实市场：全部核实（开始 / 停止 / 接着做）",
+    "/biz/real/trade": "真实市场：去交易平台抓数据",
     "/biz/radar/source": "市场雷达：改信息源清单",
 }
 
@@ -6701,6 +6703,15 @@ class Handler(BaseHTTPRequestHandler):
                 if path == "/biz/real/update":                       # v191：真实市场「现在更新」
                     import biz_real as _br
                     return self._send(_br.start_update(force=bool(body.get("force"))))
+                if path == "/biz/real/batch":                        # v192：全部核实（排队一个个来）
+                    import biz_real as _br
+                    act = body.get("action", "start")
+                    if act == "start":
+                        return self._send(_br.batch_start(body.get("scope", "all"), body.get("depth", "quick"), body.get("todo", True)))
+                    return self._send({"resume": _br.batch_resume, "stop": _br.batch_stop, "clear": _br.batch_clear}.get(act, _br.batch_stop)())
+                if path == "/biz/real/trade":                        # v192：只抓交易平台（不用 AI）
+                    import biz_trade as _bt
+                    return self._send(_bt.probe_async(body.get("target", "")))
                 if path == "/biz/real/check_delete":
                     import biz_real as _br
                     return self._send(_br.check_delete(body.get("id", "")))

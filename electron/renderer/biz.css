@@ -1338,3 +1338,19 @@ body.dark .view-biz .bz-kind.k-custom { color: #b8a2f0; }
 .view-biz .bz-rm-checkcard { margin-top: 16px; }
 @media (max-width: 1000px) { .view-biz .bz-rm-quadwrap { grid-template-columns: 1fr; } }
 .view-biz .bz-ind:not(.nodet) .bz-rm-quadwrap { grid-template-columns: 1fr; }
+
+/* ===== v192：下拉框、全部核实、交易平台 ===== */
+.view-biz .bz-rm-form #bzRmPick { flex: 1 1 230px; max-width: 320px; }
+.view-biz .bz-rm-form .bz-input { flex: 1 1 220px; }
+.view-biz .bz-rm-batch:empty { display: none; }
+.view-biz .bz-rm-batch { margin: 0 0 12px; }
+.view-biz .bz-rm-bset, .view-biz .bz-rm-bprog { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--bg-elev); }
+.view-biz .bz-rm-bset label { display: inline-flex; gap: 8px; align-items: center; margin: 0 14px 8px 0; font-size: 13px; }
+.view-biz .bz-rm-bset p { margin: 4px 0 10px; font-size: 13px; line-height: 1.7; }
+.view-biz .bz-rm-bprog-h { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.view-biz .bz-rm-bprog p { margin: 6px 0; font-size: 12.5px; }
+.view-biz .bz-rm-bar { height: 6px; border-radius: 3px; background: var(--bg-hover); margin: 8px 0 4px; overflow: hidden; }
+.view-biz .bz-rm-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width .4s; }
+.view-biz .bz-rm-more { grid-column: 1 / -1; text-align: center; margin: 4px 0 0; }
+.view-biz .bz-rm-cg summary { cursor: pointer; font-size: 12px; color: var(--text-dim); margin: 2px 0 4px; }
+.view-biz .bz-rm-cg p { margin: 0 0 5px; font-size: 12px; }
