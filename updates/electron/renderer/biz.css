@@ -840,3 +840,41 @@ body.dark .view-biz { --bz-up: #6cc08b; --bz-warn: #e0a24a; --bz-bad: #e5907a; }
 .view-biz .bz-cols.wide:not(.reading) .bz-radar { grid-template-columns: minmax(0, 1.75fr) minmax(300px, 1fr); }
 .view-biz .bz-rad-rank button { grid-template-columns: 9px minmax(0, 1fr) 70px 30px 60px 36px; }
 @media (max-width: 1100px) { .view-biz .bz-cols.wide:not(.reading) > .bz-side { grid-template-columns: 1fr; } }
+
+/* ── v169：雷达细分到二级行业、更大；扫描结果挪到下面和「正在升温」并排，字小一点 ── */
+.view-biz .bz-cols.wide:not(.reading) .bz-radar { grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; }
+.view-biz .bz-rad-svg .rim { font: 500 14px var(--sans); }
+.view-biz .bz-rad-svg .rim.q { fill-opacity: .45; }
+.view-biz .bz-rad-svg .rim.on { font-weight: 700; }
+.view-biz .bz-rad-svg .rim .rn { fill: var(--text-dim); font-weight: 400; font-size: 12px; }
+.view-biz .bz-rad-svg .band { fill-opacity: .85; }
+.view-biz .bz-rad-svg .secl { font: 700 22px var(--sans); }
+.view-biz .bz-rad-svg .secn { font-size: 16px; font-weight: 400; }
+.view-biz .bz-rad-svg .wedge { stroke: var(--bg-elev); stroke-width: 1.2; }
+.view-biz .bz-rad-svg .wedge.on { fill-opacity: .26; }
+.view-biz .bz-rad-svg .bl { font: 700 16px var(--sans); }
+.view-biz .bz-rad-how { margin: 0 0 10px; padding-left: 18px; font-size: 12.5px; line-height: 1.7; color: var(--text-dim); }
+.view-biz .bz-rad-how b { color: var(--text); font-weight: 600; }
+.view-biz .bz-rad-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; }
+.view-biz .bz-rad-stats div { display: flex; flex-direction: column; padding: 8px 10px; border-radius: 10px; background: var(--bg-active); }
+.view-biz .bz-rad-stats b { font-size: 20px; font-variant-numeric: tabular-nums; }
+.view-biz .bz-rad-stats span { font-size: 11px; color: var(--text-dim); line-height: 1.4; }
+.view-biz .bz-chip i.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+.view-biz .bz-rad-sel .bz-rad-l1 { display: block; margin: 8px auto 0; }
+.view-biz .bz-scan-card[hidden] { display: none; }
+.view-biz .bz-rad-rank button.on { background: var(--bz-soft); }
+/* 下面四张卡片并排、字小一点 */
+.view-biz .bz-cols.wide:not(.reading) > .bz-side { grid-template-columns: minmax(0, 1.5fr) repeat(3, minmax(0, 1fr)); }
+.view-biz .bz-cols.wide:not(.reading) > .bz-side .bz-card { padding: 12px 14px; }
+.view-biz .bz-cols.wide:not(.reading) > .bz-side .bz-card-h h3 { font-size: 14px; }
+.view-biz .bz-cols.wide:not(.reading) > .bz-side .bz-hint { font-size: 11.5px; line-height: 1.5; }
+.view-biz .bz-cols.wide:not(.reading) > .bz-side .bz-term { font-size: 12.5px; padding: 4px 4px; }
+.view-biz .bz-cols.wide:not(.reading) > .bz-side .bz-term .n { font-size: 11.5px; }
+.view-biz .bz-cols.wide:not(.reading) > .bz-side .bz-chip { font-size: 11.5px; padding: 2px 8px; }
+.view-biz .bz-cols.wide:not(.reading) > .bz-side .bz-rad-rank button { padding: 3px 4px; gap: 5px; grid-template-columns: 8px minmax(0, 1fr) 64px 28px 48px 30px; }
+.view-biz .bz-cols.wide:not(.reading) > .bz-side .bz-rad-rank .nm { font-size: 12.5px; }
+.view-biz .bz-cols.wide:not(.reading) > .bz-side .bz-rad-rank .sc { font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; }
+.view-biz .bz-cols.wide:not(.reading) > .bz-side .bz-rad-rank .n { font-size: 11.5px; }
+@media (max-width: 1250px) { .view-biz .bz-cols.wide:not(.reading) > .bz-side { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 1100px) { .view-biz .bz-cols.wide:not(.reading) .bz-radar { grid-template-columns: 1fr; } }
+.view-biz .bz-scan-card .hot { font-size: 10px; padding: 0 5px; border-radius: 5px; line-height: 16px; background: var(--accent); color: #fff; white-space: nowrap; }
