@@ -1,5 +1,23 @@
 [
   {
+    "time": "2026-11-25 21:26",
+    "ok": true,
+    "source": "auto",
+    "files": 2386,
+    "learned": 18,
+    "model": "web",
+    "summary": "主人是一位试图通过持续学习、事实验证与系统性分析理解世界运行规律的人，希望看清历史叙事、权力利益、产业竞争与经济风险背后的真实逻辑，并将知识转化为独立判断和决策"
+  },
+  {
+    "time": "2026-11-25 20:50",
+    "ok": true,
+    "source": "auto",
+    "files": 2386,
+    "learned": 74,
+    "model": "web",
+    "summary": "主人是一个试图借助AI构建长期认知体系、穿透信息表象、理解世界运行规律，并将知识转化为独立判断力与现实决策能力的人。"
+  },
+  {
     "time": "2026-11-25 15:01",
     "ok": true,
     "source": "auto",
@@ -430,23 +448,5 @@
     "learned": 7,
     "model": "web",
     "summary": "本轮没读到有效内容"
-  },
-  {
-    "time": "2026-11-19 16:57",
-    "ok": true,
-    "source": "auto",
-    "files": 918,
-    "learned": 104,
-    "model": "web",
-    "summary": "ChatGPT 说：\n最近在关注什么\n\nAI一人公司与个人商业化：集中关注一人公司的盈利模式、MVP需求验证、首批付费客"
-  },
-  {
-    "time": "2026-11-19 09:19",
-    "ok": true,
-    "source": "auto",
-    "files": 882,
-    "learned": 18,
-    "model": "web",
-    "summary": "ChatGPT 说：\n最近在关注什么\n\nAI一人公司与低成本创业：重点关注真实盈利案例、细分市场选择、MVP验证、产品定"
   }
 ]
