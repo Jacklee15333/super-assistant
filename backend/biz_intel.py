@@ -532,6 +532,22 @@ def radar_run(rid):
             "by_ind": [[g, n] for g, n in c.most_common(16)]}
 
 
+def radar_tops(days=1, n=6):
+    """v168：雷达上每个行业、细分行业、赛道最新的几条新闻，一次算好给界面，点圆点马上就能看到，不用再等。"""
+    days = int(days or 1) or 1
+    cut = time.time() - days * 86400
+    win = [it for it in _radar_items() if it["ts"] >= cut]
+    win.sort(key=lambda x: -x["ts"])
+    out = {}
+    for it in win:
+        keys = set(it["trk"]) | set(it["ind"]) | {g.split("/")[0] for g in it["ind"]}
+        for k in keys:
+            lst = out.setdefault(k, [])
+            if len(lst) < n:
+                lst.append(it)
+    return {"ok": True, "days": days, "tops": {k: [_pub(x) for x in v] for k, v in out.items()}}
+
+
 def overview(days=30, lens="mine"):
     if lens == "market":
         return _overview_market(days)

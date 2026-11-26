@@ -92,7 +92,7 @@ _LOG_QUIET_PATHS = {"/intake_kind", "/douyin/login",
     "/scrapling/status", "/sniff/sources",
     "/biz/job", "/biz/overview", "/biz/taxonomy", "/biz/items", "/biz/reports", "/biz/report", "/biz/opps", "/biz/topics",
     "/kb/overview", "/kb/page", "/kb/search", "/kb/candidates", "/kb/raw", "/kb/raw_item", "/kb/graph",
-    "/biz/radar/status", "/biz/radar/plan", "/biz/brief_info", "/biz/radar/sources", "/biz/radar/engines", "/biz/radar/runs", "/biz/radar/report",
+    "/biz/radar/status", "/biz/radar/plan", "/biz/radar_tops", "/biz/brief_info", "/biz/radar/sources", "/biz/radar/engines", "/biz/radar/runs", "/biz/radar/report",
 }
 
 # 给少数关键路径配一句「人话」描述，让日志一眼能看懂用户在干嘛。
@@ -5681,6 +5681,8 @@ class Handler(BaseHTTPRequestHandler):
                 q1 = lambda k, d="": (qs.get(k) or [d])[0]
                 if path == "/biz/taxonomy":
                     return self._send(bz.taxonomy())
+                if path == "/biz/radar_tops":                       # v168：雷达上每个行业最新几条
+                    return self._send(bz.radar_tops(int(q1("days", "1") or 1)))
                 if path == "/biz/overview":
                     return self._send(bz.overview(int(q1("days", "30") or 30), q1("lens", "mine")))
                 if path == "/biz/items":
