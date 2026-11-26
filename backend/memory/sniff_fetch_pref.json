@@ -51,10 +51,6 @@
     "mode": "browser",
     "at": "2026-11-25 19:28"
   },
-  "cninfo.com.cn": {
-    "mode": "browser",
-    "at": "2026-11-25 20:24"
-  },
   "theinformation.com": {
     "mode": "browser",
     "at": "2026-11-25 21:25"
@@ -66,5 +62,9 @@
   "producthunt.com": {
     "mode": "browser",
     "at": "2026-11-26 16:23"
+  },
+  "microsoft.com/en-us/worklab": {
+    "mode": "fast",
+    "at": "2026-11-26 18:30"
   }
 }

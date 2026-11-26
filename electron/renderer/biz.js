@@ -181,7 +181,7 @@
           '<span class="bz-note" id="bzLegendTxt"></span></div>' +
         '<div class="bz-strip" id="bzStripI"></div>' +
         '<p class="bz-source" id="bzIndSource"></p>' +
-        '<div class="bz-ind"><div class="bz-ind-main" id="bzIndMain"></div><aside class="bz-ind-detail" id="bzIndDetail"></aside></div>' +
+        '<div class="bz-ind"><div class="bz-mlive" id="bzMapLive"></div><div class="bz-ind-main" id="bzIndMain"></div><aside class="bz-ind-detail" id="bzIndDetail"></aside></div>' +
       "</div>" +
 
       // ===== 研究分析 =====
@@ -822,7 +822,8 @@
   }
   const LIVE = { rid: "", since: 0, seen: new Set(), queue: [], active: 0, last: 0, timer: 0, busy: false };
   async function liveTick(r, force) {
-    if (S.pane !== "radar" || S.rview !== "radar" || !$("bzRadLive")) return;
+    const onRadar = S.pane === "radar" && S.rview === "radar" && $("bzRadLive"), onMap = S.pane === "industry" && S.indView === "map" && $("bzIndMain");
+    if (!onRadar && !onMap) return;                         // v186：行业地图上也演
     if (force) { LIVE.last = 0; LIVE.busy = false; }
     if (LIVE.rid !== r.rid) { LIVE.rid = r.rid; LIVE.since = r.started || Math.floor(Date.now() / 1000); LIVE.seen = new Set(); LIVE.queue = []; }
     if (LIVE.busy || Date.now() - LIVE.last < 2000) return;
@@ -841,8 +842,44 @@
   function pumpLive() {
     clearTimeout(LIVE.timer);
     if (!LIVE.queue.length) return;
-    if (LIVE.active < 4 && $("bzRadLive")) showLive(LIVE.queue.shift());
+    if (LIVE.active < 4) {
+      if (S.pane === "industry" && S.indView === "map" && $("bzIndMain")) showMapLive(LIVE.queue.shift());   // v186
+      else if ($("bzRadLive")) showLive(LIVE.queue.shift());
+    }
     LIVE.timer = setTimeout(pumpLive, 900);
+  }
+  // v186：雷达扫到一条新闻：行业地图上它所在的那一小格闪一下、数字加 1，标题在旁边冒出来，3 秒后消失
+  function showMapLive(it) {
+    const main = $("bzIndMain"), layer = $("bzMapLive");
+    if (!it || !main || !layer) return;
+    const ids = [...(it.l3 || []), ...(it.ind || []), ...(it.trk || [])];
+    const tiles = ids.map((id) => main.querySelector('.bz-tile[data-ind="' + CSS.escape(id) + '"]')).filter(Boolean);
+    if (!tiles.length) return;                                  // 没归到行业的新闻：地图上没有它的格子
+    S.gotUntil = S.gotUntil || {};                              // 3 秒里地图重画了，闪的格子接着闪
+    tiles.slice(0, 3).forEach((t) => { S.gotUntil[t.dataset.ind] = Date.now() + 3000; });
+    if (it.url) S.artItems[it.id] = it;
+    tiles.slice(0, 3).forEach((t) => {
+      t.classList.remove("got"); void t.offsetWidth; t.classList.add("got");
+      const c = t.querySelector(".ct");
+      if (c && c.firstChild && c.firstChild.nodeType === 3) c.firstChild.nodeValue = String((parseInt(c.firstChild.nodeValue, 10) || 0) + 1);
+      setTimeout(() => t.classList.remove("got"), 3000);
+    });
+    const sc = $("bzScroll"), sr = sc ? sc.getBoundingClientRect() : { top: 0, bottom: innerHeight };
+    const vis = (el) => { const r = el.getBoundingClientRect(); return r.bottom > sr.top + 4 && r.top < sr.bottom - 4; };
+    const t = tiles.find(vis) || tiles[0];                     // 标题放在屏幕上看得到的那一格旁边（最细的优先）
+    const mr = layer.getBoundingClientRect(), tr = t.getBoundingClientRect(), id = t.dataset.ind;   // 标题放在不会被重画的那一层上
+    const zh = S.trTitle[it.title] || it.title || "";
+    const bub = document.createElement("button");
+    bub.type = "button"; bub.className = "bz-got"; bub.dataset.art = it.id; bub.title = "点一下看这条新闻";
+    bub.innerHTML = '<span class="t">' + esc(zh.length > 42 ? zh.slice(0, 42) + "…" : zh) + "</span>" +
+      '<span class="g"><i style="background:' + colorOf(id) + '"></i>' + esc(nameOf(id)) + (it.who ? " · " + esc(it.who) : "") + "</span>";
+    const w = Math.min(270, mr.width - 8);
+    bub.style.maxWidth = w + "px";
+    bub.style.left = Math.max(4, Math.min(tr.left - mr.left, mr.width - w - 4)) + "px";
+    bub.style.top = (tr.top - 50 < sr.top ? tr.bottom - mr.top + 4 : tr.top - mr.top - 48) + "px";   // 上面放不下就放到下面
+    layer.appendChild(bub);
+    LIVE.active++;
+    setTimeout(() => { bub.classList.add("out"); setTimeout(() => { bub.remove(); LIVE.active = Math.max(0, LIVE.active - 1); }, 400); }, 3000);
   }
   function showLive(it) {
     const box = $("bzRadLive"), vb = S.radVB;
@@ -1398,7 +1435,7 @@
         : "\n你收进来的相关内容：" + (h[0] || 0) + " 条");
     const mx = (S.mapMax && S.mapMax[d.type]) || 0;
     const lv = !h[0] ? 0 : !mx ? lvl(h[0]) : ((r) => (r < 0.2 ? 1 : r < 0.4 ? 2 : r < 0.6 ? 3 : r < 0.8 ? 4 : 5))(Math.sqrt(h[0] / mx));   // v183：深浅按这一屏里最多的那个分
-    return '<button type="button" class="bz-tile' + (d.type === "l3" ? " l3" : d.type === "l2" ? " l2" : "") + " h" + lv + (S.indSel === id ? " sel" : "") + (matchQ(d) ? "" : " dim") +
+    return '<button type="button" class="bz-tile' + (d.type === "l3" ? " l3" : d.type === "l2" ? " l2" : "") + (S.gotUntil && S.gotUntil[id] > Date.now() ? " got" : "") + " h" + lv + (S.indSel === id ? " sel" : "") + (matchQ(d) ? "" : " dim") +
       '" style="--c:' + colorOf(id) + '" data-ind="' + esc(id) + '" title="' + esc(tip) + '"><span class="nm">' + esc(d.name) + "</span>" +
       (h[0] ? '<span class="ct">' + h[0] + (m && show24() && h[1] && d.type !== "l3" ? '<small> 24 小时 +' + h[1] + "</small>" : "") + "</span>" : "") +
       (gap ? '<i class="gap" aria-hidden="true"></i>' : "") + "</button>";
@@ -1406,6 +1443,8 @@
   // v184：不同板块不同颜色（和市场雷达的饼一样）；每个板块里新闻多的排前面
   function cntOf(id) { return heatOf(id)[0] || 0; }
   function byCnt(a, b) { return cntOf(b) - cntOf(a) || String(nameOf(a)).localeCompare(String(nameOf(b)), "zh"); }
+  function secTotal(sec) { return sec.l1.reduce((a, n) => a + cntOf(n), 0); }
+  function secsSorted() { return S.tax.sectors.slice().sort((a, b) => secTotal(b) - secTotal(a)); }   // v186：新闻多、热门的板块放前面
   function colorOf(id) {
     const d = S.byId[id];
     if (!d) return "#888";
@@ -1422,8 +1461,9 @@
     };
     let html = '<section class="bz-band trk"><header><h4>新兴赛道</h4><span>横跨好几个行业的热门方向</span></header><div class="bz-tiles">' +
       S.tax.tracks.map((t) => t.id).sort(byCnt).map((x) => tile(x)).join("") + "</div></section>";
-    S.tax.sectors.forEach((sec) => {
-      html += '<section class="bz-band" style="--c:' + (RAD_SEC[sec.name] || "#888") + '"><header><h4>' + esc(sec.name) + "</h4><span>" + esc(sec.desc) + '</span></header><div class="bz-l1s">' +
+    secsSorted().forEach((sec) => {
+      html += '<section class="bz-band" style="--c:' + (RAD_SEC[sec.name] || "#888") + '"><header><h4>' + esc(sec.name) + "</h4>" +
+        (secTotal(sec) ? '<em class="bz-band-n">' + secTotal(sec) + " 条</em>" : "") + "<span>" + esc(sec.desc) + '</span></header><div class="bz-l1s">' +
         sec.l1.slice().sort(byCnt).map((n) => {
           const d = S.byId[n], h = heatOf(n);
           const hit = matchQ(d) || d.subs.some((x) => matchQ(S.byId[x]) || (S.byId[x].l3 || []).some((y) => matchQ(S.byId[y])));
@@ -1449,7 +1489,7 @@
     let html = "";
     const trs = S.tax.tracks.filter((t) => matchQ(S.byId[t.id])).sort((a, b) => byCnt(a.id, b.id));
     if (trs.length) html += '<section class="bz-lsec"><h4>新兴赛道</h4><table class="bz-ltab">' + head + "<tbody>" + trs.map((t) => lrow(t.id)).join("") + "</tbody></table></section>";
-    S.tax.sectors.forEach((sec) => {
+    secsSorted().forEach((sec) => {
       const l1s = sec.l1.map((n) => S.byId[n]).filter((d) => matchQ(d) || d.subs.some((x) => matchQ(S.byId[x]))).sort((a, b) => byCnt(a.id, b.id));
       if (!l1s.length) return;
       html += '<section class="bz-lsec"><h4>' + esc(sec.name) + "</h4>" + l1s.map((d) => {

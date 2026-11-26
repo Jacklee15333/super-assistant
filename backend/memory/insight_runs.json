@@ -1,5 +1,14 @@
 [
   {
+    "time": "2026-11-26 18:24",
+    "ok": true,
+    "source": "auto",
+    "files": 2397,
+    "learned": 151,
+    "model": "web",
+    "summary": "主人是一个以高密度信息收集为基础、以利益结构和底层逻辑分析为方法、兼具历史文化关切与现实风险意识的独立思考者，真正想要的是看清事实、识破叙事、理解规则，并找到现"
+  },
+  {
     "time": "2026-11-25 21:26",
     "ok": true,
     "source": "auto",
@@ -439,14 +448,5 @@
     "learned": 38,
     "model": "web",
     "summary": "ChatGPT 说：\n最近在关注什么\n\nAI一人公司与个人商业化：密集关注低成本创业、真实盈利案例、MVP验证、首批付费"
-  },
-  {
-    "time": "2026-11-19 18:05",
-    "ok": false,
-    "source": "auto",
-    "files": 921,
-    "learned": 7,
-    "model": "web",
-    "summary": "本轮没读到有效内容"
   }
 ]
