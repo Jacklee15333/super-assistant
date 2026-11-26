@@ -62,5 +62,9 @@
   "huggingface.co/papers": {
     "mode": "fast",
     "at": "2026-11-26 12:41"
+  },
+  "producthunt.com": {
+    "mode": "browser",
+    "at": "2026-11-26 16:23"
   }
 }

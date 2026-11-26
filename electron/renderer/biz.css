@@ -1042,3 +1042,6 @@ body.dark .view-biz { --bz-up: #6cc08b; --bz-warn: #e0a24a; --bz-bad: #e5907a; }
 .view-biz .bz-art-sec .bz-art-ot { font-weight: 600; }
 .view-biz .bz-art-sec .bz-art-note { font-size: 12px; color: var(--text-dim); }
 .view-biz .bz-art-sec .bz-art-note a { color: var(--accent); }
+
+/* v182：雷达和行业地图用同一份数据，写着统计时间 */
+.view-biz #bzRadar .bz-rad-legend .lg-time { color: var(--text-dim); }

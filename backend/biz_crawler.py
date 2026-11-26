@@ -49,7 +49,8 @@ DAY_KEEP_D = 400                               # 按天的留 400 天（1 个月
 MEDIA_DIR = BIZ_DIR / "article_media"         # v179：新闻里的视频转成的文字（转过一次就存着）
 RUNS_FILE = BIZ_DIR / "radar_runs.json"      # v157：每一轮的抓取记录（结果报告用），留最近 40 轮
 KEEP_DAYS = 45
-MAX_ITEMS = 8000
+MAX_ITEMS = 60000                 # v182：8000 条两三个小时就满了，列表对不上统计；放大到 6 万条
+SEEN_KEEP = 300000                # v182：抓过的网址留 30 万个（按先后，留最新的）
 PER_SOURCE = 40
 WORKERS = 4
 FEED_ACCEPT = "application/rss+xml, application/atom+xml, application/xml, text/xml, */*"
@@ -506,16 +507,53 @@ def _feed():
         d = _read_json(FEED_FILE, [])
         _ST["feed"] = d if isinstance(d, list) else []
         s = _read_json(SEEN_FILE, [])
-        _ST["seen"] = set(s if isinstance(s, list) else [])
+        _ST["seen"] = dict.fromkeys(s if isinstance(s, list) else [], 1)   # v182：按先后存（原来存成乱序集合，存盘时随机丢一部分）
+        _dedup_feed()
     return _ST["feed"]
+
+
+def _dedup_feed():
+    """v182：以前「抓过的」名单存盘时随机丢掉一部分，同一条新闻会被当成新的再存一遍、再算一遍。
+    这里去掉重复的，统计里多算的减回去；内容库里的都记进「抓过的」名单。调用方拿着 _LOCK。"""
+    feed, seen = _ST["feed"], _ST["seen"]
+    keep, extra = [], []
+    have = set()
+    for x in feed:
+        k = x.get("key")
+        if k in have:
+            extra.append(x)
+            continue
+        have.add(k)
+        keep.append(x)
+        seen.setdefault(k, 1)
+    if not extra:
+        return 0
+    feed[:] = keep
+    fixed = 0
+    by = None
+    for x in extra:
+        if not x.get("c"):
+            continue
+        try:
+            if by is None:
+                by = {s.get("id"): s for s in _sources()}
+            ind, trk = _classify(x, by.get(x.get("sid")))
+            _stats_add(x.get("ts"), ind, trk, -1)
+            fixed += 1
+        except Exception:
+            pass
+    _ST["dirty"] = True
+    _ST["ver"] += 1
+    _log("内容库去重：去掉 %d 条重复的新闻，统计里多算的 %d 条减回去了" % (len(extra), fixed))
+    return len(extra)
 
 
 def _flush(force=False):
     with _LOCK:
-        if not _ST["dirty"] or (not force and time.time() - _ST["flushed"] < 8):
+        if not _ST["dirty"] or (not force and time.time() - _ST["flushed"] < 30):     # v182：内容库大了，30 秒存一次
             return
         _write_json(FEED_FILE, _ST["feed"] or [])
-        _write_json(SEEN_FILE, list(_ST["seen"] or [])[-30000:])
+        _write_json(SEEN_FILE, list(_ST["seen"] or [])[-SEEN_KEEP:])
         if _ST.get("sdirty") and _ST.get("stats") is not None:      # v178：统计和内容库一起存
             _stats_prune(_ST["stats"])
             _write_json(STATS_FILE, _ST["stats"])
@@ -865,19 +903,19 @@ def _stats():
     return _ST["stats"]
 
 
-def _stats_add(ts, ind, trk):
+def _stats_add(ts, ind, trk, k=1):
     st = _stats()
     ts = int(ts or time.time())
     l1s = {g.split("/")[0] for g in ind}
     for b in (st["total"], st["hours"].setdefault(str(ts // 3600), _sbucket()), st["days"].setdefault(str(ts // 86400), _sbucket())):
-        b["n"] += 1
+        b["n"] = max(0, b["n"] + k)
         if ind or trk:
-            b["cls"] += 1
+            b["cls"] = max(0, b["cls"] + k)
         for g in list(ind) + list(trk):
-            b["g"][g] = b["g"].get(g, 0) + 1
+            b["g"][g] = max(0, b["g"].get(g, 0) + k)
         for g in l1s:
-            b["l1"][g] = b["l1"].get(g, 0) + 1
-    if not st["since"] or ts < st["since"]:
+            b["l1"][g] = max(0, b["l1"].get(g, 0) + k)
+    if k > 0 and (not st["since"] or ts < st["since"]):
         st["since"] = ts
     _ST["sdirty"] = True
 
@@ -961,7 +999,7 @@ def _merge(src, items, first):
             key = hashlib.sha1(_norm_url(it["url"]).encode("utf-8")).hexdigest()[:16]
             if key in seen:
                 continue
-            seen.add(key)
+            seen[key] = 1
             ts = it.get("ts") or 0
             dated = bool(ts)
             if dated and ts < now - KEEP_DAYS * 86400:
@@ -1113,7 +1151,7 @@ def _resume_info():
 def _ck_tick():
     """抓的时候每隔几秒把抓到的新闻、信息源状态、这一轮扫到哪了一起存下来：软件突然关了，下次接着扫，抓到的也不丢。"""
     with _LOCK:
-        if _run.get("ck") and time.time() - (_ST.get("ck_at") or 0) >= 6:
+        if _run.get("ck") and time.time() - (_ST.get("ck_at") or 0) >= 30:
             _flush(force=True)
             if time.time() - (_ST.get("src_at") or 0) >= 30:       # v181：信息源上万个，清单 30 秒存一次就够
                 _save_sources()
