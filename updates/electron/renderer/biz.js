@@ -90,7 +90,7 @@
           saved: [], savedOpen: false, undoId: "", undoT: null,          // v189：存过的、撤销清空
           web: store.get("cuWeb", true) !== false, depth: store.get("cuDepth", "quick") === "deep" ? "deep" : "quick" },   // v187：商业定制
     rm: { data: null, err: "", at: 0, timer: null, sel: store.get("rmSel", ""), item: null, q: "",                 // v191：真实市场
-          updWait: false, showReport: false,                                                                    // v193：更新汇报
+          updWait: false, showReport: false, tab: store.get("rmTab", "data"),                                   // v195：三个标签                                                                    // v193：更新汇报
           pick: "", batchOpen: false, bscope: "all", btodo: true, allChecks: false, ttimer: null,                     // v192：下拉框、全部核实
           metric: ["size", "growth", "margin", "quad"].includes(store.get("rmMetric", "size")) ? store.get("rmMetric", "size") : "size",
           view: store.get("rmView", "map") === "list" ? "list" : "map", depth: store.get("rmDepth", "quick") === "deep" ? "deep" : "quick" },
@@ -2464,23 +2464,26 @@
   // ───────── v191：真实市场（钱在哪里）─────────
   // 市场雷达看「新闻多不多」；这里看「钱」：统计局 + 上市公司财报（自动），具体方向让 AI 联网核实（电商、交易平台、招投标、报告）。
   const RM_METRIC = [["size", "规模"], ["growth", "增长"], ["margin", "利润率"], ["quad", "热度 × 真钱"]];
-  const RM_PLAT = { ccgp: "政府采购网", b2b: "1688", jd: "京东", smzdm: "什么值得买", zbj: "猪八戒" };
+  const RM_PLAT = { ccgp: "政府采购网", b2b: "1688", ywg: "义乌购", jd: "京东", sn: "苏宁易购", smzdm: "什么值得买", zbj: "猪八戒" };
   const RM_BASIS_CLS = { "统计局": "gov", "上市公司": "co", "电商平台": "ec", "交易平台": "ec", "招投标": "ec", "行业报告": "rp", "媒体报道": "rp", "估算": "es" };
-  function rmPaneHTML() {
+  function rmPaneHTML() {                                          // v195：更新数据 / AI 核实 / 交易平台抓取 做成三个标签，不用拉到下面
     return '<div class="bz-pane" data-pane="real">' +
       '<section class="bz-hero bz-rm-hero"><h2>真实市场：钱在哪里</h2>' +
-        "<p>市场雷达看的是新闻多不多（大家在说什么），这里看的是钱：一年卖了多少、谁在买、肯花多少、赚不赚钱。" +
-        "国家统计局和上市公司财报的数字自动更新；具体的方向可以让 AI 联网核实，去查电商平台、交易平台、招投标和行业报告里的数字，每个数字都写出处，软件再回原文对一遍。</p>" +
-        '<div class="bz-rm-kpi" id="bzRmKpi"></div><p class="bz-note" id="bzRmUpd"></p><div class="bz-rm-report" id="bzRmReport" hidden></div></section>' +
-      '<div class="bz-bar">' + seg("rmmetric", RM_METRIC) + seg("rmview", [["map", "地图"], ["list", "列表"]]) +
-        '<input type="search" class="bz-input" id="bzRmQ" placeholder="找行业：白酒、化妆品、教育…" aria-label="找行业">' +
-        '<span class="sp"></span><button type="button" class="bz-btn ghost" data-act="rm-update" id="bzRmUpdBtn">现在更新数据</button></div>' +
-      '<p class="bz-source" id="bzRmLegend"></p>' +
-      '<div class="bz-ind nodet" id="bzRmWrap"><div class="bz-ind-main" id="bzRmMain"></div><aside class="bz-ind-detail" id="bzRmDetail" hidden></aside></div>' +
-      '<section class="bz-card bz-rm-checkcard"><div class="bz-card-h"><h3>核实一个具体方向</h3></div>' +
+        "<p>市场雷达看新闻多不多（大家在说什么），这里看钱：一年卖了多少、谁在买、肯花多少、赚不赚钱。</p>" +
+        '<div class="bz-rm-kpi" id="bzRmKpi"></div></section>' +
+      '<div class="bz-rm-tabs" id="bzRmTabs" role="tablist" aria-label="要做什么">' +
+        '<button type="button" role="tab" data-rmtab="data"><b>更新数据</b><span class="bz-rm-tabs-s" data-rmts="data"></span></button>' +
+        '<button type="button" role="tab" data-rmtab="check"><b>AI 核实</b><span class="bz-rm-tabs-s" data-rmts="check"></span></button>' +
+        '<button type="button" role="tab" data-rmtab="trade"><b>交易平台抓取</b><span class="bz-rm-tabs-s" data-rmts="trade"></span></button></div>' +
+      '<section class="bz-rm-tp" data-rmtp="data">' +
+        '<div class="bz-rm-tp-h"><p class="bz-hint">统计局（社零、工业利润、居民收支）、上市公司财报和概念板块（新兴赛道）的数字，自动更新；超过 12 小时没更新，打开这一页会自己更新。想马上取最新的，点右边。</p>' +
+          '<button type="button" class="bz-btn" data-act="rm-update" id="bzRmUpdBtn">现在更新数据</button></div>' +
+        '<p class="bz-note" id="bzRmUpd"></p><div class="bz-rm-report" id="bzRmReport" hidden></div>' +
+        '<div class="bz-tablewrap" id="bzRmSrcAuto"></div></section>' +
+      '<section class="bz-rm-tp" data-rmtp="check" hidden>' +
         '<div class="bz-rm-run" id="bzRmRun"></div>' +
-        '<p class="bz-hint">市场雷达发现机会，这里核实真钱。从下拉框选一个行业（软件里所有的行业、细分和新兴赛道都在），或者自己写一个更细的方向；也可以点「全部核实」让小助一个个排队核实。' +
-          '每个方向会先让爬虫去政府采购网、1688、京东、什么值得买、猪八戒抓真实的公告、价格和成交，再联网查报告，最后让 AI 整理成体检卡。快速一个约 3～5 分钟。</p>' +
+        '<p class="bz-hint">市场雷达发现机会，这里核实真钱。从下拉框选一个行业（软件里所有的行业、细分和新兴赛道都在），或者自己写一个更细的方向；也可以点「全部核实」排队一个个来。' +
+          '每个方向会先让爬虫去交易平台抓真实的公告、价格和成交，再联网查报告，最后让 AI 整理成体检卡。正在核实的那一个会在最上面，点它的标题就能看 AI 实时画面。</p>' +
         '<div class="bz-rm-form"><select class="bz-select" id="bzRmPick" aria-label="选一个行业"><option value="">选一个行业…</option></select>' +
           '<span class="bz-dim">或者</span><input class="bz-input" id="bzRmTarget" maxlength="40" placeholder="自己写：外贸企业英文资料制作、宠物殡葬…" aria-label="自己写要核实的方向">' +
           seg("rmdepth", [["quick", "快速"], ["deep", "深入"]]) +
@@ -2488,11 +2491,35 @@
           '<button type="button" class="bz-btn ghost" data-act="rm-batch-open">全部核实…</button></div>' +
         '<div class="bz-rm-batch" id="bzRmBatch"></div>' +
         '<div class="bz-rm-checks" id="bzRmChecks"></div></section>' +
-      '<section class="bz-card"><div class="bz-card-h"><h3>信息源（和市场雷达是两套）</h3></div>' +
-        '<p class="bz-hint">市场雷达读的是新闻；这里读的是成交、采购和财报。前四个自动更新；五个交易平台由爬虫直接去抓（和市场雷达一样：先普通方式，被拦了换 Scrapling 快速模式，再不行开真浏览器，管用的记住），' +
-          '核实一个方向时自动抓，也可以在体检卡里单独点「去平台抓」。京东、1688 有时要登录才给看，遇到就记成「要登录」，不硬闯；最后一个是 AI 核实时联网查的报告。</p>' +
+      '<section class="bz-rm-tp" data-rmtp="trade" hidden>' +
         '<div class="bz-rm-tbar" id="bzRmTBar"></div><div class="bz-tablewrap" id="bzRmSrc"></div></section>' +
+      '<div class="bz-bar bz-rm-mapbar">' + seg("rmmetric", RM_METRIC) + seg("rmview", [["map", "地图"], ["list", "列表"]]) +
+        '<input type="search" class="bz-input" id="bzRmQ" placeholder="找行业：白酒、化妆品、教育…" aria-label="找行业"></div>' +
+      '<p class="bz-source" id="bzRmLegend"></p>' +
+      '<div class="bz-ind nodet" id="bzRmWrap"><div class="bz-ind-main" id="bzRmMain"></div><aside class="bz-ind-detail" id="bzRmDetail" hidden></aside></div>' +
     "</div>";
+  }
+  // v195：三个标签——切换、标签上显示正在做的事
+  function rmTabsRender() {
+    const tabs = $("bzRmTabs");
+    if (!tabs) return;
+    const t = S.rm.tab, d = S.rm.data || {}, j = S.job, bt = d.batch, tb = d.tbatch;
+    tabs.querySelectorAll("[data-rmtab]").forEach((b) => { const on = b.dataset.rmtab === t; b.classList.toggle("on", on); b.setAttribute("aria-selected", String(on)); });
+    root.querySelectorAll(".bz-rm-tp").forEach((x) => { x.hidden = x.dataset.rmtp !== t; });
+    const spin = '<span class="bz-spin" aria-hidden="true"></span>';
+    const st = {
+      data: d.updating && d.updating.running || S.rm.updWait ? spin + "正在更新" : d.updated ? ago(d.updated) + "更新过" : "",
+      check: j && j.running && j.kind === "real" ? spin + (bt && bt.running ? "核实中 " + Math.min(bt.n, bt.i + 1) + "/" + bt.n : "正在核实") :
+        bt && bt.running ? spin + "排队中 " + bt.i + "/" + bt.n : bt && bt.paused ? "暂停了 " + bt.i + "/" + bt.n : ((d.checks || []).length ? (d.checks || []).length + " 个核实过" : ""),
+      trade: tb && tb.running ? spin + "抓取中 " + tb.i + "/" + tb.n : "",
+    };
+    tabs.querySelectorAll("[data-rmts]").forEach((x) => { x.innerHTML = st[x.dataset.rmts] || ""; });
+  }
+  function rmSetTab(t) {
+    S.rm.tab = ["data", "check", "trade"].includes(t) ? t : "data";
+    store.set("rmTab", S.rm.tab);
+    rmTabsRender();
+    bzLivePlace();
   }
   const rmYi = (v) => (v == null ? "–" : Math.abs(v) >= 10000 ? (v / 10000).toFixed(Math.abs(v) >= 100000 ? 1 : 2).replace(/\.?0+$/, "") + " 万亿" : (Math.abs(v) >= 100 ? Math.round(v) : v.toFixed(1).replace(/\.0$/, "")) + " 亿");
   const rmPct = (v) => (v == null ? "–" : (v > 0 ? "+" : "") + v.toFixed(1).replace(/\.0$/, "") + "%");
@@ -2636,15 +2663,16 @@
     return d.kpi.map((k) => '<div class="bz-rm-k"><span>' + esc(k.k) + "</span><b>" + (k.unit === "亿元" ? rmYi(k.v) + "元" : rmNum(k.v) + " " + esc(k.unit)) + "</b><small>" +
       esc(k.period) + " · 同比 " + rmPct(k.yoy) + (k.extra ? " · " + esc(k.extra) : "") + "</small></div>").join("");
   }
-  function rmSrcHTML() {
+  function rmSrcHTML(kind) {
     const d = S.rm.data;
     if (!d) return "";
-    return '<table class="bz-ltab bz-rm-src"><thead><tr><th>信息源</th><th>看什么</th><th>怎么取</th><th>状态</th></tr></thead><tbody>' + d.sources.map((s) =>
+    const rows = d.sources.filter((s) => (kind === "auto" ? s.auto : !s.auto));
+    return '<table class="bz-ltab bz-rm-src"><thead><tr><th>信息源</th><th>看什么</th><th>怎么取</th><th>状态</th></tr></thead><tbody>' + rows.map((s) =>
       "<tr><td class=\"nm\">" + (s.url ? '<a class="bz-link strong" href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.name) + "</a>" : "<b>" + esc(s.name) + "</b>") +
       '</td><td class="ds">' + esc(s.what) + '</td><td class="ds">' + esc(s.how) + "</td><td>" +
       (s.crawl ? '<small class="bz-dim">适用 ' + (s.fit || 0) + " 个行业，已抓 " + (s.done || 0) + " 个</small><br>" + (s.n_ok || s.n_bad ? '<span class="' + (s.last_ok ? "bz-rm-ok" : "bz-rm-bad") + '">' + (s.last_ok ? "✓ 抓到过 " + s.n_ok + " 次" : "还没抓到过") + "</span>" +
           (s.n_bad ? '<small class="bz-dim">，没抓到 ' + s.n_bad + " 次</small>" : "") + (s.via ? '<br><small class="bz-dim">管用的：' + esc(s.via) + "</small>" : "") +
-          (s.err ? '<br><small class="bz-dim" title="' + esc(s.err) + '">上次：' + esc(s.err.slice(0, 40)) + "</small>" : "") : '<span class="bz-dim">还没抓过：核实一个适用的行业，或点上面「交易平台全部抓一遍」</span>') :
+          (s.skip ? '<br><small class="bz-rm-bad">' + esc(s.skip) + "</small>" : s.err ? '<br><small class="bz-dim" title="' + esc(s.err) + '">上次：' + esc(s.err.slice(0, 40)) + "</small>" : "") : '<span class="bz-dim">还没抓过：核实一个适用的行业，或点上面「交易平台全部抓一遍」</span>') :
         !s.auto ? '<span class="bz-dim">核实时用</span>' : s.ok ? '<span class="bz-rm-ok">✓ ' + esc(s.period || "") + (s.n ? "，" + s.n + (s.key === "listed" ? " 家公司" : s.key === "concept" ? " 个赛道对上了" : " 项") : "") + '</span><br><small class="bz-dim">' + esc(ago(s.at)) + "查过</small>"
         + (s.warn ? '<br><small class="bz-rm-bad">⚠ ' + esc(s.warn) + "</small>" : "") + (s.key === "listed" && s.n_ind ? '<br><small class="bz-dim">归到 ' + s.n_ind + " 个二级行业</small>" : "") +
           (s.key === "concept" && s.miss && s.miss.length ? '<br><small class="bz-dim">没对上板块的赛道：' + esc(s.miss.map((x) => nameOf(x)).join("、")) + "</small>" : "")
@@ -2826,7 +2854,9 @@
     $("bzRmBatch").innerHTML = rmBatchHTML();
     const pk = $("bzRmPick");
     if (pk && document.activeElement !== pk) pk.innerHTML = rmPickOptions();
-    $("bzRmSrc").innerHTML = rmSrcHTML();
+    $("bzRmSrc").innerHTML = rmSrcHTML("crawl");
+    $("bzRmSrcAuto").innerHTML = rmSrcHTML("auto");
+    rmTabsRender();
   }
   function rmRenderDetail() {
     const el = $("bzRmDetail"), wrap = $("bzRmWrap");
@@ -2849,9 +2879,11 @@
     if (S.pane === "real") renderReal();
     clearTimeout(S.rm.timer);
     const bt = S.rm.data && S.rm.data.batch;
+    if (bt && (bt.running || bt.stopping) && !(S.job && S.job.running)) pollJob();   // v195：全部核实是后台自己开的任务，界面要自己去问进度（不然看不到「正在核实」和实时画面）
     if (S.rm.data && S.rm.data.updating && S.rm.data.updating.running) S.rm.timer = setTimeout(() => rmLoad(), 3000);
     else if (S.rm.updWait) S.rm.timer = setTimeout(() => rmLoad(), 1500);
     else if (((bt && (bt.running || bt.stopping)) || (S.rm.data && S.rm.data.tbatch && S.rm.data.tbatch.running)) && S.pane === "real") S.rm.timer = setTimeout(() => rmLoad(), 8000);   // v192
+    else if (S.pane === "real") S.rm.timer = setTimeout(() => { if (S.pane === "real") rmLoad(); }, 30000);   // v195：开着这一页就隔半分钟看一眼（后台自己开始的任务也能看到）
     else if (force && S.rm.sel) rmSelect(S.rm.sel, true);
   }
   async function rmSelect(id, keep) {
@@ -2873,6 +2905,7 @@
     } catch (e) { /* 读不到就算了 */ }
   }
   function rmEnsure() {
+    pollJob();                                                     // v195
     if (!S.rm.data || Date.now() - S.rm.at > 60000) rmLoad();
     if (!S.ovm) refreshOverview("market");
     if (S.rm.sel && !(S.rm.item && S.rm.item.id === S.rm.sel)) rmSelect(S.rm.sel, true);
@@ -2894,6 +2927,7 @@
   function rmRunRender() {
     const el = $("bzRmRun");
     if (!el) return;
+    rmTabsRender();
     const j = S.job, mine = !!(j && j.running && j.kind === "real"), bt = S.rm.data && S.rm.data.batch;
     if (!mine) {
       if (el.dataset.on) { el.innerHTML = ""; el.dataset.on = ""; bzLivePlace(); }
@@ -2908,6 +2942,7 @@
       return;
     }
     el.dataset.on = ttl;
+    rmTabsRender();
     el.innerHTML = '<button type="button" class="bz-rm-run-t cx-ail-tg" data-ail-toggle="biz"><span class="bz-spin" aria-hidden="true"></span>' +
       "<b>正在核实：" + esc(ttl) + '</b><span class="cx-ail-caret">' + (window.cxAiLive ? window.cxAiLive.caret("biz") : "") + "</span></button>" +
       '<p class="bz-rm-run-s">' + esc(sub) + "</p>" +
@@ -2920,7 +2955,8 @@
     const hrs = (sec) => (sec >= 3600 ? (sec / 3600).toFixed(1).replace(/\.0$/, "") + " 小时" : Math.max(1, Math.round(sec / 60)) + " 分钟");
     let h = '<div class="bz-rm-tbar-in"><div><b>爬虫什么时候去抓交易平台？</b>' +
       '<p class="bz-dim">① 核实任何一个方向（下拉框选的、自己写的、「全部核实」排队的）时，会先自动抓；② 体检卡里点「去平台抓」；③ 点右边按钮，把全部行业抓一遍（不用 AI）。' +
-      "不是每个平台都适合每个行业：1688、京东、什么值得买只在卖货的行业（吃穿用、电子、医药、宠物…）去抓；猪八戒只在卖服务的行业（教育、软件、AI、营销…）去抓；政府采购网每个都抓。表格里「适用」就是会去抓的行业数。</p></div>";
+      "不是每个平台都适合每个行业：1688、义乌购、京东、苏宁易购、什么值得买只在卖货的行业（吃穿用、电子、医药、宠物…）去抓；猪八戒只在卖服务的行业（教育、软件、AI、营销…）去抓；政府采购网每个都抓。表格里「适用」就是会去抓的行业数。" +
+      "京东和 1688 现在搜东西要登录才给看，软件不硬闯：连着 3 次要登录就先跳过 7 天，用不用登录的义乌购（批发价）和苏宁易购（零售价）顶上。</p></div>";
     if (tb && tb.running) {
       const pct = tb.n ? Math.round((tb.i / tb.n) * 100) : 0;
       h += '<div class="bz-rm-tprog"><p><span class="bz-spin" aria-hidden="true"></span><b>正在抓：' + esc(tb.cur_name || "…") + "</b>　" + tb.i + " / " + tb.n +
@@ -2988,7 +3024,7 @@
     if (!window.cxAiLive) return;
     const j = S.job, run = !!(j && j.running);
     const cu = $("bzCuLive"), top = $("bzJobLive"), rm = $("bzRmLive");
-    const slot = !run ? null : (S.pane === "custom" && j.kind === "custom" && cu) ? cu : (S.pane === "real" && j.kind === "real" && rm) ? rm : top;   // v193：真实市场的核实放在「正在核实」下面
+    const slot = !run ? null : (S.pane === "custom" && j.kind === "custom" && cu) ? cu : (S.pane === "real" && j.kind === "real" && rm && S.rm.tab === "check") ? rm : top;   // v193/v195：在「AI 核实」标签里就放在「正在核实」下面
     [cu, top, rm].forEach((x) => { if (x && x !== slot) x.hidden = true; });
     window.cxAiLive.place("biz", slot || null);
   }
@@ -3622,6 +3658,7 @@
         return;
       }
       if ((b = t.closest(".bz-seg button[data-v]"))) { onSeg(b.parentNode.dataset.seg, b.dataset.v); return; }
+      if ((b = t.closest("[data-rmtab]"))) { rmSetTab(b.dataset.rmtab); return; }              // v195：三个标签
       if ((b = t.closest("[data-rm-chk]"))) { rmOpenCheck(b.dataset.rmChk); return; }            // v191：真实市场
       if ((b = t.closest("[data-rm-redo]"))) { const v = b.dataset.rmRedo; if (S.byId[v]) rmCheck("", v); else rmCheck(v, ""); return; }
       if ((b = t.closest("[data-rm-del]"))) {

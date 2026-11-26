@@ -559,30 +559,72 @@ TRACK_BOARDS = {
 PUSH2 = ["https://push2.eastmoney.com", "https://79.push2.eastmoney.com", "https://17.push2.eastmoney.com", "https://29.push2.eastmoney.com"]
 
 
-def _push2_all(fs, fields="f12,f14"):
-    """东方财富行情列表（分页拿全）→ [{f12: 代码, f14: 名字}, …]。几个服务器轮着试。"""
+COS_FILE = REAL_DIR / "companies.json"       # v195：每家公司的营收、利润（算新兴赛道用，不用再去东方财富读一遍）
+CONS_FILE = REAL_DIR / "concept_cons.json"   # v195：概念板块的成分股（读到一个存一个，下次接着读没读到的）
+_push_fail = {"n": 0}
+
+
+def _push2_page(fs, pn, fields):
+    """东方财富行情列表的一页。v195：push2 读快了会直接断开连接（curl 56），所以几个服务器轮着试，
+    每次失败都多歇一会儿，再换不带浏览器指纹的普通方式试一次。"""
     import random
+    import urllib.request
+    q = {"pn": str(pn), "pz": "100", "po": "1", "np": "1", "ut": "bd1d9ddb04089700cf9c27f6f7426281", "fltt": "2",
+         "invt": "2", "fid": "f12", "fs": fs, "fields": fields}
+    qs = urllib.parse.urlencode(q)
     last = None
-    for host in PUSH2:
-        out, pn, total = [], 1, None
-        try:
-            while True:
-                q = {"pn": str(pn), "pz": "100", "po": "1", "np": "1", "ut": "bd1d9ddb04089700cf9c27f6f7426281", "fltt": "2",
-                     "invt": "2", "fid": "f12", "fs": fs, "fields": fields}
-                j = json.loads(_get(host + "/api/qt/clist/get?" + urllib.parse.urlencode(q), timeout=20))
-                d = (j or {}).get("data") or {}
-                diff = d.get("diff") or []
-                if isinstance(diff, dict):
-                    diff = list(diff.values())
-                total = int(d.get("total") or 0)
-                out += diff
-                if not diff or len(out) >= total or pn >= 60:
-                    return out
-                pn += 1
-                time.sleep(random.uniform(0.5, 1.2))
-        except Exception as e:
-            last = e
-    raise RuntimeError("东方财富概念板块打不开：%s" % str(last)[:80])
+    for k, host in enumerate(PUSH2):
+        url = host + "/api/qt/clist/get?" + qs
+        for how in ("curl", "plain"):
+            try:
+                if how == "curl":
+                    raw = _get(url, timeout=20)
+                else:
+                    req = urllib.request.Request(url, headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+                        "Referer": "https://quote.eastmoney.com/center/boardlist.html", "Accept": "*/*"})
+                    with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=20) as r:
+                        raw = r.read().decode("utf-8", "replace")
+                j = json.loads(raw)
+                _push_fail["n"] = 0
+                return (j or {}).get("data") or {}
+            except Exception as e:
+                last = e
+        _push_fail["n"] += 1
+        time.sleep(min(30, 3 * (k + 1)) + random.uniform(0, 2))      # 被断开了：歇一会儿再换服务器
+    raise RuntimeError("东方财富行情接口打不开：%s" % str(last)[:80])
+
+
+def _push2_all(fs, fields="f12,f14"):
+    """东方财富行情列表（分页拿全）→ [{f12: 代码, f14: 名字}, …]。"""
+    import random
+    out, pn = [], 1
+    while True:
+        d = _push2_page(fs, pn, fields)
+        diff = d.get("diff") or []
+        if isinstance(diff, dict):
+            diff = list(diff.values())
+        total = int(d.get("total") or 0)
+        out += diff
+        if not diff or len(out) >= total or pn >= 60:
+            return out
+        pn += 1
+        time.sleep(random.uniform(1.0, 2.0))
+
+
+def save_companies(a_rows, q_rows, annual, latest):
+    def tab(rows):
+        yk = _pick_key(rows, ["YSTZ", "TOTAL_OPERATE_INCOME_YOY"]) if rows else "YSTZ"
+        pk = _pick_key(rows, ["SJLTZ", "PARENT_NETPROFIT_YOY"]) if rows else "SJLTZ"
+        return {str(r.get("SECURITY_CODE") or "")[:6]: [r.get("SECURITY_NAME_ABBR") or "", _f(r.get("TOTAL_OPERATE_INCOME")),
+                                                         _f(r.get("PARENT_NETPROFIT")), _f(r.get(yk)), _f(r.get(pk)), _f(r.get("XSMLL"))]
+                for r in rows if is_a_share(r) and r.get("SECURITY_CODE")}
+    _write(COS_FILE, {"annual": annual, "latest": latest, "a": tab(a_rows), "q": tab(q_rows), "at": int(time.time())})
+
+
+def _rows_of(tab):
+    return [{"SECURITY_CODE": c, "SECURITY_NAME_ABBR": v[0], "TOTAL_OPERATE_INCOME": v[1], "PARENT_NETPROFIT": v[2],
+             "YSTZ": v[3], "SJLTZ": v[4], "XSMLL": v[5]} for c, v in (tab or {}).items()]
 
 
 def match_boards(boards, tid):
@@ -599,34 +641,74 @@ def match_boards(boards, tid):
     return list(dict.fromkeys(got))[:3]
 
 
-def update_tracks(data, a_rows, q_rows):
-    """新兴赛道的上市公司数字：概念板块成分股 × 财报。失败不影响别的。"""
+def update_tracks(data):
+    """v195：新兴赛道 = 概念板块成分股 × 财报（读存着的每家公司数字）。读到一个板块存一个；
+    东方财富连着断开 3 个板块就先停，过 30 分钟自动接着读没读到的。"""
+    import random
     st = data.setdefault("st", {}).setdefault("concept", {})
-    _upd["stage"] = "东方财富：读概念板块（新兴赛道）…"
-    boards = _push2_all("m:90 t:3 f:!50")
-    groups, used = {}, {}
+    cos = _read(COS_FILE, {})
+    if not cos.get("a"):
+        st.update(ok=False, err="还没有上市公司数据（先等东方财富业绩读完）", at=int(time.time()))
+        return
+    cache = _read(CONS_FILE, {})
+    if not isinstance(cache, dict):
+        cache = {}
+    if time.time() - cache.get("boards_at", 0) > 86400 or not cache.get("boards"):
+        _upd["stage"] = "东方财富：读概念板块列表…"
+        cache["boards"] = [{"f12": b.get("f12"), "f14": b.get("f14")} for b in _push2_all("m:90 t:3 f:!50")]
+        cache["boards_at"] = int(time.time())
+        _write(CONS_FILE, cache)
+    boards = cache["boards"]
+    cons = cache.setdefault("cons", {})                 # 板块代码 → {"at":…, "codes":[…]}
+    used, todo = {}, []
     for tid in TRACK_BOARDS:
         bs = match_boards(boards, tid)
         used[tid] = [n for n, _c in bs]
         for name, code in bs:
-            _upd["stage"] = "东方财富：读「%s」板块的公司…" % name
-            try:
-                for x in _push2_all("b:%s f:!50" % code):
-                    c = str(x.get("f12") or "")[:6]
-                    if c:
-                        groups.setdefault(c, set()).add(tid)
-            except Exception as e:
-                _log("概念板块「%s」没读到：%s" % (name, str(e)[:60]))
-            time.sleep(0.6)
+            if code not in [c for _n, c in todo] and time.time() - (cons.get(code) or {}).get("at", 0) > 7 * 86400:
+                todo.append((name, code))
+    fails, got = 0, 0
+    for name, code in todo:
+        _upd["stage"] = "东方财富：读「%s」板块的公司（%d / %d）…" % (name, got + fails + 1, len(todo))
+        try:
+            codes = [str(x.get("f12") or "")[:6] for x in _push2_all("b:%s f:!50" % code)]
+            cons[code] = {"at": int(time.time()), "codes": [c for c in codes if c], "name": name}
+            _write(CONS_FILE, cache)
+            got += 1
+            fails = 0
+        except Exception as e:
+            fails += 1
+            _log("概念板块「%s」这次没读到：%s" % (name, str(e)[:60]))
+            if fails >= 3:
+                _log("东方财富连着断开，先停，过 30 分钟自动接着读")
+                break
+        time.sleep(random.uniform(2.0, 4.0))
+    groups = {}
+    for tid, names in used.items():
+        for name, code in match_boards(boards, tid):
+            for c in (cons.get(code) or {}).get("codes", []):
+                groups.setdefault(c, set()).add(tid)
     groups = {c: list(v) for c, v in groups.items()}
-    ta, _ = aggregate(a_rows, groups)
-    tq, _ = aggregate(q_rows, groups) if q_rows else ({}, "")
+    ta, _ = aggregate(_rows_of(cos.get("a")), groups)
+    tq, _ = aggregate(_rows_of(cos.get("q")), groups) if cos.get("q") else ({}, "")
     for tid in ta:
-        ta[tid]["boards"] = used.get(tid, [])
-    st.update(ok=True, err="", at=int(time.time()), n=len(ta), period="%d 个概念板块" % len(boards),
-              n_trk=len(ta), miss=[t for t in TRACK_BOARDS if not used.get(t)])
-    _log("东方财富概念板块：%d 个板块，%d 个新兴赛道对上了" % (len(boards), len(ta)))
-    return ta, tq
+        ta[tid]["boards"] = [n for n, c in match_boards(boards, tid) if (cons.get(c) or {}).get("codes")]
+    L = data.get("listed") or {}
+    for k, agg in (("a", ta), ("q", tq)):
+        L.setdefault(k, {})
+        for tid in list(L[k]):
+            if tid.startswith("t:"):
+                L[k].pop(tid)
+        L[k].update(agg)
+    left = [n for n, c in todo if not (cons.get(c) or {}).get("codes")]
+    st.update(ok=bool(ta), err="" if ta else "概念板块的公司一个都没读到（东方财富断开连接）", at=int(time.time()), n=len(ta),
+              period="%d 个概念板块" % len(boards), n_trk=len(ta), miss=[t for t in TRACK_BOARDS if not used.get(t)],
+              left=left[:20], partial=bool(left))
+    if left:
+        st["warn"] = "还有 %d 个板块没读到（东方财富读快了会断开连接），30 分钟后自动接着读" % len(left)
+    else:
+        st.pop("warn", None)
+    _log("新兴赛道：%d 个概念板块，%d 个赛道有数%s" % (len(boards), len(ta), "，还差 %d 个板块" % len(left) if left else ""))
 
 
 def update_listed(data):
@@ -650,7 +732,7 @@ def update_listed(data):
         st.update(ok=False, err="没找到报完的年报", at=int(time.time()))
         return
     if (data.get("listed") or {}).get("annual") == annual and data["listed"].get("latest") == latest and st.get("ok") \
-            and data["listed"].get("v") == 4 \
+            and data["listed"].get("v") == 5 and COS_FILE.exists() \
             and time.time() - st.get("full_at", 0) < 7 * 86400:
         st["at"] = int(time.time())
         return
@@ -663,18 +745,15 @@ def update_listed(data):
         _upd["stage"] = "东方财富：读 %s…" % period_name(latest)
         q_rows = fetch_period(latest)
         q_agg, _ = aggregate(q_rows)
-    try:                                                # v194：新兴赛道
-        ta, tq = update_tracks(data, a_rows, q_rows)
-        a_agg.update(ta)
-        q_agg.update(tq)
+    try:
+        save_companies(a_rows, q_rows, annual, latest)  # v195：新兴赛道另外一步算（见 _do_update）
     except Exception as e:
-        data.setdefault("st", {}).setdefault("concept", {}).update(ok=False, err=str(e)[:120], at=int(time.time()))
-        _log("新兴赛道没取到：%s" % str(e)[:100])
+        _log("每家公司的数字没存上：%s" % str(e)[:80])
     if not a_agg:
         st.update(ok=False, err="读到了 %d 家，但没认出所处行业（字段 %s）" % (len(a_rows), ik), at=int(time.time()))
         return
     data["listed"] = {"annual": annual, "latest": latest, "annual_name": period_name(annual), "latest_name": period_name(latest),
-                      "companies": len(a_rows), "a": a_agg, "q": q_agg, "v": 4, "diag": diag}   # v3：只算 A 股、行业名完全对上；v4：新兴赛道（概念板块）
+                      "companies": len(a_rows), "a": a_agg, "q": q_agg, "v": 5, "diag": diag}   # v3：只算 A 股、行业名完全对上；v4：新兴赛道（概念板块）
     st.update(ok=True, err="", at=int(time.time()), full_at=int(time.time()), n=len(a_rows),
               period=period_name(annual) + ("、" + period_name(latest) if latest != annual else ""),
               mapped=diag.get("mapped", 0), n_ind=len([g for g in a_agg if "/" in g]), field=ik,
@@ -695,7 +774,10 @@ def _do_update(force):
     t0 = time.time()
     before = {k: dict((data.get("st") or {}).get(k) or {}) for k in SRC_SHORT}
     errs = {}
-    for name, fn in (("统计局", lambda: update_nbs(data, force)), ("东方财富", lambda: update_listed(data))):
+    data.setdefault("st", {})
+    for name, fn in (("统计局", lambda: update_nbs(data, force)), ("东方财富", lambda: update_listed(data)),
+                     ("概念板块", lambda: update_tracks(data) if (force or _tracks_due(data, 0) or not any(
+                         k.startswith("t:") for k in ((data.get("listed") or {}).get("a") or {}))) else None)):
         _upd["stage"] = "正在读%s…" % name
         try:
             fn()
@@ -718,9 +800,21 @@ def _do_update(force):
             s += "——有新数据" if new else "——和上次一样（还没出新的一期）"
             lines.append({"ok": True, "new": new, "txt": s, "warn": a.get("warn", "")})
         else:
-            lines.append({"ok": False, "txt": "%s：没取到（%s）" % (nm, a.get("err") or errs.get("东方财富" if k == "listed" else "统计局") or "原因不明")})
+            lines.append({"ok": False, "txt": "%s：没取到（%s）" % (nm, a.get("err") or errs.get({"listed": "东方财富", "concept": "概念板块"}.get(k, "统计局")) or "原因不明")})
     data["last_report"] = {"at": int(time.time()), "secs": int(time.time() - t0), "lines": lines, "n_ok": n_ok, "n": len(SRC_SHORT)}
     _write(DATA_FILE, data)
+
+
+def _tracks_due(d, wait=1800):
+    """新兴赛道要不要（再）读：没读过、上次没读全（隔 30 分钟再试）、超过 7 天。"""
+    c = (d.get("st") or {}).get("concept") or {}
+    if not d.get("listed"):
+        return False
+    if not c.get("at"):
+        return True
+    if (not c.get("ok") or c.get("partial")) and time.time() - c["at"] > wait:
+        return True
+    return time.time() - c["at"] > 7 * 86400
 
 
 def start_update(force=False):
@@ -740,7 +834,7 @@ def start_update(force=False):
 
 def maybe_update():
     d = _data()
-    if not _upd["running"] and (time.time() - d.get("updated", 0) > STALE_S or (d.get("listed") and d["listed"].get("v") != 4)):
+    if not _upd["running"] and (time.time() - d.get("updated", 0) > STALE_S or (d.get("listed") and d["listed"].get("v") != 5) or _tracks_due(d)):
         start_update()
 
 
