@@ -90,7 +90,7 @@ _LOG_QUIET_PATHS = {"/biz/article_media", "/intake_kind", "/douyin/login",
     "/creator/x_cookie_status",
     "/logs", "/ai_live", "/ai_live_shot", "/version", "/gpu_status", "/creator_profiles", "/creator_avatar", "/creator_scan_all",
     "/scrapling/status", "/sniff/sources",
-    "/biz/job", "/biz/overview", "/biz/taxonomy", "/biz/items", "/biz/reports", "/biz/report", "/biz/opps", "/biz/topics", "/biz/fit",
+    "/biz/job", "/biz/overview", "/biz/taxonomy", "/biz/items", "/biz/reports", "/biz/report", "/biz/opps", "/biz/topics", "/biz/fit", "/biz/fit_options",
     "/kb/overview", "/kb/page", "/kb/search", "/kb/candidates", "/kb/raw", "/kb/raw_item", "/kb/graph",
     "/biz/radar/status", "/biz/radar/plan", "/biz/radar_tops", "/biz/brief_info", "/biz/radar/sources", "/biz/radar/engines", "/biz/radar/runs", "/biz/radar/report",
 }
@@ -5704,6 +5704,9 @@ class Handler(BaseHTTPRequestHandler):
                 if path == "/biz/fit":                               # v187：商业定制——你的情况 + 先配一遍
                     import biz_fit as _bf
                     return self._send(_bf.get())
+                if path == "/biz/fit_options":                       # v188：「我的情况」每一栏的选项面板（不算配对，马上返回）
+                    import biz_fit as _bf
+                    return self._send(_bf.options())
                 if path in ("/biz/radar/status", "/biz/radar/sources", "/biz/radar/engines", "/biz/radar/runs"):  # v156/v157：爬虫
                     import biz_crawler as _bc
                     return self._send({"/biz/radar/status": _bc.status, "/biz/radar/sources": _bc.list_sources,
