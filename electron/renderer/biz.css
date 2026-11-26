@@ -902,3 +902,13 @@ body.dark .view-biz { --bz-up: #6cc08b; --bz-warn: #e0a24a; --bz-bad: #e5907a; }
 .view-biz .bz-radar:not(.scanning) .bz-rad-svg .sweep { display: none; }
 .view-biz .bz-rad-svg .rim { font: 600 13px var(--sans); paint-order: stroke; stroke: var(--bg-elev); stroke-width: 3px; stroke-linejoin: round; }
 .view-biz .bz-rad-svg .band-c { stroke: var(--bg-elev); stroke-width: 2; }
+
+/* v174：雷达右边放扫描结果和提得最多；下面只剩正在升温、最近的简报 */
+.view-biz .bz-cols.wide:not(.reading) #bzHotCard { display: none; }
+.view-biz .bz-cols.wide:not(.reading) > .bz-side { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.view-biz .bz-rad-h2 { margin-top: 16px; }
+.view-biz .bz-rad-rank.sm button { padding: 3px 4px; gap: 5px; grid-template-columns: 8px minmax(0, 1fr) 62px 28px 46px 30px; }
+.view-biz .bz-rad-rank.sm .nm { font-size: 12.5px; }
+.view-biz .bz-rad-rank.sm .sc { font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.view-biz .bz-rad-rank.sm .n { font-size: 11.5px; }
+.view-biz .bz-rad-r .bz-chip { font-size: 12px; padding: 2px 9px; }

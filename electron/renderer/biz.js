@@ -158,7 +158,7 @@
           '<aside class="bz-side">' +
             '<section class="bz-card bz-scan-card" id="bzScanCard"><div class="bz-card-h"><h3>扫描结果</h3></div><p class="bz-hint" id="bzScanHint"></p><div id="bzScanList"></div></section>' +
             '<section class="bz-card"><div class="bz-card-h"><h3>正在升温</h3></div><p class="bz-hint" id="bzRisingHint"></p><div class="bz-terms" id="bzRising"></div></section>' +
-            '<section class="bz-card"><div class="bz-card-h"><h3>提得最多</h3></div><div class="bz-chips" id="bzHot"></div></section>' +
+            '<section class="bz-card" id="bzHotCard"><div class="bz-card-h"><h3>提得最多</h3></div><div class="bz-chips" id="bzHot"></div></section>' +
             '<section class="bz-card"><div class="bz-card-h"><h3>最近的简报</h3></div><div class="bz-reps" id="bzBriefs"></div></section>' +
             '<p class="bz-note" id="bzCounts"></p>' +
           "</aside>" +
@@ -314,7 +314,7 @@
     const cols = $("bzCols");
     if (cols) cols.classList.toggle("wide", v === "radar");
     const scard = $("bzScanCard");
-    if (scard) scard.hidden = v !== "radar";     // v168：雷达模式下右边栏挪到下面，雷达能放大
+    if (scard) scard.hidden = true;                // v174：扫描结果放到雷达右边了     // v168：雷达模式下右边栏挪到下面，雷达能放大
     if (v === "radar") renderRadarScan();
   }
   function setRview(v, ind) {
@@ -586,14 +586,16 @@
     const all = M.items.filter((x) => x.n).sort((a, b) => b.n - a.n);
     const sel = S.radSel && M.items.find((x) => x.id === S.radSel);
     if (!sel) {
-      const hot = all.filter((x) => x.hot);
-      el.innerHTML = '<h4 class="bz-rad-h">怎么看这张雷达</h4>' +
-        '<ul class="bz-rad-how"><li>一片是一个<b>大类</b>，新闻越多这一片切得越大。</li><li>片里一圈是一个<b>行业</b>，新闻越多越靠外、圈越厚。</li>' +
-        "<li>圈里的圆点是<b>细分行业</b>，越大新闻越多；带圈的是最近明显变多的。</li><li>鼠标移上去看名字，点一下在这里看它的新闻。</li></ul>" +
-        '<div class="bz-rad-stats"><div><b>' + all.length + "</b><span>个细分有新闻</span></div><div><b>" + hot.length + "</b><span>个正在升温</span></div><div><b>" +
-        all.reduce((a, x) => a + x.n, 0) + "</b><span>条次（" + win + "，一条可能归到好几处）</span></div></div>" +
-        (hot.length ? '<h5 class="bz-rad-sub">正在升温的细分</h5><div class="bz-chips">' + hot.slice(0, 12).map((x) =>
-          '<button type="button" class="bz-chip" data-rad="' + esc(x.id) + '"><i class="dot" style="background:' + x.color + '"></i>' + esc(x.name) + " <b>" + x.n + "</b></button>").join("") + "</div>" : "");
+      // v174：右边直接放「扫描结果」和「提得最多」（不再放「怎么看这张雷达」）
+      const ov = S.ovm || {};
+      el.innerHTML = '<h4 class="bz-rad-h">扫描结果<small>' + win + "，" + all.length + " 个细分有新闻</small></h4>" +
+        '<ol class="bz-rad-rank sm">' + all.slice(0, 12).map((x) =>
+          '<li><button type="button" data-rad="' + esc(x.id) + '"><i style="background:' + x.color + '"></i><span class="nm">' + esc(x.name) + "</span>" +
+          '<span class="sc">' + esc(x.parent) + "</span>" + '<span class="hotc">' + (x.hot ? '<span class="hot">升温</span>' : "") + "</span>" +
+          '<span class="bar"><b style="width:' + Math.max(4, Math.round((x.n / M.max) * 100)) + "%;background:" + x.color + '"></b></span><span class="n">' + x.n + "</span></button></li>").join("") + "</ol>" +
+        (all.length > 12 ? '<p class="bz-hint">还有 ' + (all.length - 12) + " 个，在雷达上点。</p>" : "") +
+        '<h4 class="bz-rad-h bz-rad-h2">提得最多</h4>' +
+        '<div class="bz-chips">' + ((ov.hot || []).length ? ov.hot.slice(0, 18).map((x) => '<button type="button" class="bz-chip" data-term="' + esc(x.k) + '">' + esc(x.k) + " <b>" + x.n + "</b></button>").join("") : empty("还没有。")) + "</div>";
       return;
     }
     const sibs = M.items.filter((x) => x.parent === sel.parent && x.id !== sel.id && x.n).sort((a, b) => b.n - a.n);
@@ -2105,7 +2107,9 @@
       if ((b = t.closest("[data-goto]"))) { goPane(b.dataset.goto); return; }
       if ((b = t.closest("[data-task]"))) { S.task = b.dataset.task; store.set("task", S.task); renderAnalysis(); const i = $("bzTaskTarget"); if (i) i.focus(); return; }
       if ((b = t.closest("[data-term]"))) {
-        S.rq = b.dataset.term; $("bzRq").value = S.rq; S.rlimit = 80; loadRadarFeed();
+        S.rq = b.dataset.term; $("bzRq").value = S.rq; S.rlimit = 80;
+        if (S.pane === "radar" && S.rview === "radar") setRview("list", "");      // v174：在雷达里点词，切到列表看
+        loadRadarFeed();
         const card = $("bzFeedCard");
         if (card) card.scrollIntoView({ block: "start", behavior: "smooth" });
         return;
