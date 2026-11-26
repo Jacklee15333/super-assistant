@@ -2463,7 +2463,7 @@
 
   // ───────── v191：真实市场（钱在哪里）─────────
   // 市场雷达看「新闻多不多」；这里看「钱」：统计局 + 上市公司财报（自动），具体方向让 AI 联网核实（电商、交易平台、招投标、报告）。
-  const RM_METRIC = [["size", "规模"], ["growth", "增长"], ["margin", "利润率"], ["quad", "热度 × 真钱"]];
+  const RM_METRIC = [["size", "规模"], ["verified", "AI 核实的规模"], ["growth", "增长"], ["margin", "利润率"], ["quad", "热度 × 真钱"]];   // v197：加「AI 核实的规模」
   const RM_PLAT = { ccgp: "政府采购网", b2b: "1688", ywg: "义乌购", jd: "京东", sn: "苏宁易购", smzdm: "什么值得买", zbj: "猪八戒" };
   const RM_BASIS_CLS = { "统计局": "gov", "上市公司": "co", "电商平台": "ec", "交易平台": "ec", "招投标": "ec", "行业报告": "rp", "媒体报道": "rp", "估算": "es" };
   function rmPaneHTML() {                                          // v195：更新数据 / AI 核实 / 交易平台抓取 做成三个标签，不用拉到下面
@@ -2511,7 +2511,7 @@
     const spin = '<span class="bz-spin" aria-hidden="true"></span>';
     const L = d.listed || {};
     const st = {
-      map: L.companies ? L.companies + " 家公司 · 点格子看体检卡" : "",
+      map: (L.companies ? L.companies + " 家公司" : "") + (Object.values(d.by || {}).filter((b) => b.chk).length ? " · " + Object.values(d.by || {}).filter((b) => b.chk).length + " 个核实过" : (L.companies ? " · 点格子看体检卡" : "")),
       data: d.updating && d.updating.running || S.rm.updWait ? spin + "正在更新" : d.updated ? ago(d.updated) + "更新过" : "",
       check: j && j.running && j.kind === "real" ? spin + (bt && bt.running ? "核实中 " + Math.min(bt.n, bt.i + 1) + "/" + bt.n : "正在核实") :
         bt && bt.running ? spin + "排队中 " + bt.i + "/" + bt.n : bt && bt.paused ? "暂停了 " + bt.i + "/" + bt.n : ((d.checks || []).length ? (d.checks || []).length + " 个核实过" : ""),
@@ -2538,8 +2538,11 @@
     const b = rmBy(id), m = S.rm.metric;
     if (m === "growth") return b.q_yoy != null ? b.q_yoy : b.rev_yoy;
     if (m === "margin") return b.nm;
+    if (m === "verified") return b.v_size;                           // v197：AI 核实出来的市场规模（亿元）
     return b.rev;
   }
+  // v197：核实过的数字在格子上怎么写
+  const rmVTxt = (b) => (b.v_size != null ? "核实 " + rmYi(b.v_size) + (b.v_size_ok ? "" : "?") : "核实过");
   function rmLvl(id, mx) {
     const v = rmVal(id), m = S.rm.metric;
     if (v == null) return 0;
@@ -2551,7 +2554,7 @@
   function rmValText(id) {
     const v = rmVal(id), m = S.rm.metric;
     if (v == null) return "";
-    return m === "growth" ? rmPct(v) : m === "margin" ? "净利 " + v.toFixed(1).replace(/\.0$/, "") + "%" : rmYi(v);
+    return m === "growth" ? rmPct(v) : m === "margin" ? "净利 " + v.toFixed(1).replace(/\.0$/, "") + "%" : m === "verified" ? rmYi(v) + (rmBy(id).v_size_ok ? "" : "?") : rmYi(v);
   }
   function rmTip(id) {
     const d = S.byId[id], b = rmBy(id), L = (S.rm.data && S.rm.data.listed) || {};
@@ -2561,7 +2564,11 @@
       (b.q_yoy != null ? "\n" + (L.latest_name || "最新一期") + "营收同比 " + rmPct(b.q_yoy) : "");
     else t += "\n没有直接对上的上市公司数据";
     if (b.nbs) t += "\n统计局有 " + b.nbs + " 项相关数字";
-    if (b.chk) t += "\nAI 核实过";
+    if (b.chk) {
+      t += "\n— AI 核实（" + fmtTime(b.v_at) + "，" + b.v_n + " 个数字，" + b.v_ok + " 个对上原文）—";
+      if (b.v_size != null) t += "\n规模：" + b.v_size_txt + "（" + (b.v_size_m || "") + "，" + (b.v_size_b || "") + (b.v_size_when ? "，" + b.v_size_when : "") + (b.v_size_ok ? "，原文有" : "，没对上原文") + "）";
+      [["客户", b.v_cust], ["购买力", b.v_buy], ["利润", b.v_prof]].forEach(([k, x]) => { if (x) t += "\n" + k + "：" + x.value + "（" + x.metric + "）"; });
+    } else t += "\n还没 AI 核实";
     return t + "\n点一下看体检卡";
   }
   function rmTile(id, mx) {
@@ -2572,20 +2579,25 @@
     const v = rmVal(id);
     return '<button type="button" class="bz-tile' + (d.type === "l2" ? " l2" : "") + " h" + rmLvl(id, mx) + (S.rm.sel === id ? " sel" : "") + (hit ? "" : " dim") +
       (v != null && v < 0 ? " neg" : "") + '" style="--c:' + colorOf(id) + '" data-rm="' + esc(id) + '" title="' + esc(rmTip(id)) + '"><span class="nm">' + esc(d.name) + "</span>" +
-      '<span class="ct">' + (rmValText(id) || (b.nbs ? "统计 " + b.nbs + " 项" : "")) + "</span>" + (b.chk ? '<i class="gap chk" aria-hidden="true"></i>' : "") + "</button>";
+      '<span class="ct">' + (rmValText(id) || (S.rm.metric === "verified" ? (b.chk ? "核实过，没查到规模" : "还没核实") : b.nbs ? "统计 " + b.nbs + " 项" : "")) + "</span>" +
+      (b.chk && S.rm.metric !== "verified" ? '<span class="vf' + (b.v_size_ok ? " ok" : "") + '">✓ ' + esc(rmVTxt(b)) + "</span>" : "") +       // v197：核实过的，格子里多一行核实出来的规模
+      (b.chk ? '<i class="gap chk" aria-hidden="true"></i>' : "") + "</button>";
   }
   const rmSort = (a, b) => ((rmVal(b) == null ? -1e15 : rmVal(b)) - (rmVal(a) == null ? -1e15 : rmVal(a)));
   function rmMapHTML() {
     const t = S.tax, mx = { l2: 0, trk: 0 };
-    t.industries.forEach((i) => i.subs.forEach((x) => { mx.l2 = Math.max(mx.l2, rmBy(x.id).rev || 0); }));
-    t.tracks.forEach((x) => { mx.trk = Math.max(mx.trk, rmBy(x.id).rev || 0); });          // v194：新兴赛道按概念板块的相关公司算
+    const mv = (id) => (S.rm.metric === "verified" ? rmBy(id).v_size : rmBy(id).rev) || 0;     // v197：「AI 核实的规模」按核实出来的数分深浅
+    t.industries.forEach((i) => i.subs.forEach((x) => { mx.l2 = Math.max(mx.l2, mv(x.id)); }));
+    t.tracks.forEach((x) => { mx.trk = Math.max(mx.trk, mv(x.id)); });          // v194：新兴赛道按概念板块的相关公司算
+    if (S.rm.metric === "verified") mx.l2 = mx.trk = Math.max(mx.l2, mx.trk);
     const secV = (sec) => sec.l1.reduce((a, n) => a + (rmBy(n).rev || 0), 0);
     let html = '<section class="bz-band trk"><header><h4>新兴赛道</h4>' +
       "<span>没有单独的行业分类，按东方财富概念板块里的相关上市公司算（这些公司不一定全靠这块赚钱，几个赛道之间也有重叠）</span></header><div class=\"bz-tiles\">" +
       t.tracks.slice().sort((a, b) => rmSort(a.id, b.id)).map((x) => rmTile(x.id, mx.trk)).join("") + "</div></section>";
     t.sectors.slice().sort((a, b) => secV(b) - secV(a)).forEach((sec) => {
       html += '<section class="bz-band" style="--c:' + (RAD_SEC[sec.name] || "#888") + '"><header><h4>' + esc(sec.name) + "</h4>" +
-        (secV(sec) ? '<em class="bz-band-n">上市公司营收 ' + rmYi(secV(sec)) + "</em>" : "") + "<span>" + esc(sec.desc) + '</span></header><div class="bz-l1s">' +
+        (S.rm.metric === "verified" ? ((n) => (n ? '<em class="bz-band-n">核实过 ' + n + " 个</em>" : ""))(sec.l1.reduce((a, n1) => a + S.byId[n1].subs.filter((x) => rmBy(x).chk).length, 0)) :
+          secV(sec) ? '<em class="bz-band-n">上市公司营收 ' + rmYi(secV(sec)) + "</em>" : "") + "<span>" + esc(sec.desc) + '</span></header><div class="bz-l1s">' +
         sec.l1.slice().sort(rmSort).map((n) => {
           const d = S.byId[n];
           return '<div class="bz-l1" style="flex-grow:' + d.subs.length + ";--c:" + colorOf(n) + '"><button type="button" class="bz-l1-h' + (S.rm.sel === n ? " sel" : "") +
@@ -2602,13 +2614,14 @@
     const rows = ids.filter((id) => { const d = S.byId[id]; return !q || [d.name, d.desc, d.kw, d.l1].some((x) => x && String(x).toLowerCase().includes(q)); }).sort(rmSort);
     if (!rows.length) return empty("没有找到「" + esc(q) + "」。换个说法试试。");
     return '<div class="bz-tablewrap"><table class="bz-ltab bz-rm-tab"><thead><tr><th>行业</th><th class="num">上市公司营收（' + esc(L.annual_name || "年报") + '）</th><th class="num">' + esc(L.latest_name || "最新") +
-      ' 营收增长</th><th class="num">净利率</th><th class="num">毛利率</th><th class="num">公司数</th><th class="num">统计局</th><th>核实</th></tr></thead><tbody>' +
+      ' 营收增长</th><th class="num">净利率</th><th class="num">毛利率</th><th class="num">公司数</th><th class="num">统计局</th><th class="num">AI 核实的规模</th></tr></thead><tbody>' +
       rows.map((id) => {
         const d = S.byId[id], b = rmBy(id);
         return '<tr data-row="' + esc(id) + '"' + (S.rm.sel === id ? ' class="sel"' : "") + '><td class="nm"><button type="button" class="bz-link strong" data-rm="' + esc(id) + '">' + esc(d.name) +
           '</button><span class="co">' + esc(d.l1) + "</span></td><td class=\"num\">" + rmYi(b.rev) + '</td><td class="num' + ((b.q_yoy != null ? b.q_yoy : b.rev_yoy) < 0 ? " neg" : "") + '">' +
           rmPct(b.q_yoy != null ? b.q_yoy : b.rev_yoy) + '</td><td class="num">' + (b.nm == null ? "–" : b.nm + "%") + '</td><td class="num">' + (b.gm == null ? "–" : b.gm + "%") +
-          '</td><td class="num">' + (b.n || "–") + '</td><td class="num">' + (b.nbs ? b.nbs + " 项" : "–") + "</td><td>" + (b.chk ? "✓" : "") + "</td></tr>";
+          '</td><td class="num">' + (b.n || "–") + '</td><td class="num">' + (b.nbs ? b.nbs + " 项" : "–") + '</td><td class="num">' +
+          (b.chk ? '<span title="' + esc(b.v_size_txt ? b.v_size_txt + "（" + (b.v_size_m || "") + "）" : "核实过，没查到规模") + '">' + esc(b.v_size != null ? rmYi(b.v_size) + (b.v_size_ok ? " ✓" : " ?") : "✓") + "</span>" : "–") + "</td></tr>";
       }).join("") + "</tbody></table></div>";
   }
   // 热度 × 真钱：横轴是市场雷达的新闻条数，纵轴是上市公司营收；两条中位线分出四块
@@ -2827,9 +2840,14 @@
   }
   function rmLegend() {
     const m = S.rm.metric, L = (S.rm.data && S.rm.data.listed) || {};
+    if (m === "verified") {
+      const n = Object.values((S.rm.data && S.rm.data.by) || {}).filter((b) => b.chk).length;
+      return "格子里是 AI 联网核实出来的市场规模（行业报告、统计局、交易平台的数字，" + n + " 个核实过）；颜色越深越大，「?」是这个数字在原文里没对上、要自己核对；灰的是还没核实。" +
+        "这个数和「规模」（上市公司营收）口径不同：一个是整个市场，一个是头部公司的盘子。";
+    }
     if (m === "quad") return "四块：钱多话少、又热又大、话多钱少、又冷又小。热度用的是市场雷达「" + winText() + "」的新闻条数（在市场雷达那边换时间段）。";
     return (m === "size" ? "颜色越深，上市公司" + (L.annual_name || "") + "营收合计越多（不同板块不同颜色）。" : m === "growth" ? "颜色越深，营收增长越快（" + (L.latest_name || "最新一期") + "同比；红字是下降）。" :
-      "颜色越深，净利率越高（净利润 ÷ 营收，" + (L.annual_name || "") + "）。") + " 带小圆圈的是 AI 核实过的。";
+      "颜色越深，净利率越高（净利润 ÷ 营收，" + (L.annual_name || "") + "）。") + " 带小圆圈、下面写着「✓ 核实」的是 AI 核实过的（核实出来的市场规模；带「?」的没对上原文）。";
   }
   function renderReal() {
     segSync("rmmetric", S.rm.metric); segSync("rmview", S.rm.view); segSync("rmdepth", S.rm.depth);
@@ -3047,7 +3065,10 @@
       renderBigBtns();
       if (S.pane === "custom") renderCuGo();                         // v187：商业定制页上也显示写到哪一步了
       if (S.pane === "real") rmRunRender();                          // v193
-      if (was && !j.running) { refreshReports(); refreshOpps(); refreshOverview(); if (j.kind === "real") rmLoad(true); }
+      if (was && !j.running) {
+        refreshReports(); refreshOpps(); refreshOverview();
+        if (j.kind === "real") { rmLoad(true); if (j.ok) toast("核实完：" + String(j.title || "").replace(/^真实市场核实：/, "") + "，数字已经同步到「行业地图」。"); }   // v197
+      }
       if (j.running) S.jobTimer = setTimeout(pollJob, 2000);
     } catch (e) {
       if (S.job && S.job.running) S.jobTimer = setTimeout(pollJob, 5000);
