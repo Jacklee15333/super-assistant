@@ -668,7 +668,7 @@ body.dark .view-biz { --bz-up: #6cc08b; --bz-warn: #e0a24a; --bz-bad: #e5907a; }
 .view-biz .bz-vtabs button { border: 0; background: transparent; padding: 6px 14px; border-radius: 8px; font: 600 14px var(--sans); color: var(--text-dim); cursor: pointer; }
 .view-biz .bz-vtabs button.on { background: var(--bg-elev); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
 .view-biz .bz-rgrp[hidden] { display: none; }
-.view-biz .bz-radar { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(270px, 1fr); gap: 18px; align-items: start; padding-top: 6px; }
+.view-biz .bz-radar { display: grid; grid-template-columns: minmax(0, 2fr) minmax(250px, 1fr); gap: 18px; align-items: start; padding-top: 6px; }
 .view-biz .bz-radar[hidden] { display: none; }
 .view-biz #bzListWrap[hidden] { display: none; }
 .view-biz .bz-rad-l { min-width: 0; }
@@ -809,3 +809,34 @@ body.dark .view-biz { --bz-up: #6cc08b; --bz-warn: #e0a24a; --bz-bad: #e5907a; }
 .view-biz .bz-add-msg .bad { color: var(--bz-bad); }
 .view-biz .bz-set { padding: 6px 0; }
 .view-biz .bz-autost { margin: -2px 0 4px 44px; padding: 4px 10px; }
+
+/* v168：雷达放大、圆点各在各的扇形里、鼠标移上去马上出提示 */
+.view-biz .bz-rad-svg .wedge { stroke: var(--bg-elev); stroke-width: 2; transition: fill-opacity .15s; }
+.view-biz .bz-rad-svg .wedge.on { fill-opacity: .2; }
+.view-biz .bz-rad-svg .hub { fill: var(--bg-elev); stroke: var(--line); }
+.view-biz .bz-rad-svg .hit { fill: transparent; }
+.view-biz .bz-rad-svg .secl { font: 600 20px var(--sans); }
+.view-biz .bz-rad-svg .secn { font-size: 16px; }
+.view-biz .bz-rad-svg .bl { font: 500 15px var(--sans); }
+.view-biz .bz-rad-svg .blip:hover .dot { stroke: var(--text); stroke-width: 2; }
+.view-biz .bz-rad-tip { position: absolute; z-index: 6; transform: translate(14px, -50%); min-width: 150px; max-width: 250px; padding: 8px 11px; border-radius: 10px;
+  background: var(--bg-elev); border: 1px solid var(--line); box-shadow: 0 6px 20px rgba(0,0,0,.14); font-size: 12.5px; line-height: 1.5; pointer-events: none; }
+.view-biz .bz-rad-tip.left { transform: translate(calc(-100% - 14px), -50%); }
+.view-biz .bz-rad-tip.up { transform: translate(14px, -90%); }
+.view-biz .bz-rad-tip.left.up { transform: translate(calc(-100% - 14px), -90%); }
+.view-biz .bz-rad-tip[hidden] { display: none; }
+.view-biz .bz-rad-tip b { font-size: 14px; margin-right: 6px; }
+.view-biz .bz-rad-tip small { color: var(--text-dim); }
+.view-biz .bz-rad-tip p { margin: 3px 0 0; }
+.view-biz .bz-rad-tip p.t { color: var(--text-dim); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.view-biz .bz-rad-tip p.h { color: var(--accent); font-size: 11.5px; }
+.view-biz .bz-rad-tip .hot { font-size: 11px; padding: 0 5px; border-radius: 5px; background: var(--accent); color: #fff; }
+
+/* v168：雷达模式：右边栏挪到雷达下面，雷达占满整行 */
+.view-biz .bz-cols.wide:not(.reading) { grid-template-columns: minmax(0, 1fr); }
+.view-biz .bz-cols.wide:not(.reading) > .bz-side { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: start; }
+.view-biz .bz-cols.wide:not(.reading) > .bz-side .bz-card + .bz-card { margin-top: 0; }
+.view-biz .bz-cols.wide:not(.reading) > .bz-side > .bz-note { grid-column: 1 / -1; }
+.view-biz .bz-cols.wide:not(.reading) .bz-radar { grid-template-columns: minmax(0, 1.75fr) minmax(300px, 1fr); }
+.view-biz .bz-rad-rank button { grid-template-columns: 9px minmax(0, 1fr) 70px 30px 60px 36px; }
+@media (max-width: 1100px) { .view-biz .bz-cols.wide:not(.reading) > .bz-side { grid-template-columns: 1fr; } }

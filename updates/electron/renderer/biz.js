@@ -310,6 +310,8 @@
     if (rd) rd.hidden = v !== "radar";
     if (lw) lw.hidden = v !== "list";
     if (gw) gw.hidden = v !== "list";
+    const cols = $("bzCols");
+    if (cols) cols.classList.toggle("wide", v === "radar");     // v168：雷达模式下右边栏挪到下面，雷达能放大
     if (v === "radar") renderRadarScan();
   }
   function setRview(v, ind) {
@@ -324,26 +326,37 @@
     const card = $("bzFeedCard");
     if (card && ind) card.scrollIntoView({ block: "start" });
   }
-  const RAD_SEC = { "科技": "#3b6fd1", "消费": "#c4613a", "医药": "#2f8f5b", "制造": "#7a5cc2", "周期资源": "#a0711a", "金融地产": "#c23b6a", "公用交运": "#2a8a9a", "赛道": "#d9822b" };
+  const RAD_SEC = { "科技": "#3b6fd1", "消费": "#c4613a", "医药": "#2f8f5b", "制造": "#7a5cc2", "周期资源": "#a0711a", "金融地产": "#c23b6a", "公用交运": "#2a8a9a" };
+  // v168：新兴赛道太笼统，按方向再分成 5 块，每块自己一种颜色
+  const TRK_GROUPS = [
+    ["赛道·智能科技", "#0f8fb3", ["t:ai", "t:compute", "t:chip", "t:data", "t:robot", "t:future"]],
+    ["赛道·新能源与出行", "#3a9a3a", ["t:ev", "t:energy", "t:autodrive", "t:lowalt", "t:space"]],
+    ["赛道·新消费", "#d9822b", ["t:newcons", "t:discount", "t:tea", "t:pet"]],
+    ["赛道·内容与电商", "#b5508f", ["t:livecom", "t:crossborder", "t:creator", "t:edu", "t:local"]],
+    ["赛道·健康养老", "#5a8f7b", ["t:biotech", "t:silver"]],
+  ];
   function radarModel() {
     const ov = S.ovm, t = S.tax;
     if (!ov || !t) return null;
     const d = S.mdays, l1 = ov.l1 || {}, hh = ov.heat || {};
-    const heat = new Proxy({}, { get: (o, k) => l1[k] || hh[k] });     // 一级行业的条数在 l1 里，赛道在 heat 里
-    const groups = t.sectors.map((sec) => ({ key: sec.key, name: sec.name, color: RAD_SEC[sec.name] || "#888",
-      items: sec.l1.map((id) => ({ id, name: nameOf(id), n: (heat[id] || [0, 0])[0], t: (heat[id] || [0, 0])[1], sec: sec.name })) }));
-    groups.push({ key: "trk", name: "新兴赛道", color: RAD_SEC["赛道"], items: t.tracks.map((x) => ({ id: x.id, name: x.name, n: (heat[x.id] || [0, 0])[0], t: (heat[x.id] || [0, 0])[1], sec: "新兴赛道" })) });
+    const hv = (id) => l1[id] || hh[id] || [0, 0];       // 一级行业的条数在 l1 里，赛道在 heat 里
+    const mk = (id, name, sec) => ({ id, name, n: hv(id)[0], t: hv(id)[1], sec });
+    const groups = t.sectors.map((sec) => ({ key: sec.key, name: sec.name, color: RAD_SEC[sec.name] || "#888", items: sec.l1.map((id) => mk(id, nameOf(id), sec.name)) }));
+    const known = new Set(t.tracks.map((x) => x.id)), used = new Set();
+    TRK_GROUPS.forEach(([name, color, ids]) => {
+      const its = ids.filter((id) => known.has(id)).map((id) => { used.add(id); return mk(id, nameOf(id), name); });
+      if (its.length) groups.push({ key: name, name, color, items: its, trk: true });
+    });
+    const rest = t.tracks.filter((x) => !used.has(x.id));             // 以后新加的赛道，先放「赛道·其他」
+    if (rest.length) groups.push({ key: "trk-other", name: "赛道·其他", color: "#9a8a6a", items: rest.map((x) => mk(x.id, x.name, "赛道·其他")), trk: true });
     let max = 1, total = 0;
     groups.forEach((g) => g.items.forEach((it) => {
       max = Math.max(max, it.n);
       it.hot = d > 1 && it.t >= 3 && it.t >= (it.n * 2) / d;          // 最近 24 小时的量明显高于这段时间的日均
+      it.color = g.color;
     }));
     groups.forEach((g) => { g.n = g.items.reduce((a, x) => a + x.n, 0); total += g.n; });
-    const act = [];
-    groups.forEach((g) => g.items.forEach((x) => { if (x.n) act.push(x); }));
-    act.sort((a, b) => b.n - a.n);
-    act.forEach((x, i) => { x.rank = i; });                 // 按排名放：第一名最靠近中心，均匀铺开，不挤成一团
-    return { groups, max, total, nAct: act.length, thr: act.length ? act[Math.min(13, act.length - 1)].n : 1 };   // 前 14 个写名字
+    return { groups, max, total };
   }
   function renderRadarScan() {
     const el = $("bzRadar");
@@ -351,69 +364,83 @@
     const M = radarModel();
     if (!M) { el.innerHTML = loading(S.ovmErr ? "读不到：" + S.ovmErr : "正在扫描…"); return; }
     if (!(S.ovm.counts && S.ovm.counts.radar)) { el.innerHTML = empty('爬虫还没抓到东西。点上面的<button type="button" class="bz-link" data-act="upd-open">现在更新</button>马上抓一次。'); return; }
-    const W = 560, C = W / 2, R = 220, R0 = 34;
-    // 每块扇形的角度按里面有几个行业分（至少给一点，免得挤）
-    const weights = M.groups.map((g) => Math.max(3, g.items.length));
+    // v168：雷达放大；每一块扇形里的圆点按「一圈一圈」排，保证都在自己那块里、互不重叠；同一块里新闻多的排在里圈
+    const W = 720, C = W / 2, R = 310, R0 = 70, GAP = 0.02;
+    const weights = M.groups.map((g) => Math.max(2.4, g.items.length));
     const wsum = weights.reduce((a, b) => a + b, 0);
     let a0 = -Math.PI / 2;
     const pt = (r, a) => [C + r * Math.cos(a), C + r * Math.sin(a)];
     let wedges = "", labels = "", blips = "", spokes = "";
     const pos = [];
+    const sizeOf = (n) => (n ? 5 + 13 * Math.sqrt(n / M.max) : 3);
     M.groups.forEach((g, gi) => {
       const span = (weights[gi] / wsum) * Math.PI * 2, a1 = a0 + span;
-      const [x0, y0] = pt(R, a0), [x1, y1] = pt(R, a1);
-      wedges += '<path d="M' + C + "," + C + " L" + x0.toFixed(1) + "," + y0.toFixed(1) + " A" + R + "," + R + " 0 " + (span > Math.PI ? 1 : 0) + " 1 " + x1.toFixed(1) + "," + y1.toFixed(1) +
-        ' Z" fill="' + g.color + '" fill-opacity="' + (gi % 2 ? 0.05 : 0.09) + '"/>';
-      spokes += '<line x1="' + C + '" y1="' + C + '" x2="' + x0.toFixed(1) + '" y2="' + y0.toFixed(1) + '" class="sp"/>';
-      const am = a0 + span / 2, [lx, ly] = pt(R + 22, am);
-      const anchor = Math.abs(Math.cos(am)) < 0.25 ? "middle" : Math.cos(am) > 0 ? "start" : "end";
-      labels += '<text x="' + lx.toFixed(1) + '" y="' + (ly + 4).toFixed(1) + '" text-anchor="' + anchor + '" class="secl" fill="' + g.color + '">' + esc(g.name) +
-        (g.n ? ' <tspan class="secn">' + g.n + "</tspan>" : "") + "</text>";
-      // 同一块里，条数多的和少的交错着摆，避免排成一条线
-      const its = g.items.slice().sort((p, q) => q.n - p.n);
-      const order = [];
-      for (let lo = 0, hi = its.length - 1; lo <= hi; lo++, hi--) { order.push(its[lo]); if (lo !== hi) order.push(its[hi]); }
-      order.forEach((it, i) => {
-        const a = a0 + span * ((i + 0.5) / order.length);
-        const r = it.n ? R0 + 12 + (R - R0 - 30) * Math.pow(it.rank / Math.max(1, M.nAct - 1), 0.8) : R - 8;
-        const [x, y] = pt(Math.max(R0 + 8, Math.min(R - 6, r)), a);
-        pos.push({ it, g, x, y, size: it.n ? 3.5 + 11 * Math.sqrt(it.n / M.max) : 2.2 });
+      const [x0, y0] = pt(R, a0), [x1, y1] = pt(R, a1), [i0x, i0y] = pt(R0, a0), [i1x, i1y] = pt(R0, a1);
+      wedges += '<path d="M' + i0x.toFixed(1) + "," + i0y.toFixed(1) + " L" + x0.toFixed(1) + "," + y0.toFixed(1) + " A" + R + "," + R + " 0 " + (span > Math.PI ? 1 : 0) + " 1 " + x1.toFixed(1) + "," + y1.toFixed(1) +
+        " L" + i1x.toFixed(1) + "," + i1y.toFixed(1) + " A" + R0 + "," + R0 + " 0 0 0 " + i0x.toFixed(1) + "," + i0y.toFixed(1) +
+        ' Z" class="wedge' + (S.radSel && g.items.some((x) => x.id === S.radSel) ? " on" : "") + '" fill="' + g.color + '" fill-opacity="' + (gi % 2 ? 0.07 : 0.12) + '"/>';
+      spokes += '<line x1="' + i0x.toFixed(1) + '" y1="' + i0y.toFixed(1) + '" x2="' + x0.toFixed(1) + '" y2="' + y0.toFixed(1) + '" class="sp"/>';
+      // 块名写在外圈，跟着扇形中线
+      const am = a0 + span / 2, [lx, ly] = pt(R + 20, am);
+      const anchor = Math.abs(Math.cos(am)) < 0.3 ? "middle" : Math.cos(am) > 0 ? "start" : "end";
+      const dy = Math.sin(am) > 0.3 ? 14 : Math.sin(am) < -0.3 ? -2 : 5;
+      labels += '<text x="' + lx.toFixed(1) + '" y="' + (ly + dy).toFixed(1) + '" text-anchor="' + anchor + '" class="secl" fill="' + g.color + '">' + esc(g.name) +
+        '<tspan class="secn"> ' + g.n + "</tspan></text>";
+      // 圆点：有新闻的按条数从多到少，从里圈往外一圈圈排；没新闻的小灰点排在最外圈
+      const act = g.items.filter((x) => x.n).sort((p, q) => q.n - p.n), quiet = g.items.filter((x) => !x.n);
+      const aIn = a0 + GAP, aSpan = span - GAP * 2;
+      let r = R0 + 32, k = 0;
+      while (k < act.length) {
+        const slots = Math.max(1, Math.floor((r * aSpan) / 66));
+        const row = act.slice(k, k + slots);
+        row.forEach((it, j) => {
+          const a = aIn + aSpan * ((j + 0.5) / row.length);
+          const [x, y] = pt(r, a);
+          pos.push({ it, g, x, y, size: sizeOf(it.n), lab: k + j < 2 || (r > R0 + 120 && k + j < 4) });
+        });
+        k += row.length;
+        r += 60;
+        if (r > R - 36) r = R - 36;                          // 实在太多就挤在最外一圈
+      }
+      quiet.forEach((it, j) => {
+        const a = aIn + aSpan * ((j + 0.5) / quiet.length), [x, y] = pt(R - 12, a);
+        pos.push({ it, g, x, y, size: 3, lab: false });
       });
       a0 = a1;
     });
-    // 名字：从条数最多的开始写，和已经写了的名字重叠就不写（鼠标移上去能看到）
+    // 名字互相压住的，条数少的那个不写（鼠标移上去能看到）
     const boxes = [];
-    const labOf = new Set();
-    pos.filter((p) => p.it.n && (p.it.n >= M.thr || p.it.id === S.radSel)).sort((p, q) => (q.it.id === S.radSel) - (p.it.id === S.radSel) || q.it.n - p.it.n).forEach((p) => {
-      const w = p.it.name.length * 16 + 8, h = 20, bx = p.x - w / 2, by = p.y - p.size - 4 - 15;
-      if (boxes.some((o) => bx < o[0] + o[2] && bx + w > o[0] && by < o[1] + o[3] && by + h > o[1])) return;
+    pos.filter((p) => p.lab && p.it.n).sort((p, q) => q.it.n - p.it.n).forEach((p) => {
+      const nm = p.it.name.length > 6 ? 6 : p.it.name.length;
+      const w = nm * 15 + 4, bx = p.x - w / 2, by = p.y + p.size + 2, h = 17;
+      if (boxes.some((o) => bx < o[0] + o[2] && bx + w > o[0] && by < o[1] + o[3] && by + h > o[1])) { p.lab = false; return; }
       boxes.push([bx, by, w, h]);
-      labOf.add(p.it.id);
     });
     S.radPos = {};
-    S.radVB = { x: -70, y: -30, w: W + 140, h: W + 60, C: C, R: R };
-    pos.forEach(({ it, g, x, y, size }) => {
+    S.radVB = { x: -170, y: -50, w: W + 340, h: W + 100, C: C, R: R };
+    pos.forEach(({ it, g, x, y, size, lab }) => {
       S.radPos[it.id] = { x, y, color: g.color };
-      const sel = S.radSel === it.id, lab = labOf.has(it.id);
+      const sel = S.radSel === it.id;
+      const name = it.name.length > 6 ? it.name.slice(0, 5) + "…" : it.name;
       blips += '<g class="blip' + (it.n ? "" : " quiet") + (it.hot ? " hot" : "") + (sel ? " sel" : "") + '" data-rad="' + esc(it.id) + '" tabindex="' + (it.n ? 0 : -1) + '" role="button" aria-label="' +
         esc(it.name + "，" + it.n + " 条新闻" + (it.hot ? "，正在升温" : "")) + '">' +
-        "<title>" + esc(it.name + "（" + it.sec + "）：" + it.n + " 条" + (S.mdays > 1 ? "，最近 24 小时 " + it.t + " 条" : "") + (it.hot ? "，正在升温" : "")) + "</title>" +
+        '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + (size + 8).toFixed(1) + '" class="hit"/>' +
         (it.hot ? '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + (size + 4).toFixed(1) + '" class="ring" stroke="' + g.color + '"/>' : "") +
         '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + size.toFixed(1) + '" fill="' + g.color + '" class="dot"/>' +
-        (lab ? '<text x="' + x.toFixed(1) + '" y="' + (y - size - 4).toFixed(1) + '" text-anchor="middle" class="bl">' + esc(it.name) + "</text>" : "") + "</g>";
+        ((lab || sel) && it.n ? '<text x="' + x.toFixed(1) + '" y="' + (y + size + 15).toFixed(1) + '" text-anchor="middle" class="bl">' + esc(name) + "</text>" : "") + "</g>";
     });
     const rings = [0.25, 0.5, 0.75, 1].map((k) => '<circle cx="' + C + '" cy="' + C + '" r="' + (R * k).toFixed(1) + '" class="rg"/>').join("");
-    const svg = '<svg class="bz-rad-svg" viewBox="-70 -30 ' + (W + 140) + " " + (W + 60) + '" role="img" aria-label="市场雷达：按行业分好类的新闻，越靠近中心新闻越多">' +
+    const svg = '<svg class="bz-rad-svg" viewBox="' + S.radVB.x + " " + S.radVB.y + " " + S.radVB.w + " " + S.radVB.h + '" role="img" aria-label="市场雷达：按行业分好类的新闻，越靠近中心新闻越多">' +
       '<defs><radialGradient id="bzRadBg"><stop offset="0" stop-color="var(--accent)" stop-opacity=".10"/><stop offset="1" stop-color="var(--accent)" stop-opacity=".02"/></radialGradient>' +
       '<linearGradient id="bzSweep" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="var(--accent)" stop-opacity="0"/><stop offset="1" stop-color="var(--accent)" stop-opacity=".28"/></linearGradient></defs>' +
       '<circle cx="' + C + '" cy="' + C + '" r="' + R + '" fill="url(#bzRadBg)"/>' + wedges + rings + spokes +
       '<g class="sweep" style="transform-origin:' + C + "px " + C + 'px"><path d="M' + C + "," + C + " L" + (C + R) + "," + C + " A" + R + "," + R + " 0 0 0 " + pt(R, -0.55)[0].toFixed(1) + "," + pt(R, -0.55)[1].toFixed(1) + ' Z" fill="url(#bzSweep)"/>' +
         '<line x1="' + C + '" y1="' + C + '" x2="' + (C + R) + '" y2="' + C + '" class="sw-l"/></g>' +
-      '<circle cx="' + C + '" cy="' + C + '" r="4" class="ctr"/>' + labels + blips + "</svg>";
+      '<circle cx="' + C + '" cy="' + C + '" r="' + (R0 - 4) + '" class="hub"/><circle cx="' + C + '" cy="' + C + '" r="4" class="ctr"/>' + labels + blips + "</svg>";
     const oldLive = $("bzRadLive");                         // 重画雷达时，正在亮的那几条留着接着演
     el.innerHTML = '<div class="bz-rad-l"><div class="bz-rad-bar" id="bzRadBar" aria-live="polite"></div>' +
-      '<div class="bz-rad-stage">' + svg + '<div class="bz-rad-live" id="bzRadLive"></div></div>' +
-      '<p class="bz-rad-legend"><span><i class="lg-near"></i>越靠近中心、圆点越大，新闻越多</span>' + (S.mdays > 1 ? '<span><i class="lg-hot"></i>带圈的：最近 24 小时明显变多</span>' : "") +
+      '<div class="bz-rad-stage">' + svg + '<div class="bz-rad-live" id="bzRadLive"></div><div class="bz-rad-tip" id="bzRadTip" hidden></div></div>' +
+      '<p class="bz-rad-legend"><span><i class="lg-near"></i>每块里新闻越多越靠里、圆点越大</span>' + (S.mdays > 1 ? '<span><i class="lg-hot"></i>带圈的：最近 24 小时明显变多</span>' : "") +
       '<span><i class="lg-quiet"></i>边上的小灰点：这段时间没新闻</span></p></div>' +
       '<div class="bz-rad-r" id="bzRadPanel"></div>';
     if (oldLive && oldLive.children.length) { const nl = $("bzRadLive"); nl.replaceWith(oldLive); }
@@ -520,7 +547,7 @@
         '<p class="bz-hint">点雷达上的圆点，或者下面的名字，看那个行业的新闻。</p>' +
         '<ol class="bz-rad-rank">' + all.slice(0, 16).map((x) =>
           '<li><button type="button" data-rad="' + esc(x.id) + '"><i style="background:' + x.color + '"></i><span class="nm">' + esc(x.name) + "</span>" +
-          '<span class="sc">' + esc(x.sec) + "</span>" + '<span class="hotc">' + (x.hot ? '<span class="hot">升温</span>' : "") + "</span>" +
+          '<span class="sc">' + esc(x.sec.replace("赛道·", "")) + "</span>" + '<span class="hotc">' + (x.hot ? '<span class="hot">升温</span>' : "") + "</span>" +
           '<span class="bar"><b style="width:' + Math.max(4, Math.round((x.n / M.max) * 100)) + "%;background:" + x.color + '"></b></span><span class="n">' + x.n + "</span></button></li>").join("") + "</ol>" +
         (all.length > 16 ? '<p class="bz-hint">还有 ' + (all.length - 16) + " 个，在雷达上点。</p>" : "");
       return;
@@ -529,14 +556,41 @@
     const heat = S.ovm.heat || {};
     const subHtml = subs.map((x) => [x, (heat[x] || [0])[0]]).filter((x) => x[1]).sort((a, b) => b[1] - a[1]).map(([x, n]) =>
       '<button type="button" class="bz-chip" data-rad-list="' + esc(x) + '">' + esc(nameOf(x)) + " <b>" + n + "</b></button>").join("");
-    const news = S.radNews[sel.id + "|" + S.mdays];
+    const tops = S.radTops && S.radTops.days === S.mdays ? S.radTops.tops : null;
+    const news = tops ? (tops[sel.id] || []) : S.radNews[sel.id + "|" + S.mdays];
     el.innerHTML = '<div class="bz-rad-sel"><button type="button" class="bz-link" data-act="rad-clear">‹ 全部行业</button>' +
       '<h4 class="bz-rad-h"><i style="background:' + sel.color + '"></i>' + esc(sel.name) + "<small>" + esc(sel.sec) + "</small></h4>" +
       '<p class="bz-rad-num"><b>' + sel.n + "</b> 条新闻（" + win + "）" + (S.mdays > 1 ? "，最近 24 小时 " + sel.t + " 条" : "") + (sel.hot ? ' <span class="hot">正在升温</span>' : "") + "</p>" +
       (subHtml ? '<p class="bz-hint">细分到：</p><div class="bz-chips">' + subHtml + "</div>" : "") +
       '<h5 class="bz-rad-sub">最新的几条</h5><div class="bz-feed compact">' + (news ? (news.length ? news.map(itemRow).join("") : empty("没读到。")) : loading()) + "</div>" +
       '<button type="button" class="bz-btn" data-rad-list="' + esc(sel.id) + '">看「' + esc(sel.name) + "」全部 " + sel.n + " 条新闻</button></div>";
-    if (!news) loadRadNews(sel.id);
+    if (!news && !tops) loadRadNews(sel.id);
+  }
+  async function loadRadTops() {                // v168：每个行业最新几条一次读好，点圆点马上就有
+    const d = S.mdays;
+    let r;
+    try { r = await api("/biz/radar_tops?days=" + d); } catch (e) { return; }
+    if (!r || !r.tops || d !== S.mdays) return;
+    S.radTops = { days: d, tops: r.tops };
+    if (S.radSel) renderRadPanel();
+  }
+  function radTip(id, show) {                  // v168：鼠标移到圆点上马上出提示（不用等系统的慢提示）
+    const tip = $("bzRadTip"), vb = S.radVB, ps = S.radPos && S.radPos[id];
+    if (!tip) return;
+    if (!show || !ps || !vb) { tip.hidden = true; return; }
+    const M = radarModel();
+    let it = null;
+    if (M) M.groups.forEach((g) => g.items.forEach((x) => { if (x.id === id) it = x; }));
+    if (!it) { tip.hidden = true; return; }
+    const tops = S.radTops && S.radTops.days === S.mdays ? (S.radTops.tops[id] || []) : [];
+    tip.innerHTML = '<b style="color:' + it.color + '">' + esc(it.name) + "</b><small>" + esc(it.sec) + "</small>" +
+      "<p>" + (it.n ? it.n + " 条新闻" + (S.mdays > 1 ? "，最近 24 小时 " + it.t + " 条" : "") + (it.hot ? ' <span class="hot">升温</span>' : "") : "这段时间没有新闻") + "</p>" +
+      (tops[0] ? '<p class="t">最新：' + esc(S.trTitle[tops[0].title] || tops[0].title) + "</p>" : "") + (it.n ? '<p class="h">点一下看详情</p>' : "");
+    const lx = ((ps.x - vb.x) / vb.w) * 100, ly = ((ps.y - vb.y) / vb.h) * 100;
+    tip.style.left = lx + "%"; tip.style.top = ly + "%";
+    tip.classList.toggle("left", lx > 55);
+    tip.classList.toggle("up", ly > 60);
+    tip.hidden = false;
   }
   async function loadRadNews(id) {
     const key = id + "|" + S.mdays;
@@ -1701,7 +1755,7 @@
     try {
       const o = await api("/biz/overview?lens=" + which + "&days=" + (m ? S.mdays : S.days));
       if (o && o.ok === false) throw new Error(o.error || "出错");
-      if (m) { S.ovm = o; S.ovmErr = ""; if (o.radar && o.radar.ok !== false) S.radar = o.radar; }
+      if (m) { S.ovm = o; S.ovmErr = ""; if (o.radar && o.radar.ok !== false) S.radar = o.radar; loadRadTops(); }
       else { S.ov = o; S.ovErr = ""; }
     } catch (e) {
       if (m) { S.ovm = null; S.ovmErr = "连不上后台（" + e.message + "）"; } else { S.ov = null; S.ovErr = "连不上后台（" + e.message + "）"; }
@@ -2092,6 +2146,16 @@
       else if (t.id === "bzBfFocus") S.bf.focus = t.value;
       else if (t.id === "bzRepQ") { S.repQ = t.value; renderAnalysis(); }
     });
+    root.addEventListener("mouseover", (e) => {
+      const g = e.target.closest && e.target.closest("#bzRadar g.blip[data-rad]");
+      if (g) radTip(g.dataset.rad, true);
+    });
+    root.addEventListener("mouseout", (e) => {
+      const g = e.target.closest && e.target.closest("#bzRadar g.blip[data-rad]");
+      if (g && !(e.relatedTarget && g.contains(e.relatedTarget))) radTip("", false);
+    });
+    root.addEventListener("focusin", (e) => { if (e.target.matches && e.target.matches("#bzRadar g.blip[data-rad]")) radTip(e.target.dataset.rad, true); });
+    root.addEventListener("focusout", (e) => { if (e.target.matches && e.target.matches("#bzRadar g.blip[data-rad]")) radTip("", false); });
     root.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.isComposing) {
         if (e.target.id === "bzTaskTarget") { e.preventDefault(); startTask(); }
