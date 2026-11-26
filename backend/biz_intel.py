@@ -386,7 +386,7 @@ def _signal(src, key, title, summary, who, url, ts, extra=None, hints=None, hint
 def classify_radar(title, summary, hints=None, grp=""):
     """v178：给爬虫用——一条新闻归到哪些细分行业、赛道（和 _radar_items 同一套算法），抓到时就记进统计。"""
     it = _signal("radar", "", title or "", summary or "", "", "", 0, hints=hints or [],
-                 hint_w=2 if grp in ("media", "corpkw", "indkw", "mine") else 1)
+                 hint_w=2 if grp in ("media", "corpkw", "indkw", "mine", "firm") else 1)
     return it["ind"], it["trk"]
 
 
@@ -476,7 +476,7 @@ def _radar_items():
                              {"grp": s.get("group") or r.get("grp", ""), "approx": not r.get("dated"),
                               "sid": r.get("sid", ""), "from": r.get("from", ""),
                               "seen": int(r.get("seen") or r.get("ts") or 0)}, hints=s.get("hint") or [],
-                             hint_w=2 if (s.get("group") or r.get("grp")) in ("media", "corpkw", "indkw", "mine") else 1)
+                             hint_w=2 if (s.get("group") or r.get("grp")) in ("media", "corpkw", "indkw", "mine", "firm") else 1)
             keep[ck] = it
             out.append(it)
         _RADAR.update(ver=ver, list=out, cache=keep)

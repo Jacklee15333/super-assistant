@@ -17,7 +17,7 @@
   const OLD_PANE = { market: "radar", model: "analysis", reports: "analysis" };
   const KIND = { market: "市场动向简报", industry: "行业研究", model: "商业模式", trend: "趋势与机会", research: "课题研究" };
   const SRC = { note: "笔记", sniff: "网站动态", creator: "博主新内容", radar: "市场新闻" };
-  const GRP = { news: "财经媒体", corp: "大公司官网", corpkw: "大公司动态", media: "行业媒体", indkw: "行业热词", policy: "政策数据", global: "海外", mine: "我加的" };
+  const GRP = { news: "财经媒体", corp: "大公司官网", firm: "企业官网", corpkw: "大公司动态", media: "行业媒体", indkw: "行业热词", policy: "政策数据", global: "海外", mine: "我加的" };
   const OPP_ST = [["new", "新发现"], ["watch", "关注"], ["testing", "验证中"], ["doing", "在做"], ["dropped", "放弃"]];
   const TRIG = { auto: "自动", manual: "手动", single: "单个信息源" };
   const TASKS = [
@@ -153,7 +153,7 @@
               '<button type="button" role="tab" data-rview="radar">雷达扫描</button><button type="button" role="tab" data-rview="list">新闻列表</button>' +
               '<button type="button" role="tab" data-rview="briefs">最近的简报</button></div>' +
             '<div class="bz-rad-bar" id="bzRadBar" aria-live="polite"></div>' +
-            '<span class="bz-rgrp" id="bzRgrpWrap">' + seg("rgrp", [["all", "全部"], ["news", "财经媒体"], ["corp,corpkw", "大公司"], ["media,indkw", "行业媒体"], ["policy", "政策数据"], ["global", "海外"], ["mine", "我加的"]]) + "</span></div>" +
+            '<span class="bz-rgrp" id="bzRgrpWrap">' + seg("rgrp", [["all", "全部"], ["news", "财经媒体"], ["corp,corpkw,firm", "大公司"], ["media,indkw", "行业媒体"], ["policy", "政策数据"], ["global", "海外"], ["mine", "我加的"]]) + "</span></div>" +
             '<div class="bz-radar" id="bzRadar"></div>' +
             '<div class="bz-briefsv" id="bzBriefsView" hidden><div class="bz-briefsv-h"><p class="bz-hint">用「生成简报」把一段时间的新闻整理成文档。点一份打开看。</p>' +
               '<button type="button" class="bz-btn sm" data-act="brief-open">生成简报</button></div><div class="bz-reps" id="bzBriefsAll"></div></div>' +
@@ -2113,7 +2113,7 @@
     const f = S.bf, info = S.briefInfo, busy = S.job && S.job.running;
     const now = new Date(), stamp = now.getFullYear() + pad(now.getMonth() + 1) + pad(now.getDate()) + "-" + pad(now.getHours()) + pad(now.getMinutes()) + "00";
     const fname = stamp + "-market-" + bfTitle().replace(/[\\/:*?"<>|\s·：]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40) + ".md";
-    const grpOpts = [["all", "全部来源"], ["news", "财经媒体"], ["corp,corpkw", "大公司"], ["media,indkw", "行业媒体"], ["policy", "政策数据"], ["global", "海外"], ["mine", "我加的"]];
+    const grpOpts = [["all", "全部来源"], ["news", "财经媒体"], ["corp,corpkw,firm", "大公司"], ["media,indkw", "行业媒体"], ["policy", "政策数据"], ["global", "海外"], ["mine", "我加的"]];
     const parts = (info && info.parts) || [];
     const segB = (name, opts, cur) => '<div class="bz-seg" role="group" data-seg="' + name + '">' + opts.map(([v, t]) => '<button type="button" data-v="' + v + '" aria-pressed="' + (String(v) === String(cur)) + '">' + t + "</button>").join("") + "</div>";
     el.innerHTML = dlgHead("bzBriefT", "生成简报", "AI 读完你选的新闻，写成一份「市场动向简报」文档，存在你电脑上。") +

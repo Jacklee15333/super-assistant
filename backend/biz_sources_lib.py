@@ -284,6 +284,27 @@ global|2|MacRumors|https://www.macrumors.com/|苹果生态
 """
 
 
+def firms():
+    """v180：各行业全球前 100 家企业的官网（biz_firms.json，从 FinanceDatabase 的全球上市公司数据生成）。返回 (版本, [信息源])。"""
+    import json
+    import os
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "biz_firms.json")
+    try:
+        with open(p, encoding="utf-8") as f:
+            d = json.load(f)
+    except Exception:
+        return 0, []
+    out = []
+    for f in d.get("firms", []):
+        sub = f.get("sub", "")
+        rk = "、".join(r.replace("#", "第 ") + " 名" for r in (f.get("ranks") or [])[:2])
+        out.append({"id": f["id"], "name": f["name"], "kind": "site", "url": f["url"], "home": f["url"], "portal": True,
+                    "group": "firm", "w": int(f.get("w") or 1), "country": f.get("country", ""),
+                    "desc": " · ".join(x for x in (sub.split("/")[-1], f.get("country", ""), f.get("tier", ""), rk) if x),
+                    "hint": f.get("hint") or [], "lib": True})
+    return int(d.get("v") or 1), out
+
+
 def _sid(prefix, text):
     return prefix + hashlib.md5(text.encode("utf-8")).hexdigest()[:8]
 
@@ -337,5 +358,9 @@ def library(tax=None):
         for t in tax.get("tracks", []):
             for k in (t.get("kw") or "").split():
                 kw(k, "indkw", 1, "%s 的关键词" % t.get("name", ""), [t["id"]])
+    for f in firms()[1]:                                  # v180：全球企业官网
+        if f["url"].rstrip("/").lower() not in seen_url:
+            seen_url.add(f["url"].rstrip("/").lower())
+            out.append(f)
     out.sort(key=lambda s: (0 if s["kind"] == "site" else 1, -s["w"]))
     return out

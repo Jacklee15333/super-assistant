@@ -57,6 +57,7 @@ FEED_ACCEPT = "application/rss+xml, application/atom+xml, application/xml, text/
 GROUPS = [
     ("news", "财经商业媒体", "综合报道各行各业的新闻和快讯"),
     ("corp", "大公司官网", "大公司自己发的新闻稿和博客"),
+    ("firm", "全球企业官网", "各行业全球前 100 家企业的官网（第一次抓时自动找到它的新闻页）"),
     ("corpkw", "大公司动态", "按公司名搜新闻：别人怎么报道它"),
     ("media", "行业头部媒体", "各个行业的专业媒体"),
     ("indkw", "行业热词", "按行业或话题搜最新新闻"),
@@ -222,7 +223,101 @@ def _sources():
             data = [_from_catalog(c) for c in CATALOG if c[7]]
             _write_json(SRC_FILE, data)
         _ST["sources"] = data
+        try:
+            _firms_sync(data)                    # v180：全球企业官网（只加一次）
+        except Exception as e:
+            _log("加全球企业官网出错（不影响别的）：%s" % e)
     return _ST["sources"]
+
+
+def _root(h):
+    """网址的主域名（www.apple.com → apple.com，news.sina.com.cn → sina.com.cn）。"""
+    p = (h or "").lower().split(".")
+    if len(p) >= 3 and len(p[-1]) == 2 and p[-2] in ("com", "co", "net", "org", "gov", "edu", "ac", "or", "ne"):
+        return ".".join(p[-3:])
+    return ".".join(p[-2:])
+
+
+def _firms_sync(srcs):
+    """v180：第一次用这一版时，把各行业全球前 100 家企业的官网加进清单（同一个网站已经有了就跳过）。
+    只加一次：之后你删掉或关掉的，不会再自己加回来（推荐库里还能再加）。"""
+    try:
+        import biz_sources_lib as SL
+        v, firms = SL.firms()
+    except Exception as e:
+        _log("全球企业官网清单读不到：%s" % e)
+        return 0
+    c = _read_json(CFG_FILE, {})
+    c = c if isinstance(c, dict) else {}
+    if not firms or int(c.get("firms_v") or 0) >= v:
+        return 0
+    have_i = {s.get("id") for s in srcs}
+    have_r = {_root(_site(s.get(k) or "")) for s in srcs for k in ("url", "home") if s.get(k)}
+    now, n = int(time.time()), 0
+    for f in firms:
+        r = _root(_site(f["url"]))
+        if f["id"] in have_i or not r or r in have_r:
+            continue
+        x = dict(f)
+        x.update(enabled=True, added=now)
+        srcs.append(x)
+        have_i.add(f["id"])
+        have_r.add(r)
+        n += 1
+    srcs.sort(key=lambda s: -_w(s))
+    _write_json(SRC_FILE, srcs)
+    c["firms_v"] = v
+    _write_json(CFG_FILE, c)
+    _log("加进 %d 个全球企业官网（各行业全球前 100 家，已经有的 %d 个跳过）" % (n, len(firms) - n))
+    return n
+
+
+_NR_TEXT = re.compile(r"^(news ?room|news|press|press ?(room|releases?|cent(er|re)|kit)|media( ?(cent(er|re)|room|relations))?|"
+                      r"news ?(&|and) ?(media|events|press|insights|stories)|latest news|news ?(&|and) ?updates|stories|"
+                      r"新闻中心|新闻动态|公司新闻|企业新闻|新闻资讯|新闻|媒体中心|资讯中心|公司动态|企业动态|最新动态|新闻发布|新闻与活动|"
+                      r"ニュース(リリース)?|プレスリリース|ニュースルーム|뉴스(룸)?|보도자료|홍보센터|presse|pressemitteilungen|aktuelles|"
+                      r"actualités|communiqués( de presse)?|noticias|sala de (prensa|imprensa)|notizie|comunicati stampa|nieuws|persberichten)$", re.I)
+_NR_HREF = re.compile(r"/(news-?room|news|press(-?releases?|room|-?cent(er|re))?|media(-?cent(er|re)|room)?|xwzx|xwdt|gsxw|qydt|zxdt|"
+                      r"newscenter|news-?center|presse|actualites|noticias|notizie|nieuws|stories)(/|\.|_|-|\?|$)", re.I)
+
+
+def _newsroom_link(h, base):
+    """企业官网首页 → 它的新闻页（Newsroom / Press / 新闻中心 / ニュースリリース / 보도자료 / Presse …）。找不到返回空。"""
+    best, bs, bh = "", 0, _site(base)
+    for m in re.finditer(r'<a\b[^>]*?\bhref\s*=\s*["\']([^"\'#][^"\']*)["\'][^>]*>(.*?)</a>', h or "", re.I | re.S):
+        u = urllib.parse.urljoin(base, _html.unescape(m.group(1).strip())).split("#")[0]
+        if not u.startswith("http") or re.search(r"linkedin\.|twitter\.|facebook\.|youtube\.|weibo\.|instagram\.|//x\.com/", u, re.I):
+            continue
+        txt = re.sub(r"\s+", " ", _html.unescape(re.sub(r"<[^>]+>", " ", m.group(2)))).strip(" >›»|")
+        sc = 3 if (txt and len(txt) <= 40 and _NR_TEXT.match(txt)) else 0
+        if _NR_HREF.search(urllib.parse.urlparse(u).path or "/"):
+            sc += 2
+        hs = _site(u)
+        if not sc:
+            continue
+        sc += 1 if _root(hs) == _root(bh) else -2                 # 别的网站上的「新闻」（比如外链媒体）不要
+        if urllib.parse.urlparse(u).path.rstrip("/") in ("", "/") and _root(hs) == _root(bh) and hs == bh:
+            sc -= 3                                                # 链回首页的
+        if sc > bs:
+            best, bs = u, sc
+    return best if bs >= 3 else ""
+
+
+def _find_newsroom(src, trace):
+    """v180：企业官网第一次抓：打开首页，找到它的新闻页并记住（以后直接抓新闻页）。"""
+    home = src.get("home") or src["url"]
+    t0 = time.time()
+    try:
+        b, final = _get(home, timeout=15)
+    except Exception as e:
+        _step(trace, "找新闻页", t0, False, 0, "官网打不开：" + _human(e))
+        raise
+    nr = _newsroom_link(_P()._text(b), final or home)
+    with _LOCK:
+        src["nr"] = nr or "-"
+        if nr:
+            src["url"] = nr
+    _step(trace, "找新闻页", t0, bool(nr), 0, ("找到了：" + nr) if nr else "首页上没找到新闻页，先直接看首页")
 
 
 def _save_sources():
@@ -268,7 +363,7 @@ def save_config(auto=None, every=None, workers=None, sc_fast=None, sc_browser=No
 
 
 # ───────────────────────── v170：权重（1～5）和轮流抓 ─────────────────────────
-W_DEFAULT = {"news": 5, "policy": 5, "corp": 4, "media": 4, "global": 4, "corpkw": 4, "indkw": 4, "mine": 4}   # 原来清单里的默认都每轮抓
+W_DEFAULT = {"firm": 2, "news": 5, "policy": 5, "corp": 4, "media": 4, "global": 4, "corpkw": 4, "indkw": 4, "mine": 4}   # 原来清单里的默认都每轮抓
 W_MULT = {3: 3, 2: 8, 1: 24}          # 权重 3：隔 3 轮抓一次；2：隔 8 轮；1：隔 24 轮（5、4 每轮都抓）
 W_NAME = {5: "最高", 4: "高", 3: "中", 2: "低", 1: "最低"}
 
@@ -582,12 +677,16 @@ SC_NAME = {"fast": "Scrapling 快速", "browser": "Scrapling 浏览器"}
 def _fetch_site(src, trace):
     """一个网站 → (内容, 用的哪个爬虫)。顺序：RSS → 网页解析 → Scrapling 快速 → Scrapling 浏览器；管用的记住，下次先用。"""
     import site_watch as SW
+    if src.get("portal") and not src.get("nr"):          # v180：企业官网：第一次先在首页找它的新闻页
+        _find_newsroom(src, trace)
     url = src["url"]
     name = src.get("name", "")
     pref = src.get("pref") if src.get("pref") in ("fast", "browser") else ""
     use_sc = _scrapling_ok()
     cfg = _run.get("cfg") or {}
     modes = [m for m in ("fast", "browser") if cfg.get("sc_" + m, True)]   # v158：设置里关掉的补救方式不用
+    if src.get("portal"):
+        modes = [m for m in modes if m == "fast"]          # v180：企业官网有几千个，不开真浏览器（太慢）
     if pref not in modes:
         pref = ""
     if not modes:
