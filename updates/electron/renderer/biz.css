@@ -1012,3 +1012,19 @@ body.dark .view-biz { --bz-up: #6cc08b; --bz-warn: #e0a24a; --bz-bad: #e5907a; }
 .view-biz .bz-resume h3 { margin-top: 0; }
 .view-biz .bz-resume p { margin: 0 0 8px; font-size: 13px; line-height: 1.7; }
 .view-biz .bz-sec-off .bz-upd-sum, .view-biz .bz-sec-off .bz-cats, .view-biz .bz-sec-off .bz-force, .view-biz .bz-sec-off .bz-failrow { opacity: .45; }
+
+/* ── v178：鼠标放在哪一圈，那一圈（连里面的点和字）变大一点、浮在最上面；右边列表的行也微微放大 ── */
+.view-biz .bz-rad-svg .cell { transform-box: view-box; transform-origin: var(--ox, 0px) var(--oy, 0px); }
+.view-biz .bz-rad-svg .cell.hov { transform: scale(1.08); filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .24)); transition: transform .22s cubic-bezier(.2, .9, .3, 1.3), filter .22s; }
+.view-biz .bz-rad-svg .cell.cpop.hov { transform: translate(var(--cx), var(--cy)) scale(1.08); }
+.view-biz .bz-rad-svg .cell.hov .band-c { fill-opacity: .3; stroke: currentColor; stroke-width: 1.6; }
+.view-biz .bz-rad-svg .cell.hov .rim { font-weight: 650; }
+.view-biz .bz-rad-svg.foc .cell.hov .fx { opacity: .92; }
+.view-biz .bz-rp-scroll { overflow-x: hidden; }
+.view-biz .bz-rad-rank button { transition: transform .15s ease, background .15s; transform-origin: left center; }
+.view-biz .bz-rad-rank button:hover { transform: scale(1.02); }
+.view-biz .bz-rad-rank button:hover .nm { color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .view-biz .bz-rad-svg .cell.hov, .view-biz .bz-rad-rank button { transition: none; } }
+/* v178：时间选项多了，顶上这一行收紧一点，不换行 */
+.view-biz .bz-pane[data-pane="radar"] > .bz-bar .bz-seg[data-seg="mdays"] button { padding: 5px 9px; }
+.view-biz .bz-pane[data-pane="radar"] > .bz-bar #bzRq { flex: 1 1 150px; min-width: 120px; max-width: 320px; width: auto; }
