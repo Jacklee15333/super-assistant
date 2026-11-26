@@ -405,32 +405,46 @@
         const r2 = ci === k - 1 ? RB : r1 + ((RB - R0) * wt[ci]) / wsum;
         const on = selItem && (selItem.parent === c.name || selItem.id === c.id);
         wedges += '<path d="' + arc(r1, r2, a0, a1) + '" class="wedge band-c' + (on ? " on" : "") + '" fill="' + w.color + '" fill-opacity="' + (0.05 + 0.1 * ((ci % 2) ? 0.55 : 1)) + '"/>';
-        // 名字：沿着这一圈的弧写（下半圈反过来写，免得倒着），放在这一圈靠外的地方
-        const th = r2 - r1, rt = r2 - Math.min(11, th * 0.32), am = (a0 + a1) / 2, low = Math.sin(am) > 0.15;
+        // v172：名字放在这一圈正中间（半径、角度都居中），沿着弧写，下半圈反过来写免得倒着
+        const th = r2 - r1, rm = (r1 + r2) / 2, am = (a0 + a1) / 2, low = Math.sin(am) > 0.15;
         const lab = c.name + (c.n ? " " + c.n : "");
-        const room = rt * span * 0.92, need = lab.length * 12;
-        if (th >= 20 && room >= Math.min(need, 36)) {
+        const room = rm * span * 0.9;
+        let txt = "";
+        if (th >= 18) {
+          if (room >= lab.length * 12.5) txt = lab;
+          else if (room >= c.name.length * 12.5) txt = c.name;
+          else if (room >= 40) txt = c.name.slice(0, Math.max(1, Math.floor(room / 12.5) - 1)) + "…";
+        }
+        const labW = txt ? (txt.length * 12.5 + 14) / rm : 0;          // 名字占的角度
+        if (txt) {
           const pid = "bzArc" + wi + "_" + ci;
-          const [sx, sy] = pt(rt, low ? a1 : a0), [ex, ey] = pt(rt, low ? a0 : a1);
-          defs += '<path id="' + pid + '" d="M' + sx.toFixed(1) + "," + sy.toFixed(1) + " A" + rt.toFixed(1) + "," + rt.toFixed(1) + " 0 " + (span > Math.PI ? 1 : 0) + " " + (low ? 0 : 1) + " " + ex.toFixed(1) + "," + ey.toFixed(1) + '"/>';
-          const txt = room >= need ? lab : (c.name.length > Math.floor(room / 12) ? c.name.slice(0, Math.max(1, Math.floor(room / 12) - 1)) + "…" : c.name);
-          rim += '<text class="rim' + (c.n ? "" : " q") + (on ? " on" : "") + '" fill="' + w.color + '" dominant-baseline="middle"><textPath href="#' + pid + '" startOffset="50%" text-anchor="middle">' +
+          const [sx, sy] = pt(rm, low ? a1 : a0), [ex, ey] = pt(rm, low ? a0 : a1);
+          defs += '<path id="' + pid + '" d="M' + sx.toFixed(1) + "," + sy.toFixed(1) + " A" + rm.toFixed(1) + "," + rm.toFixed(1) + " 0 " + (span > Math.PI ? 1 : 0) + " " + (low ? 0 : 1) + " " + ex.toFixed(1) + "," + ey.toFixed(1) + '"/>';
+          rim += '<text class="rim' + (c.n ? "" : " q") + (on ? " on" : "") + '" fill="' + w.color + '" dominant-baseline="central"><textPath href="#' + pid + '" startOffset="50%" text-anchor="middle">' +
             esc(txt) + "</textPath></text>";
         }
-        // 圆点：排在这一圈靠里的地方，沿着弧均匀铺开
+        // 圆点：和名字在同一条中线上，名字左右两边交替排开；放不下的排到名字上下
         const act = c.items.filter((x) => x.n).sort((p, q) => q.n - p.n), quiet = c.items.filter((x) => !x.n);
-        const rd = th >= 30 ? r1 + th * 0.4 : r1 + th * 0.5;
-        const aIn = a0 + span * 0.06, aSpan = span * 0.88;
         const maxSize = Math.max(3, Math.min(11, th * 0.3));
-        const perRow = Math.max(1, Math.floor((rd * aSpan) / (maxSize * 2 + 8)));
-        const rows = Math.min(2, Math.ceil(act.length / perRow));
-        act.forEach((it, i) => {
-          const row = rows > 1 ? i % 2 : 0, idx = rows > 1 ? Math.floor(i / 2) : i, cnt = rows > 1 ? Math.ceil(act.length / 2) - (row && act.length % 2 ? 1 : 0) : act.length;
-          const rr = rows > 1 ? r1 + th * (row ? 0.58 : 0.28) : rd;
-          const [x, y] = pt(rr, aIn + aSpan * ((idx + 0.5) / Math.max(1, cnt)));
+        const edge = span * 0.05, sideL = [a0 + edge, am - labW / 2], sideR = [am + labW / 2, a1 - edge];
+        const step = (maxSize * 2 + 7) / rm;
+        const capL = Math.max(0, Math.floor((sideL[1] - sideL[0]) / step)), capR = Math.max(0, Math.floor((sideR[1] - sideR[0]) / step));
+        const left = [], right = [], extra = [];
+        act.forEach((it, i) => { if (i % 2 === 0 ? left.length < capL : right.length < capR) (i % 2 === 0 ? left : right).push(it); else if (left.length < capL) left.push(it); else if (right.length < capR) right.push(it); else extra.push(it); });
+        const place = (arr, lo, hi, rr, fromInner) => arr.forEach((it, j) => {
+          const t = arr.length === 1 ? 0.5 : j / (arr.length - 1);
+          const a = fromInner ? hi - (hi - lo) * (0.15 + 0.7 * t) : lo + (hi - lo) * (0.15 + 0.7 * t);
+          const [x, y] = pt(rr, a);
           pos.push({ it, x, y, size: Math.min(maxSize, 3 + 9 * Math.sqrt(it.n / M.max)) });
         });
-        quiet.forEach((it, j) => { const [x, y] = pt(r1 + th * 0.15 + 3, aIn + aSpan * ((j + 0.5) / quiet.length)); pos.push({ it, x, y, size: 1.6 }); });
+        place(left, sideL[0], sideL[1], rm, true);                    // 左边：越大越靠近名字
+        place(right, sideR[0], sideR[1], rm, false);
+        if (extra.length) {                                          // 放不下的：名字上下各一排
+          const up = extra.filter((_, i) => i % 2 === 0), dn = extra.filter((_, i) => i % 2 === 1);
+          place(up, a0 + edge, a1 - edge, rm + th * 0.3, false);
+          place(dn, a0 + edge, a1 - edge, rm - th * 0.3, false);
+        }
+        quiet.forEach((it, j) => { const [x, y] = pt(r1 + Math.min(6, th * 0.18), a0 + span * (0.1 + 0.8 * ((j + 0.5) / quiet.length))); pos.push({ it, x, y, size: 1.4 }); });
         r1 = r2;
       });
       // 大类：外面一条彩色的弧 + 名字
@@ -439,7 +453,6 @@
       const anchor = Math.abs(Math.cos(am)) < 0.3 ? "middle" : Math.cos(am) > 0 ? "start" : "end";
       const dy = Math.sin(am) > 0.3 ? 18 : Math.sin(am) < -0.3 ? -2 : 7;
       labels += '<text x="' + lx.toFixed(1) + '" y="' + (ly + dy).toFixed(1) + '" text-anchor="' + anchor + '" class="secl" fill="' + w.color + '">' + esc(w.name) + '<tspan class="secn"> ' + w.n + "</tspan></text>";
-      [a0, a1].forEach((a) => { spokes += '<line x1="' + pt(R0, a)[0].toFixed(1) + '" y1="' + pt(R0, a)[1].toFixed(1) + '" x2="' + pt(R + 2, a)[0].toFixed(1) + '" y2="' + pt(R + 2, a)[1].toFixed(1) + '" class="sp2" stroke="' + w.color + '"/>'; });
       a0 = a1 + GAP;
     });
     S.radPos = {};
@@ -456,11 +469,11 @@
     });
     labels = rim + labels;
     const RD = RB;
-    const rings = '<circle cx="0" cy="0" r="' + RD + '" class="rg"/>';
+    const rings = "";                          // v172：去掉旧版留下的圆圈和放射线
     const svg = '<svg class="bz-rad-svg" viewBox="' + S.radVB.x + " " + S.radVB.y + " " + S.radVB.w + " " + S.radVB.h + '" role="img" aria-label="市场雷达：按行业分好类的新闻，越靠近中心新闻越多">' +
       "<defs>" + defs + '<radialGradient id="bzRadBg"><stop offset="0" stop-color="var(--accent)" stop-opacity=".10"/><stop offset="1" stop-color="var(--accent)" stop-opacity=".02"/></radialGradient>' +
       '<linearGradient id="bzSweep" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="var(--accent)" stop-opacity="0"/><stop offset="1" stop-color="var(--accent)" stop-opacity=".28"/></linearGradient></defs>' +
-      '<circle cx="' + C + '" cy="' + C + '" r="' + R + '" fill="url(#bzRadBg)"/>' + wedges + rings + spokes +
+      wedges + rings + spokes +
       '<g class="sweep" style="transform-origin:' + C + "px " + C + 'px"><path d="M' + C + "," + C + " L" + (C + R) + "," + C + " A" + R + "," + R + " 0 0 0 " + pt(R, -0.55)[0].toFixed(1) + "," + pt(R, -0.55)[1].toFixed(1) + ' Z" fill="url(#bzSweep)"/>' +
         '<line x1="' + C + '" y1="' + C + '" x2="' + (C + R) + '" y2="' + C + '" class="sw-l"/></g>' +
       '<circle cx="' + C + '" cy="' + C + '" r="' + (R0 - 4) + '" class="hub"/><circle cx="' + C + '" cy="' + C + '" r="4" class="ctr"/>' + labels + blips + "</svg>";
