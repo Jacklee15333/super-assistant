@@ -284,6 +284,225 @@ global|2|MacRumors|https://www.macrumors.com/|苹果生态
 """
 
 
+# v181：GDP 前 100 的国家（世界银行 2023 年数据，按 GDP 从高到低）和它们的官方媒体
+GDP_RANK = ['USA', 'CHN', 'DEU', 'JPN', 'IND', 'GBR', 'FRA', 'ITA', 'BRA', 'CAN', 'RUS', 'MEX', 'AUS', 'KOR', 'ESP', 'IDN', 'NLD', 'TUR', 'SAU', 'CHE', 'POL', 'ARG', 'BEL', 'SWE', 'IRL', 'AUT', 'THA', 'ISR', 'ARE', 'SGP', 'NOR', 'BGD', 'PHL', 'VNM', 'DNK', 'IRN', 'MYS', 'EGY', 'HKG', 'ZAF', 'COL', 'NGA', 'ROU', 'PAK', 'CHL', 'CZE', 'FIN', 'PRT', 'PER', 'KAZ', 'NZL', 'IRQ', 'DZA', 'GRC', 'QAT', 'HUN', 'UKR', 'ETH', 'KWT', 'MAR', 'SVK', 'DOM', 'ECU', 'PRI', 'SDN', 'OMN', 'KEN', 'GTM', 'BGR', 'UZB', 'CRI', 'LUX', 'AGO', 'LKA', 'PAN', 'HRV', 'TZA', 'CIV', 'LTU', 'URY', 'GHA', 'SRB', 'AZE', 'BLR', 'SVN', 'COD', 'MMR', 'TKM', 'JOR', 'LBY', 'UGA', 'TUN', 'CMR', 'MAC', 'BOL', 'LVA', 'BHR', 'PRY', 'NPL', 'EST']
+
+# 国家代码|国家|名字|网址|一句话：国家通讯社、公共广播电视、政府新闻；有中文版的也加了
+MEDIA = """
+USA|美国|美联社 AP|https://apnews.com/|美国最大的通讯社
+USA|美国|美国之音|https://www.voanews.com/|美国官方国际广播
+USA|美国|美国之音中文|https://www.voachinese.com/|美国之音中文网
+USA|美国|NPR 新闻|https://www.npr.org/sections/news/|美国全国公共广播
+USA|美国|PBS NewsHour|https://www.pbs.org/newshour/|美国公共电视新闻
+CHN|中国|新华网|https://www.news.cn/|新华社
+CHN|中国|新华社英文|https://english.news.cn/|新华社英文版
+CHN|中国|人民网|http://www.people.com.cn/|人民日报
+CHN|中国|央视新闻|https://news.cctv.com/|中央广播电视总台
+CHN|中国|中国新闻网|https://www.chinanews.com.cn/|中国新闻社
+CHN|中国|中国日报|https://www.chinadaily.com.cn/|中国日报英文版
+CHN|中国|CGTN|https://www.cgtn.com/|中国国际电视台
+DEU|德国|德国之声中文|https://www.dw.com/zh/|德国官方国际广播中文
+DEU|德国|DW English|https://www.dw.com/en/|德国之声英文
+DEU|德国|tagesschau|https://www.tagesschau.de/|德国公共广播 ARD 新闻
+DEU|德国|ZDFheute|https://www.zdf.de/nachrichten|德国电视二台新闻
+JPN|日本|NHK 中文|https://www3.nhk.or.jp/nhkworld/zh/news/|日本放送协会中文新闻
+JPN|日本|NHK World|https://www3.nhk.or.jp/nhkworld/en/news/|日本放送协会英文新闻
+JPN|日本|NHK ニュース|https://www3.nhk.or.jp/news/|日本放送协会日文新闻
+JPN|日本|共同网中文|https://china.kyodonews.net/|日本共同社中文
+JPN|日本|Kyodo News|https://english.kyodonews.net/|日本共同社英文
+IND|印度|印度政府新闻局 PIB|https://pib.gov.in/|印度政府新闻发布
+IND|印度|DD News|https://ddnews.gov.in/|印度国家电视台新闻
+IND|印度|全印广播新闻|https://newsonair.gov.in/|印度国家广播
+IND|印度|PTI|https://www.ptinews.com/|印度报业托拉斯（通讯社）
+GBR|英国|BBC News|https://www.bbc.com/news|英国广播公司
+GBR|英国|BBC 中文|https://www.bbc.com/zhongwen/simp|英国广播公司中文
+GBR|英国|GOV.UK 新闻|https://www.gov.uk/search/news-and-communications|英国政府新闻
+FRA|法国|法新社|https://www.afp.com/en|法国新闻社
+FRA|法国|France 24|https://www.france24.com/en/|法国国际电视台
+FRA|法国|法广中文|https://www.rfi.fr/cn/|法国国际广播电台中文
+FRA|法国|franceinfo|https://www.francetvinfo.fr/|法国公共广播新闻
+ITA|意大利|ANSA English|https://www.ansa.it/english/|意大利安莎社英文
+ITA|意大利|ANSA|https://www.ansa.it/|意大利安莎社
+ITA|意大利|RaiNews|https://www.rainews.it/|意大利广播电视公司新闻
+BRA|巴西|Agência Brasil|https://agenciabrasil.ebc.com.br/|巴西国家通讯社
+BRA|巴西|Agência Gov|https://agenciagov.ebc.com.br/|巴西政府新闻
+CAN|加拿大|CBC News|https://www.cbc.ca/news|加拿大广播公司
+CAN|加拿大|Radio-Canada Info|https://ici.radio-canada.ca/info|加拿大广播公司法语新闻
+RUS|俄罗斯|塔斯社 TASS|https://tass.com/|俄罗斯塔斯社英文
+RUS|俄罗斯|ТАСС|https://tass.ru/|俄罗斯塔斯社俄文
+RUS|俄罗斯|卫星通讯社中文|https://sputniknews.cn/|俄罗斯卫星通讯社中文
+RUS|俄罗斯|РИА Новости|https://ria.ru/|俄新社
+MEX|墨西哥|Once Noticias|https://oncenoticias.digital/|墨西哥公共电视台新闻
+MEX|墨西哥|墨西哥总统府新闻|https://www.gob.mx/presidencia/es/archivo/prensa|墨西哥政府新闻稿
+AUS|澳大利亚|ABC News|https://www.abc.net.au/news|澳大利亚广播公司
+AUS|澳大利亚|ABC 中文|https://www.abc.net.au/chinese|澳大利亚广播公司中文
+AUS|澳大利亚|SBS News|https://www.sbs.com.au/news|澳大利亚特别广播服务公司
+AUS|澳大利亚|SBS 中文|https://www.sbs.com.au/language/chinese/zh-hans|澳大利亚特别广播服务公司中文
+KOR|韩国|韩联社中文|https://cn.yna.co.kr/|韩国联合通讯社中文
+KOR|韩国|Yonhap News|https://en.yna.co.kr/|韩国联合通讯社英文
+KOR|韩国|KBS 中文|https://world.kbs.co.kr/service/index.htm?lang=c|韩国放送公社中文
+KOR|韩国|Korea.net|https://www.korea.net/|韩国政府网
+ESP|西班牙|EFE|https://efe.com/|西班牙埃菲社
+ESP|西班牙|RTVE Noticias|https://www.rtve.es/noticias/|西班牙广播电视台新闻
+IDN|印尼|ANTARA English|https://en.antaranews.com/|印尼安塔拉通讯社英文
+IDN|印尼|ANTARA|https://www.antaranews.com/|印尼安塔拉通讯社
+NLD|荷兰|NOS|https://nos.nl/|荷兰公共广播新闻
+NLD|荷兰|Government.nl|https://www.government.nl/latest/news|荷兰政府新闻
+TUR|土耳其|阿纳多卢通讯社|https://www.aa.com.tr/en|土耳其官方通讯社
+TUR|土耳其|TRT World|https://www.trtworld.com/|土耳其国际电视台
+TUR|土耳其|TRT 中文|https://www.trt.net.tr/chinese/|土耳其广播电视台中文
+SAU|沙特|沙特通讯社 SPA|https://www.spa.gov.sa/en|沙特官方通讯社
+SAU|沙特|Al Arabiya|https://english.alarabiya.net/|阿拉伯卫视英文
+CHE|瑞士|瑞士资讯中文|https://www.swissinfo.ch/chi/|瑞士广播公司国际部中文
+CHE|瑞士|SWI swissinfo|https://www.swissinfo.ch/eng/|瑞士广播公司国际部英文
+CHE|瑞士|SRF News|https://www.srf.ch/news|瑞士德语广播电视新闻
+POL|波兰|PAP|https://www.pap.pl/en|波兰通讯社
+POL|波兰|TVP Info|https://www.tvp.info/|波兰电视台新闻
+ARG|阿根廷|Argentina.gob.ar|https://www.argentina.gob.ar/noticias|阿根廷政府新闻
+BEL|比利时|Belga News Agency|https://www.belganewsagency.eu/|比利时通讯社
+BEL|比利时|VRT NWS|https://www.vrt.be/vrtnws/nl/|比利时荷语公共广播
+BEL|比利时|RTBF Info|https://www.rtbf.be/info|比利时法语公共广播
+SWE|瑞典|SVT Nyheter|https://www.svt.se/nyheter/|瑞典电视台新闻
+SWE|瑞典|Ekot|https://sverigesradio.se/ekot|瑞典广播电台新闻
+IRL|爱尔兰|RTÉ News|https://www.rte.ie/news/|爱尔兰广播电视台
+AUT|奥地利|ORF|https://orf.at/|奥地利广播公司
+THA|泰国|泰国国家新闻局 NNT|https://thainews.prd.go.th/en/|泰国政府新闻
+THA|泰国|Thai PBS World|https://www.thaipbsworld.com/|泰国公共电视英文
+ISR|以色列|Kan|https://www.kan.org.il/|以色列公共广播
+ARE|阿联酋|阿联酋通讯社 WAM|https://www.wam.ae/en|阿联酋官方通讯社
+SGP|新加坡|CNA|https://www.channelnewsasia.com/|新加坡亚洲新闻台
+SGP|新加坡|8视界|https://www.8world.com/|新加坡新传媒中文新闻
+SGP|新加坡|联合早报|https://www.zaobao.com.sg/|新加坡中文大报
+NOR|挪威|NRK|https://www.nrk.no/nyheter/|挪威广播公司
+BGD|孟加拉国|BSS|https://www.bssnews.net/|孟加拉国家通讯社
+PHL|菲律宾|PNA|https://www.pna.gov.ph/|菲律宾通讯社
+PHL|菲律宾|PTV News|https://ptvnews.ph/|菲律宾国家电视台
+VNM|越南|越通社中文|https://zh.vietnamplus.vn/|越南通讯社中文
+VNM|越南|VietnamPlus|https://en.vietnamplus.vn/|越南通讯社英文
+VNM|越南|VTV|https://vtv.vn/|越南国家电视台
+DNK|丹麦|DR Nyheder|https://www.dr.dk/nyheder|丹麦广播公司
+IRN|伊朗|IRNA English|https://en.irna.ir/|伊朗伊斯兰共和国通讯社
+IRN|伊朗|Press TV|https://www.presstv.ir/|伊朗英语电视台
+IRN|伊朗|今日伊朗中文|https://parstoday.ir/zh|伊朗广播电视中文
+MYS|马来西亚|马新社|https://www.bernama.com/en/|马来西亚国家新闻社
+MYS|马来西亚|马新社中文|https://www.bernama.com/zh/|马来西亚国家新闻社中文
+EGY|埃及|Ahram Online|https://english.ahram.org.eg/|金字塔报英文
+EGY|埃及|埃及国家信息服务处|https://www.sis.gov.eg/|埃及政府新闻
+HKG|中国香港|香港电台新闻|https://news.rthk.hk/rthk/ch/|香港电台
+HKG|中国香港|香港政府新闻网|https://www.news.gov.hk/chi/|香港特区政府新闻
+HKG|中国香港|香港政府新闻公报|https://www.info.gov.hk/gia/|香港特区政府新闻稿
+ZAF|南非|SABC News|https://www.sabcnews.com/|南非广播公司
+ZAF|南非|SAnews|https://www.sanews.gov.za/|南非政府新闻社
+COL|哥伦比亚|RTVC Noticias|https://www.rtvcnoticias.com/|哥伦比亚公共广播新闻
+NGA|尼日利亚|尼日利亚通讯社 NAN|https://nannews.ng/|尼日利亚官方通讯社
+NGA|尼日利亚|Voice of Nigeria|https://von.gov.ng/|尼日利亚之声
+ROU|罗马尼亚|Agerpres|https://www.agerpres.ro/english|罗马尼亚国家通讯社
+PAK|巴基斯坦|APP|https://www.app.com.pk/|巴基斯坦联合通讯社
+PAK|巴基斯坦|Radio Pakistan|https://www.radio.gov.pk/|巴基斯坦国家广播
+CHL|智利|24 Horas (TVN)|https://www.24horas.cl/|智利国家电视台新闻
+CHL|智利|Gob.cl|https://www.gob.cl/noticias/|智利政府新闻
+CZE|捷克|ČTK České noviny|https://www.ceskenoviny.cz/|捷克通讯社
+CZE|捷克|ČT24|https://ct24.ceskatelevize.cz/|捷克电视台新闻
+FIN|芬兰|Yle News|https://yle.fi/news|芬兰广播公司英文
+FIN|芬兰|Yle Uutiset|https://yle.fi/uutiset|芬兰广播公司
+PRT|葡萄牙|Lusa|https://www.lusa.pt/|葡萄牙通讯社
+PRT|葡萄牙|RTP Notícias|https://www.rtp.pt/noticias/|葡萄牙广播电视台
+PER|秘鲁|Andina|https://andina.pe/|秘鲁国家通讯社
+PER|秘鲁|Andina English|https://andina.pe/ingles/|秘鲁国家通讯社英文
+KAZ|哈萨克斯坦|Kazinform|https://en.inform.kz/|哈萨克斯坦国家通讯社
+NZL|新西兰|RNZ|https://www.rnz.co.nz/news|新西兰广播电台
+IRQ|伊拉克|INA|https://ina.iq/eng/|伊拉克通讯社
+DZA|阿尔及利亚|APS|https://www.aps.dz/en/|阿尔及利亚通讯社
+GRC|希腊|ERT News|https://www.ertnews.gr/|希腊广播电视台
+GRC|希腊|AMNA|https://www.amna.gr/en|希腊雅典-马其顿通讯社
+QAT|卡塔尔|卡塔尔通讯社 QNA|https://www.qna.org.qa/en|卡塔尔官方通讯社
+QAT|卡塔尔|Al Jazeera|https://www.aljazeera.com/|半岛电视台英文
+HUN|匈牙利|Híradó (MTI)|https://hirado.hu/|匈牙利通讯社和公共媒体
+HUN|匈牙利|About Hungary|https://abouthungary.hu/|匈牙利政府新闻
+UKR|乌克兰|Ukrinform|https://www.ukrinform.net/|乌克兰国家通讯社
+UKR|乌克兰|Suspilne|https://suspilne.media/|乌克兰公共广播
+ETH|埃塞俄比亚|ENA|https://www.ena.et/|埃塞俄比亚通讯社
+KWT|科威特|科威特通讯社 KUNA|https://www.kuna.net.kw/|科威特官方通讯社
+MAR|摩洛哥|MAP Express|https://www.mapexpress.ma/en/|摩洛哥通讯社
+SVK|斯洛伐克|TASR|https://www.tasr.sk/|斯洛伐克通讯社
+DOM|多米尼加|多米尼加总统府|https://presidencia.gob.do/noticias|多米尼加政府新闻
+ECU|厄瓜多尔|厄瓜多尔政府传播|https://www.comunicacion.gob.ec/|厄瓜多尔政府新闻
+PRI|波多黎各|波多黎各政府|https://www.pr.gov/|波多黎各政府
+SDN|苏丹|SUNA|https://suna-sd.net/|苏丹通讯社
+OMN|阿曼|阿曼通讯社 ONA|https://omannews.gov.om/|阿曼官方通讯社
+KEN|肯尼亚|KBC|https://www.kbc.co.ke/|肯尼亚广播公司
+KEN|肯尼亚|Kenya News Agency|https://www.kenyanews.go.ke/|肯尼亚通讯社
+GTM|危地马拉|AGN|https://agn.gt/|危地马拉通讯社
+BGR|保加利亚|BTA|https://www.bta.bg/en|保加利亚通讯社
+BGR|保加利亚|BNT News|https://bntnews.bg/|保加利亚国家电视台
+UZB|乌兹别克斯坦|UzA|https://uza.uz/en|乌兹别克斯坦国家通讯社
+CRI|哥斯达黎加|哥斯达黎加总统府|https://www.presidencia.go.cr/|哥斯达黎加政府新闻
+LUX|卢森堡|卢森堡政府新闻|https://gouvernement.lu/en/actualites.html|卢森堡政府
+AGO|安哥拉|ANGOP|https://www.angop.ao/en/|安哥拉通讯社
+LKA|斯里兰卡|Daily News|https://www.dailynews.lk/|斯里兰卡国营报纸
+LKA|斯里兰卡|News.lk|https://www.news.lk/|斯里兰卡政府新闻
+PAN|巴拿马|巴拿马总统府|https://www.presidencia.gob.pa/|巴拿马政府新闻
+HRV|克罗地亚|HINA|https://www.hina.hr/|克罗地亚通讯社
+HRV|克罗地亚|HRT Vijesti|https://vijesti.hrt.hr/|克罗地亚广播电视台
+TZA|坦桑尼亚|Daily News Tanzania|https://dailynews.co.tz/|坦桑尼亚国营报纸
+CIV|科特迪瓦|AIP|https://www.aip.ci/|科特迪瓦通讯社
+CIV|科特迪瓦|RTI Info|https://www.rti.info/|科特迪瓦广播电视台
+LTU|立陶宛|LRT English|https://www.lrt.lt/en|立陶宛广播电视台
+LTU|立陶宛|ELTA|https://www.elta.lt/en|立陶宛通讯社
+URY|乌拉圭|乌拉圭总统府|https://www.gub.uy/presidencia/comunicacion/noticias|乌拉圭政府新闻
+GHA|加纳|GNA|https://gna.org.gh/|加纳通讯社
+GHA|加纳|GBC|https://www.gbcghanaonline.com/|加纳广播公司
+SRB|塞尔维亚|Tanjug|https://www.tanjug.rs/|塞尔维亚通讯社
+SRB|塞尔维亚|RTS|https://www.rts.rs/|塞尔维亚广播电视台
+AZE|阿塞拜疆|AZERTAC|https://azertag.az/en|阿塞拜疆国家通讯社
+BLR|白俄罗斯|BelTA|https://eng.belta.by/|白俄罗斯通讯社英文
+BLR|白俄罗斯|白俄通讯社中文|https://chn.belta.by/|白俄罗斯通讯社中文
+SVN|斯洛文尼亚|STA|https://www.sta.si/|斯洛文尼亚通讯社
+SVN|斯洛文尼亚|RTV SLO|https://www.rtvslo.si/|斯洛文尼亚广播电视台
+COD|刚果（金）|ACP|https://acp.cd/|刚果（金）通讯社
+COD|刚果（金）|Radio Okapi|https://www.radiookapi.net/|刚果（金）联合国电台
+MMR|缅甸|Global New Light of Myanmar|https://www.gnlm.com.mm/|缅甸国营英文报纸
+TKM|土库曼斯坦|TDH|https://tdh.gov.tm/en/|土库曼斯坦国家通讯社
+JOR|约旦|Petra|https://petra.gov.jo/|约旦通讯社
+JOR|约旦|Jordan Times|https://www.jordantimes.com/|约旦英文报纸
+LBY|利比亚|LANA|https://lana.gov.ly/|利比亚通讯社
+UGA|乌干达|New Vision|https://www.newvision.co.ug/|乌干达国营报纸
+TUN|突尼斯|TAP|https://www.tap.info.tn/en|突尼斯通讯社
+CMR|喀麦隆|CRTV|https://www.crtv.cm/|喀麦隆广播电视台
+CMR|喀麦隆|Cameroon Tribune|https://www.cameroon-tribune.cm/|喀麦隆国营报纸
+MAC|中国澳门|澳门新闻局|https://www.gcs.gov.mo/|澳门特区政府新闻局
+MAC|中国澳门|澳广视新闻|https://www.tdm.com.mo/zh-hant/news-list|澳门广播电视
+MAC|中国澳门|澳门日报|http://www.macaodaily.com/|澳门主流中文报纸
+BOL|玻利维亚|ABI|https://abi.bo/|玻利维亚通讯社
+LVA|拉脱维亚|LSM English|https://eng.lsm.lv/|拉脱维亚公共媒体
+BHR|巴林|巴林通讯社 BNA|https://www.bna.bh/en/|巴林官方通讯社
+PRY|巴拉圭|IP Paraguay|https://www.ip.gov.py/|巴拉圭通讯社
+NPL|尼泊尔|RSS|https://rss.org.np/|尼泊尔国家通讯社
+NPL|尼泊尔|The Rising Nepal|https://risingnepaldaily.com/|尼泊尔国营英文报纸
+EST|爱沙尼亚|ERR News|https://news.err.ee/|爱沙尼亚公共广播
+TWN|中国台湾|中央社|https://www.cna.com.tw/|台湾地区通讯社
+"""
+
+
+def media():
+    """v181：GDP 前 100 国家的官方媒体。返回 (版本, [信息源])。权重按 GDP 排名：前 10 每轮都抓，11~30 每小时，31~60 约 3 小时，其余约 8 小时。"""
+    rank = {c: i + 1 for i, c in enumerate(GDP_RANK)}
+    out, seen = [], set()
+    for ln in MEDIA.strip().splitlines():
+        parts = [x.strip() for x in ln.split("|")]
+        if len(parts) != 5:
+            continue
+        iso, country, name, url, desc = parts
+        if url.rstrip("/").lower() in seen:
+            continue
+        seen.add(url.rstrip("/").lower())
+        r = rank.get(iso, 25)                              # 不在世界银行名单里的（中国台湾）按 25 名算
+        w = 4 if r <= 10 else 3 if r <= 30 else 2 if r <= 60 else 1
+        out.append({"id": _sid("M", url), "name": name, "kind": "site", "url": url, "group": "govmedia", "w": w, "country": country,
+                    "desc": "%s · %s" % (country + ("（GDP 第 %d）" % r if iso in rank else ""), desc), "hint": [], "lib": True})
+    return 1, out
+
+
 def firms():
     """v180：各行业全球前 100 家企业的官网（biz_firms.json，从 FinanceDatabase 的全球上市公司数据生成）。返回 (版本, [信息源])。"""
     import json
@@ -297,11 +516,11 @@ def firms():
     out = []
     for f in d.get("firms", []):
         sub = f.get("sub", "")
-        rk = "、".join(r.replace("#", "第 ") + " 名" for r in (f.get("ranks") or [])[:2])
+        rk = "、".join(r.replace("#", "第 ") + " 名" for r in (f.get("ranks") or [])[:2]) + ("（每天看一次）" if f.get("deep") else "")
         out.append({"id": f["id"], "name": f["name"], "kind": "site", "url": f["url"], "home": f["url"], "portal": True,
                     "group": "firm", "w": int(f.get("w") or 1), "country": f.get("country", ""),
                     "desc": " · ".join(x for x in (sub.split("/")[-1], f.get("country", ""), f.get("tier", ""), rk) if x),
-                    "hint": f.get("hint") or [], "lib": True})
+                    "hint": f.get("hint") or [], "lib": True, **({"deep": True} if f.get("deep") else {})})
     return int(d.get("v") or 1), out
 
 
@@ -358,7 +577,7 @@ def library(tax=None):
         for t in tax.get("tracks", []):
             for k in (t.get("kw") or "").split():
                 kw(k, "indkw", 1, "%s 的关键词" % t.get("name", ""), [t["id"]])
-    for f in firms()[1]:                                  # v180：全球企业官网
+    for f in media()[1] + firms()[1]:                     # v181：各国官方媒体；v180：全球企业官网
         if f["url"].rstrip("/").lower() not in seen_url:
             seen_url.add(f["url"].rstrip("/").lower())
             out.append(f)

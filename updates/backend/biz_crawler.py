@@ -57,7 +57,8 @@ FEED_ACCEPT = "application/rss+xml, application/atom+xml, application/xml, text/
 GROUPS = [
     ("news", "财经商业媒体", "综合报道各行各业的新闻和快讯"),
     ("corp", "大公司官网", "大公司自己发的新闻稿和博客"),
-    ("firm", "全球企业官网", "各行业全球前 100 家企业的官网（第一次抓时自动找到它的新闻页）"),
+    ("firm", "全球企业官网", "各行业全球前 300 家企业的官网（第一次抓时自动找到它的新闻页）"),
+    ("govmedia", "各国官方媒体", "GDP 前 100 国家的国家通讯社、公共广播电视和政府新闻（有中文版的也加了）"),
     ("corpkw", "大公司动态", "按公司名搜新闻：别人怎么报道它"),
     ("media", "行业头部媒体", "各个行业的专业媒体"),
     ("indkw", "行业热词", "按行业或话题搜最新新闻"),
@@ -239,37 +240,45 @@ def _root(h):
 
 
 def _firms_sync(srcs):
-    """v180：第一次用这一版时，把各行业全球前 100 家企业的官网加进清单（同一个网站已经有了就跳过）。
-    只加一次：之后你删掉或关掉的，不会再自己加回来（推荐库里还能再加）。"""
+    """v180：第一次用新版时，把推荐的大批信息源加进清单（同一个网站已经有了就跳过）：
+    全球企业官网（v181 起每个行业 300 家）、各国官方媒体（v181）。每份清单只在版本变了时补加一次：
+    之后你删掉或关掉的，不会再自己加回来（推荐库里还能再加）。"""
     try:
         import biz_sources_lib as SL
-        v, firms = SL.firms()
+        packs = [("firms_v", "全球企业官网", "root") + SL.firms(), ("media_v", "各国官方媒体", "url") + SL.media()]
     except Exception as e:
-        _log("全球企业官网清单读不到：%s" % e)
+        _log("推荐清单读不到：%s" % e)
         return 0
     c = _read_json(CFG_FILE, {})
     c = c if isinstance(c, dict) else {}
-    if not firms or int(c.get("firms_v") or 0) >= v:
-        return 0
-    have_i = {s.get("id") for s in srcs}
-    have_r = {_root(_site(s.get(k) or "")) for s in srcs for k in ("url", "home") if s.get(k)}
-    now, n = int(time.time()), 0
-    for f in firms:
-        r = _root(_site(f["url"]))
-        if f["id"] in have_i or not r or r in have_r:
+    nu = lambda u: re.sub(r"^https?://(www\.)?", "", (u or "").strip().lower()).rstrip("/")
+    total = 0
+    for key, label, how, v, items in packs:
+        if not items or int(c.get(key) or 0) >= v:
             continue
-        x = dict(f)
-        x.update(enabled=True, added=now)
-        srcs.append(x)
-        have_i.add(f["id"])
-        have_r.add(r)
-        n += 1
-    srcs.sort(key=lambda s: -_w(s))
-    _write_json(SRC_FILE, srcs)
-    c["firms_v"] = v
+        have_i = {s.get("id") for s in srcs}
+        have_r = {_root(_site(s.get(k) or "")) for s in srcs for k in ("url", "home") if s.get(k) and s.get("kind") == "site"}
+        have_u = {nu(s.get(k)) for s in srcs for k in ("url", "home") if s.get(k)}
+        now, n = int(time.time()), 0
+        for f in items:
+            dup = _root(_site(f["url"])) in have_r if how == "root" else nu(f["url"]) in have_u
+            if f["id"] in have_i or dup:
+                continue
+            x = dict(f)
+            x.update(enabled=True, added=now)
+            srcs.append(x)
+            have_i.add(f["id"])
+            have_r.add(_root(_site(f["url"])))
+            have_u.add(nu(f["url"]))
+            n += 1
+        c[key] = v
+        total += n
+        _log("加进 %d 个%s（清单 %d 个，已经有的 %d 个跳过）" % (n, label, len(items), len(items) - n))
+    if total:
+        srcs.sort(key=lambda s: -_w(s))
+        _write_json(SRC_FILE, srcs)
     _write_json(CFG_FILE, c)
-    _log("加进 %d 个全球企业官网（各行业全球前 100 家，已经有的 %d 个跳过）" % (n, len(firms) - n))
-    return n
+    return total
 
 
 _NR_TEXT = re.compile(r"^(news ?room|news|press|press ?(room|releases?|cent(er|re)|kit)|media( ?(cent(er|re)|room|relations))?|"
@@ -363,7 +372,7 @@ def save_config(auto=None, every=None, workers=None, sc_fast=None, sc_browser=No
 
 
 # ───────────────────────── v170：权重（1～5）和轮流抓 ─────────────────────────
-W_DEFAULT = {"firm": 2, "news": 5, "policy": 5, "corp": 4, "media": 4, "global": 4, "corpkw": 4, "indkw": 4, "mine": 4}   # 原来清单里的默认都每轮抓
+W_DEFAULT = {"firm": 2, "govmedia": 3, "news": 5, "policy": 5, "corp": 4, "media": 4, "global": 4, "corpkw": 4, "indkw": 4, "mine": 4}   # 原来清单里的默认都每轮抓
 W_MULT = {3: 3, 2: 8, 1: 24}          # 权重 3：隔 3 轮抓一次；2：隔 8 轮；1：隔 24 轮（5、4 每轮都抓）
 W_NAME = {5: "最高", 4: "高", 3: "中", 2: "低", 1: "最低"}
 
@@ -382,7 +391,7 @@ def _due(s, c=None, now=None):
         return True
     c = c or get_config()
     now = now or time.time()
-    gap = max(int(c.get("every") or 60), 20) * 60 * W_MULT.get(w, 1)
+    gap = max(int(c.get("every") or 60), 20) * 60 * (72 if s.get("deep") and w <= 1 else W_MULT.get(w, 1))   # v181：排在 100 名以后的企业每天看一次
     last = int(s.get("at") or 0)
     if not last:                       # 还没抓过的：按编号错开，别一加进来就全挤在同一轮
         off = int(hashlib.md5(str(s.get("id")).encode("utf-8")).hexdigest()[:6], 16) % gap
@@ -1106,7 +1115,9 @@ def _ck_tick():
     with _LOCK:
         if _run.get("ck") and time.time() - (_ST.get("ck_at") or 0) >= 6:
             _flush(force=True)
-            _save_sources()
+            if time.time() - (_ST.get("src_at") or 0) >= 30:       # v181：信息源上万个，清单 30 秒存一次就够
+                _save_sources()
+                _ST["src_at"] = time.time()
             _ck_write()
             _ST["ck_at"] = time.time()
             return
