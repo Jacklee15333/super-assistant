@@ -73,7 +73,7 @@
     ovm: null, ovmErr: "", ov: null, ovErr: "", mdays: store.get("mdays", 3),
     rfeed: null, rgrp: "all", rq: "", rlimit: 80, rpage: 1, rsize: store.get("rsize", 20), rtotal: 0, rsince: 0, rseq: 0,
     rview: store.get("rview", "radar"), rind: "", radSel: "", radNews: {},   // v165：雷达扫描 / 新闻列表
-    artSel: "", art: {}, artTr: {}, artLang: "zh", artItems: {}, trTitle: {}, kbSent: {},
+    artSel: "", art: {}, artTr: {}, artMedia: {}, artLang: "zh", artItems: {}, trTitle: {}, kbSent: {},
     read: new Set(store.get("read", [])),       // v164：点开看过的新闻（标题变淡、不再标「新」）
     plan: null, updOpen: false, updDone: "", updRes: null, briefOpen: false, bf: null, briefInfo: null,
     lens: store.get("lens", "market") === "mine" ? "mine" : "market", days: 30,
@@ -1052,9 +1052,47 @@
     else {
       const sum = src.desc || a.summary || it.text || "";
       h += (sum ? '<p class="bz-art-sum">' + esc(sum) + "</p>" : "") +
-        '<p class="bz-art-miss">没读出正文' + (a.error ? "：" + esc(a.error) : "") + "。想看全文，可以点下面的原文链接。</p>";
+        (a.orig || a.video ? "" : '<p class="bz-art-miss">没读出正文' + (a.error ? "：" + esc(a.error) : "") + "。想看全文，可以点上面的原文链接。</p>");
     }
-    return h;
+    return h + artVideoHTML(it, a) + artOrigHTML(a);
+  }
+  // v179：原文链接放在最上面；跳转后真正的文章、「阅读原文」指向的文章也一起列出来
+  function readLinksHTML(it) {
+    const a = S.art[it.url] || {};
+    const lk = (u) => '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(u) + "</a>";
+    const KIND = { google: "真正的文章", orig: "「阅读原文」指向", jump: "跳转到" };
+    let h = '<div class="bz-art-src top"><span class="k">原文链接</span>' + lk(it.url) + "</div>";
+    (a.hops || []).forEach((x) => {
+      h += '<div class="bz-art-src top"><span class="k">' + (KIND[x.kind] || "跳转到") + "</span>" + lk(x.url) +
+        (x.kind === "google" ? "<small>上面那个是 Google 新闻的跳转链接，已经自动找到原文，下面显示的就是原文</small>" : "") + "</div>";
+    });
+    if (a.note) h += '<p class="bz-art-tip">' + esc(a.note) + "</p>";
+    return '<div class="bz-art-links">' + h + "</div>";
+  }
+  // v179：新闻里的视频 → 视频里说的话（语音转文字）
+  function artVideoHTML(it, a) {
+    if (!a || !a.video) return "";
+    const m = S.artMedia[it.url] || {}, st = m.state || "none";
+    let b = '<section class="bz-art-sec"><h4>视频里说的话<small>把视频的声音转成文字</small></h4>';
+    if (st === "done") {
+      b += (m.paras || []).map((x) => "<p>" + esc(x) + "</p>").join("") +
+        '<p class="bz-art-note">约 ' + (m.chars || 0) + " 字" + (m.via === "local_whisper" ? "，本机语音识别" : m.via ? "，用的是视频自带字幕" : "") +
+        (m.src ? '。视频：<a href="' + esc(m.src) + '" target="_blank" rel="noopener">' + esc(m.src.length > 70 ? m.src.slice(0, 70) + "…" : m.src) + "</a>" : "") + "</p>";
+    } else if (st === "fail") {
+      b += '<p class="bz-art-miss">没转成：' + esc(m.error || "原因不明") + ' <button type="button" class="bz-link" data-act="art-media">再试一次</button></p>';
+    } else if (st === "queued" || st === "running") {
+      b += '<p class="bz-art-wait">' + esc(m.stage || "排队") + (m.detail ? "：" + esc(m.detail) : "") + (st === "queued" && m.pos > 1 ? "（前面还有 " + (m.pos - 1) + " 个）" : "") + "</p>";
+    } else {
+      b += '<p class="bz-art-note">这条新闻里有视频。</p><button type="button" class="bz-btn sm" data-act="art-media">把视频里的话转成文字</button>';
+    }
+    return b + "</section>";
+  }
+  // v179：只有几句话的新闻，跟着「阅读原文」读出来的原文全文
+  function artOrigHTML(a) {
+    const o = a && a.orig;
+    if (!o || !(o.paras && o.paras.length)) return "";
+    return '<section class="bz-art-sec"><h4>原文全文<small>这条新闻写着「阅读原文」，跟过去从 ' + esc(o.site) + " 读出来的，约 " + o.chars + " 字</small></h4>" +
+      (o.title ? '<p class="bz-art-ot">' + esc(o.title) + "</p>" : "") + o.paras.map((x) => "<p>" + esc(x) + "</p>").join("") + "</section>";
   }
   function readMetaHTML(it) {
     const a = S.art[it.url] || {}, tr = S.artTr[it.url];
@@ -1093,9 +1131,8 @@
         '<button type="button" class="bz-rp-nav" data-art="' + esc(next) + '"' + (next ? "" : " disabled") + ' aria-label="下一条">下一条 ›</button>' +
         '<button type="button" class="bz-x" data-act="art-close" aria-label="关闭阅读栏（Esc）" title="关闭（Esc）">×</button></div>' +
       '<div class="bz-rp-body" tabindex="-1"><h2 class="bz-rp-t">' + esc(ti.main) + "</h2>" + (ti.orig ? '<p class="bz-rp-orig">' + esc(ti.orig) + "</p>" : "") +
-        '<div class="bz-rp-m">' + readMetaHTML(it) + "</div>" +
+        '<div class="bz-rp-m">' + readMetaHTML(it) + "</div>" + readLinksHTML(it) +
         '<div class="bz-art-body">' + readBodyHTML(it) + "</div>" +
-        '<div class="bz-art-f"><div class="bz-art-src">原文链接：<a href="' + esc(it.url) + '" target="_blank" rel="noopener">' + esc(it.url) + "</a></div></div>" +
       "</div>";
     if (keepTop) el.querySelector(".bz-rp-body").scrollTop = keepTop;
   }
@@ -1129,7 +1166,21 @@
       refreshArt(it);
     }
     const a = S.art[url];
+    const md = S.artMedia[url];                     // v179：有视频：查转文字的进度，第一次点开就自动开始
+    if (a.video && (!md || md.state === "none" || md.state === "queued" || md.state === "running")) loadMedia(it, !!a.video.auto && (!md || md.state === "none"));
     if (a.foreign && !S.artTr[url]) await loadTr(it);
+  }
+  async function loadMedia(it, start) {
+    const url = it.url;
+    let r = null;
+    try { r = await api("/biz/article_media?url=" + enc(url) + (start ? "&start=1" : "")); } catch (e) {}
+    if (r && r.state) S.artMedia[url] = r;
+    refreshArt(it);
+    clearTimeout(S.mediaT);
+    const m = S.artMedia[url] || {}, cur = curArt();
+    if (cur && cur.url === url && (m.state === "queued" || m.state === "running")) {
+      S.mediaT = setTimeout(() => { const c = curArt(); if (c && c.url === url) loadMedia(c, false); }, 2000);
+    }
   }
   async function loadTr(it) {
     S.artTr[it.url] = { loading: true };
@@ -1177,8 +1228,7 @@
   function openArtPage(it) {                 // 不在新闻列表里（行业地图、爬虫管理）点的：用整页阅读
     const ti = readTitle(it), a = S.art[it.url] || {};
     openReader(ti.main, readMetaHTML(it) + (a.foreign ? '<button type="button" class="bz-link" data-act="art-lang" data-v="' + (S.artLang === "zh" ? "orig" : "zh") + '">' + (S.artLang === "zh" ? "看原文" : "看中文") + "</button>" : ""),
-      (ti.orig ? '<p class="bz-rp-orig">' + esc(ti.orig) + "</p>" : "") + '<div class="bz-art-body">' + readBodyHTML(it) + "</div>" +
-      '<div class="bz-art-f"><div class="bz-art-src">原文链接：<a href="' + esc(it.url) + '" target="_blank" rel="noopener">' + esc(it.url) + "</a></div></div>", "");
+      (ti.orig ? '<p class="bz-rp-orig">' + esc(ti.orig) + "</p>" : "") + readLinksHTML(it) + '<div class="bz-art-body">' + readBodyHTML(it) + "</div>", "");
   }
   function repRow(r) {
     return '<button type="button" class="bz-rep" data-rep="' + esc(r.id) + '"><span class="bz-rep-top"><span class="bz-kind k-' + esc(r.kind) + '">' +
@@ -2386,12 +2436,17 @@
         else if (act === "art-close") closeArt();
         else if (act === "art-lang") { S.artLang = b.dataset.v === "orig" ? "orig" : "zh"; const it = curArt(); if (it) refreshArt(it); }
         else if (act === "art-retr") { const it = curArt(); if (it) loadTr(it); }
+        else if (act === "art-media") { const it = curArt(); if (it) loadMedia(it, true); }
         else if (act === "art-kb") {                      // v162：把这条新闻收进知识库
           const it = curArt();
           if (!it) return;
           const a = S.art[it.url] || {}, tr = S.artTr[it.url], useTr = a.foreign && tr && tr.ok;
           const paras = (useTr ? tr.paras : a.paras) || [];
-          const text = paras.length ? paras.join("\n\n") : (a.desc || a.summary || it.text || "");
+          let text = paras.length ? paras.join("\n\n") : (a.desc || a.summary || it.text || "");
+          if (a.orig && a.orig.paras && a.orig.paras.length) text += "\n\n【原文全文（" + a.orig.site + "）】\n" + a.orig.paras.join("\n\n");   // v179
+          const md = S.artMedia[it.url];
+          if (md && md.state === "done" && md.paras && md.paras.length) text += "\n\n【视频里说的话】\n" + md.paras.join("\n\n");
+          if (a.real) text = "原文：" + a.real + "\n\n" + text;
           const title = (useTr && tr.title ? tr.title + "（" + it.title + "）" : it.title);
           b.disabled = true;
           const r = await api("/kb/enqueue", { kind: "news", title: title, url: it.url, text: (it.who ? "来源：" + it.who + "\n\n" : "") + text, top: true })

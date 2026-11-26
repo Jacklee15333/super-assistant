@@ -15,6 +15,7 @@
 """
 from __future__ import annotations
 
+import base64
 import datetime
 import email.utils
 import hashlib
@@ -45,6 +46,7 @@ RESUME_DAYS = 1.0                              # 超过一天没接着扫的就�
 STATS_FILE = BIZ_DIR / "radar_stats.json"    # v178：每条新闻抓到时记一笔（按小时、按天、累计）——新闻删了统计还在，「1 年」「累计」靠它
 HOUR_KEEP_H = 8 * 24                           # 按小时的留 8 天（24 小时～7 天用）
 DAY_KEEP_D = 400                               # 按天的留 400 天（1 个月、1 年用）
+MEDIA_DIR = BIZ_DIR / "article_media"         # v179：新闻里的视频转成的文字（转过一次就存着）
 RUNS_FILE = BIZ_DIR / "radar_runs.json"      # v157：每一轮的抓取记录（结果报告用），留最近 40 轮
 KEEP_DAYS = 45
 MAX_ITEMS = 8000
@@ -1513,25 +1515,155 @@ def _meta_of(h, *names):
     return ""
 
 
-def article(url):
-    """v160：读一条新闻的正文（软件里展开看，不用跳网页）。读不到正文就返回网页自己的简介。"""
-    url = (url or "").strip()
-    if not re.match(r"^https?://", url, re.I):
-        return {"ok": False, "error": "网址不对"}
-    with _ART_LOCK:
-        hit = _ART.get(url)
-    if hit:
-        return hit
-    item = None
-    with _LOCK:
-        for x in _feed():
-            if x.get("url") == url:
-                item = x
-                break
-    t0 = time.time()
-    h, via, err = "", "", ""
+# ───────────────────────── v179：二次提取——跳转链接找到真正的文章；只有几句话的跟着「阅读原文」读原文；视频转成文字 ─────────────────────────
+_GN_RE = re.compile(r"^https?://news\.google\.com/(?:rss/)?(?:articles|read)/([A-Za-z0-9_\-]+)", re.I)
+_VIDPATH = re.compile(r"/(?:video|videos|shipin|vod|tv)/|[?&]vid=|\.(?:mp4|m3u8)(?:\?|$)", re.I)
+_VID_FILE = re.compile(r'(?:https?:)?//[^\s"\'<>()\\]+?\.(?:mp4|m3u8|flv|webm|mov|m4v)(?:\?[^\s"\'<>()\\]*)?', re.I)
+_VID_EMBED = re.compile(r"(player\.bilibili\.com|bilibili\.com/video/|v\.qq\.com|youku\.com|ixigua\.com|youtube\.com/(?:embed|watch)|youtu\.be/|"
+                        r"weibo\.com/tv|vimeo\.com|haokan\.baidu\.com|douyin\.com/video|kuaishou\.com)", re.I)
+_VID_JUNK = re.compile(r"(?:^|[_\-.])(?:ad|ads|advert|banner|logo|loading|bg|background|preview|thumb|cover)(?:[_\-.]|$)", re.I)
+_ORIG_WORDS = re.compile(r"(阅读原文|查看原文|原文链接|原文地址|原文网址|点击查看原文|阅读全文|查看全文|全文阅读|"
+                         r"read (?:the )?(?:full|original)|continue reading|full (?:story|article)|original (?:article|story|link))", re.I)
+
+
+def _site(u):
     try:
-        b, _final = _get(url, timeout=15)
+        return urllib.parse.urlparse(u).netloc.lower().replace("www.", "")
+    except Exception:
+        return ""
+
+
+def _param_target(url):
+    """网址里带着真正目标的跳转（必应新闻 apiclick、各种 ?url=… 的中转页）。"""
+    try:
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+    except Exception:
+        return ""
+    for k in ("url", "u", "target", "dest", "redirect", "to"):
+        for v in q.get(k, []):
+            if re.match(r"^https?://", v, re.I) and _site(v) != _site(url):
+                return v
+    return ""
+
+
+def _gn_parse(raw):
+    """Google 新闻 batchexecute 的回答里挑出真网址。"""
+    if not isinstance(raw, str):
+        raw = json.dumps(raw, ensure_ascii=False)
+    txt = raw.split("\n\n", 1)[1] if "\n\n" in raw else raw.lstrip(")]}'\n ")
+    try:
+        for row in json.loads(txt):
+            if isinstance(row, list) and len(row) > 2 and row[0] == "wrb.fr" and isinstance(row[2], str):
+                inner = json.loads(row[2])
+                if isinstance(inner, list) and len(inner) > 1 and inner[0] == "garturlres" and str(inner[1]).startswith("http"):
+                    return inner[1]
+    except Exception:
+        pass
+    m = re.search(r'garturlres\\?",\\?"(https?://[^"\\]+(?:\\\\u0026[^"\\]+)*)', raw)
+    return m.group(1).replace("\\\\u0026", "&").replace("\\u0026", "&") if m else ""
+
+
+def _gn_decode(url):
+    """Google 新闻的跳转链接 → 真正的文章网址。旧格式直接从编号里解出来；新格式先打开这一页拿签名，再问 Google。"""
+    m = _GN_RE.match(url or "")
+    if not m:
+        return ""
+    gid = m.group(1)
+    try:
+        raw = base64.urlsafe_b64decode(gid + "=" * (-len(gid) % 4))
+        mm = re.search(rb"https?://[\x21-\x7e]+", raw)
+        if mm and b"AU_yqL" not in raw[:16]:
+            return mm.group(0).decode("ascii", "ignore")
+    except Exception:
+        pass
+    errs, h = [], ""
+    for pg in ("https://news.google.com/articles/" + gid, "https://news.google.com/rss/articles/" + gid):
+        try:
+            b, _f = _get(pg, timeout=15)
+            h = b.decode("utf-8", "replace")
+            if "data-n-a-sg" in h or "data-n-au" in h:
+                break
+        except Exception as e:
+            errs.append(_human(e))
+    au = re.search(r'data-n-au="(https?://[^"]+)"', h)
+    if au:
+        return _html.unescape(au.group(1))
+    sg, ts = re.search(r'data-n-a-sg="([^"]+)"', h), re.search(r'data-n-a-ts="([^"]+)"', h)
+    if not (sg and ts):
+        raise RuntimeError(errs[0] if errs else "Google 新闻没给出跳转信息")
+    inner = ('["garturlreq",[["X","X",["X","X"],null,null,1,1,"US:en",null,1,null,null,null,null,null,0,1],"X","X",1,[1,1,1],1,1,null,0,0,null,0],'
+             '"%s",%s,"%s"]' % (gid, ts.group(1), sg.group(1)))
+    body = ("f.req=" + urllib.parse.quote(json.dumps([[["Fbv4je", inner, None, "generic"]]]))).encode("utf-8")
+    for px in _proxies("https://news.google.com/"):
+        try:
+            raw = _req_json("https://news.google.com/_/DotsSplashUi/data/batchexecute", data=body, proxy=px, timeout=15,
+                            headers={"Content-Type": "application/x-www-form-urlencoded;charset=UTF-8", "Referer": "https://news.google.com/"})
+            u = _gn_parse(raw)
+            if u:
+                return u
+        except Exception as e:
+            errs.append(_human(e))
+    raise RuntimeError(errs[-1] if errs else "Google 新闻没告诉真网址")
+
+
+def _origin_link(h, base):
+    """只有几句话的页面：找「阅读原文 / 查看原文 / Read full story」这类链接，或者网页自己的跳转。"""
+    if not h:
+        return ""
+    for m in re.finditer(r'<a\b[^>]*?\bhref\s*=\s*["\']([^"\'#][^"\']*)["\'][^>]*>(.*?)</a>', h, re.I | re.S):
+        txt = re.sub(r"<[^>]+>", "", m.group(2)).strip()
+        if txt and len(txt) <= 30 and _ORIG_WORDS.search(txt):
+            u = urllib.parse.urljoin(base, _html.unescape(m.group(1).strip()))
+            if u.startswith("http") and _norm_url(u) != _norm_url(base):
+                return u
+    m = re.search(r'<meta[^>]+http-equiv\s*=\s*["\']?refresh["\']?[^>]*content\s*=\s*["\'][^"\']*?url\s*=\s*([^"\'>\s]+)', h, re.I)
+    if m:
+        return urllib.parse.urljoin(base, _html.unescape(m.group(1).strip()))
+    if len(h) < 8000:
+        m = re.search(r'(?:window\.|document\.)?location(?:\.href)?\s*(?:=|\.replace\()\s*["\'](https?://[^"\']+)["\']', h)
+        if m:
+            return m.group(1)
+    return ""
+
+
+def _find_video(h, base):
+    """页面里的视频：<video>、og:video、结构化数据、B站/腾讯/优酷/YouTube 这类嵌入的播放器、脚本里写着的视频文件。"""
+    out, seen = [], set()
+
+    def add(u, kind):
+        u = _html.unescape((u or "").strip()).replace("\\/", "/")
+        if not u or u.startswith(("data:", "blob:", "javascript:")):
+            return
+        u = urllib.parse.urljoin(base, "https:" + u if u.startswith("//") else u).split("#")[0]
+        name = urllib.parse.urlparse(u).path.rsplit("/", 1)[-1]
+        if not u.startswith("http") or _VID_JUNK.search(name.rsplit(".", 1)[0]) or u in seen:
+            return
+        seen.add(u)
+        out.append({"url": u, "kind": kind})
+
+    if not h:
+        return out
+    for m in re.finditer(r'<(?:video|source)\b[^>]*?\s(?:src|data-src|data-video|data-url)\s*=\s*["\']([^"\']+)["\']', h, re.I):
+        add(m.group(1), "file")
+    for n in ("og:video:secure_url", "og:video:url", "og:video", "twitter:player:stream"):
+        v = _meta_of(h, n)
+        if v:
+            add(v, "file" if _VID_FILE.search(v) else "embed")
+    for m in re.finditer(r'"(?:contentUrl|embedUrl)"\s*:\s*"([^"]+)"', h):
+        add(m.group(1), "file" if _VID_FILE.search(m.group(1)) else "embed")
+    for m in re.finditer(r'<iframe\b[^>]*?\s(?:src|data-src)\s*=\s*["\']([^"\']+)["\']', h, re.I):
+        if _VID_EMBED.search(m.group(1)):
+            add(m.group(1), "embed")
+    for m in _VID_FILE.finditer(h.replace("\\/", "/")):
+        add(m.group(0), "file")
+    return out[:6]
+
+
+def _read_page(url):
+    """打开一个网页读正文：先直接打开，正文太短再换 Scrapling。返回 (网页, 段落, 怎么读的, 出错原因, 最终网址)。"""
+    h, via, err, final = "", "", "", url
+    try:
+        b, final = _get(url, timeout=15)
         h, via = _P()._text(b), "直接打开"
     except Exception as e:
         err = _human(e)
@@ -1551,9 +1683,75 @@ def article(url):
                 h, paras, via, err = h2, p2, "Scrapling", ""
         except Exception as e:
             err = err or _human(e)
+    return h, paras, via, err, final or url
+
+
+def _cap(paras, limit=40000):
+    """特别长的（几万字）只留前面。"""
+    keep, n = [], 0
+    for x in paras:
+        keep.append(x)
+        n += len(x)
+        if n > limit:
+            break
+    return keep
+
+
+def article(url):
+    """v160：读一条新闻的正文（软件里展开看，不用跳网页）。读不到正文就返回网页自己的简介。
+    v179：二次提取——Google 新闻这类跳转链接先找到真正的文章再读；页面只有几句话、写着「阅读原文」的，跟过去把原文读出来；
+    页面是视频的，给出视频地址，界面会让后台把视频里的话转成文字（media_status）。"""
+    url = (url or "").strip()
+    if not re.match(r"^https?://", url, re.I):
+        return {"ok": False, "error": "网址不对"}
+    with _ART_LOCK:
+        hit = _ART.get(url)
+    if hit:
+        return hit
+    item = None
+    with _LOCK:
+        for x in _feed():
+            if x.get("url") == url:
+                item = x
+                break
+    t0 = time.time()
+    hops, note = [], ""
+    real = _param_target(url) or url
+    if real != url:
+        hops.append({"kind": "jump", "url": real, "site": _site(real)})
+    if _GN_RE.match(real):                              # Google 新闻的跳转链接 → 真正的文章
+        try:
+            got = (item or {}).get("real") or _gn_decode(real)
+            if got:
+                hops.append({"kind": "google", "url": got, "site": _site(got)})
+                if item is not None and not item.get("real"):
+                    with _LOCK:
+                        item["real"] = got
+                        _ST["dirty"] = True
+                real = got
+        except Exception as e:
+            note = "这是 Google 新闻的跳转链接，没问到真正的文章网址（%s）。Google 新闻要开代理才打得开。" % str(e)[:80]
+    h, paras, via, err, final = _read_page(real)
+    if final and _site(final) and _site(final) != _site(real) and not _GN_RE.match(final):
+        hops.append({"kind": "jump", "url": final, "site": _site(final)})
+    total = sum(len(x) for x in paras)
+    orig = None
+    if total < 400 and h:                               # 只有几句话：跟着「阅读原文」读原文（只跟一层）
+        nxt = _origin_link(h, final or real)
+        if nxt and _norm_url(nxt) not in (_norm_url(url), _norm_url(real), _norm_url(final or real)):
+            h2, p2, via2, _e2, fin2 = _read_page(nxt)
+            n2 = sum(len(x) for x in p2)
+            if n2 >= 150 and n2 > total * 1.5:
+                orig = {"url": fin2 or nxt, "site": _site(fin2 or nxt), "paras": _cap(p2), "chars": n2, "via": via2,
+                        "title": (_meta_of(h2, "og:title", "twitter:title") or "")[:120] if h2 else ""}
+                hops.append({"kind": "orig", "url": orig["url"], "site": orig["site"]})
+    vids = _find_video(h, final or real) if h else []
+    vidlike = bool(_VIDPATH.search(final or real))
+    if vids or vidlike:
+        vids.append({"url": final or real, "kind": "page"})    # 视频文件下不了时，整页交给下载器再试一次
+    video = {"cands": vids[:6], "auto": bool(vidlike or total < 800)} if vids else None
     desc = _meta_of(h, "og:description", "description", "twitter:description") if h else ""
     pub = _meta_of(h, "article:published_time", "og:release_date", "pubdate", "publishdate", "datePublished") if h else ""
-    total = sum(len(x) for x in paras)
     # v164：网页里写着发布时间、而列表里这条原来「时间不详」的，补上发布时间
     if pub and item is not None and not item.get("dated"):
         t = _ts_of(pub)
@@ -1564,26 +1762,143 @@ def article(url):
                 _ST["dirty"] = True
                 _ST["ver"] += 1
             _flush()
-    if total > 40000:                                   # 特别长的（几万字）只留前面
-        keep, n = [], 0
-        for x in paras:
-            keep.append(x)
-            n += len(x)
-            if n > 40000:
-                break
-        paras = keep
+    if total > 40000:
+        paras = _cap(paras)
     title = (item or {}).get("title", "") or _meta_of(h, "og:title") if h else (item or {}).get("title", "")
-    res = {"ok": True, "url": url, "paras": paras if total >= 80 else [], "desc": desc[:400], "title": title,
-           "foreign": _foreign(" ".join([title or ""] + (paras[:6] if total >= 80 else [desc]))),
-           "summary": (item or {}).get("summary", ""), "pub": pub[:40], "via": via, "chars": total,
+    some = total >= 80 or bool(desc) or bool(orig) or bool(video)
+    res = {"ok": True, "url": url, "real": real if real != url else "", "hops": hops, "note": note,
+           "paras": paras if total >= 80 else [], "desc": desc[:400], "title": title,
+           "foreign": _foreign(" ".join([title or ""] + (paras[:6] if total >= 80 else [desc]) + ((orig or {}).get("paras") or [])[:4])),
+           "summary": (item or {}).get("summary", ""), "pub": pub[:40], "via": via, "chars": total, "orig": orig, "video": video,
            "ms": int((time.time() - t0) * 1000),
-           "error": "" if (total >= 80 or desc) else (err or "这个网页没读出正文（可能要登录，或者是图片、视频）")}
-    if total >= 80 or desc:
+           "error": "" if some else (note or err or "这个网页没读出正文（可能要登录，或者是图片、视频）")}
+    if some:
         with _ART_LOCK:
             _ART[url] = res
             if len(_ART) > 300:
                 _ART.pop(next(iter(_ART)))
     return res
+
+
+# ───────────────────────── v179：新闻里的视频 → 把里面的话转成文字（用「提取」那一套：下载 + 语音识别），一次一个，转过的存着 ─────────────────────────
+_MJ = {"q": [], "on": False, "st": {}}
+_MJ_LOCK = threading.Lock()
+
+
+def _media_key(url):
+    return hashlib.sha1((url or "").encode("utf-8")).hexdigest()[:20]
+
+
+def _media_paras(text):
+    ps = [x.strip() for x in re.split(r"\n+", text or "") if x.strip()]
+    if len(ps) <= 1 and len(text or "") > 300:           # 一大段：按句号分成一段段，每段两三百字
+        out, cur = [], ""
+        for sent in re.split(r"(?<=[。！？!?.])\s*", text.strip()):
+            cur += sent
+            if len(cur) >= 220:
+                out.append(cur.strip())
+                cur = ""
+        if cur.strip():
+            out.append(cur.strip())
+        ps = out
+    return ps
+
+
+def media_status(url, start=False):
+    """查这条新闻的视频转文字做到哪了；start=True 就排进队（做过的直接给结果，失败的重新排）。"""
+    url = (url or "").strip()
+    k = _media_key(url)
+    with _MJ_LOCK:
+        st = _MJ["st"].get(k)
+    if st is None:
+        d = _read_json(MEDIA_DIR / (k + ".json"), None)
+        if isinstance(d, dict) and d.get("state") == "done":
+            with _MJ_LOCK:
+                _MJ["st"][k] = d
+            return dict(d, ok=True)
+    if st is not None and not (start and st.get("state") == "fail"):
+        with _MJ_LOCK:
+            pos = _MJ["q"].index(k) + 1 if k in _MJ["q"] else 0
+        return dict(st, ok=True, pos=pos)
+    if not start:
+        return {"ok": True, "state": "none"}
+    a = article(url)
+    cands = ((a or {}).get("video") or {}).get("cands") or []
+    if not cands:
+        return {"ok": True, "state": "fail", "error": "这条新闻里没找到视频"}
+    lang = "auto" if (a or {}).get("foreign") else "zh"
+    st = {"state": "queued", "url": url, "cands": cands, "lang": lang, "stage": "排队", "detail": "排在后面，前面的转完就轮到它", "at": int(time.time())}
+    with _MJ_LOCK:
+        _MJ["st"][k] = st
+        if k in _MJ["q"]:
+            _MJ["q"].remove(k)
+        _MJ["q"].insert(0, k)                            # 刚点开的先做
+        for old in _MJ["q"][6:]:                         # 一下点了太多：最早排的几个先不做了
+            _MJ["st"].pop(old, None)
+        del _MJ["q"][6:]
+        if not _MJ["on"]:
+            _MJ["on"] = True
+            threading.Thread(target=_media_worker, daemon=True, name="biz-article-media").start()
+    return dict(st, ok=True, pos=1)
+
+
+def _media_worker():
+    while True:
+        with _MJ_LOCK:
+            if not _MJ["q"]:
+                _MJ["on"] = False
+                return
+            k = _MJ["q"].pop(0)
+            st = _MJ["st"].get(k)
+        if not st:
+            continue
+        st.update(state="running", stage="准备", detail="")
+        try:
+            import video_transcribe as VT
+        except Exception as e:
+            st.update(state="fail", error="语音转文字的组件没装好：%s" % str(e)[:80])
+            continue
+        if VT.extract_busy():
+            st.update(stage="排队", detail="软件正在提取别的视频，等它做完就开始")
+        VT.extract_gate.acquire()
+        try:
+            def cb(stage, detail=""):
+                st.update(stage=str(stage or "")[:30], detail=str(detail or "")[:120])
+            res, errs = None, []
+            for i, c in enumerate(st["cands"]):
+                st.update(stage="读取视频", detail="试第 %d 个视频地址（%s）" % (i + 1, _site(c["url"])))
+                try:
+                    r = VT.extract(c["url"], level="balanced", progress_cb=cb, mode="auto", lang=st.get("lang") or "zh")
+                except VT.ExtractCancelled:
+                    raise
+                except Exception as e:
+                    r = {"ok": False, "error": str(e)}
+                if r and r.get("ok") and (r.get("transcript") or "").strip():
+                    res = (r, c)
+                    break
+                if r and r.get("need"):
+                    errs.append("语音转文字要用的组件还没装好，先去「提取」页按提示装一下")
+                    break
+                errs.append(str((r or {}).get("error") or "没读到")[:100])
+            if res:
+                r, c = res
+                text = r["transcript"].strip()
+                done = {"state": "done", "url": st["url"], "paras": _media_paras(text)[:400], "chars": len(text),
+                        "src": c["url"], "title": (r.get("title") or "")[:120], "via": r.get("source") or "", "at": int(time.time())}
+                MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+                _write_json(MEDIA_DIR / (k + ".json"), done)
+                with _MJ_LOCK:
+                    _MJ["st"][k] = done
+                _log("新闻视频转成文字：%d 字（%s）" % (len(text), _site(c["url"])))
+            else:
+                st.update(state="fail", error=(errs[-1] if errs else "没找到能下载的视频"))
+        except Exception as e:
+            st.update(state="fail", error="被取消了" if type(e).__name__ == "ExtractCancelled" else str(e)[:120])
+        finally:
+            try:
+                VT.extract_gate.release()
+            except Exception:
+                pass
 
 
 # ───────────────────────── v161：外文新闻翻译成中文 ─────────────────────────
