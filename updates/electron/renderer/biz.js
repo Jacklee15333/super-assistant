@@ -86,6 +86,7 @@
     rdKind: "site", rdSid: "", rdItems: null, rdOpen: {},
     cu: { loaded: false, ready: false, pv: null, err: "", seq: 0, timer: null, dirty: false, updated: 0, at: 0, news: {}, peek: "",
           pick: null, optLoading: false, open: store.get("cuOpen", null) || { exp: true }, b: { ind: "", role: "", years: "", lead: "" },   // v188：选项面板
+          saved: [], savedOpen: false, undoId: "", undoT: null,          // v189：存过的、撤销清空
           web: store.get("cuWeb", true) !== false, depth: store.get("cuDepth", "quick") === "deep" ? "deep" : "quick" },   // v187：商业定制
   };
 
@@ -1750,7 +1751,12 @@
             cuF("avoid", "不想做的", cuIn("avoid", "比如：不想露脸、不想压货、不碰加盟", 400), "w2") +
             cuF("more", "其他想让 AI 知道的", cuTa("more", "学历、家庭、身体、以后的打算……可以不填", 600, 2), "w2") +
           "</div>" +
-          '<div class="bz-cu-foot"><button type="button" class="bz-link danger" data-act="cu-clear">清空重填</button></div>' +
+          '<div class="bz-cu-foot"><button type="button" class="bz-btn sm" data-act="cu-save" title="马上保存，并存一份，以后能从「存过的」里找回">保存</button>' +
+            '<span class="bz-cu-fst" id="bzCuFst" aria-live="polite"></span><span class="sp"></span>' +
+            '<button type="button" class="bz-link" data-act="cu-saved" id="bzCuSavedBtn" aria-expanded="false">存过的</button>' +
+            '<button type="button" class="bz-link danger" data-act="cu-clear">清空重填</button></div>' +
+          '<div class="bz-cu-undo" id="bzCuUndo" hidden></div>' +
+          '<div class="bz-cu-saved" id="bzCuSavedList" hidden></div>' +
         "</form>" +
         '<div class="bz-cu-main">' +
           '<section class="bz-card bz-cu-go" id="bzCuGo"></section>' +
@@ -1774,9 +1780,9 @@
       el.value = v == null || v === 0 ? "" : String(v);
     });
     cuSyncChips();
-    const sv = $("bzCuSaved");
-    if (sv) sv.textContent = S.cu.updated ? "上次保存：" + fmtTime(S.cu.updated) : "";
+    cuStat(S.cu.updated ? "上次保存：" + fmtTime(S.cu.updated) : "");
   }
+  function cuStat(t) { ["bzCuSaved", "bzCuFst"].forEach((id) => { const x = $(id); if (x) x.textContent = t || ""; }); }   // v189：上面、下面都写
   // ── v188：选项面板 ──
   function cuLoadOptions() {
     if (S.cu.optLoading || S.cu.pick) return;
@@ -1908,8 +1914,7 @@
   function cuQueueSave(ms) {
     S.cu.dirty = true;
     clearTimeout(S.cu.timer);
-    const sv = $("bzCuSaved");
-    if (sv) sv.textContent = "正在保存…";
+    cuStat("正在保存…");
     S.cu.timer = setTimeout(() => { S.cu.timer = null; cuSave(); }, ms);
   }
   async function cuSave() {
@@ -1918,10 +1923,9 @@
     let r;
     try { r = await api("/biz/fit", { profile: prof, save: true }); } catch (e) { r = { ok: false, error: "连不上后台（" + e.message + "）" }; }
     if (seq !== S.cu.seq) return;                                  // 后面又改了，以最后一次为准
-    const sv = $("bzCuSaved");
-    if (!r || !r.ok) { if (sv) sv.textContent = "没存上：" + ((r && r.error) || "连不上后台"); return; }
+    if (!r || !r.ok) { cuStat("没存上：" + ((r && r.error) || "连不上后台")); return; }
     S.cu.pv = r.preview; S.cu.updated = r.updated || S.cu.updated; S.cu.at = Date.now(); S.cu.err = "";
-    if (sv) sv.textContent = "已保存 " + hhmm(r.updated || Date.now() / 1000);
+    cuStat("已保存 " + hhmm(r.updated || Date.now() / 1000));
     renderCuGo();
     renderCuPrev();
   }
@@ -1930,7 +1934,7 @@
     let r;
     try { r = await api("/biz/fit"); } catch (e) { r = { ok: false, error: "连不上后台（" + e.message + "）" }; }
     if (!r || !r.ok) { S.cu.loaded = false; S.cu.err = (r && r.error) || "读不到"; renderCuPrev(); return; }
-    S.cu.err = ""; S.cu.updated = r.updated; S.cu.at = Date.now();
+    S.cu.err = ""; S.cu.updated = r.updated; S.cu.at = Date.now(); S.cu.saved = r.saved || [];
     const typed = S.cu.dirty;
     cuFill(r.profile, typed);
     S.cu.ready = true;
@@ -1973,7 +1977,82 @@
   }
 
   // ── 画 ──
+  // ── v189：保存、存过的、清空前自动存一份、撤销清空 ──
+  const cuHas = (p) => Object.values(p || {}).some((v) => String(v || "").trim());
+  function renderCuSaved() {
+    const btn = $("bzCuSavedBtn"), box = $("bzCuSavedList");
+    if (!btn || !box) return;
+    const lst = S.cu.saved || [];
+    btn.textContent = "存过的" + (lst.length ? "（" + lst.length + "）" : "");
+    btn.setAttribute("aria-expanded", String(!!S.cu.savedOpen));
+    box.hidden = !S.cu.savedOpen;
+    if (!S.cu.savedOpen) return;
+    box.innerHTML = lst.length ? lst.map((x) => '<div class="bz-cu-si"><div class="bz-cu-sit"><b>' + esc(fmtTime(x.at)) + "</b>" +
+        (x.auto ? "<em>" + esc(x.label || "自动存的") + "</em>" : "") + "<span>" + esc(x.brief) + "</span></div>" +
+        '<button type="button" class="bz-link" data-cu-restore="' + esc(x.id) + '">用这份</button>' +
+        '<button type="button" class="bz-link danger" data-cu-drop="' + esc(x.id) + '">删掉</button></div>').join("")
+      : '<p class="bz-note">还没有存过。点「保存」存一份，以后不小心清空了也能从这里找回来。</p>';
+  }
+  async function cuSaveNow() {
+    if (!S.cu.ready && !S.cu.dirty) { toast("还在读你上次填的情况，稍等一下再点。"); return; }
+    const prof = cuRead();
+    if (!cuHas(prof)) { toast("表格是空的，先填一点再保存。"); return; }
+    clearTimeout(S.cu.timer); S.cu.timer = null;
+    const seq = ++S.cu.seq;
+    cuStat("正在保存…");
+    let r;
+    try { r = await api("/biz/fit", { action: "snapshot", profile: prof }); } catch (e) { r = { ok: false, error: "连不上后台（" + e.message + "）" }; }
+    if (!r || !r.ok) { cuStat("没存上：" + ((r && r.error) || "连不上后台")); return; }
+    S.cu.saved = r.saved || S.cu.saved; S.cu.updated = r.updated; S.cu.dirty = false;
+    if (seq === S.cu.seq && r.preview) { S.cu.pv = r.preview; S.cu.at = Date.now(); renderCuGo(); renderCuPrev(); }
+    cuStat("已保存 " + hhmm(r.updated) + "，也存了一份");
+    renderCuSaved();
+    toast("存好了。以后点「存过的」，随时能找回这一份。");
+  }
+  async function cuClear() {
+    const prof = cuRead();
+    if (!cuHas(prof)) { toast("表格已经是空的。"); return; }
+    if (!confirm("把「我的情况」全部清空？\n清空前会自动存一份，点「撤销清空」或在「存过的」里都能找回来。")) return;
+    clearTimeout(S.cu.timer); S.cu.timer = null;
+    let r;
+    try { r = await api("/biz/fit", { action: "snapshot", profile: prof, auto: true, label: "清空前自动存的" }); } catch (e) { r = { ok: false, error: e.message }; }
+    if (!r || !r.ok || !r.id) { toast("没能先存一份，这次先不清空（" + ((r && r.error) || "连不上后台") + "）。"); return; }
+    S.cu.saved = r.saved || S.cu.saved;
+    S.cu.undoId = r.id;
+    root.querySelectorAll("#bzCuForm [data-cu]").forEach((el) => { el.value = ""; });
+    S.cu.b = { ind: "", role: "", years: "", lead: "" };
+    cuBuildSync(); cuSyncChips(); cuQueueSave(50);
+    renderCuSaved();
+    cuShowUndo();
+  }
+  function cuShowUndo() {
+    const u = $("bzCuUndo");
+    if (!u) return;
+    clearTimeout(S.cu.undoT);
+    u.hidden = !S.cu.undoId;
+    if (!S.cu.undoId) return;
+    u.innerHTML = '<span>已经清空了，清空前的情况自动存了一份。</span><button type="button" class="bz-btn sm" data-act="cu-undo">撤销清空</button>';
+    S.cu.undoT = setTimeout(() => { S.cu.undoId = ""; u.hidden = true; }, 120000);
+  }
+  async function cuRestore(id, done) {
+    const had = cuHas(cuRead());
+    clearTimeout(S.cu.timer); S.cu.timer = null;
+    const seq = ++S.cu.seq;
+    let r;
+    try { r = await api("/biz/fit", { action: "restore", id: id }); } catch (e) { r = { ok: false, error: "连不上后台（" + e.message + "）" }; }
+    if (!r || !r.ok) { toast((r && r.error) || "没换成"); return; }
+    S.cu.saved = r.saved || S.cu.saved; S.cu.updated = r.updated; S.cu.dirty = false; S.cu.ready = true;
+    S.cu.b = { ind: "", role: "", years: "", lead: "" };
+    cuFill(r.profile);
+    cuBuildSync();
+    if (seq === S.cu.seq) { S.cu.pv = r.preview; S.cu.at = Date.now(); }
+    cuStat("已保存 " + hhmm(r.updated));
+    renderCuGo(); renderCuPrev(); renderCuSaved();
+    toast(done || ("换好了。" + (had ? "换之前填的情况也自动存了一份，在「存过的」里。" : "")));
+  }
+
   function renderCustom() {
+    renderCuSaved();
     renderCuGo();
     renderCuPlans();
     renderCuPrev();
@@ -1984,7 +2063,7 @@
     const pv = S.cu.pv, j = S.job, busy = !!(j && j.running), mine = busy && j.kind === "custom";
     const ok = !!(pv && pv.enough), miss = (pv && pv.missing) || [];   // 还没读到你的情况之前，按钮先不能点
     let note = "";
-    if (mine) note = '<span class="bz-cu-busy">正在写：' + esc(j.stage || "…") + "</span>";
+    if (mine) note = '<span class="bz-cu-busy">正在写：' + esc(j.stage || "…") + '</span><button type="button" class="bz-link" data-act="ailive">看实时画面</button>';
     else if (busy) note = '<span class="bz-warn">「' + esc(j.title) + "」还在写，等它写完再开始。</span>";
     else if (pv && !ok) note = '<span class="bz-warn">先在左边写写阅历、技能或兴趣（至少一样），才能开始。</span>';
     else if (miss.length) note = "还没填：" + esc(miss.join("、")) + "。填上会更准，不填也能写。";
@@ -2381,6 +2460,7 @@
           return '<li class="' + cls + (n === 2 && !j.web ? " skip" : "") + '">' + esc(s) + "</li>";
         }).join("") + "</ol>" +
         '<span class="bz-job-time" title="已经用了多久">' + mmss(j.now - j.started) + "</span>" +
+        '<button type="button" class="bz-btn ghost sm" data-act="ailive" title="看 AI 池正在怎么写：浏览器画面、正在写的字、每一步">看实时画面</button>' +   // v189
         '<button type="button" class="bz-btn ghost sm" data-act="stopjob">停止</button>';
     } else if (j.ok) {
       el.className = "bz-job done";
@@ -3112,12 +3192,11 @@
           if (m.kind === "custom") runJob("custom", { profile: m.profile, web: m.web_on !== false, depth: m.depth || "quick" });   // v187：按当时的情况再写一份
           else runJob(m.kind, { target: m.target, scope: m.scope, days: m.days || 30, web: m.web_on !== false, depth: m.depth || "quick", lens: m.lens || "mine" });
         }
-        else if (act === "cu-clear") {                                // v187：商业定制——清空重填
-          if (!confirm("把「我的情况」全部清空？")) return;
-          root.querySelectorAll("#bzCuForm [data-cu]").forEach((el) => { el.value = ""; });
-          S.cu.b = { ind: "", role: "", years: "", lead: "" };
-          cuBuildSync(); cuSyncChips(); cuQueueSave(50);
-        }
+        else if (act === "cu-clear") cuClear();                         // v189：清空前先自动存一份，能撤销
+        else if (act === "cu-save") cuSaveNow();                        // v189：保存（也存一份）
+        else if (act === "cu-undo") { const id = S.cu.undoId; S.cu.undoId = ""; cuShowUndo(); if (id) cuRestore(id, "撤销了，清空前的情况都回来了。"); }
+        else if (act === "cu-saved") { S.cu.savedOpen = !S.cu.savedOpen; renderCuSaved(); }
+        else if (act === "ailive") { if (window.cxAiLive) window.cxAiLive.open(); }   // v189：AI 池实时画面
         else if (act === "cu-build-add") cuBuildAdd();                 // v188：阅历「帮我写」拼好的那句加进去
         else if (act === "opennote") {
           const name = b.dataset.name;
@@ -3125,6 +3204,13 @@
           if (nb) nb.click();
           setTimeout(() => { if (typeof openVideoNote === "function") openVideoNote(name); }, 80);
         }
+        return;
+      }
+      if ((b = t.closest("[data-cu-restore]"))) { cuRestore(b.dataset.cuRestore); return; }             // v189：换成存过的那一份
+      if ((b = t.closest("[data-cu-drop]"))) {
+        if (!confirm("删掉存过的这一份？")) return;
+        const r = await api("/biz/fit", { action: "drop", id: b.dataset.cuDrop }).catch((e) => ({ ok: false, error: e.message }));
+        if (r.ok) { S.cu.saved = r.saved || []; renderCuSaved(); } else toast(r.error || "没删掉");
         return;
       }
       if ((b = t.closest("[data-cu-c]"))) { cuPick(b.dataset.cuC, b.dataset.w); return; }           // v187/v188：商业定制的选项
