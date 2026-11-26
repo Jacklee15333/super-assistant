@@ -2520,6 +2520,7 @@
   function rmTip(id) {
     const d = S.byId[id], b = rmBy(id), L = (S.rm.data && S.rm.data.listed) || {};
     let t = d.name + "：" + d.desc;
+    if (b.n && d.type === "trk") t += "\n概念板块里的相关上市公司 " + b.n + " 家（不一定全靠这块赚钱）";
     if (b.n) t += "\n上市公司 " + b.n + " 家，" + (L.annual_name || "") + "营收合计 " + rmYi(b.rev) + "（" + rmPct(b.rev_yoy) + "），净利率 " + (b.nm == null ? "–" : b.nm + "%") +
       (b.q_yoy != null ? "\n" + (L.latest_name || "最新一期") + "营收同比 " + rmPct(b.q_yoy) : "");
     else t += "\n没有直接对上的上市公司数据";
@@ -2541,9 +2542,11 @@
   function rmMapHTML() {
     const t = S.tax, mx = { l2: 0, trk: 0 };
     t.industries.forEach((i) => i.subs.forEach((x) => { mx.l2 = Math.max(mx.l2, rmBy(x.id).rev || 0); }));
+    t.tracks.forEach((x) => { mx.trk = Math.max(mx.trk, rmBy(x.id).rev || 0); });          // v194：新兴赛道按概念板块的相关公司算
     const secV = (sec) => sec.l1.reduce((a, n) => a + (rmBy(n).rev || 0), 0);
-    let html = '<section class="bz-band trk"><header><h4>新兴赛道</h4><span>横跨好几个行业，没有单独的统计口径：点开看相关行业的数字，或者让 AI 核实</span></header><div class="bz-tiles">' +
-      t.tracks.map((x) => rmTile(x.id, 0)).join("") + "</div></section>";
+    let html = '<section class="bz-band trk"><header><h4>新兴赛道</h4>' +
+      "<span>没有单独的行业分类，按东方财富概念板块里的相关上市公司算（这些公司不一定全靠这块赚钱，几个赛道之间也有重叠）</span></header><div class=\"bz-tiles\">" +
+      t.tracks.slice().sort((a, b) => rmSort(a.id, b.id)).map((x) => rmTile(x.id, mx.trk)).join("") + "</div></section>";
     t.sectors.slice().sort((a, b) => secV(b) - secV(a)).forEach((sec) => {
       html += '<section class="bz-band" style="--c:' + (RAD_SEC[sec.name] || "#888") + '"><header><h4>' + esc(sec.name) + "</h4>" +
         (secV(sec) ? '<em class="bz-band-n">上市公司营收 ' + rmYi(secV(sec)) + "</em>" : "") + "<span>" + esc(sec.desc) + '</span></header><div class="bz-l1s">' +
@@ -2642,8 +2645,9 @@
       (s.crawl ? '<small class="bz-dim">适用 ' + (s.fit || 0) + " 个行业，已抓 " + (s.done || 0) + " 个</small><br>" + (s.n_ok || s.n_bad ? '<span class="' + (s.last_ok ? "bz-rm-ok" : "bz-rm-bad") + '">' + (s.last_ok ? "✓ 抓到过 " + s.n_ok + " 次" : "还没抓到过") + "</span>" +
           (s.n_bad ? '<small class="bz-dim">，没抓到 ' + s.n_bad + " 次</small>" : "") + (s.via ? '<br><small class="bz-dim">管用的：' + esc(s.via) + "</small>" : "") +
           (s.err ? '<br><small class="bz-dim" title="' + esc(s.err) + '">上次：' + esc(s.err.slice(0, 40)) + "</small>" : "") : '<span class="bz-dim">还没抓过：核实一个适用的行业，或点上面「交易平台全部抓一遍」</span>') :
-        !s.auto ? '<span class="bz-dim">核实时用</span>' : s.ok ? '<span class="bz-rm-ok">✓ ' + esc(s.period || "") + (s.n ? "，" + s.n + (s.key === "listed" ? " 家公司" : " 项") : "") + '</span><br><small class="bz-dim">' + esc(ago(s.at)) + "查过</small>"
-        + (s.warn ? '<br><small class="bz-rm-bad">⚠ ' + esc(s.warn) + "</small>" : "") + (s.key === "listed" && s.n_ind ? '<br><small class="bz-dim">归到 ' + s.n_ind + " 个二级行业</small>" : "")
+        !s.auto ? '<span class="bz-dim">核实时用</span>' : s.ok ? '<span class="bz-rm-ok">✓ ' + esc(s.period || "") + (s.n ? "，" + s.n + (s.key === "listed" ? " 家公司" : s.key === "concept" ? " 个赛道对上了" : " 项") : "") + '</span><br><small class="bz-dim">' + esc(ago(s.at)) + "查过</small>"
+        + (s.warn ? '<br><small class="bz-rm-bad">⚠ ' + esc(s.warn) + "</small>" : "") + (s.key === "listed" && s.n_ind ? '<br><small class="bz-dim">归到 ' + s.n_ind + " 个二级行业</small>" : "") +
+          (s.key === "concept" && s.miss && s.miss.length ? '<br><small class="bz-dim">没对上板块的赛道：' + esc(s.miss.map((x) => nameOf(x)).join("、")) + "</small>" : "")
         : s.at ? '<span class="bz-rm-bad">没取到</span><br><small class="bz-dim">' + esc(s.err || "") + "</small>" : '<span class="bz-dim">还没取</span>') + "</td></tr>").join("") + "</tbody></table>";
   }
   // v192：下拉框——软件里所有的行业（新兴赛道、一级、二级、三级细分），核实过的打勾
@@ -2740,7 +2744,9 @@
     const nbLine = (x) => "<p>" + (x.unit === "亿元" ? "<b>" + rmYi(x.v) + "元</b>" : "<b>" + rmNum(x.v) + " 元</b>/人") + " " + esc(x.txt) + '<small class="bz-dim">统计局 · ' + esc(x.period) +
       " · 同比 " + rmPct(x.yoy) + (x.share != null ? " · 占消费支出 " + x.share + "%" : "") + (x.up ? " · 所在一级行业的" : "") + "</small></p>";
     let size = "";
-    if (a) size += "<p><b>" + rmYi(a.rev) + "元</b> " + a.n + " 家 A 股公司" + esc(it.annual_name) + '营收合计<small class="bz-dim">上市公司 · 同比 ' + rmPct(a.rev_yoy) + "</small></p>";
+    if (a) size += "<p><b>" + rmYi(a.rev) + "元</b> " + a.n + (d.type === "trk" ? " 家相关上市公司" : " 家 A 股公司") + esc(it.annual_name) + '营收合计<small class="bz-dim">' +
+      (d.type === "trk" && a.boards ? "东方财富概念板块「" + esc(a.boards.join("」「")) + "」的成分股；这些公司不一定全靠这块赚钱，当作「这条赛道上的玩家有多大」看" : "上市公司") +
+      " · 同比 " + rmPct(a.rev_yoy) + "</small></p>";
     nb("retail").concat(nb("ind")).forEach((x) => { size += nbLine(x); });
     facts("规模").concat(facts("交易")).forEach((f) => { size += factLine(f); });
     h += rmLine("规模", size || '<p class="bz-dim">没有直接对上的数字</p>');
