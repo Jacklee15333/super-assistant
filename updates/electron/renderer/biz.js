@@ -345,7 +345,11 @@
     }
     return MWIN[String(S.mdays)] || "最近 " + S.mdays + " 天";
   }
-  const show24 = () => S.mdays > 1 || S.mdays === 0;          // 要不要另外写「最近 24 小时 N 条」
+  const show24 = () => S.mdays > 1 || S.mdays === 0;
+  function dataStamp() {                                       // v182：雷达和行业地图用的是同一份统计，写上统计时间
+    const t = S.ovm && S.ovm.now ? new Date(S.ovm.now * 1000) : null;
+    return t ? "数据 " + [t.getHours(), t.getMinutes(), t.getSeconds()].map((x) => String(x).padStart(2, "0")).join(":") + " 更新（市场雷达和行业地图是同一份数据）" : "";
+  }          // 要不要另外写「最近 24 小时 N 条」
   // v176：雷达上的字用深一点（深色模式下浅一点）的同色，和浅色底拉开对比
   function ink(hex, k) {
     const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
@@ -681,6 +685,7 @@
       '<p class="bz-rad-legend"><span><i class="lg-near"></i>一片是一个大类（新闻越多片越大），片里一圈是一个行业（越热门越靠外、圈越厚），圆点是细分行业（越大新闻越多）</span>' +
       (show24() ? '<span><i class="lg-hot"></i>带圈的：最近 24 小时明显变多</span>' : "") +
       '<span><i class="lg-quiet"></i>边上的小灰点：这段时间没新闻</span>' +
+      '<span class="lg-time">' + esc(dataStamp()) + "</span>" +
       '<span class="lg-how">点一片 → 再点片里的一圈 → 再点圆点，一层层看；点饼外面的空白处或按 Esc 退回一层</span></p>';
     if (oldLive && oldLive.children.length) { const nl = $("bzRadLive"); nl.replaceWith(oldLive); }
     applyRadSel(false);
@@ -1385,12 +1390,12 @@
     const mine = heatIn(S.ov, id);
     const gap = m && h[0] >= 3 && S.ov && !mine[0];
     const tip = d.name + "：" + d.desc + (d.co ? "\n代表企业：" + d.co : "") +
-      (m ? "\n" + winText() + "的市场新闻：" + (h[0] || 0) + " 条（今天 " + (h[1] || 0) + " 条）" +
+      (m ? "\n" + winText() + "的市场新闻：" + (h[0] || 0) + " 条（最近 24 小时 " + (h[1] || 0) + " 条）" +
         (S.ov ? "\n你收进来的相关内容：" + (mine[0] || 0) + " 条" : "")
         : "\n你收进来的相关内容：" + (h[0] || 0) + " 条");
     return '<button type="button" class="bz-tile h' + lvl(h[0]) + (S.indSel === id ? " sel" : "") + (matchQ(d) ? "" : " dim") +
       '" data-ind="' + esc(id) + '" title="' + esc(tip) + '"><span class="nm">' + esc(d.name) + "</span>" +
-      (h[0] ? '<span class="ct">' + h[0] + (m && show24() && h[1] ? '<small> 今天 +' + h[1] + "</small>" : "") + "</span>" : "") +
+      (h[0] ? '<span class="ct">' + h[0] + (m && show24() && h[1] ? '<small> 24 小时 +' + h[1] + "</small>" : "") + "</span>" : "") +
       (gap ? '<i class="gap" aria-hidden="true"></i>' : "") + "</button>";
   }
   function mapHTML() {
@@ -1443,7 +1448,7 @@
     segSync("indview", S.indView);
     lensVis();
     $("bzLegendTxt").textContent = S.lens === "market"
-      ? "颜色越深，" + winText() + "市场上的相关新闻越多；带小圆点的是你还没关注的"
+      ? "颜色越深，" + winText() + "市场上的相关新闻越多；带小圆点的是你还没关注的。" + dataStamp()
       : "颜色越深，你收进来的相关内容越多";
     const main = $("bzIndMain");
     if (!S.tax) { main.innerHTML = loading(S.taxErr ? "读不到行业分类表：" + S.taxErr : ""); $("bzIndDetail").innerHTML = ""; return; }
@@ -1476,7 +1481,7 @@
     const m = S.lens === "market", mine = heatIn(S.ov, d.id), mkt = heatIn(S.ovm, d.id);
     const win = winText();
     const stat = m
-      ? '<p class="bz-dt-stat"><b>' + (h[0] || 0) + "</b> 条市场新闻（" + win + "）" + (h[1] ? "，今天 " + h[1] + " 条" : "") + "</p>" +
+      ? '<p class="bz-dt-stat"><b>' + (h[0] || 0) + "</b> 条市场新闻（" + win + "）" + (h[1] && S.mdays !== 1 ? "，最近 24 小时 " + h[1] + " 条" : "") + "</p>" +
         '<p class="bz-dim">' + (S.ov ? (mine[0] ? "你收进来的相关内容 " + mine[0] + " 条" : "你收进来的内容里还没有它" + (h[0] >= 3 ? "，市场上却有动静：可能是个盲区" : "")) : "") + "</p>"
       : '<p class="bz-dt-stat"><b>' + (h[0] || 0) + "</b> 条相关内容" + (S.days && h[1] ? "，最近 " + S.days + " 天 " + h[1] + " 条" : "") + "</p>" +
         (S.ovm ? '<p class="bz-dim">市场上最近 ' + win + "的相关新闻 " + (mkt[0] || 0) + " 条</p>" : "");
@@ -1494,7 +1499,9 @@
       (rel.length ? "<h4>" + relT + '</h4><div class="bz-chips">' + rel.filter((x) => S.byId[x]).map((x) => '<button type="button" class="bz-chip" data-ind="' + esc(x) + '">' + esc(nameOf(x)) + (heatOf(x)[0] ? " <b>" + heatOf(x)[0] + "</b>" : "") + "</button>").join("") + "</div>" : "") +
       (items && items.top_kw && items.top_kw.length ? '<h4>相关内容里提得多的</h4><div class="bz-chips">' + items.top_kw.slice(0, 12).map((k) => '<span class="bz-chip static">' + esc(k) + "</span>").join("") + "</div>" : "") +
       (reps.length ? '<h4>这个行业的报告</h4><div class="bz-reps">' + reps.map(repRow).join("") + "</div>" : "") +
-      "<h4>" + (m ? "市场新闻" : "相关内容") + (items ? "（" + items.total + "）" : "") + '</h4><div class="bz-feed compact">' +
+      "<h4>" + (m ? "市场新闻" : "相关内容") + (items ? "（" + items.total + "）" : "") + "</h4>" +
+      (m && items && items.total < (h[0] || 0) ? '<p class="bz-hint">统计是 ' + h[0] + " 条；这里列的是还存着的 " + items.total + " 条，更早的新闻腾出了位置，只留了统计。</p>" : "") +
+      '<div class="bz-feed compact">' +
       (items ? (items.items.length ? items.items.map(itemRow).join("") : empty(m ? "市场雷达这段时间还没抓到它的新闻。可以在「市场雷达」里加这个行业的信息源或关键词。" : "你收进来的内容里还没有和它相关的。可以点「联网研究这个行业」，让小助上网查。")) : loading()) +
       "</div></div>";
   }
@@ -2246,7 +2253,7 @@
     try {
       const o = await api("/biz/overview?lens=" + which + "&days=" + (m ? S.mdays : S.days));
       if (o && o.ok === false) throw new Error(o.error || "出错");
-      if (m) { S.ovm = o; S.ovmErr = ""; if (o.radar && o.radar.ok !== false) S.radar = o.radar; loadRadTops(); }
+      if (m) { S.ovm = o; S.ovmErr = ""; S.ovmAt = Date.now(); if (o.radar && o.radar.ok !== false) S.radar = o.radar; loadRadTops(); }
       else { S.ov = o; S.ovErr = ""; }
     } catch (e) {
       if (m) { S.ovm = null; S.ovmErr = "连不上后台（" + e.message + "）"; } else { S.ov = null; S.ovErr = "连不上后台（" + e.message + "）"; }
@@ -2297,7 +2304,9 @@
       renderStrips();
       if (S.updOpen && r.running) renderUpd();
       if (r.running) liveTick(r);
-      if (r.running && S.mdays === -1 && S.pane === "radar" && Date.now() - (S.ovmAt || 0) > 20000) { S.ovmAt = Date.now(); refreshOverview("market"); }   // v178
+      if (r.running && (S.pane === "radar" || S.pane === "industry") && Date.now() - (S.ovmAt || 0) > (S.mdays === -1 ? 20000 : 30000)) {   // v182：扫描时雷达、行业地图一起每 30 秒刷新
+        S.ovmAt = Date.now(); refreshOverview("market");
+      }
       if (S.pane === "crawler") { renderCrawlerStatus(); renderRuns(); }
       if (was && !r.running) {
         if (LIVE.rid === wasRid) liveTick({ rid: wasRid, started: LIVE.since }, true);   // 最后一批也亮一下
@@ -2357,6 +2366,7 @@
     root.querySelectorAll(".bz-pane").forEach((el) => { el.hidden = el.dataset.pane !== p; });
     closeReader();
     renderPane(p);
+    if ((p === "radar" || p === "industry") && S.ovm && Date.now() - (S.ovmAt || 0) > 30000) refreshOverview("market");   // v182：切过来时数据旧了就刷新
     if (p === "crawler") { loadEngines(); loadRuns(); if (!S.radarSrc) loadRadarSources(); }
   }
   function goPane(p) {
