@@ -897,3 +897,8 @@ body.dark .view-biz { --bz-up: #6cc08b; --bz-warn: #e0a24a; --bz-bad: #e5907a; }
 .view-biz .bz-rad-svg .sp2 { stroke-width: 1; stroke-opacity: .35; }
 .view-biz .bz-rad-svg .rim { font: 600 13.5px var(--sans); }
 .view-biz .bz-rad-svg .rim .rn { font-weight: 400; }
+
+/* v172：不扫描的时候扫描扇面整个藏起来（之前停着时会留一道浅色扇面压在「消费」上） */
+.view-biz .bz-radar:not(.scanning) .bz-rad-svg .sweep { display: none; }
+.view-biz .bz-rad-svg .rim { font: 600 13px var(--sans); paint-order: stroke; stroke: var(--bg-elev); stroke-width: 3px; stroke-linejoin: round; }
+.view-biz .bz-rad-svg .band-c { stroke: var(--bg-elev); stroke-width: 2; }
