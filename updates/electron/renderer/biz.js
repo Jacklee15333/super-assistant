@@ -1399,9 +1399,18 @@
     const mx = (S.mapMax && S.mapMax[d.type]) || 0;
     const lv = !h[0] ? 0 : !mx ? lvl(h[0]) : ((r) => (r < 0.2 ? 1 : r < 0.4 ? 2 : r < 0.6 ? 3 : r < 0.8 ? 4 : 5))(Math.sqrt(h[0] / mx));   // v183：深浅按这一屏里最多的那个分
     return '<button type="button" class="bz-tile' + (d.type === "l3" ? " l3" : d.type === "l2" ? " l2" : "") + " h" + lv + (S.indSel === id ? " sel" : "") + (matchQ(d) ? "" : " dim") +
-      '" data-ind="' + esc(id) + '" title="' + esc(tip) + '"><span class="nm">' + esc(d.name) + "</span>" +
+      '" style="--c:' + colorOf(id) + '" data-ind="' + esc(id) + '" title="' + esc(tip) + '"><span class="nm">' + esc(d.name) + "</span>" +
       (h[0] ? '<span class="ct">' + h[0] + (m && show24() && h[1] && d.type !== "l3" ? '<small> 24 小时 +' + h[1] + "</small>" : "") + "</span>" : "") +
       (gap ? '<i class="gap" aria-hidden="true"></i>' : "") + "</button>";
+  }
+  // v184：不同板块不同颜色（和市场雷达的饼一样）；每个板块里新闻多的排前面
+  function cntOf(id) { return heatOf(id)[0] || 0; }
+  function byCnt(a, b) { return cntOf(b) - cntOf(a) || String(nameOf(a)).localeCompare(String(nameOf(b)), "zh"); }
+  function colorOf(id) {
+    const d = S.byId[id];
+    if (!d) return "#888";
+    if (d.type === "trk") { const g = TRK_GROUPS.find((x) => x[2].includes(id)); return g ? g[1] : "#9a8a6a"; }
+    return RAD_SEC[secName(d.sec)] || "#888";
   }
   function mapHTML() {
     const mx = { trk: 0, l2: 0, l3: 0 };                       // v183：每种格子里最多的是多少（分深浅用）
@@ -1409,19 +1418,19 @@
     S.mapMax = mx;
     const l2b = (x) => {                                         // 一个二级行业：它的格子 + 下面的三级细分小格子
       const d2 = S.byId[x], kids = (d2 && d2.l3) || [];
-      return '<div class="bz-l2b">' + tile(x) + (kids.length >= 2 ? '<div class="bz-l3s">' + kids.map(tile).join("") + "</div>" : "") + "</div>";
+      return '<div class="bz-l2b">' + tile(x) + (kids.length >= 2 ? '<div class="bz-l3s">' + kids.slice().sort(byCnt).map((y) => tile(y)).join("") + "</div>" : "") + "</div>";
     };
     let html = '<section class="bz-band trk"><header><h4>新兴赛道</h4><span>横跨好几个行业的热门方向</span></header><div class="bz-tiles">' +
-      S.tax.tracks.map((t) => tile(t.id)).join("") + "</div></section>";
+      S.tax.tracks.map((t) => t.id).sort(byCnt).map((x) => tile(x)).join("") + "</div></section>";
     S.tax.sectors.forEach((sec) => {
-      html += '<section class="bz-band"><header><h4>' + esc(sec.name) + "</h4><span>" + esc(sec.desc) + '</span></header><div class="bz-l1s">' +
-        sec.l1.map((n) => {
+      html += '<section class="bz-band" style="--c:' + (RAD_SEC[sec.name] || "#888") + '"><header><h4>' + esc(sec.name) + "</h4><span>" + esc(sec.desc) + '</span></header><div class="bz-l1s">' +
+        sec.l1.slice().sort(byCnt).map((n) => {
           const d = S.byId[n], h = heatOf(n);
           const hit = matchQ(d) || d.subs.some((x) => matchQ(S.byId[x]) || (S.byId[x].l3 || []).some((y) => matchQ(S.byId[y])));
           const w = d.subs.reduce((a, x) => a + 1 + ((S.byId[x].l3 || []).length >= 2 ? S.byId[x].l3.length * 0.5 : 0), 0);
-          return '<div class="bz-l1' + (hit ? "" : " dim") + '" style="flex-grow:' + Math.round(w) + '"><button type="button" class="bz-l1-h' + (S.indSel === n ? " sel" : "") +
+          return '<div class="bz-l1' + (hit ? "" : " dim") + '" style="flex-grow:' + Math.round(w) + ";--c:" + colorOf(n) + '"><button type="button" class="bz-l1-h' + (S.indSel === n ? " sel" : "") +
             '" data-ind="' + esc(n) + '" title="' + esc(d.name + "：" + d.desc) + '"><span>' + esc(n) + "</span>" + (h[0] ? "<em>" + h[0] + "</em>" : "") + "</button>" +
-            '<div class="bz-tiles">' + d.subs.map(l2b).join("") + "</div></div>";
+            '<div class="bz-tiles">' + d.subs.slice().sort(byCnt).map(l2b).join("") + "</div></div>";
         }).join("") + "</div></section>";
     });
     return '<div class="bz-map">' + html + "</div>";
@@ -1438,13 +1447,13 @@
     const qq = S.indQ.trim();
     const head = '<thead><tr><th>行业</th><th>做什么</th><th class="num">相关内容</th><th></th></tr></thead>';
     let html = "";
-    const trs = S.tax.tracks.filter((t) => matchQ(S.byId[t.id]));
+    const trs = S.tax.tracks.filter((t) => matchQ(S.byId[t.id])).sort((a, b) => byCnt(a.id, b.id));
     if (trs.length) html += '<section class="bz-lsec"><h4>新兴赛道</h4><table class="bz-ltab">' + head + "<tbody>" + trs.map((t) => lrow(t.id)).join("") + "</tbody></table></section>";
     S.tax.sectors.forEach((sec) => {
-      const l1s = sec.l1.map((n) => S.byId[n]).filter((d) => matchQ(d) || d.subs.some((x) => matchQ(S.byId[x])));
+      const l1s = sec.l1.map((n) => S.byId[n]).filter((d) => matchQ(d) || d.subs.some((x) => matchQ(S.byId[x]))).sort((a, b) => byCnt(a.id, b.id));
       if (!l1s.length) return;
       html += '<section class="bz-lsec"><h4>' + esc(sec.name) + "</h4>" + l1s.map((d) => {
-        const subs = d.subs.filter((x) => matchQ(d) || matchQ(S.byId[x]));
+        const subs = d.subs.filter((x) => matchQ(d) || matchQ(S.byId[x])).sort(byCnt);
         const h = heatOf(d.id);
         const sel = S.byId[S.indSel];
         const open = qq || S.openL1[d.id] || (sel && (sel.l1 === d.id || sel.id === d.id));
@@ -1461,8 +1470,8 @@
     segSync("indview", S.indView);
     lensVis();
     $("bzLegendTxt").textContent = S.lens === "market"
-      ? "颜色越深，" + winText() + "市场上的相关新闻越多；带小圆点的是你还没关注的。" + dataStamp()
-      : "颜色越深，你收进来的相关内容越多";
+      ? "不同板块用不同颜色（和市场雷达的饼一样）；同一种颜色越深，" + winText() + "市场上的相关新闻越多，多的排在前面；带小圆点的是你还没关注的。" + dataStamp()
+      : "不同板块用不同颜色；颜色越深，你收进来的相关内容越多，多的排在前面";
     const main = $("bzIndMain");
     if (!S.tax) { main.innerHTML = loading(S.taxErr ? "读不到行业分类表：" + S.taxErr : ""); $("bzIndDetail").innerHTML = ""; return; }
     const sc = $("bzScroll").scrollTop;
