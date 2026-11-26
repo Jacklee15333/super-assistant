@@ -383,13 +383,20 @@ def taxonomy():
         secs.append({"key": key, "name": name, "desc": desc,
                      "l1": [l1 for l1, sec, _d, _s in INDUSTRIES if sec == key]})
     inds = []
+    try:
+        import biz_industries_l3 as L3                   # v183：三级细分
+        l3t = L3.l3_table()
+    except Exception:
+        l3t = {}
     for l1, sec, d1, subs in INDUSTRIES:
         inds.append({"id": l1, "name": l1, "sec": sec, "desc": d1,
-                     "subs": [{"id": l1 + "/" + n, "name": n, "desc": d, "kw": kw, "co": co}
+                     "subs": [{"id": l1 + "/" + n, "name": n, "desc": d, "kw": kw, "co": co,
+                               "l3": [{"id": l1 + "/" + n + "/" + a, "name": a, "desc": b, "kw": " ".join(k)} for a, b, k in l3t.get(l1 + "/" + n, [])]}
                               for n, d, kw, co in subs]})
     return {
         "ok": True, "source": SOURCE, "sectors": secs, "industries": inds,
         "tracks": [{"id": "t:" + i, "name": n, "desc": d, "kw": kw, "rel": rel} for i, n, d, kw, rel in TRACKS],
         "models": [{"id": "m:" + i, "name": n, "desc": d} for i, n, d, _kw in MODELS],
-        "counts": {"l1": len(INDUSTRIES), "l2": sum(len(s) for _a, _b, _c, s in INDUSTRIES), "tracks": len(TRACKS)},
+        "counts": {"l1": len(INDUSTRIES), "l2": sum(len(s) for _a, _b, _c, s in INDUSTRIES), "tracks": len(TRACKS),
+                   "l3": sum(len(x["l3"]) for i in inds for x in i["subs"])},
     }

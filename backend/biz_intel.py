@@ -156,11 +156,24 @@ def _tx():
         for i, n, d, kw, rel in BI.TRACKS:
             trk["t:" + i] = {"name": n, "desc": d, "kw": kw.split(), "rel": rel}
             trk_groups.append(("t:" + i, kw.split() + [n]))
+        l3, l3_groups = {}, []
+        try:                                                  # v183：三级细分；它的关键词也算进它的二级行业
+            import biz_industries_l3 as BI3
+            extra = {}
+            for g2, rows in BI3.l3_table().items():
+                for a, b, kws in rows:
+                    gid3 = g2 + "/" + a
+                    l3[gid3] = {"name": a, "l2": g2, "desc": b, "kw": kws}
+                    l3_groups.append((gid3, kws + ([a] if (" " not in a and "与" not in a and len(a) >= 2) else [])))
+                    extra.setdefault(g2, []).extend(kws)
+            ind_groups = [(g, kws + extra.get(g, [])) for g, kws in ind_groups]
+        except Exception as e:
+            _log("三级细分读不到：%s" % e)
         mdl = {}
         for i, n, d, kw in BI.MODELS:
             mdl["m:" + i] = {"name": n, "desc": d, "kw": kw.split()}
             mdl_groups.append(("m:" + i, kw.split()))
-        _TX.update(l1=l1, l2=l2, trk=trk, sec=sec, mdl=mdl,
+        _TX.update(l1=l1, l2=l2, trk=trk, sec=sec, mdl=mdl, l3=l3, m3=_Matcher(l3_groups),
                    mi=_Matcher(ind_groups), mt=_Matcher(trk_groups), mm=_Matcher(mdl_groups),
                    mb=_Matcher([("b", BI.BIZ_WORDS)]))
         return _TX
@@ -185,6 +198,29 @@ def _score(strong, weak=""):
             sc[gid] += len(extra)
             words.extend(extra)
     return sc_i, sc_t, words
+
+
+def _pick3(strong, weak, ind):
+    """v183：在已经归到的二级行业下面，再找三级细分（每个二级最多 2 个）。"""
+    if not ind:
+        return []
+    m3 = _tx().get("m3")
+    if m3 is None:
+        return []
+    sc = collections.Counter()
+    hs = m3.hits(strong)
+    for gid, ks in hs.items():
+        sc[gid] += 2 * len(ks)
+    if weak:
+        for gid, ks in m3.hits(weak).items():
+            sc[gid] += len(ks - hs.get(gid, set()))
+    out, per = [], collections.Counter()
+    for g, v in sc.most_common():
+        p = g.rsplit("/", 1)[0]
+        if v >= 2 and p in ind and per[p] < 2:
+            out.append(g)
+            per[p] += 1
+    return out
 
 
 def _pick(sc, n=3, floor=2):
@@ -377,7 +413,9 @@ def _signal(src, key, title, summary, who, url, ts, extra=None, hints=None, hint
     r = {"src": src, "id": key, "title": (title or "")[:120], "who": (who or "")[:40], "url": url or "", "ts": ts,
          "one": (summary or "")[:240], "pts": [], "cat": "", "kw": [], "tags": [],
          "ind": _pick(sc_i), "trk": _pick(sc_t), "mdl": _models_of(title + " " + summary), "biz": 2,
+         "l3": [],
          "terms": terms[:10], "_text": " ".join([title or "", summary or "", who or ""]).lower()}
+    r["l3"] = _pick3(title, summary, r["ind"])
     if extra:
         r.update(extra)
     return r
@@ -387,7 +425,7 @@ def classify_radar(title, summary, hints=None, grp=""):
     """v178：给爬虫用——一条新闻归到哪些细分行业、赛道（和 _radar_items 同一套算法），抓到时就记进统计。"""
     it = _signal("radar", "", title or "", summary or "", "", "", 0, hints=hints or [],
                  hint_w=2 if grp in ("media", "corpkw", "indkw", "mine", "firm") else 1)
-    return it["ind"], it["trk"]
+    return it["ind"], it["trk"], it["l3"]
 
 
 def _round_since():
@@ -487,7 +525,7 @@ def _pub(it):
     """给界面的精简版（不带内部字段）。"""
     return {"src": it["src"], "id": it["id"], "title": it["title"], "text": (it.get("one") or "")[:180],
             "who": it.get("who", ""), "date": _day(it["ts"]) if it.get("ts") else "", "url": it.get("url", ""),
-            "ind": it.get("ind", [])[:3], "trk": it.get("trk", [])[:2], "mdl": it.get("mdl", [])[:3],
+            "ind": it.get("ind", [])[:3], "trk": it.get("trk", [])[:2], "mdl": it.get("mdl", [])[:3], "l3": it.get("l3", [])[:4],
             "cat": it.get("cat", ""), "kind": it.get("kind", ""), "imp": it.get("imp", ""), "todo": it.get("todo", False),
             "ts": int(it.get("ts") or 0), "grp": it.get("grp", ""), "from": it.get("from", ""),
             "approx": bool(it.get("approx")), "sid": it.get("sid", ""), "seen": int(it.get("seen") or 0)}
@@ -549,7 +587,7 @@ def radar_run(rid):
 
 def radar_tops(days=1, n=6):
     """v168：雷达上每个行业、细分行业、赛道最新的几条新闻，一次算好给界面，点圆点马上就能看到，不用再等。"""
-    days = int(days if days is not None else 1)             # v178：-1＝这一轮扫描，0＝累计
+    days = _fdays(days, 1)                                  # v178：-1＝这一轮扫描，0＝累计；v183：可以是小数（1 小时）
     win = _radar_items()
     if days < 0:
         since = _round_since()
@@ -560,7 +598,7 @@ def radar_tops(days=1, n=6):
     win.sort(key=lambda x: -x["ts"])
     out = {}
     for it in win:
-        keys = set(it["trk"]) | set(it["ind"]) | {g.split("/")[0] for g in it["ind"]}
+        keys = set(it["trk"]) | set(it["ind"]) | set(it.get("l3") or []) | {g.split("/")[0] for g in it["ind"]}
         for k in keys:
             lst = out.setdefault(k, [])
             if len(lst) < n:
@@ -605,11 +643,20 @@ def overview(days=30, lens="mine"):
             "reports": len(_reports()), "opps": len(_read_json(OPPS_FILE, [])), "now": int(now)}
 
 
+def _fdays(v, d=1):
+    """时间范围：整数天，或者小数天（1 小时＝0.0417 天）。"""
+    try:
+        f = float(v)
+    except Exception:
+        return d
+    return int(f) if f == int(f) else f
+
+
 def _heat_of(win, cut24):
     heat, l1h = {}, {}
     for it in win:
         d = 1 if it["ts"] >= cut24 else 0
-        for g in it["ind"] + it["trk"]:
+        for g in it["ind"] + it["trk"] + (it.get("l3") or []):
             h = heat.setdefault(g, [0, 0])
             h[0] += 1
             h[1] += d
@@ -624,25 +671,30 @@ def _overview_market(days=7):
     """v156：市场实时——只看市场雷达抓到的新闻。热度＝这段时间的条数；第二个数＝最近 24 小时。
     v178：days＝-1 这一轮扫描；0 累计（从开始到现在）；其它＝最近几天（2、3、7、30、365…）。
     条数用爬虫记的统计（内容库只留最新 8000 条，统计一直在），「正在升温」「提得最多」按还存着的新闻算。"""
-    try:
-        days = int(days)
-    except Exception:
-        days = 1
+    days = _fdays(days, 1)
     now = time.time()
     cut24 = now - 86400
     allr = _radar_items()
     since, st = 0, None
+    try:
+        import biz_crawler as BC
+        BC.stats_l3_backfill({str(it["id"])[2:]: it.get("l3") or [] for it in allr})   # v183：以前的新闻补上三级细分的统计（只做一次）
+        oldest = BC.hot_oldest_ts()
+    except Exception:
+        oldest = 0
     if days < 0:                                            # 这一轮扫描：这一轮抓到的
         since = _round_since()
         win = [it for it in allr if since and int(it.get("seen") or 0) >= since]
         span = max(1 / 24, (now - since) / 86400) if since else 1
     else:
         win = [it for it in allr if not days or it["ts"] >= now - days * 86400]
-        try:
-            import biz_crawler as BC
-            st = BC.stats_window(days)
-        except Exception as e:
-            _log("统计读不到，先按还存着的新闻算：%s" % e)
+        covered = days > 0 and oldest and now - days * 86400 >= oldest   # v183：这段时间的新闻内容库里都还在：直接按存着的算，和列表一条不差
+        if not covered:
+            try:
+                import biz_crawler as BC
+                st = BC.stats_window(days)
+            except Exception as e:
+                _log("统计读不到，先按还存着的新闻算：%s" % e)
         if st:
             since = st["since"]
         span = days if days > 0 else (max(1.0, (now - since) / 86400) if since else 1)
@@ -651,7 +703,7 @@ def _overview_market(days=7):
     else:
         heat, l1h = _heat_of(win, cut24)
         n_win, n_cls, n24 = len(win), sum(1 for x in win if x["ind"] or x["trk"]), sum(1 for x in win if x["ts"] >= cut24)
-    hot, rising, rec_n, base = _terms_stats(win, now - (6 * 3600 if days in (-1, 1) else 86400), hot_by="n")
+    hot, rising, rec_n, base = _terms_stats(win, now - (900 if 0 < days < 1 else 6 * 3600 if days in (-1, 1) else 86400), hot_by="n")
     win.sort(key=lambda x: -x["ts"])
     try:
         import biz_crawler as BC
@@ -668,7 +720,7 @@ def items(ind="", trk="", mdl="", q="", src="all", days=0, limit=60, biz=False, 
           since=0):
     allit = _radar_items() if lens == "market" else _all_items()
     grps = {g for g in (grp or "").split(",") if g and g != "all"}
-    days = int(days or 0)
+    days = _fdays(days or 0, 0)
     if days < 0 and lens == "market":                      # v178：这一轮扫描抓到的
         rs = _round_since()
         since = max(int(since or 0), rs) if rs else int(time.time()) + 1
@@ -690,7 +742,10 @@ def items(ind="", trk="", mdl="", q="", src="all", days=0, limit=60, biz=False, 
         if biz and it["src"] == "note" and it["biz"] < 2:
             continue
         if ind:
-            if "/" in ind:
+            if ind.count("/") >= 2:                         # v183：三级细分
+                if ind not in (it.get("l3") or []):
+                    continue
+            elif "/" in ind:
                 if ind not in it["ind"]:
                     continue
             elif ind.startswith("sec:"):
@@ -708,9 +763,35 @@ def items(ind="", trk="", mdl="", q="", src="all", days=0, limit=60, biz=False, 
         out.append(it)
     out.sort(key=lambda x: -x["ts"])
     c = collections.Counter(k for it in out for k in it.get("terms", []))
-    off = max(0, int(offset or 0))                         # v158：分页
-    return {"ok": True, "total": len(out), "offset": off, "items": [_pub(x) for x in out[off:off + max(1, int(limit))]],
-            "top_kw": [k for k, _n in c.most_common(16)]}
+    off, lim = max(0, int(offset or 0)), max(1, int(limit))         # v158：分页
+    page = [_pub(x) for x in out[off:off + lim]]
+    total = len(out)
+    if lens == "market" and not since and not mdl:                  # v183：看得比内容库久的，接着列存档库里的
+        try:
+            import biz_crawler as BC
+            import biz_archive as BA
+            oldest = BC.hot_oldest_ts()
+            if oldest and (not cut or cut < oldest):
+                tags = None
+                if ind:
+                    if ind.startswith("sec:"):
+                        tags = ["l1:" + x for x in (_tx()["sec"].get(ind) or {}).get("l1", [])]
+                    else:
+                        tags = [ind if "/" in ind else "l1:" + ind]
+                if trk:
+                    tags = (tags or []) + [trk] if not ind else tags
+                a_total, a_rows = BA.query(cut=cut, tags=tags, grps=sorted(grps), q=(q or "").strip(), sid=sid,
+                                           limit=max(0, lim - len(page)), offset=max(0, off - len(out)))
+                total += a_total
+                for r in a_rows:
+                    page.append({"src": "radar", "id": "r:" + r["key"], "title": r["title"], "text": (r["summary"] or "")[:180],
+                                 "who": r["sname"], "date": _day(r["ts"]) if r["ts"] else "", "url": r["url"], "ind": r["ind"][:3],
+                                 "trk": r["trk"][:2], "mdl": [], "l3": r["l3"][:4], "cat": "", "kind": "", "imp": "", "todo": False,
+                                 "ts": int(r["ts"] or 0), "grp": r["grp"], "from": r["from"], "approx": not r["dated"], "sid": r["sid"],
+                                 "seen": int(r["seen"] or 0), "arch": True})
+        except Exception as e:
+            _log("存档库读不到（只列内容库里的）：%s" % e)
+    return {"ok": True, "total": total, "offset": off, "items": page, "top_kw": [k for k, _n in c.most_common(16)]}
 
 
 # ───────────────────────── 报告 ─────────────────────────
@@ -970,6 +1051,10 @@ def _resolve(sid):
     sid = (sid or "").strip()
     if not sid:
         return "全部行业", "", set(), [], ""
+    if sid in tx.get("l3", {}):                              # v183：三级细分
+        d = tx["l3"][sid]
+        p = tx["l2"].get(d["l2"], {})
+        return p.get("l1", "") + "·" + p.get("name", "") + "·" + d["name"], d["desc"], {d["l2"]}, d["kw"][:12] + [d["name"]], p.get("co", "")
     if sid in tx["l2"]:
         d = tx["l2"][sid]
         return d["l1"] + "·" + d["name"], d["desc"], {sid}, d["kw"][:10] + [d["name"]], d["co"]

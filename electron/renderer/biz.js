@@ -77,7 +77,7 @@
     read: new Set(store.get("read", [])),       // v164：点开看过的新闻（标题变淡、不再标「新」）
     plan: null, updOpen: false, updDone: "", updRes: null, briefOpen: false, bf: null, briefInfo: null,
     lens: store.get("lens", "market") === "mine" ? "mine" : "market", days: 30,
-    indView: store.get("indView", "map"), indSel: store.get("indSel", ""), indQ: "", indItems: null, openL1: {},
+    indView: store.get("indView", "map"), indSel: "", indQ: "", indItems: null, openL1: {},
     task: store.get("task", "model"), depth: "quick",
     mdl: "", mdCases: null, opps: null, oppSt: "all", reports: [], repKind: "all", repQ: "", topics: [],
     job: null, jobTimer: null, readerRep: null, readerRun: "",
@@ -91,7 +91,10 @@
     t.sectors.forEach((s) => { by["sec:" + s.key] = { type: "sec", id: "sec:" + s.key, name: s.name, desc: s.desc, l1: s.l1 }; });
     t.industries.forEach((i) => {
       by[i.id] = { type: "l1", id: i.id, name: i.name, desc: i.desc, sec: i.sec, subs: i.subs.map((x) => x.id) };
-      i.subs.forEach((x) => { by[x.id] = { type: "l2", id: x.id, name: x.name, desc: x.desc, kw: x.kw, co: x.co, l1: i.id, sec: i.sec }; });
+      i.subs.forEach((x) => {
+        by[x.id] = { type: "l2", id: x.id, name: x.name, desc: x.desc, kw: x.kw, co: x.co, l1: i.id, sec: i.sec, l3: (x.l3 || []).map((y) => y.id) };
+        (x.l3 || []).forEach((y) => { by[y.id] = { type: "l3", id: y.id, name: y.name, desc: y.desc, kw: y.kw, l2: x.id, l1: i.id, sec: i.sec }; });   // v183：三级细分
+      });
     });
     t.tracks.forEach((x) => { by[x.id] = { type: "trk", id: x.id, name: x.name, desc: x.desc, kw: x.kw, rel: x.rel }; });
     t.models.forEach((x) => { by[x.id] = { type: "mdl", id: x.id, name: x.name, desc: x.desc }; });
@@ -124,7 +127,7 @@
   const seg = (name, opts) => '<div class="bz-seg" role="group" data-seg="' + name + '">' +
     opts.map(([v, t]) => '<button type="button" data-v="' + v + '" aria-pressed="false">' + t + "</button>").join("") + "</div>";
   const LENS_SEG = () => seg("lens", [["market", "市场实时"], ["mine", "我关注的"]]).replace('class="bz-seg"', 'class="bz-seg lens"');
-  const MDAYS_SEG = () => seg("mdays", [["-1", "这一轮"], ["1", "24 小时"], ["2", "2 天"], ["3", "3 天"], ["7", "7 天"], ["30", "1 个月"], ["365", "1 年"], ["0", "累计"]]);   // v178
+  const MDAYS_SEG = () => seg("mdays", [["-1", "这一轮"], ["0.0417", "1 小时"], ["1", "24 小时"], ["2", "2 天"], ["3", "3 天"], ["7", "7 天"], ["30", "1 个月"], ["365", "1 年"], ["0", "累计"]]);   // v178
 
   function buildShell() {
     root.innerHTML =
@@ -337,7 +340,7 @@
     if (card && ind) card.scrollIntoView({ block: "start" });
   }
   // v178：时间范围：-1＝这一轮扫描，0＝累计（从开始到现在），其它＝最近几天
-  const MWIN = { "-1": "这一轮扫描", "1": "最近 24 小时", "2": "最近 2 天", "3": "最近 3 天", "7": "最近 7 天", "30": "最近 1 个月", "365": "最近 1 年" };
+  const MWIN = { "-1": "这一轮扫描", "0.0417": "最近 1 小时", "1": "最近 24 小时", "2": "最近 2 天", "3": "最近 3 天", "7": "最近 7 天", "30": "最近 1 个月", "365": "最近 1 年" };
   function winText() {
     if (S.mdays === 0) {
       const t = S.ovm && S.ovm.since ? new Date(S.ovm.since * 1000) : null;
@@ -1265,7 +1268,7 @@
       return "<span>上次扫描没扫完：扫到 " + z.done + " / " + z.total + " 个信息源就停了" + (z.new ? "（已经新抓到 " + z.new + " 条）" : "") + "。点「接着扫」把剩下的 " + z.left + " 个扫完，不用从头来。</span>" +
         '<button type="button" class="bz-link" data-act="rd-run">接着扫</button>';
     }
-    const txt = r.last_run ? "爬虫盯着 " + r.enabled + " 个信息源，" + ago(r.last_run) + "更新过；最近 24 小时抓到 " + r.items_24h + " 条。" + autoText(r) + "。"
+    const txt = r.last_run ? "爬虫盯着 " + r.enabled + " 个信息源，" + ago(r.last_run) + "更新过；最近 24 小时抓到 " + r.items_24h + " 条。" + (r.archive && r.archive.n ? "存档库里另有 " + r.archive.n + " 条（" + r.archive.files + " 个存档库）。" : "") + autoText(r) + "。"
       : "爬虫还没抓过：打开软件两三分钟后会自动抓第一轮，也可以点「现在更新」马上抓。";
     return "<span>" + esc(txt) + "</span>" + (withBtn ? '<button type="button" class="bz-link" data-act="upd-open">现在更新</button>' : "");
   }
@@ -1393,22 +1396,32 @@
       (m ? "\n" + winText() + "的市场新闻：" + (h[0] || 0) + " 条（最近 24 小时 " + (h[1] || 0) + " 条）" +
         (S.ov ? "\n你收进来的相关内容：" + (mine[0] || 0) + " 条" : "")
         : "\n你收进来的相关内容：" + (h[0] || 0) + " 条");
-    return '<button type="button" class="bz-tile h' + lvl(h[0]) + (S.indSel === id ? " sel" : "") + (matchQ(d) ? "" : " dim") +
+    const mx = (S.mapMax && S.mapMax[d.type]) || 0;
+    const lv = !h[0] ? 0 : !mx ? lvl(h[0]) : ((r) => (r < 0.2 ? 1 : r < 0.4 ? 2 : r < 0.6 ? 3 : r < 0.8 ? 4 : 5))(Math.sqrt(h[0] / mx));   // v183：深浅按这一屏里最多的那个分
+    return '<button type="button" class="bz-tile' + (d.type === "l3" ? " l3" : d.type === "l2" ? " l2" : "") + " h" + lv + (S.indSel === id ? " sel" : "") + (matchQ(d) ? "" : " dim") +
       '" data-ind="' + esc(id) + '" title="' + esc(tip) + '"><span class="nm">' + esc(d.name) + "</span>" +
-      (h[0] ? '<span class="ct">' + h[0] + (m && show24() && h[1] ? '<small> 24 小时 +' + h[1] + "</small>" : "") + "</span>" : "") +
+      (h[0] ? '<span class="ct">' + h[0] + (m && show24() && h[1] && d.type !== "l3" ? '<small> 24 小时 +' + h[1] + "</small>" : "") + "</span>" : "") +
       (gap ? '<i class="gap" aria-hidden="true"></i>' : "") + "</button>";
   }
   function mapHTML() {
+    const mx = { trk: 0, l2: 0, l3: 0 };                       // v183：每种格子里最多的是多少（分深浅用）
+    Object.values(S.byId).forEach((d) => { if (mx[d.type] != null) mx[d.type] = Math.max(mx[d.type], heatOf(d.id)[0] || 0); });
+    S.mapMax = mx;
+    const l2b = (x) => {                                         // 一个二级行业：它的格子 + 下面的三级细分小格子
+      const d2 = S.byId[x], kids = (d2 && d2.l3) || [];
+      return '<div class="bz-l2b">' + tile(x) + (kids.length >= 2 ? '<div class="bz-l3s">' + kids.map(tile).join("") + "</div>" : "") + "</div>";
+    };
     let html = '<section class="bz-band trk"><header><h4>新兴赛道</h4><span>横跨好几个行业的热门方向</span></header><div class="bz-tiles">' +
       S.tax.tracks.map((t) => tile(t.id)).join("") + "</div></section>";
     S.tax.sectors.forEach((sec) => {
       html += '<section class="bz-band"><header><h4>' + esc(sec.name) + "</h4><span>" + esc(sec.desc) + '</span></header><div class="bz-l1s">' +
         sec.l1.map((n) => {
           const d = S.byId[n], h = heatOf(n);
-          const hit = matchQ(d) || d.subs.some((x) => matchQ(S.byId[x]));
-          return '<div class="bz-l1' + (hit ? "" : " dim") + '" style="flex-grow:' + d.subs.length + '"><button type="button" class="bz-l1-h' + (S.indSel === n ? " sel" : "") +
+          const hit = matchQ(d) || d.subs.some((x) => matchQ(S.byId[x]) || (S.byId[x].l3 || []).some((y) => matchQ(S.byId[y])));
+          const w = d.subs.reduce((a, x) => a + 1 + ((S.byId[x].l3 || []).length >= 2 ? S.byId[x].l3.length * 0.5 : 0), 0);
+          return '<div class="bz-l1' + (hit ? "" : " dim") + '" style="flex-grow:' + Math.round(w) + '"><button type="button" class="bz-l1-h' + (S.indSel === n ? " sel" : "") +
             '" data-ind="' + esc(n) + '" title="' + esc(d.name + "：" + d.desc) + '"><span>' + esc(n) + "</span>" + (h[0] ? "<em>" + h[0] + "</em>" : "") + "</button>" +
-            '<div class="bz-tiles">' + d.subs.map(tile).join("") + "</div></div>";
+            '<div class="bz-tiles">' + d.subs.map(l2b).join("") + "</div></div>";
         }).join("") + "</div></section>";
     });
     return '<div class="bz-map">' + html + "</div>";
@@ -1464,19 +1477,28 @@
     const el = $("bzIndDetail");
     const d = S.byId[S.indSel];
     if (!S.tax) return;
-    if (!d || !["l1", "l2", "trk"].includes(d.type)) {
+    const wrap = el && el.closest(".bz-ind");
+    if (!d || !["l1", "l2", "l3", "trk"].includes(d.type)) {           // v183：没点格子的时候，右边这一栏不出来
+      el.hidden = true; el.innerHTML = "";
+      if (wrap) wrap.classList.add("nodet");
+      return;
+    }
+    el.hidden = false;
+    if (wrap) wrap.classList.remove("nodet");
+    if (false) {
       const hotL2 = S.ov ? Object.keys(S.ov.heat).filter((k) => S.byId[k]).sort((a, b) => S.ov.heat[b][0] - S.ov.heat[a][0]).slice(0, 8) : [];
       el.innerHTML = '<div class="bz-dt"><h3>选一个行业</h3><p class="bz-dim">点地图上的任意一格（或列表里的名字），右边会显示这个行业做什么、代表企业、你收进来的相关内容，还能让小助联网研究它、分析它的趋势和机会。</p>' +
         (hotL2.length ? '<h4>你最常看的</h4><div class="bz-chips">' + hotL2.map((k) => '<button type="button" class="bz-chip" data-ind="' + esc(k) + '">' + esc(nameOf(k)) + " <b>" + S.ov.heat[k][0] + "</b></button>").join("") + "</div>" : "") + "</div>";
       return;
     }
     const h = heatOf(d.id);
-    const path = d.type === "l2" ? secName(d.sec) + " › " + d.l1 : d.type === "l1" ? secName(d.sec) + "板块" : "新兴赛道";
+    const path = d.type === "l3" ? secName(d.sec) + " › " + d.l1 + " › " + nameOf(d.l2) : d.type === "l2" ? secName(d.sec) + " › " + d.l1 : d.type === "l1" ? secName(d.sec) + "板块" : "新兴赛道";
     let rel = [];
     if (d.type === "l1") rel = d.subs;
     else if (d.type === "trk") rel = d.rel || [];
-    else rel = relatedTracks(d.id);
-    const relT = d.type === "l1" ? "下面的二级行业" : d.type === "trk" ? "主要涉及的行业" : "相关的新兴赛道";
+    else if (d.type === "l3") rel = (S.byId[d.l2].l3 || []).filter((x) => x !== d.id);
+    else rel = (d.l3 || []).length >= 2 ? d.l3 : relatedTracks(d.id);
+    const relT = d.type === "l1" ? "下面的二级行业" : d.type === "trk" ? "主要涉及的行业" : d.type === "l3" ? "同一个二级行业里的其他细分" : (d.l3 || []).length >= 2 ? "下面的三级细分" : "相关的新兴赛道";
     const items = S.indItems && S.indItems._id === d.id + "|" + S.lens ? S.indItems : null;
     const m = S.lens === "market", mine = heatIn(S.ov, d.id), mkt = heatIn(S.ovm, d.id);
     const win = winText();
@@ -1487,7 +1509,8 @@
         (S.ovm ? '<p class="bz-dim">市场上最近 ' + win + "的相关新闻 " + (mkt[0] || 0) + " 条</p>" : "");
     const reps = S.reports.filter((r) => r.target === d.id || r.scope === d.id).slice(0, 5);
     el.innerHTML = '<div class="bz-dt">' +
-      '<p class="bz-dt-path">' + esc(path) + "</p><h3>" + esc(d.name) + "</h3><p>" + esc(d.desc) + "</p>" +
+      '<div class="bz-dt-top"><p class="bz-dt-path">' + esc(path) + '</p><button type="button" class="bz-x" data-act="ind-close" aria-label="关掉这一栏（Esc）" title="关掉（Esc）">×</button></div>' +
+      "<h3>" + esc(d.name) + "</h3><p>" + esc(d.desc) + "</p>" +
       (d.co ? '<p class="bz-dt-co"><span>代表企业（举例）</span>' + esc(d.co) + "</p>" : "") +
       stat +
       '<div class="bz-btns">' +
@@ -2082,7 +2105,7 @@
   const BF_SIZE = { short: ["简短", "800 字以内，最重要的几条", 40], normal: ["标准", "1500～2500 字", 60], detail: ["详细", "3000～5000 字，每条讲清来龙去脉", 90] };
   async function openBrief() {
     const prev = store.get("bf", {});
-    S.bf = { days: S.mdays > 0 ? Math.min(30, S.mdays) : S.mdays === 0 ? 30 : 1, grp: S.rgrp, q: S.rq, size: prev.size || "normal", notes: prev.notes !== false, web: !!prev.web, focus: "", count: null };
+    S.bf = { days: S.mdays >= 1 ? Math.min(30, S.mdays) : S.mdays === 0 ? 30 : 1, grp: S.rgrp, q: S.rq, size: prev.size || "normal", notes: prev.notes !== false, web: !!prev.web, focus: "", count: null };
     S.briefOpen = true;
     renderBrief();
     openModal("bzBrief");
@@ -2406,7 +2429,7 @@
     } else if (t === "trend") {
       runJob("trend", { scope: $("bzTaskScope").value, web: web });
     } else {
-      runJob("market", { scope: $("bzTaskScope").value, days: S.mdays > 0 ? S.mdays : S.mdays === 0 ? 365 : 1, web: web, lens: "market" });
+      runJob("market", { scope: $("bzTaskScope").value, days: S.mdays >= 1 ? S.mdays : S.mdays === 0 ? 365 : 1, web: web, lens: "market" });
     }
   }
 
@@ -2443,6 +2466,7 @@
         else if (act === "clearind") { S.rind = ""; loadRadarFeed(); }
         else if (act === "rad-clear" || act === "rad-top") radSet("");
         else if (act === "rad-up") radUp();
+        else if (act === "ind-close") { S.indSel = ""; root.querySelectorAll("#bzIndMain .sel").forEach((e) => e.classList.remove("sel")); renderIndDetail(); }   // v183
         else if (act === "art-close") closeArt();
         else if (act === "art-lang") { S.artLang = b.dataset.v === "orig" ? "orig" : "zh"; const it = curArt(); if (it) refreshArt(it); }
         else if (act === "art-retr") { const it = curArt(); if (it) loadTr(it); }
@@ -2723,6 +2747,7 @@
       else if (!$("bzUpd").hidden) closeModal("bzUpd");
       else if (!$("bzReader").hidden) closeReader();
       else if (S.radSel && S.pane === "radar" && S.rview === "radar") radUp();     // v177：雷达上一层层退回
+      else if (S.pane === "industry" && S.indSel) { S.indSel = ""; root.querySelectorAll("#bzIndMain .sel").forEach((e) => e.classList.remove("sel")); renderIndDetail(); }   // v183
     });
   }
 

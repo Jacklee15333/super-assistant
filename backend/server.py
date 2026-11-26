@@ -5682,12 +5682,12 @@ class Handler(BaseHTTPRequestHandler):
                 if path == "/biz/taxonomy":
                     return self._send(bz.taxonomy())
                 if path == "/biz/radar_tops":                       # v168：雷达上每个行业最新几条
-                    return self._send(bz.radar_tops(int(q1("days", "1") or 1)))
+                    return self._send(bz.radar_tops(bz._fdays(q1("days", "1") or 1, 1)))
                 if path == "/biz/overview":
-                    return self._send(bz.overview(int(q1("days", "30") or 30), q1("lens", "mine")))
+                    return self._send(bz.overview(bz._fdays(q1("days", "30") or 30, 30), q1("lens", "mine")))   # v183：可以是小数天
                 if path == "/biz/items":
                     return self._send(bz.items(ind=q1("ind"), trk=q1("trk"), mdl=q1("mdl"), q=q1("q"),
-                                               src=q1("src", "all"), days=int(q1("days", "0") or 0),
+                                               src=q1("src", "all"), days=bz._fdays(q1("days", "0") or 0, 0),
                                                limit=int(q1("limit", "60") or 60), biz=q1("biz") == "1",
                                                lens=q1("lens", "mine"), sid=q1("sid"), grp=q1("grp"),
                                                offset=int(q1("offset", "0") or 0), since=int(q1("since", "0") or 0)))
