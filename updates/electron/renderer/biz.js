@@ -1240,8 +1240,10 @@
     return '<div class="bz-rd-src' + (s.enabled ? "" : " off") + '">' +
       '<label class="bz-sw" title="打开 / 关掉"><input type="checkbox" data-rd-toggle="' + esc(s.id) + '"' + (s.enabled ? " checked" : "") + ' aria-label="盯不盯 ' + esc(s.name) + '"><i></i></label>' +
       '<div class="bz-rd-main"><div class="bz-rd-name"><b>' + esc(s.name) + "</b>" + hints + (s.n7 ? '<span class="bz-dim">近 7 天 ' + s.n7 + " 条</span>" : "") + "</div>" +
-      '<div class="bz-rd-url">' + esc(tgt) + "</div>" + st + "</div>" +
-      '<div class="bz-rd-acts"><button type="button" class="bz-link" data-rd-items="' + esc(s.id) + '">看抓到的</button>' +
+      '<div class="bz-rd-url">' + esc(tgt) + "</div>" + st + (s.off_why && !s.enabled ? '<span class="bz-rd-st err">' + esc(s.off_why) + "</span>" : "") + "</div>" +
+      '<div class="bz-rd-acts"><select class="bz-select sm bz-rd-w w' + (s.w || 3) + '" data-rd-w="' + esc(s.id) + '" title="权重：越高抓得越勤（5、4 每轮都抓；3 隔 3 轮；2 隔 8 轮；1 隔 24 轮）" aria-label="权重">' +
+        [5, 4, 3, 2, 1].map((v) => '<option value="' + v + '"' + (v === (s.w || 3) ? " selected" : "") + ">权重 " + v + "</option>").join("") + "</select>" +
+        '<button type="button" class="bz-link" data-rd-items="' + esc(s.id) + '">看抓到的</button>' +
       '<button type="button" class="bz-link" data-rd-one="' + esc(s.id) + '">抓一次</button>' +
       '<button type="button" class="bz-link danger" data-rd-del="' + esc(s.id) + '">删除</button></div></div>';
   }
@@ -1257,9 +1259,13 @@
     else {
       $("bzRdCount").textContent = d.sources.length + " 个，打开的 " + d.sources.filter((x) => x.enabled).length + " 个";
       let html = "";
-      d.groups.forEach((g) => {
+      S.rdShowAll = S.rdShowAll || {};
+      d.groups.forEach((g) => {                     // v170：每组按权重从高到低；太多的先显示前 50 个
         const rows = d.sources.filter((x) => (x.group || "mine") === g.key);
-        if (rows.length) html += '<div class="bz-rd-grp"><h4>' + esc(g.name) + "</h4>" + rows.map(rdRow).join("") + "</div>";
+        if (!rows.length) return;
+        const on = rows.filter((x) => x.enabled).length, all = S.rdShowAll[g.key], shown = all ? rows : rows.slice(0, 50);
+        html += '<div class="bz-rd-grp"><h4>' + esc(g.name) + ' <small class="bz-dim">' + rows.length + " 个，打开 " + on + " 个</small></h4>" + shown.map(rdRow).join("") +
+          (rows.length > 50 ? '<button type="button" class="bz-link bz-rd-more" data-rd-more="' + esc(g.key) + '">' + (all ? "收起" : "显示全部 " + rows.length + " 个") + "</button>" : "") + "</div>";
       });
       $("bzRdMine").innerHTML = html || empty("清单是空的。从下面推荐的里挑几个，或者在右边自己加。");
       $("bzRdCatalog").innerHTML = d.catalog.map((g) => {
@@ -1444,7 +1450,9 @@
     const gsel = new Set(sc === "groups" ? (c.groups || []) : sc === "all" ? p.groups.map((g) => g.key) : (c.groups && c.groups.length ? c.groups : p.groups.map((g) => g.key)));
     const failOnly = sc === "failed";
     const selGroups = p.groups.filter((g) => gsel.has(g.key));
-    const nScope = failOnly ? nFail : selGroups.reduce((a, g) => a + g.n, 0);
+    const force = !!S.updForce;                // v170：这次全部都抓（不按权重轮流）
+    const nScope = failOnly ? nFail : selGroups.reduce((a, g) => a + (force ? g.n : (g.due != null ? g.due : g.n)), 0);
+    const nAllSel = selGroups.reduce((a, g) => a + g.n, 0);
     const last = p.last;
     const lastDur = last && last.ended ? last.ended - last.started : 0;
     const est = lastDur && last.total ? Math.max(20, Math.round((lastDur / last.total) * nScope)) : 0;
@@ -1452,7 +1460,8 @@
     (p.group_names || []).forEach(([k, n, d]) => { gdesc[k] = d; });
     const cats = p.groups.map((g) => {
       const on = gsel.has(g.key);
-      const what = [g.site ? g.site + " 个网站" : "", g.kw ? g.kw + " 个关键词" : ""].filter(Boolean).join(" + ");
+      const what = [g.site ? g.site + " 个网站" : "", g.kw ? g.kw + " 个关键词" : ""].filter(Boolean).join(" + ") +
+        (!force && g.due != null && g.due < g.n ? " · 这次轮到 " + g.due + " 个" : "");
       return '<label class="bz-cat' + (on ? " on" : "") + (failOnly ? " off" : "") + '" title="' + esc(gdesc[g.key] || "") + '"><input type="checkbox" data-upd-grp="' + esc(g.key) + '"' + (on ? " checked" : "") + (failOnly ? " disabled" : "") + ">" +
         '<span class="bz-cat-b"><b>' + esc(g.name) + "</b><small>" + esc(what) + (g.failing ? ' · <em class="bad">' + g.failing + " 个上次没抓成</em>" : "") + "</small></span></label>";
     }).join("");
@@ -1476,12 +1485,19 @@
       '<div class="bz-dlg-b">' + info +
       '<section class="bz-sec"><h3>这次抓哪些</h3>' +
         '<div class="bz-upd-sum"><span>' + (failOnly ? "只重抓上次没抓成的 <b>" + nFail + " 个</b>"
-          : "<b>" + (allOn ? "全部 " : "") + selGroups.length + " 类</b>，共 <b>" + nScope + " 个</b>信息源") + "</span>" +
+          : "<b>" + (allOn ? "全部 " : "") + selGroups.length + " 类</b>，这次抓 <b>" + nScope + " 个</b>信息源" + (nScope < nAllSel ? '<small>（一共 ' + nAllSel + " 个：权重高的每次都抓，低的轮着抓）</small>" : "")) + "</span>" +
           (failOnly ? "" : '<span class="sp"></span><button type="button" class="bz-link" data-act="upd-all"' + (allOn ? " disabled" : "") + '>全选</button><button type="button" class="bz-link" data-act="upd-none">全不选</button>') + "</div>" +
         '<div class="bz-cats" role="group" aria-label="要抓的分类">' + cats + "</div>" +
+        (!failOnly && nAllSel > nScope || force ? '<label class="bz-sw-inline bz-force"><span class="bz-sw"><input type="checkbox" id="bzUpdForce"' + (force ? " checked" : "") + '><i></i></span>这次全部都抓（' + nAllSel + " 个，会慢不少）</label>" : "") +
         (nFail ? '<div class="bz-failrow"><label class="bz-sw-inline"><span class="bz-sw"><input type="checkbox" id="bzUpdFailOnly"' + (failOnly ? " checked" : "") + '><i></i></span>只重抓上次没抓成的 ' + nFail + " 个</label>" +
           '<details class="bz-fails"><summary>看原因</summary><ul>' + p.failing.map((f) => "<li><b>" + esc(f.name) + "</b>：" + esc(f.err) + "</li>").join("") + "</ul></details></div>" : "") +
       "</section>" +
+      (p.lib && p.lib.ok && p.lib.new ? '<section class="bz-sec bz-lib"><h3>扩充信息源</h3>' +
+        '<p>推荐库里还有 <b>' + p.lib.new + " 个</b>权威信息源没加：<b>" + p.lib.sites + "</b> 个网站（部委、交易所、行业协会、主流和行业媒体、海外机构、各省市政府），<b>" + p.lib.kws +
+        "</b> 个搜索关键词（行业地图里的代表公司、细分行业、产品和技术）。加进来后按权重轮流抓，不会每次都全抓。</p>" +
+        '<div class="bz-lib-acts"><button type="button" class="bz-btn" data-lib="1">全部加进来（' + p.lib.new + " 个）</button>" +
+        '<button type="button" class="bz-btn ghost" data-lib="3">只加权重中以上的（' + ["s5", "s4", "s3", "k5", "k4", "k3"].reduce((a, k) => a + (p.lib.by[k] || 0), 0) + " 个）</button>" +
+        '<button type="button" class="bz-btn ghost" data-lib="site">只加网站（' + p.lib.sites + " 个）</button></div></section>" : "") +
       '<section class="bz-sec"><h3>添加扫描对象</h3>' +
         '<div class="bz-add-bar"><div class="bz-tog2" role="tablist">' +
           '<button type="button" role="tab" data-addmode="one" aria-selected="' + (A.mode === "one") + '">一个</button>' +
@@ -1599,7 +1615,8 @@
     if (scope === "groups" && !groups.length) { toast("至少勾上一类。"); return; }
     await updSave();
     S.updDone = ""; S.updRes = null;
-    await radarRun(null, { scope: scope, groups: groups });
+    await radarRun(null, { scope: scope, groups: groups, force: !!S.updForce && scope !== "failed" });
+    S.updForce = false;
     renderUpd();
   }
 
@@ -2104,6 +2121,20 @@
         return;
       }
       if ((b = t.closest("[data-addmode]"))) { S.updAdd.mode = b.dataset.addmode; S.updAdd.msg = ""; renderUpd(); const f = $(b.dataset.addmode === "one" ? "bzAddOne" : "bzAddMany"); if (f) f.focus(); return; }
+      if ((b = t.closest("[data-rd-more]"))) { S.rdShowAll[b.dataset.rdMore] = !S.rdShowAll[b.dataset.rdMore]; renderSources(); return; }
+      if ((b = t.closest("[data-lib]"))) {                 // v170：从推荐库加信息源
+        const v = b.dataset.lib;
+        b.disabled = true;
+        const body = v === "site" ? { min_w: 1, kinds: ["site"] } : { min_w: +v };
+        const r = await api("/biz/radar/library", body).catch((e) => ({ ok: false, error: e.message }));
+        if (!r.ok) { toast(r.error || "没加成"); b.disabled = false; return; }
+        toast("加进来 " + r.added + " 个信息源，清单里现在一共 " + r.total + " 个。");
+        S.radarSrc = null;
+        if (typeof loadRadarSources === "function") loadRadarSources();
+        try { S.plan = await api("/biz/radar/plan"); } catch (e) {}
+        renderUpd(); pollRadar();
+        return;
+      }
       if ((b = t.closest("[data-rview]"))) { setRview(b.dataset.rview, b.dataset.rview === "list" ? S.rind : ""); return; }
       if ((b = t.closest("[data-rad-list]"))) { setRview("list", b.dataset.radList); return; }
       if ((b = t.closest("[data-rad]"))) { selectRad(b.dataset.rad); return; }
@@ -2149,9 +2180,14 @@
       else if (t.id === "bzUpdEvery" && t.value === "custom") { S.updCustom = true; renderUpd(); const n = $("bzUpdEveryN"); if (n) { n.focus(); n.select(); } }
       else if (t.id === "bzUpdEvery") { S.updCustom = false; updSave(); }
       else if (["bzUpdAuto", "bzUpdEveryN", "bzUpdWorkers", "bzUpdScFast", "bzUpdScBrowser"].includes(t.id) || t.id === "bzUpdFailOnly" || t.matches("[data-upd-grp]")) updSave();
+      else if (t.id === "bzUpdForce") { S.updForce = t.checked; renderUpd(); }
       else if (t.id === "bzBfGrp") { S.bf.grp = t.value; briefCount(); }
       else if (t.id === "bzBfNotes") S.bf.notes = t.checked;
       else if (t.id === "bzBfWeb") S.bf.web = t.checked;
+      else if (t.matches("[data-rd-w]")) {               // v170：改权重
+        const r = await api("/biz/radar/source", { action: "set_w", id: t.dataset.rdW, w: +t.value }).catch((e) => ({ ok: false, error: e.message }));
+        if (!r.ok) toast(r.error || "没改成"); else { const x = S.radarSrc && S.radarSrc.sources.find((y) => y.id === t.dataset.rdW); if (x) x.w = r.w; t.className = "bz-select sm bz-rd-w w" + r.w; }
+      }
       else if (t.matches("[data-rd-toggle]")) {
         const r = await api("/biz/radar/source", { action: "toggle", id: t.dataset.rdToggle, enabled: t.checked });
         if (r.ok) loadRadarSources(); else toast(r.error || "没改成");
