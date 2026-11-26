@@ -150,9 +150,13 @@
         '<div class="bz-cols" id="bzCols">' +
           '<div class="bz-main"><section class="bz-card" id="bzFeedCard"><div class="bz-card-h">' +
             '<div class="bz-vtabs" role="tablist" aria-label="怎么看">' +
-              '<button type="button" role="tab" data-rview="radar">雷达扫描</button><button type="button" role="tab" data-rview="list">新闻列表</button></div>' +
+              '<button type="button" role="tab" data-rview="radar">雷达扫描</button><button type="button" role="tab" data-rview="list">新闻列表</button>' +
+              '<button type="button" role="tab" data-rview="briefs">最近的简报</button></div>' +
+            '<div class="bz-rad-bar" id="bzRadBar" aria-live="polite"></div>' +
             '<span class="bz-rgrp" id="bzRgrpWrap">' + seg("rgrp", [["all", "全部"], ["news", "财经媒体"], ["corp,corpkw", "大公司"], ["media,indkw", "行业媒体"], ["policy", "政策数据"], ["global", "海外"], ["mine", "我加的"]]) + "</span></div>" +
             '<div class="bz-radar" id="bzRadar"></div>' +
+            '<div class="bz-briefsv" id="bzBriefsView" hidden><div class="bz-briefsv-h"><p class="bz-hint">用「生成简报」把一段时间的新闻整理成文档。点一份打开看。</p>' +
+              '<button type="button" class="bz-btn sm" data-act="brief-open">生成简报</button></div><div class="bz-reps" id="bzBriefsAll"></div></div>' +
             '<div id="bzListWrap"><p class="bz-filter" id="bzFeedFilter" hidden></p><div class="bz-feed" id="bzFeed"></div>' +
             '<nav class="bz-pager" id="bzPager" aria-label="翻页" hidden></nav></div></section></div>' +
           '<aside class="bz-side">' +
@@ -305,14 +309,17 @@
 
   // ───────── v165：雷达扫描——按行业把新闻分好类，点哪个看哪个 ─────────
   function applyRview() {
-    const v = S.rview === "list" ? "list" : "radar";
+    const v = S.rview === "list" || S.rview === "briefs" ? S.rview : "radar";
     root.querySelectorAll("[data-rview]").forEach((b) => { b.setAttribute("aria-selected", String(b.dataset.rview === v)); b.classList.toggle("on", b.dataset.rview === v); });
     const rd = $("bzRadar"), lw = $("bzListWrap"), gw = $("bzRgrpWrap");
     if (rd) rd.hidden = v !== "radar";
     if (lw) lw.hidden = v !== "list";
+    const bv = $("bzBriefsView");
+    if (bv) { bv.hidden = v !== "briefs"; if (v === "briefs") renderRepList("bzBriefsAll", "market", "还没有简报。点上面的「生成简报」。", 60); }
+    renderRadBar();
     if (gw) gw.hidden = v !== "list";
     const cols = $("bzCols");
-    if (cols) cols.classList.toggle("wide", v === "radar");
+    if (cols) cols.classList.toggle("wide", v !== "list");
     const scard = $("bzScanCard");
     if (scard) scard.hidden = true;                // v174：扫描结果放到雷达右边了     // v168：雷达模式下右边栏挪到下面，雷达能放大
     if (v === "radar") renderRadarScan();
@@ -414,15 +421,21 @@
         // v172：名字放在这一圈正中间（半径、角度都居中），沿着弧写，下半圈反过来写免得倒着
         const th = r2 - r1, rm = (r1 + r2) / 2, am = (a0 + a1) / 2, low = Math.sin(am) > 0.15;
         const lab = c.name + (c.n ? " " + c.n : "");
-        const room = rm * span * 0.9;
-        let txt = "";
-        if (th >= 18) {
-          if (room >= lab.length * 12.5) txt = lab;
-          else if (room >= c.name.length * 12.5) txt = c.name;
-          else if (room >= 40) txt = c.name.slice(0, Math.max(1, Math.floor(room / 12.5) - 1)) + "…";
+        const CH = 11.5, room = rm * span * 0.9;        // v175：字小一点（12px），一个字约 11.5 宽
+        let txt = "", radial = false;
+        if (th >= 16) {
+          if (room >= lab.length * CH) txt = lab;
+          else if (room >= c.name.length * CH) txt = c.name;
+          else if (th - 6 >= c.name.length * CH) { txt = c.name; radial = true; }            // 横着放不下、竖着放得下：竖着写
+          else if (th - 6 >= 3 * CH && room < 3 * CH) { txt = c.name.slice(0, Math.floor((th - 6) / CH) - 1) + "…"; radial = true; }
+          else if (room >= 3 * CH) txt = c.name.slice(0, Math.max(1, Math.floor(room / CH) - 1)) + "…";
         }
-        const labW = txt ? (txt.length * 12.5 + 14) / rm : 0;          // 名字占的角度
-        if (txt) {
+        const labW = !txt ? 0 : radial ? (CH + 8) / rm : (txt.length * CH + 14) / rm;          // 名字占的角度
+        if (txt && radial) {
+          const deg = (am * 180) / Math.PI, flip = Math.cos(am) < 0, [tx, ty] = pt(rm, am);
+          rim += '<text class="rim' + (c.n ? "" : " q") + (on ? " on" : "") + '" fill="' + w.color + '" x="' + tx.toFixed(1) + '" y="' + ty.toFixed(1) + '" text-anchor="middle" dominant-baseline="central" transform="rotate(' +
+            (flip ? deg + 180 : deg).toFixed(1) + " " + tx.toFixed(1) + " " + ty.toFixed(1) + ')">' + esc(txt) + "</text>";
+        } else if (txt) {
           const pid = "bzArc" + wi + "_" + ci;
           const [sx, sy] = pt(rm, low ? a1 : a0), [ex, ey] = pt(rm, low ? a0 : a1);
           defs += '<path id="' + pid + '" d="M' + sx.toFixed(1) + "," + sy.toFixed(1) + " A" + rm.toFixed(1) + "," + rm.toFixed(1) + " 0 " + (span > Math.PI ? 1 : 0) + " " + (low ? 0 : 1) + " " + ex.toFixed(1) + "," + ey.toFixed(1) + '"/>';
@@ -484,7 +497,7 @@
         '<line x1="' + C + '" y1="' + C + '" x2="' + (C + R) + '" y2="' + C + '" class="sw-l"/></g>' +
       '<circle cx="' + C + '" cy="' + C + '" r="' + (R0 - 4) + '" class="hub"/><circle cx="' + C + '" cy="' + C + '" r="4" class="ctr"/>' + labels + blips + "</svg>";
     const oldLive = $("bzRadLive");                         // 重画雷达时，正在亮的那几条留着接着演
-    el.innerHTML = '<div class="bz-rad-l"><div class="bz-rad-bar" id="bzRadBar" aria-live="polite"></div>' +
+    el.innerHTML = '<div class="bz-rad-l">' +
       '<div class="bz-rad-stage">' + svg + '<div class="bz-rad-live" id="bzRadLive"></div><div class="bz-rad-tip" id="bzRadTip" hidden></div></div>' +
       '<p class="bz-rad-legend"><span><i class="lg-near"></i>一片是一个大类（新闻越多片越大），片里一圈是一个行业（越热门越靠外、圈越厚），圆点是细分行业（越大新闻越多）</span>' + (S.mdays > 1 ? '<span><i class="lg-hot"></i>带圈的：最近 24 小时明显变多</span>' : "") +
       '<span><i class="lg-quiet"></i>边上的小灰点：这段时间没新闻</span></p></div>' +
@@ -586,16 +599,29 @@
     const all = M.items.filter((x) => x.n).sort((a, b) => b.n - a.n);
     const sel = S.radSel && M.items.find((x) => x.id === S.radSel);
     if (!sel) {
-      // v174：右边直接放「扫描结果」和「提得最多」（不再放「怎么看这张雷达」）
-      const ov = S.ovm || {};
-      el.innerHTML = '<h4 class="bz-rad-h">扫描结果<small>' + win + "，" + all.length + " 个细分有新闻</small></h4>" +
-        '<ol class="bz-rad-rank sm">' + all.slice(0, 12).map((x) =>
-          '<li><button type="button" data-rad="' + esc(x.id) + '"><i style="background:' + x.color + '"></i><span class="nm">' + esc(x.name) + "</span>" +
-          '<span class="sc">' + esc(x.parent) + "</span>" + '<span class="hotc">' + (x.hot ? '<span class="hot">升温</span>' : "") + "</span>" +
-          '<span class="bar"><b style="width:' + Math.max(4, Math.round((x.n / M.max) * 100)) + "%;background:" + x.color + '"></b></span><span class="n">' + x.n + "</span></button></li>").join("") + "</ol>" +
-        (all.length > 12 ? '<p class="bz-hint">还有 ' + (all.length - 12) + " 个，在雷达上点。</p>" : "") +
-        '<h4 class="bz-rad-h bz-rad-h2">提得最多</h4>' +
-        '<div class="bz-chips">' + ((ov.hot || []).length ? ov.hot.slice(0, 18).map((x) => '<button type="button" class="bz-chip" data-term="' + esc(x.k) + '">' + esc(x.k) + " <b>" + x.n + "</b></button>").join("") : empty("还没有。")) + "</div>";
+      // v175：右边三个标签：扫描结果 / 正在升温 / 提得最多
+      const ov = S.ovm || {}, tab = S.radTab || "scan";
+      const tabs = [["scan", "扫描结果"], ["rising", "正在升温"], ["hot", "提得最多"]];
+      let body = "";
+      if (tab === "scan") {
+        body = '<p class="bz-hint">' + win + "，" + all.length + " 个细分有新闻，按条数排。点名字看详情。</p>" +
+          '<ol class="bz-rad-rank sm">' + all.slice(0, 16).map((x) =>
+            '<li><button type="button" data-rad="' + esc(x.id) + '"><i style="background:' + x.color + '"></i><span class="nm">' + esc(x.name) + "</span>" +
+            '<span class="sc">' + esc(x.parent) + "</span>" + '<span class="hotc">' + (x.hot ? '<span class="hot">升温</span>' : "") + "</span>" +
+            '<span class="bar"><b style="width:' + Math.max(4, Math.round((x.n / M.max) * 100)) + "%;background:" + x.color + '"></b></span><span class="n">' + x.n + "</span></button></li>").join("") + "</ol>" +
+          (all.length > 16 ? '<p class="bz-hint">还有 ' + (all.length - 16) + " 个，在雷达上点。</p>" : "");
+      } else if (tab === "rising") {
+        const w2 = S.mdays <= 1 ? "最近 6 小时" : "最近 24 小时";
+        body = '<p class="bz-hint">' + w2 + "提到它的比例，明显高于这段时间的平均。点一下看相关新闻。</p>" +
+          '<div class="bz-terms">' + ((ov.rising || []).length ? ov.rising.slice(0, 14).map((x) =>
+            '<button type="button" class="bz-term" data-term="' + esc(x.k) + '" title="' + esc(w2 + " " + x.r + " 条，这段时间一共 " + x.n + " 条，来自 " + x.src + " 个信息源") + '">' +
+            '<span class="k">' + esc(x.k) + '</span><span class="bar"><i style="width:' + Math.max(6, Math.round((x.r / x.n) * 100)) + '%"></i></span>' +
+            '<span class="n">' + x.r + "<small> / " + x.n + "</small></span></button>").join("") : empty("还看不出哪个话题在升温。")) + "</div>";
+      } else {
+        body = '<p class="bz-hint">这段时间新闻里提得最多的词。点一下看相关新闻。</p><div class="bz-chips">' +
+          ((ov.hot || []).length ? ov.hot.slice(0, 24).map((x) => '<button type="button" class="bz-chip" data-term="' + esc(x.k) + '">' + esc(x.k) + " <b>" + x.n + "</b></button>").join("") : empty("还没有。")) + "</div>";
+      }
+      el.innerHTML = '<div class="bz-ptabs" role="tablist">' + tabs.map(([k, n]) => '<button type="button" role="tab" data-radtab="' + k + '" aria-selected="' + (k === tab) + '">' + n + "</button>").join("") + "</div>" + body;
       return;
     }
     const sibs = M.items.filter((x) => x.parent === sel.parent && x.id !== sel.id && x.n).sort((a, b) => b.n - a.n);
@@ -2012,6 +2038,7 @@
         else if (act === "rd-run") radarRun();
         else if (act === "upd-open") openUpd();
         else if (act === "rad-back") setRview("radar");
+        else if (act === "brief-open") openBrief();
         else if (act === "clearind") { S.rind = ""; loadRadarFeed(); }
         else if (act === "rad-clear") selectRad(S.radSel);
         else if (act === "art-close") closeArt();
@@ -2185,6 +2212,7 @@
       if ((b = t.closest("[data-page]"))) { if (!b.disabled) goPage(+b.dataset.page); return; }
       if (t.closest("#bzUpdBtn")) { openUpd(); return; }
       if (t.closest("#bzBriefRun")) { openBrief(); return; }
+      if ((b = t.closest("[data-radtab]"))) { S.radTab = b.dataset.radtab; renderRadPanel(); return; }
       if (t.closest("#bzTaskRun")) { startTask(); return; }
       if (t.closest("#bzTaskSave")) {
         const v = (($("bzTaskTarget") || {}).value || "").trim();
