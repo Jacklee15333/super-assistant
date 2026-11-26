@@ -1080,3 +1080,13 @@ body.dark .view-biz { --bz-up: #6cc08b; --bz-warn: #e0a24a; --bz-bad: #e5907a; }
 .view-biz .bz-legend .h3 { background: color-mix(in srgb, var(--text-dim) 38%, var(--bg-elev)); }
 .view-biz .bz-legend .h4 { background: color-mix(in srgb, var(--text-dim) 58%, var(--bg-elev)); }
 .view-biz .bz-legend .h5 { background: color-mix(in srgb, var(--text-dim) 82%, #000); }
+
+/* ── v185：每个板块用边框框起来、板块之间隔开；板块标题大一点，说明小一点 ── */
+.view-biz .bz-map { gap: 22px; }
+.view-biz .bz-map .bz-band {
+  border: 1.5px solid color-mix(in srgb, var(--c, var(--text-dim)) 38%, var(--line)); border-radius: 14px; padding: 12px 14px 14px;
+  background: color-mix(in srgb, var(--c, var(--text-dim)) 3%, var(--bg));
+}
+.view-biz .bz-map .bz-band > header { align-items: baseline; gap: 12px; margin: 0 0 10px; }
+.view-biz .bz-map .bz-band > header h4 { font-size: 18px; font-weight: 700; letter-spacing: .5px; }
+.view-biz .bz-map .bz-band > header span { font-size: 11px; color: var(--text-dim); }
