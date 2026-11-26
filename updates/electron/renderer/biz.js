@@ -1268,24 +1268,37 @@
     const p = S.plan;
     if (!p) { el.innerHTML = dlgHead("bzUpdT", "现在更新") + '<div class="bz-dlg-b">' + loading() + "</div>"; return; }
     if (p.ok === false) { el.innerHTML = dlgHead("bzUpdT", "现在更新") + '<div class="bz-dlg-b">' + empty("读不到爬虫的设置：" + esc(p.error || "")) + "</div>"; return; }
-    const c = p.config, sc = c.scope || "all", gsel = new Set(c.groups || []);
-    const nFail = p.failing.length;
-    const nScope = sc === "all" ? p.enabled : sc === "failed" ? nFail : p.groups.filter((g) => gsel.has(g.key)).reduce((a, g) => a + g.n, 0);
+    const c = p.config, nFail = p.failing.length;
+    const sc = c.scope === "failed" && !nFail ? "all" : (c.scope || "all");
+    // v166：勾了哪几类。「全部」就是每类都勾上；只重抓没抓成的时候，保留之前勾的（只是先不用）
+    const gsel = new Set(sc === "groups" ? (c.groups || []) : sc === "all" ? p.groups.map((g) => g.key) : (c.groups && c.groups.length ? c.groups : p.groups.map((g) => g.key)));
+    const failOnly = sc === "failed";
+    const selGroups = p.groups.filter((g) => gsel.has(g.key));
+    const nScope = failOnly ? nFail : selGroups.reduce((a, g) => a + g.n, 0);
     const last = p.last;
     const lastDur = last && last.ended ? last.ended - last.started : 0;
     const est = lastDur && last.total ? Math.max(20, Math.round((lastDur / last.total) * nScope)) : 0;
-    const grows = p.groups.map((g) => '<tr><td><label class="bz-chk"><input type="checkbox" data-upd-grp="' + esc(g.key) + '"' + (gsel.has(g.key) ? " checked" : "") +
-      (sc !== "groups" ? " disabled" : "") + "> " + esc(g.name) + "</label></td><td class=\"num\">" + g.site + '</td><td class="num">' + g.kw + '</td><td class="num' + (g.failing ? " bad" : "") + '">' + (g.failing || "—") + "</td></tr>").join("");
+    const gdesc = {};
+    (p.group_names || []).forEach(([k, n, d]) => { gdesc[k] = d; });
+    const cats = p.groups.map((g) => {
+      const on = gsel.has(g.key);
+      const what = [g.site ? g.site + " 个网站" : "", g.kw ? g.kw + " 个搜索关键词" : ""].filter(Boolean).join(" + ");
+      return '<label class="bz-cat' + (on ? " on" : "") + (failOnly ? " off" : "") + '"><input type="checkbox" data-upd-grp="' + esc(g.key) + '"' + (on ? " checked" : "") + (failOnly ? " disabled" : "") + ">" +
+        '<span class="bz-cat-b"><b>' + esc(g.name) + "</b><small>" + esc(what) + (gdesc[g.key] ? " · " + esc(gdesc[g.key]) : "") + "</small>" +
+        (g.failing ? '<em class="bad">上次 ' + g.failing + " 个没抓成</em>" : "") + "</span></label>";
+    }).join("");
+    const allOn = selGroups.length === p.groups.length;
     el.innerHTML = dlgHead("bzUpdT", "现在更新", "让爬虫马上去网上抓一轮最新新闻。不用 AI、不占 AI 池，随时可以停。") +
       '<div class="bz-dlg-b">' +
       '<section class="bz-sec"><h3><span class="bz-no">1</span>这次抓哪些</h3>' +
-        '<div class="bz-radios" role="radiogroup" aria-label="这次抓哪些">' +
-          '<label class="bz-radio"><input type="radio" name="bzUpdScope" value="all"' + (sc === "all" ? " checked" : "") + "><span><b>全部打开的信息源</b><small>" + p.enabled + " 个</small></span></label>" +
-          '<label class="bz-radio"><input type="radio" name="bzUpdScope" value="groups"' + (sc === "groups" ? " checked" : "") + "><span><b>只抓下面勾选的几类</b><small>适合只想快速看某一类</small></span></label>" +
-          '<label class="bz-radio"><input type="radio" name="bzUpdScope" value="failed"' + (sc === "failed" ? " checked" : "") + (nFail ? "" : " disabled") + "><span><b>只重抓上次没抓成的</b><small>" + (nFail ? nFail + " 个" : "上次全都抓成了") + "</small></span></label>" +
-        "</div>" +
-        '<div class="bz-tablewrap"><table class="bz-rrtab bz-updtab"><thead><tr><th>分类</th><th class="num">网站</th><th class="num">关键词</th><th class="num">上次没抓成</th></tr></thead><tbody>' + grows + "</tbody></table></div>" +
-        (nFail ? '<details class="bz-fails"><summary>上次没抓成的 ' + nFail + " 个，原因</summary><ul>" + p.failing.map((f) => "<li><b>" + esc(f.name) + "</b>：" + esc(f.err) + "</li>").join("") + "</ul></details>" : "") +
+        '<div class="bz-upd-sum"><span>' + (failOnly ? "这次只重抓上次没抓成的 <b>" + nFail + " 个</b>信息源"
+          : "这次抓 <b>" + (allOn ? "全部 " : "") + selGroups.length + " 类</b>，一共 <b>" + nScope + " 个</b>信息源") + "</span>" +
+          (failOnly ? "" : '<span class="sp"></span><button type="button" class="bz-link" data-act="upd-all"' + (allOn ? " disabled" : "") + '>全选</button><button type="button" class="bz-link" data-act="upd-none">全不选</button>') + "</div>" +
+        '<p class="bz-note bz-flat">信息源按类型分成下面几类，勾上的这次就抓，不想抓的点一下取消。一般全选就行，只想快点看某一类时才取消别的。</p>' +
+        '<div class="bz-cats" role="group" aria-label="要抓的分类">' + cats + "</div>" +
+        (nFail ? '<label class="bz-set bz-failonly"><span class="bz-sw"><input type="checkbox" id="bzUpdFailOnly"' + (failOnly ? " checked" : "") + '><i></i></span>' +
+          '<span class="bz-set-t"><b>只重抓上次没抓成的 ' + nFail + " 个</b><small>打开后上面的分类先不管，只把上次失败的再试一遍，很快</small></span></label>" +
+          '<details class="bz-fails"><summary>上次没抓成的是哪些、为什么</summary><ul>' + p.failing.map((f) => "<li><b>" + esc(f.name) + "</b>：" + esc(f.err) + "</li>").join("") + "</ul></details>" : "") +
         '<p class="bz-note">清单里要加网站、关掉不想要的，在顶上的「爬虫管理」标签里改。</p>' +
       "</section>" +
       '<section class="bz-sec"><h3><span class="bz-no">2</span>点了之后会发生什么</h3><ol class="bz-flow">' +
@@ -1368,12 +1381,19 @@
     if (!v || v < 5) { v = 5; if (n) toast("最短每 5 分钟一次，已经按 5 分钟存。"); }
     return Math.min(v, 1440);
   }
+  function updScope() {                       // v166：从界面上读出「抓哪些」
+    const boxes = Array.from(root.querySelectorAll("[data-upd-grp]"));
+    const groups = boxes.filter((x) => x.checked).map((x) => x.dataset.updGrp);
+    const fo = $("bzUpdFailOnly");
+    if (fo && fo.checked) return { scope: "failed", groups: groups };
+    return groups.length === boxes.length ? { scope: "all", groups: [] } : { scope: "groups", groups: groups };
+  }
   async function updSave(extra) {
+    const sc = updScope();
     const body = Object.assign({
       auto: $("bzUpdAuto").checked, every: everyVal(), workers: +$("bzUpdWorkers").value,
       sc_fast: $("bzUpdScFast").checked, sc_browser: $("bzUpdScBrowser").checked,
-      scope: (root.querySelector('input[name="bzUpdScope"]:checked') || {}).value || "all",
-      groups: Array.from(root.querySelectorAll("[data-upd-grp]:checked")).map((x) => x.dataset.updGrp),
+      scope: sc.scope, groups: sc.groups,
     }, extra || {});
     const r = await api("/biz/radar/config", body).catch((e) => ({ ok: false, error: e.message }));
     if (!r.ok) { toast(r.error || "没存上"); return; }
@@ -1384,12 +1404,11 @@
     pollRadar();
   }
   async function updStart() {
-    const sc = (root.querySelector('input[name="bzUpdScope"]:checked') || {}).value || "all";
-    const groups = Array.from(root.querySelectorAll("[data-upd-grp]:checked")).map((x) => x.dataset.updGrp);
-    if (sc === "groups" && !groups.length) { toast("先勾上要抓的分类。"); return; }
+    const { scope, groups } = updScope();
+    if (scope === "groups" && !groups.length) { toast("至少勾上一类。"); return; }
     await updSave();
     S.updDone = ""; S.updRes = null;
-    await radarRun(null, { scope: sc, groups: groups });
+    await radarRun(null, { scope: scope, groups: groups });
     renderUpd();
   }
 
@@ -1769,6 +1788,10 @@
           toast(r.added ? "排进知识库的队列了，AI 池空了就整理。在左栏「知识库 → 整理记录」能看进度。" : "这条之前已经收过了。");
         }
         else if (act === "upd-start") { b.disabled = true; updStart(); }
+        else if (act === "upd-all" || act === "upd-none") {
+          root.querySelectorAll("[data-upd-grp]").forEach((x) => { x.checked = act === "upd-all"; });
+          updSave();
+        }
         else if (act === "upd-shownew") {
           const run = S.updRes && S.updRes.run;
           S.rsince = run ? run.started : 0; S.rq = ""; $("bzRq").value = ""; S.rgrp = "all"; segSync("rgrp", "all");
@@ -1922,7 +1945,7 @@
       else if (t.id === "bzPgSize") { S.rsize = +t.value; store.set("rsize", S.rsize); loadRadarFeed(); }
       else if (t.id === "bzUpdEvery" && t.value === "custom") { S.updCustom = true; renderUpd(); const n = $("bzUpdEveryN"); if (n) { n.focus(); n.select(); } }
       else if (t.id === "bzUpdEvery") { S.updCustom = false; updSave(); }
-      else if (["bzUpdAuto", "bzUpdEveryN", "bzUpdWorkers", "bzUpdScFast", "bzUpdScBrowser"].includes(t.id) || t.name === "bzUpdScope" || t.matches("[data-upd-grp]")) updSave();
+      else if (["bzUpdAuto", "bzUpdEveryN", "bzUpdWorkers", "bzUpdScFast", "bzUpdScBrowser"].includes(t.id) || t.id === "bzUpdFailOnly" || t.matches("[data-upd-grp]")) updSave();
       else if (t.id === "bzBfGrp") { S.bf.grp = t.value; briefCount(); }
       else if (t.id === "bzBfNotes") S.bf.notes = t.checked;
       else if (t.id === "bzBfWeb") S.bf.web = t.checked;
