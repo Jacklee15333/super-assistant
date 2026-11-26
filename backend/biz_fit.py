@@ -848,6 +848,7 @@ STRUCT = [
     "一句话结论（最推荐你做什么、为什么，两三句话）",
     "你的情况（优势、短板和限制；资金、时间、年龄阶段分别意味着什么）",
     "市场上现在什么热（引用资料①②③里市场雷达的数据，说清楚这些热度和你有什么关系）",
+    "真实市场有多大（引用资料⑦：规模、客户、购买力、利润；分清统计局、上市公司、核实过的和估算的数字，指出热度和真钱对不上的地方）",
     "推荐方向一览",
     "方向详解",
     "三个方向怎么选（先做哪个、能不能组合起来做）",
@@ -963,6 +964,15 @@ def _opps_text(pv, opps):
     return "\n".join(out) or "（机会看板还是空的）"
 
 
+def _real_text(pv):
+    """v191：候选方向的真实市场数据（规模、利润、购买力）。"""
+    try:
+        import biz_real as _br
+        return _br.context_for([c["id"] for c in (pv.get("cands") or [])[:6]])
+    except Exception:
+        return ""
+
+
 def prompt(spec, pv, notes, web_txt):
     prof = spec["profile"]
     opps = BZ._read_json(BZ.OPPS_FILE, [])
@@ -980,6 +990,8 @@ def prompt(spec, pv, notes, web_txt):
              "=== 资料④：机会看板里已经记下的机会 ===\n%s\n\n" % _opps_text(pv, opps),
              "=== 资料⑤：他自己收藏、整理过的笔记里相关的（%d 篇）===\n%s\n" % (len(notes), BZ._fmt_notes(notes, 6000) or "（没有相关的笔记）"),
              "=== 资料⑥：小助刚从网上搜到的网页摘录 ===\n%s\n" % ((web_txt or "").strip() or "（这次没有联网或没搜到）"),
+             "=== 资料⑦：真实市场数据（国家统计局、上市公司财报、AI 核实过的数字；上市公司只是头部玩家的盘子，统计局是一整个大类的合计）===\n%s\n"
+             % (_real_text(pv) or "（「商业 → 真实市场」还没取到这些方向的数据）"),
              "\n请开始写，第一行是「# %s」。" % spec["title"]]
     return "".join(parts)
 

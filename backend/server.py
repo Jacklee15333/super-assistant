@@ -90,7 +90,7 @@ _LOG_QUIET_PATHS = {"/biz/article_media", "/intake_kind", "/douyin/login",
     "/creator/x_cookie_status",
     "/logs", "/ai_live", "/ai_live_shot", "/version", "/gpu_status", "/creator_profiles", "/creator_avatar", "/creator_scan_all",
     "/scrapling/status", "/sniff/sources",
-    "/biz/job", "/biz/overview", "/biz/taxonomy", "/biz/items", "/biz/reports", "/biz/report", "/biz/opps", "/biz/topics", "/biz/fit", "/biz/fit_options",
+    "/biz/job", "/biz/overview", "/biz/taxonomy", "/biz/items", "/biz/reports", "/biz/report", "/biz/opps", "/biz/topics", "/biz/fit", "/biz/fit_options", "/biz/real", "/biz/real/item", "/biz/real/check",
     "/kb/overview", "/kb/page", "/kb/search", "/kb/candidates", "/kb/raw", "/kb/raw_item", "/kb/graph",
     "/biz/radar/status", "/biz/radar/plan", "/biz/radar_tops", "/biz/brief_info", "/biz/radar/sources", "/biz/radar/engines", "/biz/radar/runs", "/biz/radar/report",
 }
@@ -127,6 +127,7 @@ _LOG_PATH_LABEL = {
     "/biz/run": "开始商业分析（写报告）",
     "/biz/stop": "停止商业分析",
     "/biz/radar/run": "市场雷达：现在抓一次",
+    "/biz/real/update": "真实市场：现在更新统计局和上市公司数据",
     "/biz/radar/source": "市场雷达：改信息源清单",
 }
 
@@ -5711,6 +5712,15 @@ class Handler(BaseHTTPRequestHandler):
                 if path == "/biz/fit":                               # v187：商业定制——你的情况 + 先配一遍
                     import biz_fit as _bf
                     return self._send(_bf.get())
+                if path == "/biz/real":                              # v191：真实市场——统计局、上市公司的数（打开时旧了就自动更新）
+                    import biz_real as _br
+                    return self._send(_br.overview())
+                if path == "/biz/real/item":
+                    import biz_real as _br
+                    return self._send(_br.item(q1("id")))
+                if path == "/biz/real/check":
+                    import biz_real as _br
+                    return self._send(_br.check_get(q1("id")))
                 if path == "/biz/fit_options":                       # v188：「我的情况」每一栏的选项面板（不算配对，马上返回）
                     import biz_fit as _bf
                     return self._send(_bf.options())
@@ -6688,6 +6698,12 @@ class Handler(BaseHTTPRequestHandler):
                 if path == "/biz/fit":                               # v187：存你的情况，顺便按它先配一遍
                     import biz_fit as _bf
                     return self._send(_bf.post(body))
+                if path == "/biz/real/update":                       # v191：真实市场「现在更新」
+                    import biz_real as _br
+                    return self._send(_br.start_update(force=bool(body.get("force"))))
+                if path == "/biz/real/check_delete":
+                    import biz_real as _br
+                    return self._send(_br.check_delete(body.get("id", "")))
                 if path == "/biz/translate":                         # v161：外文标题翻成中文
                     import biz_crawler as _bc
                     return self._send(_bc.translate_lines(body.get("lines") or []))

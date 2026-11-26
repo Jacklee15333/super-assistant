@@ -190,6 +190,7 @@ const NAV_GROUPS = {
   biz: { title: "商业", tabs: [
     { key: "radar", label: "市场雷达", view: "biz", pane: "radar" },
     { key: "industry", label: "行业地图", view: "biz", pane: "industry" },
+    { key: "real", label: "真实市场", view: "biz", pane: "real" },         // v191：市场规模、客户、购买力、利润（统计局 + 财报 + AI 核实）
     { key: "analysis", label: "研究分析", view: "biz", pane: "analysis" },
     { key: "opps", label: "机会看板", view: "biz", pane: "opps" },
     { key: "custom", label: "商业定制", view: "biz", pane: "custom" },   // v187：按你的情况定行业和赚钱的做法

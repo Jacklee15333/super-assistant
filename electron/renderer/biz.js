@@ -2,6 +2,7 @@
 // biz.js —「商业」（v155 新增，v157 重新整理成五块；v158 新闻分页、「现在更新」「整理成简报」改成带说明和设置的面板；v159 去掉大按钮图标、改名「生成简报」、自动更新最短 5 分钟可自己填）
 //   市场雷达：爬虫抓来的最新新闻——市场上正在发生什么（升温话题、提得最多、一键整理成简报）
 //   行业地图：申万 31 个一级行业 + 二级行业 + 新兴赛道，「市场实时 / 我关注的」两种看法，地图和列表两种摆法
+//   真实市场（v191）：看钱——统计局、上市公司财报（自动）+ AI 联网核实（电商、交易平台、招投标、报告）；热度 × 真钱四象限
 //   研究分析：挑一件事让 AI 写报告——拆解商业模式（含产业链图）、研究课题、找趋势和机会、市场动向简报；报告库
 //   机会看板：报告里找到的机会 + 自己记的点子
 //   商业定制（v187）：填你的年龄、阅历、技能、兴趣、资金……先按市场雷达的热度配出适合你的方向，再让 AI 写定制方案
@@ -14,9 +15,9 @@
   const root = document.getElementById("view-biz");
   if (!root) return;
 
-  const PANES = ["radar", "industry", "analysis", "opps", "custom", "crawler"];   // v187：加「商业定制」
+  const PANES = ["radar", "industry", "real", "analysis", "opps", "custom", "crawler"];   // v187：加「商业定制」；v191：行业地图右边加「真实市场」
   const OLD_PANE = { market: "radar", model: "analysis", reports: "analysis" };
-  const KIND = { market: "市场动向简报", industry: "行业研究", model: "商业模式", trend: "趋势与机会", research: "课题研究", custom: "商业定制" };
+  const KIND = { market: "市场动向简报", industry: "行业研究", model: "商业模式", trend: "趋势与机会", research: "课题研究", custom: "商业定制", real: "真实市场核实" };
   const SRC = { note: "笔记", sniff: "网站动态", creator: "博主新内容", radar: "市场新闻" };
   const GRP = { news: "财经媒体", corp: "大公司官网", firm: "企业官网", govmedia: "官方媒体", corpkw: "大公司动态", media: "行业媒体", indkw: "行业热词", policy: "政策数据", global: "海外", mine: "我加的" };
   const OPP_ST = [["new", "新发现"], ["watch", "关注"], ["testing", "验证中"], ["doing", "在做"], ["dropped", "放弃"]];
@@ -88,6 +89,9 @@
           pick: null, optLoading: false, open: store.get("cuOpen", null) || { exp: true }, b: { ind: "", role: "", years: "", lead: "" },   // v188：选项面板
           saved: [], savedOpen: false, undoId: "", undoT: null,          // v189：存过的、撤销清空
           web: store.get("cuWeb", true) !== false, depth: store.get("cuDepth", "quick") === "deep" ? "deep" : "quick" },   // v187：商业定制
+    rm: { data: null, err: "", at: 0, timer: null, sel: store.get("rmSel", ""), item: null, q: "",                 // v191：真实市场
+          metric: ["size", "growth", "margin", "quad"].includes(store.get("rmMetric", "size")) ? store.get("rmMetric", "size") : "size",
+          view: store.get("rmView", "map") === "list" ? "list" : "map", depth: store.get("rmDepth", "quick") === "deep" ? "deep" : "quick" },
   };
 
   // ───────── 分类表 ─────────
@@ -146,6 +150,7 @@
           '<button type="button" class="bz-link" data-act="guide-hide">知道了，收起来</button></div><ol>' +
           "<li><b>市场雷达</b>：爬虫抓来的最新新闻，看市场上正在发生什么。</li>" +
           "<li><b>行业地图</b>：把新闻和你收进来的内容按行业摆开，看哪里热、哪些你还没关注。</li>" +
+          "<li><b>真实市场</b>：看钱——统计局和上市公司财报里每个行业卖了多少、赚不赚钱，具体方向让 AI 核实规模、客户和购买力。</li>" +
           "<li><b>研究分析</b>：挑一件事，让 AI 深入研究、写成报告（商业模式、课题、趋势机会、简报）。</li>" +
           "<li><b>机会看板</b>：报告里找到的机会自动放这里，也能记自己的点子。</li>" +
           "<li><b>商业定制</b>：写下你的年龄、阅历、技能、兴趣和资金，小助按市场数据帮你挑行业和赚钱的做法。</li>" +
@@ -190,6 +195,9 @@
         '<div class="bz-ind"><div class="bz-mlive" id="bzMapLive"></div><div class="bz-ind-main" id="bzIndMain"></div><aside class="bz-ind-detail" id="bzIndDetail"></aside></div>' +
       "</div>" +
 
+      // ===== v191：真实市场 =====
+      rmPaneHTML() +
+
       // ===== 研究分析 =====
       '<div class="bz-pane" data-pane="analysis">' +
         '<section class="bz-hero"><h2>研究分析</h2>' +
@@ -199,7 +207,7 @@
             '<button type="button" class="bz-task" data-task="' + k + '" aria-pressed="false"><b>' + t + "</b><span>" + d + "</span></button>").join("") + "</div>" +
           '<div class="bz-taskform" id="bzTaskForm"></div></section>' +
         '<section class="bz-card"><div class="bz-card-h"><h3>报告库</h3>' +
-          seg("repkind", [["all", "全部"], ["model", "商业模式"], ["research", "课题研究"], ["industry", "行业研究"], ["trend", "趋势与机会"], ["market", "市场动向简报"], ["custom", "商业定制"]]) +
+          seg("repkind", [["all", "全部"], ["model", "商业模式"], ["research", "课题研究"], ["industry", "行业研究"], ["trend", "趋势与机会"], ["market", "市场动向简报"], ["custom", "商业定制"], ["real", "真实市场"]]) +
           '<input type="search" class="bz-input" id="bzRepQ" placeholder="搜报告" aria-label="搜报告"></div>' +
           '<div class="bz-reps wide" id="bzReports"></div></section>' +
         '<details class="bz-card bz-cases"><summary>你笔记里的商业模式案例（按赚钱方式分）</summary>' +
@@ -2443,10 +2451,332 @@
   function renderPane(p) {
     if (p === "radar") renderRadarPane();
     else if (p === "industry") renderIndustry();
+    else if (p === "real") renderReal();                            // v191
     else if (p === "analysis") renderAnalysis();
     else if (p === "opps") renderOpps();
     else if (p === "custom") renderCustom();
     else if (p === "crawler") renderCrawler();
+  }
+
+
+  // ───────── v191：真实市场（钱在哪里）─────────
+  // 市场雷达看「新闻多不多」；这里看「钱」：统计局 + 上市公司财报（自动），具体方向让 AI 联网核实（电商、交易平台、招投标、报告）。
+  const RM_METRIC = [["size", "规模"], ["growth", "增长"], ["margin", "利润率"], ["quad", "热度 × 真钱"]];
+  const RM_BASIS_CLS = { "统计局": "gov", "上市公司": "co", "电商平台": "ec", "交易平台": "ec", "招投标": "ec", "行业报告": "rp", "媒体报道": "rp", "估算": "es" };
+  function rmPaneHTML() {
+    return '<div class="bz-pane" data-pane="real">' +
+      '<section class="bz-hero bz-rm-hero"><h2>真实市场：钱在哪里</h2>' +
+        "<p>市场雷达看的是新闻多不多（大家在说什么），这里看的是钱：一年卖了多少、谁在买、肯花多少、赚不赚钱。" +
+        "国家统计局和上市公司财报的数字自动更新；具体的方向可以让 AI 联网核实，去查电商平台、交易平台、招投标和行业报告里的数字，每个数字都写出处，软件再回原文对一遍。</p>" +
+        '<div class="bz-rm-kpi" id="bzRmKpi"></div><p class="bz-note" id="bzRmUpd"></p></section>' +
+      '<div class="bz-bar">' + seg("rmmetric", RM_METRIC) + seg("rmview", [["map", "地图"], ["list", "列表"]]) +
+        '<input type="search" class="bz-input" id="bzRmQ" placeholder="找行业：白酒、化妆品、教育…" aria-label="找行业">' +
+        '<span class="sp"></span><button type="button" class="bz-btn ghost" data-act="rm-update">现在更新数据</button></div>' +
+      '<p class="bz-source" id="bzRmLegend"></p>' +
+      '<div class="bz-ind nodet" id="bzRmWrap"><div class="bz-ind-main" id="bzRmMain"></div><aside class="bz-ind-detail" id="bzRmDetail" hidden></aside></div>' +
+      '<section class="bz-card bz-rm-checkcard"><div class="bz-card-h"><h3>核实一个具体方向</h3></div>' +
+        '<p class="bz-hint">地图上只有大行业。想做的是更细的生意（比如「外贸企业英文资料制作」「宠物殡葬」），写在这里，AI 会联网查它的规模、客户、购买力、利润和交易数据，整理成一张体检卡。快速约 3～5 分钟，深入会多查电商、招投标和接单平台的报价。</p>' +
+        '<div class="bz-rm-form"><input class="bz-input" id="bzRmTarget" maxlength="40" placeholder="比如：外贸企业英文资料制作、社区团购、宠物殡葬" aria-label="要核实的方向">' +
+          seg("rmdepth", [["quick", "快速"], ["deep", "深入"]]) +
+          '<button type="button" class="bz-btn" data-act="rm-check">AI 联网核实</button></div>' +
+        '<div class="bz-rm-checks" id="bzRmChecks"></div></section>' +
+      '<section class="bz-card"><div class="bz-card-h"><h3>信息源（和市场雷达是两套）</h3></div>' +
+        '<p class="bz-hint">市场雷达读的是新闻；这里读的是成交和财报。前四个自动更新；后面几个是 AI 核实时去查的（淘宝、京东这些平台的原始销量要登录才看得到，也不允许程序去抓，所以查的是平台和数据机构公开发布的数字）。</p>' +
+        '<div class="bz-tablewrap" id="bzRmSrc"></div></section>' +
+    "</div>";
+  }
+  const rmYi = (v) => (v == null ? "–" : Math.abs(v) >= 10000 ? (v / 10000).toFixed(Math.abs(v) >= 100000 ? 1 : 2).replace(/\.?0+$/, "") + " 万亿" : (Math.abs(v) >= 100 ? Math.round(v) : v.toFixed(1).replace(/\.0$/, "")) + " 亿");
+  const rmPct = (v) => (v == null ? "–" : (v > 0 ? "+" : "") + v.toFixed(1).replace(/\.0$/, "") + "%");
+  const rmNum = (v) => (v == null ? "–" : Math.round(v).toLocaleString("zh-CN"));
+  const rmBy = (id) => (S.rm.data && S.rm.data.by[id]) || {};
+  function rmVal(id) {
+    const b = rmBy(id), m = S.rm.metric;
+    if (m === "growth") return b.q_yoy != null ? b.q_yoy : b.rev_yoy;
+    if (m === "margin") return b.nm;
+    return b.rev;
+  }
+  function rmLvl(id, mx) {
+    const v = rmVal(id), m = S.rm.metric;
+    if (v == null) return 0;
+    if (m === "growth") return v < -10 ? 1 : v < 0 ? 2 : v < 10 ? 3 : v < 25 ? 4 : 5;
+    if (m === "margin") return v < 0 ? 1 : v < 5 ? 2 : v < 10 ? 3 : v < 20 ? 4 : 5;
+    const r = mx ? Math.sqrt(Math.max(0, v) / mx) : 0;
+    return r < 0.2 ? 1 : r < 0.4 ? 2 : r < 0.6 ? 3 : r < 0.8 ? 4 : 5;
+  }
+  function rmValText(id) {
+    const v = rmVal(id), m = S.rm.metric;
+    if (v == null) return "";
+    return m === "growth" ? rmPct(v) : m === "margin" ? "净利 " + v.toFixed(1).replace(/\.0$/, "") + "%" : rmYi(v);
+  }
+  function rmTip(id) {
+    const d = S.byId[id], b = rmBy(id), L = (S.rm.data && S.rm.data.listed) || {};
+    let t = d.name + "：" + d.desc;
+    if (b.n) t += "\n上市公司 " + b.n + " 家，" + (L.annual_name || "") + "营收合计 " + rmYi(b.rev) + "（" + rmPct(b.rev_yoy) + "），净利率 " + (b.nm == null ? "–" : b.nm + "%") +
+      (b.q_yoy != null ? "\n" + (L.latest_name || "最新一期") + "营收同比 " + rmPct(b.q_yoy) : "");
+    else t += "\n没有直接对上的上市公司数据";
+    if (b.nbs) t += "\n统计局有 " + b.nbs + " 项相关数字";
+    if (b.chk) t += "\nAI 核实过";
+    return t + "\n点一下看体检卡";
+  }
+  function rmTile(id, mx) {
+    const d = S.byId[id];
+    if (!d) return "";
+    const b = rmBy(id), q = S.rm.q.trim().toLowerCase();
+    const hit = !q || [d.name, d.desc, d.kw, d.co].some((x) => x && String(x).toLowerCase().includes(q));
+    const v = rmVal(id);
+    return '<button type="button" class="bz-tile' + (d.type === "l2" ? " l2" : "") + " h" + rmLvl(id, mx) + (S.rm.sel === id ? " sel" : "") + (hit ? "" : " dim") +
+      (v != null && v < 0 ? " neg" : "") + '" style="--c:' + colorOf(id) + '" data-rm="' + esc(id) + '" title="' + esc(rmTip(id)) + '"><span class="nm">' + esc(d.name) + "</span>" +
+      '<span class="ct">' + (rmValText(id) || (b.nbs ? "统计 " + b.nbs + " 项" : "")) + "</span>" + (b.chk ? '<i class="gap chk" aria-hidden="true"></i>' : "") + "</button>";
+  }
+  const rmSort = (a, b) => ((rmVal(b) == null ? -1e15 : rmVal(b)) - (rmVal(a) == null ? -1e15 : rmVal(a)));
+  function rmMapHTML() {
+    const t = S.tax, mx = { l2: 0, trk: 0 };
+    t.industries.forEach((i) => i.subs.forEach((x) => { mx.l2 = Math.max(mx.l2, rmBy(x.id).rev || 0); }));
+    const secV = (sec) => sec.l1.reduce((a, n) => a + (rmBy(n).rev || 0), 0);
+    let html = '<section class="bz-band trk"><header><h4>新兴赛道</h4><span>横跨好几个行业，没有单独的统计口径：点开看相关行业的数字，或者让 AI 核实</span></header><div class="bz-tiles">' +
+      t.tracks.map((x) => rmTile(x.id, 0)).join("") + "</div></section>";
+    t.sectors.slice().sort((a, b) => secV(b) - secV(a)).forEach((sec) => {
+      html += '<section class="bz-band" style="--c:' + (RAD_SEC[sec.name] || "#888") + '"><header><h4>' + esc(sec.name) + "</h4>" +
+        (secV(sec) ? '<em class="bz-band-n">上市公司营收 ' + rmYi(secV(sec)) + "</em>" : "") + "<span>" + esc(sec.desc) + '</span></header><div class="bz-l1s">' +
+        sec.l1.slice().sort(rmSort).map((n) => {
+          const d = S.byId[n];
+          return '<div class="bz-l1" style="flex-grow:' + d.subs.length + ";--c:" + colorOf(n) + '"><button type="button" class="bz-l1-h' + (S.rm.sel === n ? " sel" : "") +
+            '" data-rm="' + esc(n) + '" title="' + esc(rmTip(n)) + '"><span>' + esc(n) + "</span>" + (rmValText(n) ? "<em>" + rmValText(n) + "</em>" : "") + "</button>" +
+            '<div class="bz-tiles">' + d.subs.slice().sort(rmSort).map((x) => rmTile(x, mx.l2)).join("") + "</div></div>";
+        }).join("") + "</div></section>";
+    });
+    return '<div class="bz-map">' + html + "</div>";
+  }
+  function rmListHTML() {
+    const q = S.rm.q.trim().toLowerCase(), L = (S.rm.data && S.rm.data.listed) || {};
+    const ids = [];
+    S.tax.industries.forEach((i) => i.subs.forEach((x) => ids.push(x.id)));
+    const rows = ids.filter((id) => { const d = S.byId[id]; return !q || [d.name, d.desc, d.kw, d.l1].some((x) => x && String(x).toLowerCase().includes(q)); }).sort(rmSort);
+    if (!rows.length) return empty("没有找到「" + esc(q) + "」。换个说法试试。");
+    return '<div class="bz-tablewrap"><table class="bz-ltab bz-rm-tab"><thead><tr><th>行业</th><th class="num">上市公司营收（' + esc(L.annual_name || "年报") + '）</th><th class="num">' + esc(L.latest_name || "最新") +
+      ' 营收增长</th><th class="num">净利率</th><th class="num">毛利率</th><th class="num">公司数</th><th class="num">统计局</th><th>核实</th></tr></thead><tbody>' +
+      rows.map((id) => {
+        const d = S.byId[id], b = rmBy(id);
+        return '<tr data-row="' + esc(id) + '"' + (S.rm.sel === id ? ' class="sel"' : "") + '><td class="nm"><button type="button" class="bz-link strong" data-rm="' + esc(id) + '">' + esc(d.name) +
+          '</button><span class="co">' + esc(d.l1) + "</span></td><td class=\"num\">" + rmYi(b.rev) + '</td><td class="num' + ((b.q_yoy != null ? b.q_yoy : b.rev_yoy) < 0 ? " neg" : "") + '">' +
+          rmPct(b.q_yoy != null ? b.q_yoy : b.rev_yoy) + '</td><td class="num">' + (b.nm == null ? "–" : b.nm + "%") + '</td><td class="num">' + (b.gm == null ? "–" : b.gm + "%") +
+          '</td><td class="num">' + (b.n || "–") + '</td><td class="num">' + (b.nbs ? b.nbs + " 项" : "–") + "</td><td>" + (b.chk ? "✓" : "") + "</td></tr>";
+      }).join("") + "</tbody></table></div>";
+  }
+  // 热度 × 真钱：横轴是市场雷达的新闻条数，纵轴是上市公司营收；两条中位线分出四块
+  function rmQuadPts() {
+    const pts = [];
+    S.tax.industries.forEach((i) => i.subs.forEach((x) => {
+      const b = rmBy(x.id);
+      if (b.rev > 0) pts.push({ id: x.id, name: x.name, rev: b.rev, heat: heatIn(S.ovm, x.id)[0] || 0, c: colorOf(x.id) });
+    }));
+    return pts;
+  }
+  const rmMedian = (a) => { const s = a.slice().sort((x, y) => x - y); return s.length ? s[(s.length - 1) >> 1] : 0; };
+  function rmQuadrant(p, mh, mr) { return p.heat >= mh ? (p.rev >= mr ? "both" : "hot") : (p.rev >= mr ? "rich" : "cold"); }
+  const RM_Q = { both: ["又热又大", "主流大市场，钱多人也多，竞争最激烈"], hot: ["话多钱少", "大家都在说，真钱还不多：小心炒作，或者还早"],
+    rich: ["钱多话少", "没什么人在说，钱却很多：闷声赚钱的地方"], cold: ["又冷又小", "说的人少、钱也少"] };
+  function rmQuadHTML() {
+    const pts = rmQuadPts();
+    if (!pts.length) return empty("还没有上市公司数据，画不出来。点上面「现在更新数据」。");
+    if (!S.ovm) return loading("正在读市场雷达的热度…");
+    const W = 900, H = 520, pl = 64, pr = 24, pt = 30, pb = 52, lx = (x) => x > W - pr - 110;
+    const mh = rmMedian(pts.map((p) => p.heat)), mr = rmMedian(pts.map((p) => p.rev));
+    const hx = Math.max(1, ...pts.map((p) => p.heat)), rmin = Math.max(1, Math.min(...pts.map((p) => p.rev))), rmax = Math.max(...pts.map((p) => p.rev));
+    const X = (h) => pl + (Math.log1p(h) / Math.log1p(hx)) * (W - pl - pr);
+    const Y = (r) => H - pb - ((Math.log10(Math.max(r, rmin)) - Math.log10(rmin)) / Math.max(0.01, Math.log10(rmax) - Math.log10(rmin))) * (H - pt - pb);
+    const q = S.rm.q.trim();
+    const lab = new Set(pts.slice().sort((a, b) => b.rev - a.rev).slice(0, 6).concat(pts.slice().sort((a, b) => b.heat - a.heat).slice(0, 6))
+      .concat(pts.filter((p) => rmQuadrant(p, mh, mr) === "rich").sort((a, b) => b.rev - a.rev).slice(0, 5)).map((p) => p.id));
+    if (S.rm.sel) lab.add(S.rm.sel);
+    let s = '<svg class="bz-rm-quad" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="热度和真钱四象限图">';
+    const cx = X(mh), cy = Y(mr);
+    s += '<line class="ax" x1="' + pl + '" y1="' + (H - pb) + '" x2="' + (W - pr) + '" y2="' + (H - pb) + '"/><line class="ax" x1="' + pl + '" y1="' + pt + '" x2="' + pl + '" y2="' + (H - pb) + '"/>' +
+      '<line class="mid" x1="' + cx + '" y1="' + pt + '" x2="' + cx + '" y2="' + (H - pb) + '"/><line class="mid" x1="' + pl + '" y1="' + cy + '" x2="' + (W - pr) + '" y2="' + cy + '"/>';
+    [["rich", pl + 8, pt + 14, "start"], ["both", W - pr - 8, pt + 14, "end"], ["cold", pl + 8, H - pb - 10, "start"], ["hot", W - pr - 8, H - pb - 10, "end"]].forEach(([k, x, y, a]) => {
+      s += '<text class="qt q-' + k + '" x="' + x + '" y="' + y + '" text-anchor="' + a + '">' + RM_Q[k][0] + "</text>";
+    });
+    s += '<text class="axt" x="' + ((pl + W - pr) / 2) + '" y="' + (H - 14) + '" text-anchor="middle">市场雷达的新闻条数（' + esc(winText()) + '）→ 越右边说的人越多</text>' +
+      '<text class="axt" transform="translate(16 ' + ((pt + H - pb) / 2) + ') rotate(-90)" text-anchor="middle">上市公司营收（对数）→ 越上面钱越多</text>';
+    pts.sort((a, b) => b.rev - a.rev).forEach((p) => {
+      const on = S.rm.sel === p.id, dim = q && !p.name.includes(q);
+      s += '<g class="pt' + (on ? " sel" : "") + (dim ? " dim" : "") + '" data-rm="' + esc(p.id) + '"><title>' + esc(p.name + "（" + RM_Q[rmQuadrant(p, mh, mr)][0] + "）\n上市公司营收 " + rmYi(p.rev) + "\n新闻 " + p.heat + " 条") + "</title>" +
+        '<circle cx="' + X(p.heat).toFixed(1) + '" cy="' + Y(p.rev).toFixed(1) + '" r="' + (on ? 8 : 5.5) + '" style="--c:' + p.c + '"/>' +
+        (lab.has(p.id) && !dim ? '<text x="' + (lx(X(p.heat)) ? X(p.heat) - 9 : X(p.heat) + 9).toFixed(1) + '" y="' + (Y(p.rev) + 4).toFixed(1) + '"' + (lx(X(p.heat)) ? ' text-anchor="end"' : "") + ">" + esc(p.name) + "</text>" : "") + "</g>";
+    });
+    s += "</svg>";
+    const cnt = { both: 0, hot: 0, rich: 0, cold: 0 };
+    pts.forEach((p) => { cnt[rmQuadrant(p, mh, mr)]++; });
+    return '<div class="bz-rm-quadwrap">' + s + '<div class="bz-rm-qleg">' + ["rich", "hot", "both", "cold"].map((k) =>
+      '<p><b class="q-' + k + '">' + RM_Q[k][0] + "</b>（" + cnt[k] + " 个）：" + RM_Q[k][1] + "</p>").join("") +
+      '<p class="bz-dim">中间两条线是所有行业的中位数。点一个圆点看它的体检卡。</p></div></div>';
+  }
+  function rmVerdict(id) {
+    const pts = rmQuadPts(), p = pts.find((x) => x.id === id);
+    if (!p || !S.ovm) return "";
+    const k = rmQuadrant(p, rmMedian(pts.map((x) => x.heat)), rmMedian(pts.map((x) => x.rev)));
+    return '<p class="bz-rm-verdict q-' + k + '"><b>' + RM_Q[k][0] + "</b>：" + RM_Q[k][1] + "（市场雷达" + esc(winText()) + " " + p.heat + " 条新闻）</p>";
+  }
+  function rmKpiHTML() {
+    const d = S.rm.data;
+    if (!d) return "";
+    if (!d.kpi.length) return '<p class="bz-dim">统计局的数字还没取到。' + (d.updating && d.updating.running ? "正在取…" : "点下面「现在更新数据」。") + "</p>";
+    return d.kpi.map((k) => '<div class="bz-rm-k"><span>' + esc(k.k) + "</span><b>" + (k.unit === "亿元" ? rmYi(k.v) + "元" : rmNum(k.v) + " " + esc(k.unit)) + "</b><small>" +
+      esc(k.period) + " · 同比 " + rmPct(k.yoy) + (k.extra ? " · " + esc(k.extra) : "") + "</small></div>").join("");
+  }
+  function rmSrcHTML() {
+    const d = S.rm.data;
+    if (!d) return "";
+    return '<table class="bz-ltab bz-rm-src"><thead><tr><th>信息源</th><th>看什么</th><th>怎么取</th><th>状态</th></tr></thead><tbody>' + d.sources.map((s) =>
+      "<tr><td class=\"nm\">" + (s.url ? '<a class="bz-link strong" href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.name) + "</a>" : "<b>" + esc(s.name) + "</b>") +
+      '</td><td class="ds">' + esc(s.what) + '</td><td class="ds">' + esc(s.how) + "</td><td>" +
+      (!s.auto ? '<span class="bz-dim">核实时用</span>' : s.ok ? '<span class="bz-rm-ok">✓ ' + esc(s.period || "") + (s.n ? "，" + s.n + (s.key === "listed" ? " 家公司" : " 项") : "") + '</span><br><small class="bz-dim">' + esc(ago(s.at)) + "查过</small>"
+        : s.at ? '<span class="bz-rm-bad">没取到</span><br><small class="bz-dim">' + esc(s.err || "") + "</small>" : '<span class="bz-dim">还没取</span>') + "</td></tr>").join("") + "</tbody></table>";
+  }
+  function rmChecksHTML() {
+    const cs = (S.rm.data && S.rm.data.checks) || [];
+    if (!cs.length) return '<p class="bz-dim">还没核实过。</p>';
+    return cs.map((c) => '<div class="bz-rm-chk"><div class="bz-rm-chk-h"><b>' + esc(c.name) + '</b><span class="bz-dim">' + esc(fmtTime(c.created)) + "</span>" +
+      (c.gid ? '<button type="button" class="bz-link" data-rm="' + esc(c.gid) + '">在地图上看</button>' : "") + "</div>" +
+      (c.summary ? "<p>" + esc(c.summary) + "</p>" : "") +
+      '<p class="bz-dim">' + c.n + " 个数字，" + c.ok + " 个在原文里对上了" + (c.dims.length ? " · 有：" + c.dims.join("、") : "") + "</p>" +
+      '<div class="bz-btns"><button type="button" class="bz-btn sm" data-rm-chk="' + esc(c.id) + '">看体检卡</button>' +
+      (c.report ? '<button type="button" class="bz-btn sm ghost" data-rep="' + esc(c.report) + '">完整报告</button>' : "") +
+      '<button type="button" class="bz-btn sm ghost" data-rm-redo="' + esc(c.gid || c.name) + '">重新核实</button>' +
+      '<button type="button" class="bz-link" data-rm-del="' + esc(c.id) + '">删除</button></div></div>').join("");
+  }
+  function rmFactsHTML(c) {
+    if (!c || !c.facts || !c.facts.length) return "";
+    return '<div class="bz-tablewrap"><table class="bz-ltab bz-rm-facts"><thead><tr><th>尺子</th><th>指标</th><th class="num">数值</th><th>时间</th><th>口径</th><th>核对</th></tr></thead><tbody>' +
+      c.facts.map((f) => '<tr><td><span class="bz-rm-dim">' + esc(f.dim) + '</span></td><td class="ds">' + esc(f.metric) + (f.src ? '<span class="co">' +
+        (f.url ? '<a class="bz-link" href="' + esc(f.url) + '" target="_blank" rel="noopener">' + esc(f.src || "出处") + "</a>" : esc(f.src)) + "</span>" : "") +
+        '</td><td class="num"><b>' + esc(f.value) + "</b></td><td>" + esc(f.when) + '</td><td><span class="bz-rm-basis b-' + (RM_BASIS_CLS[f.basis] || "es") + '">' + esc(f.basis || "?") + "</span></td>" +
+        '<td><span class="' + (f.ok ? "bz-rm-ok" : "bz-rm-bad") + '" title="' + (f.ok ? "这个数字在 AI 读到的网页或统计数据里找得到" : "原文里没找到这个数字：可能是 AI 换算的、记错的，用之前自己点出处核对") + '">' +
+        esc(f.chk || (f.ok ? "原文有" : "没对上")) + "</span></td></tr>").join("") + "</tbody></table></div>";
+  }
+  function rmLine(label, html) { return '<div class="bz-rm-row"><span class="bz-rm-lab">' + label + '</span><div class="bz-rm-val">' + html + "</div></div>"; }
+  function rmDetailHTML() {
+    const id = S.rm.sel, d = S.byId[id];
+    if (!d) return "";
+    const it = S.rm.item && S.rm.item.id === id ? S.rm.item : null;
+    const path = d.type === "l2" ? secName(d.sec) + " › " + d.l1 : d.type === "l1" ? secName(d.sec) + "板块" : "新兴赛道";
+    let h = '<div class="bz-dt"><div class="bz-dt-top"><p class="bz-dt-path">' + esc(path) + '</p><button type="button" class="bz-x" data-act="rm-close" aria-label="关掉这一栏（Esc）" title="关掉（Esc）">×</button></div>' +
+      "<h3>" + esc(d.name) + "</h3><p>" + esc(d.desc) + "</p>" + rmVerdict(id);
+    if (!it) return h + loading() + "</div>";
+    const a = it.listed, q = it.listed_q, chk = it.check;
+    const facts = (dim) => ((chk && chk.facts) || []).filter((f) => f.dim === dim && f.chk !== "待核实");
+    const factLine = (f) => "<p><b>" + esc(f.value) + "</b> " + esc(f.metric) + ' <span class="bz-rm-basis b-' + (RM_BASIS_CLS[f.basis] || "es") + '">' + esc(f.basis || "?") + "</span>" +
+      '<small class="bz-dim">' + esc(f.when) + (f.ok ? " · 原文有" : " · 没对上原文") + "</small></p>";
+    const nb = (src) => it.nbs.filter((x) => x.src === src);
+    const nbLine = (x) => "<p>" + (x.unit === "亿元" ? "<b>" + rmYi(x.v) + "元</b>" : "<b>" + rmNum(x.v) + " 元</b>/人") + " " + esc(x.txt) + '<small class="bz-dim">统计局 · ' + esc(x.period) +
+      " · 同比 " + rmPct(x.yoy) + (x.share != null ? " · 占消费支出 " + x.share + "%" : "") + (x.up ? " · 所在一级行业的" : "") + "</small></p>";
+    let size = "";
+    if (a) size += "<p><b>" + rmYi(a.rev) + "元</b> " + a.n + " 家 A 股公司" + esc(it.annual_name) + '营收合计<small class="bz-dim">上市公司 · 同比 ' + rmPct(a.rev_yoy) + "</small></p>";
+    nb("retail").concat(nb("ind")).forEach((x) => { size += nbLine(x); });
+    facts("规模").concat(facts("交易")).forEach((f) => { size += factLine(f); });
+    h += rmLine("规模", size || '<p class="bz-dim">没有直接对上的数字</p>');
+    if (q || a) h += rmLine("增长", (q ? "<p>" + esc(it.latest_name) + "营收 <b>" + rmPct(q.rev_yoy) + "</b>，净利润 <b>" + rmPct(q.np_yoy) + "</b></p>" : "") +
+      (a ? '<p class="bz-dim">' + esc(it.annual_name) + "营收 " + rmPct(a.rev_yoy) + "，净利润 " + rmPct(a.np_yoy) + "</p>" : ""));
+    let prof = "";
+    if (a) prof += "<p>净利率 <b>" + (a.nm == null ? "–" : a.nm + "%") + "</b>" + (a.gm != null ? "，毛利率中位数 <b>" + a.gm + "%</b>" : "") + '<small class="bz-dim">上市公司 · ' + esc(it.annual_name) + "</small></p>";
+    nb("ind").forEach((x) => { if (x.margin != null) prof += "<p>营收利润率 <b>" + x.margin + "%</b> " + esc(x.name) + '<small class="bz-dim">统计局 · ' + esc(x.period) + "</small></p>"; });
+    facts("利润").forEach((f) => { prof += factLine(f); });
+    h += rmLine("利润", prof || '<p class="bz-dim">待核实</p>');
+    let buy = "";
+    nb("income").forEach((x) => { buy += nbLine(x); });
+    facts("购买力").forEach((f) => { buy += factLine(f); });
+    if (!buy && it.income && it.income.income) buy = "<p>全国居民人均可支配收入 <b>" + rmNum(it.income.income) + ' 元</b><small class="bz-dim">统计局 · ' + esc(it.income.period || "") + "（这个行业没有单独的消费类目）</small></p>";
+    h += rmLine("购买力", buy || '<p class="bz-dim">待核实</p>');
+    const cust = facts("客户").map(factLine).join("");
+    h += rmLine("客户", cust || '<p class="bz-dim">待核实：统计局和财报里没有「多少人在买」，点下面「AI 联网核实」去查。</p>');
+    h += '<div class="bz-btns"><button type="button" class="bz-btn" data-act="rm-check-sel">' + (chk ? "重新核实" : "AI 联网核实") + "</button>" +
+      '<button type="button" class="bz-btn ghost" data-act="rm-map">在行业地图上看</button>' +
+      (d.type !== "trk" ? '<button type="button" class="bz-btn ghost" data-run-ind="' + esc(id) + '">联网研究</button>' : "") + "</div>";
+    if (chk) h += "<h4>AI 核实（" + esc(fmtTime(chk.created)) + "）</h4>" + (chk.summary ? "<p>" + esc(chk.summary) + "</p>" : "") +
+      '<p class="bz-dim">' + chk.facts.length + " 个数字，" + chk.facts.filter((f) => f.ok).length + " 个在原文里对上了（上面四行里标着）</p>" +
+      '<div class="bz-btns"><button type="button" class="bz-btn sm" data-rm-chk="' + esc(chk.id) + '">看体检卡和出处</button>' +
+      (chk.report ? '<button type="button" class="bz-btn sm ghost" data-rep="' + esc(chk.report) + '">完整报告</button>' : "") + "</div>";
+    if (a && a.top && a.top.length) h += "<h4>营收最多的上市公司（" + esc(it.annual_name) + '）</h4><ol class="bz-rm-top">' + a.top.map((t) =>
+      "<li><span>" + esc(t[0]) + "</span><b>" + rmYi(t[1]) + '</b><small class="bz-dim">净利 ' + rmYi(t[2]) + "</small></li>").join("") + "</ol>";
+    if (d.type === "trk") h += "<h4>相关行业</h4>" + '<div class="bz-chips">' + (d.rel || []).filter((x) => S.byId[x]).map((x) => '<button type="button" class="bz-chip" data-rm="' + esc(x) + '">' + esc(nameOf(x)) +
+      (rmBy(x).rev ? " <b>" + rmYi(rmBy(x).rev) + "</b>" : "") + "</button>").join("") + "</div>";
+    h += '<p class="bz-hint">上市公司的数字只是头部玩家的盘子，不等于整个市场；统计局的数字是一整个统计大类的合计，可能比这个行业宽。</p>';
+    return h + "</div>";
+  }
+  function rmLegend() {
+    const m = S.rm.metric, L = (S.rm.data && S.rm.data.listed) || {};
+    if (m === "quad") return "四块：钱多话少、又热又大、话多钱少、又冷又小。热度用的是市场雷达「" + winText() + "」的新闻条数（在市场雷达那边换时间段）。";
+    return (m === "size" ? "颜色越深，上市公司" + (L.annual_name || "") + "营收合计越多（不同板块不同颜色）。" : m === "growth" ? "颜色越深，营收增长越快（" + (L.latest_name || "最新一期") + "同比；红字是下降）。" :
+      "颜色越深，净利率越高（净利润 ÷ 营收，" + (L.annual_name || "") + "）。") + " 带小圆圈的是 AI 核实过的。";
+  }
+  function renderReal() {
+    segSync("rmmetric", S.rm.metric); segSync("rmview", S.rm.view); segSync("rmdepth", S.rm.depth);
+    const d = S.rm.data;
+    $("bzRmKpi").innerHTML = rmKpiHTML();
+    const up = d && d.updating && d.updating.running;
+    $("bzRmUpd").textContent = !d ? (S.rm.err ? "读不到：" + S.rm.err : "正在读…") : up ? "正在更新：" + (d.updating.stage || "…") :
+      d.updated ? "数据" + ago(d.updated) + "更新过；超过 12 小时没更新，打开这一页会自动更新。" : "还没取过数据。";
+    const vb = root.querySelector('.bz-seg[data-seg="rmview"]');
+    if (vb) vb.hidden = S.rm.metric === "quad";
+    $("bzRmLegend").textContent = rmLegend();
+    const main = $("bzRmMain");
+    if (!S.tax || !d) main.innerHTML = loading(S.taxErr || S.rm.err ? "读不到：" + (S.taxErr || S.rm.err) : "");
+    else {
+      const sc = $("bzScroll").scrollTop;
+      main.innerHTML = S.rm.metric === "quad" ? rmQuadHTML() : S.rm.view === "list" ? rmListHTML() : rmMapHTML();
+      $("bzScroll").scrollTop = sc;
+    }
+    rmRenderDetail();
+    $("bzRmChecks").innerHTML = rmChecksHTML();
+    $("bzRmSrc").innerHTML = rmSrcHTML();
+  }
+  function rmRenderDetail() {
+    const el = $("bzRmDetail"), wrap = $("bzRmWrap");
+    if (!el) return;
+    const on = !!(S.rm.sel && S.byId[S.rm.sel]);
+    el.hidden = !on; wrap.classList.toggle("nodet", !on);
+    el.innerHTML = on ? rmDetailHTML() : "";
+  }
+  async function rmLoad(force) {
+    try {
+      S.rm.data = await api("/biz/real"); S.rm.err = ""; S.rm.at = Date.now();
+    } catch (e) { S.rm.err = e.message; }
+    if (S.pane === "real") renderReal();
+    clearTimeout(S.rm.timer);
+    if (S.rm.data && S.rm.data.updating && S.rm.data.updating.running) S.rm.timer = setTimeout(() => rmLoad(), 3000);
+    else if (force && S.rm.sel) rmSelect(S.rm.sel, true);
+  }
+  async function rmSelect(id, keep) {
+    if (!S.byId[id]) return;
+    if (S.rm.sel === id && !keep) { S.rm.sel = ""; rmRenderDetail(); root.querySelectorAll("#bzRmMain .sel").forEach((e) => e.classList.remove("sel")); return; }
+    S.rm.sel = id; store.set("rmSel", id);
+    root.querySelectorAll("#bzRmMain .sel").forEach((e) => e.classList.remove("sel"));
+    root.querySelectorAll('#bzRmMain [data-rm="' + CSS.escape(id) + '"], #bzRmMain tr[data-row="' + CSS.escape(id) + '"]').forEach((e) => e.classList.add("sel"));
+    if (S.rm.metric === "quad") renderReal(); else rmRenderDetail();
+    const det = $("bzRmDetail");
+    if (det && window.innerWidth < 1100) det.scrollIntoView({ block: "start", behavior: "smooth" });
+    try {
+      const r = await api("/biz/real/item?id=" + enc(id));
+      if (S.rm.sel === id) { S.rm.item = r; rmRenderDetail(); }
+    } catch (e) { /* 读不到就算了 */ }
+  }
+  function rmEnsure() {
+    if (!S.rm.data || Date.now() - S.rm.at > 60000) rmLoad();
+    if (!S.ovm) refreshOverview("market");
+    if (S.rm.sel && !(S.rm.item && S.rm.item.id === S.rm.sel)) rmSelect(S.rm.sel, true);
+  }
+  function rmCheck(target, scope) {
+    runJob("real", { target: target || "", scope: scope || "", web: true, depth: S.rm.depth });
+  }
+  async function rmOpenCheck(cid) {
+    const r = await api("/biz/real/check?id=" + enc(cid)).catch((e) => ({ ok: false, error: e.message }));
+    if (!r.ok) { toast(r.error || "打不开"); return; }
+    const c = r.check;
+    openReader("真实市场核实：" + c.name, '<p class="bz-dim">' + esc(fmtTime(c.created)) + " · " + esc(c.engine || "AI") + " · 查了 " + (c.web || 0) + " 个网页 · " +
+      c.facts.filter((f) => f.ok).length + "/" + c.facts.length + " 个数字在原文里对上了</p>",
+      (c.summary ? "<p><b>" + esc(c.summary) + "</b></p>" : "") + rmFactsHTML(c) +
+      '<p class="bz-hint">「原文有」：这个数字在 AI 读到的网页或统计数据里找得到。「没对上」：原文里没找到，可能是换算的或记错的，用之前点出处自己核对。</p>',
+      c.report ? '<button type="button" class="bz-btn sm" data-rep="' + esc(c.report) + '">打开完整报告</button>' : "");
   }
 
   // ───────── 后台任务（写报告）─────────
@@ -2498,7 +2828,7 @@
       renderJob();
       renderBigBtns();
       if (S.pane === "custom") renderCuGo();                         // v187：商业定制页上也显示写到哪一步了
-      if (was && !j.running) { refreshReports(); refreshOpps(); refreshOverview(); }
+      if (was && !j.running) { refreshReports(); refreshOpps(); refreshOverview(); if (j.kind === "real") rmLoad(true); }
       if (j.running) S.jobTimer = setTimeout(pollJob, 2000);
     } catch (e) {
       if (S.job && S.job.running) S.jobTimer = setTimeout(pollJob, 5000);
@@ -3050,6 +3380,7 @@
     if ((p === "radar" || p === "industry") && S.ovm && Date.now() - (S.ovmAt || 0) > 30000) refreshOverview("market");   // v182：切过来时数据旧了就刷新
     if (p === "crawler") { loadEngines(); loadRuns(); if (!S.radarSrc) loadRadarSources(); }
     if (p === "custom") cuEnsure();                                 // v187
+    if (p === "real") rmEnsure();                                   // v191
     bzLivePlace();                                                  // v190：实时画面跟着放到这一页看得见的地方
   }
   function goPane(p) {
@@ -3078,6 +3409,9 @@
     else if (name === "depth") { S.depth = v; segSync(name, v); }
     else if (name === "cudepth") { S.cu.depth = v === "deep" ? "deep" : "quick"; store.set("cuDepth", S.cu.depth); segSync(name, S.cu.depth); }   // v187
     else if (name === "oppst") { S.oppSt = v; renderOpps(); }
+    else if (name === "rmmetric") { S.rm.metric = v; store.set("rmMetric", v); if (v === "quad" && !S.ovm) refreshOverview("market"); renderReal(); }   // v191
+    else if (name === "rmview") { S.rm.view = v; store.set("rmView", v); renderReal(); }
+    else if (name === "rmdepth") { S.rm.depth = v === "deep" ? "deep" : "quick"; store.set("rmDepth", S.rm.depth); segSync(name, S.rm.depth); }
     else if (name === "repkind") { S.repKind = v; renderAnalysis(); }
     else if (name === "rdkind") { S.rdKind = v; renderSources(); }
   }
@@ -3114,6 +3448,27 @@
         return;
       }
       if ((b = t.closest(".bz-seg button[data-v]"))) { onSeg(b.parentNode.dataset.seg, b.dataset.v); return; }
+      if ((b = t.closest("[data-rm-chk]"))) { rmOpenCheck(b.dataset.rmChk); return; }            // v191：真实市场
+      if ((b = t.closest("[data-rm-redo]"))) { const v = b.dataset.rmRedo; if (S.byId[v]) rmCheck("", v); else rmCheck(v, ""); return; }
+      if ((b = t.closest("[data-rm-del]"))) {
+        if (!confirm("删掉这条核实记录？（完整报告还在报告库里）")) return;
+        await api("/biz/real/check_delete", { id: b.dataset.rmDel }).catch(() => null);
+        rmLoad(); return;
+      }
+      if ((b = t.closest('[data-act^="rm-"]'))) {
+        const a = b.dataset.act;
+        if (a === "rm-update") { b.disabled = true; await api("/biz/real/update", { force: true }).catch(() => null); toast("开始更新：统计局和上市公司数据，一两分钟。"); setTimeout(() => { b.disabled = false; rmLoad(); }, 800); }
+        else if (a === "rm-close") { S.rm.sel = ""; store.set("rmSel", ""); root.querySelectorAll("#bzRmMain .sel").forEach((e) => e.classList.remove("sel")); rmRenderDetail(); }
+        else if (a === "rm-check-sel") rmCheck("", S.rm.sel);
+        else if (a === "rm-map") { const id = S.rm.sel; goPane("industry"); if (id) selectInd(id); }
+        else if (a === "rm-check") {
+          const v = ($("bzRmTarget").value || "").trim();
+          if (v.length < 2) { toast("先写上要核实的方向，比如「外贸企业英文资料制作」。"); $("bzRmTarget").focus(); return; }
+          rmCheck(v, "");
+        }
+        return;
+      }
+      if ((b = t.closest("[data-rm]"))) { rmSelect(b.dataset.rm); return; }
       if ((b = t.closest("[data-act]"))) {
         const act = b.dataset.act;
         if (act === "back") closeReader();
@@ -3384,6 +3739,7 @@
     root.addEventListener("input", (e) => {
       const t = e.target;
       if (t.id === "bzIndQ") { S.indQ = t.value; clearTimeout(qTimer); qTimer = setTimeout(renderIndustry, 160); }
+      else if (t.id === "bzRmQ") { S.rm.q = t.value; clearTimeout(qTimer); qTimer = setTimeout(renderReal, 160); }   // v191
       else if (t.id === "bzRq") { clearTimeout(qTimer); qTimer = setTimeout(() => { S.rq = t.value.trim(); loadRadarFeed(); }, 350); }
       else if (t.id === "bzBfQ") { S.bf.q = t.value.trim(); clearTimeout(qTimer); qTimer = setTimeout(briefCount, 350); }
       else if (t.id === "bzBfFocus") S.bf.focus = t.value;
@@ -3425,6 +3781,7 @@
     root.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.isComposing) {
         if (e.target.id === "bzTaskTarget") { e.preventDefault(); startTask(); }
+        else if (e.target.id === "bzRmTarget") { e.preventDefault(); const b = root.querySelector('[data-act="rm-check"]'); if (b) b.click(); }   // v191
         else if (e.target.id === "bzAddOne") { e.preventDefault(); const b = root.querySelector('[data-act="add-one"]'); if (b) b.click(); }
         else if (e.target.matches && e.target.matches("tr[data-run]")) { e.preventDefault(); openRunReport(e.target.dataset.run); }
       }
@@ -3443,6 +3800,7 @@
       else if (!$("bzUpd").hidden) closeModal("bzUpd");
       else if (!$("bzReader").hidden) closeReader();
       else if (S.radSel && S.pane === "radar" && S.rview === "radar") radUp();     // v177：雷达上一层层退回
+      else if (S.pane === "real" && S.rm.sel) { S.rm.sel = ""; store.set("rmSel", ""); rmRenderDetail(); renderReal(); }   // v191
       else if (S.pane === "industry" && S.indSel) { S.indSel = ""; root.querySelectorAll("#bzIndMain .sel").forEach((e) => e.classList.remove("sel")); renderIndDetail(); }   // v183
     });
   }

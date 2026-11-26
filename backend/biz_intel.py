@@ -39,7 +39,8 @@ OPPS_FILE = BIZ_DIR / "opportunities.json"
 TOPICS_FILE = BIZ_DIR / "topics.json"
 
 KIND_NAMES = {"market": "市场动向简报", "industry": "行业研究", "model": "商业模式拆解",
-              "trend": "趋势与机会", "research": "课题研究", "custom": "商业定制方案"}   # v187：商业定制（biz_fit.py）
+              "trend": "趋势与机会", "research": "课题研究", "custom": "商业定制方案",
+              "real": "真实市场核实"}                     # v191：真实市场（biz_real.py）   # v187：商业定制（biz_fit.py）
 STEPS = ["读你收进来的资料", "上网查资料", "AI 写报告", "存报告"]
 OPP_STATUS = ("new", "watch", "testing", "doing", "dropped")
 
@@ -1050,6 +1051,9 @@ def job_status():
     if d.get("kind") == "custom":                      # v187：商业定制的几步说法不一样
         import biz_fit as _bf
         d["steps"] = _bf.STEPS
+    elif d.get("kind") == "real":                      # v191：真实市场核实
+        import biz_real as _br
+        d["steps"] = _br.STEPS
     return d
 
 
@@ -1143,7 +1147,12 @@ def start(kind, target="", scope="", days=30, web=True, depth="quick", lens="min
         return {"ok": False, "error": "先写上要分析的公司、产品或课题"}
     if kind == "industry" and not (target or scope):
         return {"ok": False, "error": "先选一个行业"}
+    if kind == "real" and len(target) < 2 and not scope:
+        return {"ok": False, "error": "先写上要核实的方向，或者在地图上点一个行业"}
     spec = _spec(kind, target, scope, days, web, depth, lens, grp, q, size, notes, focus)
+    if kind == "real":                                  # v191：真实市场核实——target 可以是行业编号，也可以是随便写的方向
+        import biz_real as _br
+        spec.update(_br.spec_extra(scope or target))
     if prof is not None:
         spec.update(profile=prof, title=_bf.title(prof), scope_name="为我定制", target=target)
     with _job_lock:
@@ -1339,7 +1348,8 @@ _STRUCT = {
 }
 _MARKERS = {"market": ["主要动向", "接下来观察"], "industry": ["产业链图", "机会清单"], "model": ["产业链图", "可借鉴"],
             "trend": ["趋势", "机会清单"], "research": ["产业链", "机会清单"],
-            "custom": ["推荐方向一览", "行动计划", "机会清单"]}           # v187
+            "custom": ["推荐方向一览", "行动计划", "机会清单"],           # v187
+            "real": ["四把尺子", "还缺什么"]}                           # v191
 
 
 def _task_line(spec):
@@ -1462,7 +1472,7 @@ def _save(spec, text, notes, sigs, web_src, engine):
     tail += ["", "（%s · %s写 · 超能小助「商业」）" % (now.strftime("%Y-%m-%d %H:%M"), engine)]
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     (REPORT_DIR / fname).write_text(body + "\n" + "\n".join(tail) + "\n", encoding="utf-8")
-    n_opps = _harvest_opps(body, rid, spec["scope_name"]) if spec["kind"] != "model" else 0
+    n_opps = _harvest_opps(body, rid, spec["scope_name"]) if spec["kind"] not in ("model", "real") else 0
     meta = {"id": rid, "kind": spec["kind"], "title": spec["title"], "target": spec["target"], "scope": spec["scope"],
             "scope_name": spec["scope_name"], "created": int(time.time()), "file": fname, "engine": engine,
             "notes": len(notes), "sigs": len(sigs), "web": len(web_src), "summary": _summary(body),
@@ -1516,6 +1526,10 @@ def _run(spec):
     try:
         if spec["kind"] == "custom":
             _run_custom(spec)
+            return
+        if spec["kind"] == "real":                         # v191：真实市场核实
+            import biz_real as _br
+            _br.run_check(spec)
             return
         deep = spec["depth"] == "deep"
         _stage(1, "从你收进来的资料里挑相关的…")
