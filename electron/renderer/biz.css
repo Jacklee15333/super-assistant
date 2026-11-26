@@ -1405,3 +1405,12 @@ body.dark .view-biz .bz-kind.k-custom { color: #b8a2f0; }
 .view-biz .bz-tile .vf.ok { color: #2f8f5b; }
 .view-biz .bz-tile.h4 .vf, .view-biz .bz-tile.h5 .vf { color: #fff; opacity: .9; }
 .view-biz .bz-map .bz-tile .vf { font-size: 9.5px; }
+
+/* ===== v198：京东 / 1688 登录、国外平台 ===== */
+.view-biz .bz-rm-login-in { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; padding: 10px 12px; margin: 0 0 12px; border: 1px solid var(--line); border-radius: 10px; }
+.view-biz .bz-rm-login-in p { margin: 4px 0 8px; font-size: 12.5px; line-height: 1.65; }
+.view-biz .bz-rm-lrow { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 13px; flex-wrap: wrap; }
+.view-biz .bz-rm-lrow b { min-width: 44px; }
+.view-biz .bz-rm-lrow .sp { flex: 1; }
+.view-biz .bz-rm-login-in .bz-rm-chkbox { display: flex; gap: 6px; align-items: center; margin-top: 6px; font-size: 13px; }
+@media (max-width: 1000px) { .view-biz .bz-rm-login-in { grid-template-columns: 1fr; } }

@@ -130,6 +130,8 @@ _LOG_PATH_LABEL = {
     "/biz/real/update": "真实市场：现在更新统计局和上市公司数据",
     "/biz/real/batch": "真实市场：全部核实（开始 / 停止 / 接着做）",
     "/biz/real/trade": "真实市场：去交易平台抓数据",
+    "/biz/real/login": "真实市场：京东 / 1688 登录",
+    "/biz/real/trade_cfg": "真实市场：交易平台设置",
     "/biz/radar/source": "市场雷达：改信息源清单",
 }
 
@@ -6716,6 +6718,16 @@ class Handler(BaseHTTPRequestHandler):
                     if body.get("action") == "stop":
                         return self._send(_bt.batch_stop())
                     return self._send(_bt.probe_async(body.get("target", "")))
+                if path == "/biz/real/login":                        # v198：京东 / 1688 登录（打开登录窗口 / 退出）
+                    import trade_browser as _tb
+                    if body.get("action") == "logout":
+                        return self._send(_tb.logout(body.get("site", "")))
+                    if body.get("action") == "status":
+                        return self._send(dict(_tb.status(), ok=True))
+                    return self._send(_tb.open_login(body.get("site", "")))
+                if path == "/biz/real/trade_cfg":                    # v198：交易平台设置（国外平台开关）
+                    import biz_trade as _bt
+                    return self._send(_bt.set_cfg(foreign=body.get("foreign")))
                 if path == "/biz/real/check_delete":
                     import biz_real as _br
                     return self._send(_br.check_delete(body.get("id", "")))

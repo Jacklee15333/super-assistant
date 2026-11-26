@@ -2464,7 +2464,8 @@
   // ───────── v191：真实市场（钱在哪里）─────────
   // 市场雷达看「新闻多不多」；这里看「钱」：统计局 + 上市公司财报（自动），具体方向让 AI 联网核实（电商、交易平台、招投标、报告）。
   const RM_METRIC = [["size", "规模"], ["verified", "AI 核实的规模"], ["growth", "增长"], ["margin", "利润率"], ["quad", "热度 × 真钱"]];   // v197：加「AI 核实的规模」
-  const RM_PLAT = { ccgp: "政府采购网", b2b: "1688", ywg: "义乌购", jd: "京东", sn: "苏宁易购", smzdm: "什么值得买", zbj: "猪八戒" };
+  const RM_PLAT = { ccgp: "政府采购网", b2b: "1688", ywg: "义乌购", jd: "京东", sn: "苏宁易购", smzdm: "什么值得买", zbj: "猪八戒",
+    amazon: "亚马逊", ebay: "eBay", aliexpress: "速卖通", alibaba: "阿里巴巴国际站" };
   const RM_BASIS_CLS = { "统计局": "gov", "上市公司": "co", "电商平台": "ec", "交易平台": "ec", "招投标": "ec", "行业报告": "rp", "媒体报道": "rp", "估算": "es" };
   function rmPaneHTML() {                                          // v195：更新数据 / AI 核实 / 交易平台抓取 做成三个标签，不用拉到下面
     return '<div class="bz-pane" data-pane="real">' +
@@ -2493,6 +2494,7 @@
         '<div class="bz-rm-batch" id="bzRmBatch"></div>' +
         '<div class="bz-rm-checks" id="bzRmChecks"></div></section>' +
       '<section class="bz-rm-tp" data-rmtp="trade" hidden>' +
+        '<div class="bz-rm-login" id="bzRmLogin"></div>' +                                        // v198：京东 / 1688 登录、国外平台
         '<div class="bz-rm-tbar" id="bzRmTBar"></div><div class="bz-tablewrap" id="bzRmSrc"></div></section>' +
       '<section class="bz-rm-tp bz-rm-tp-map" data-rmtp="map">' +                    // v196：地图也是一个标签（以前放在三个标签下面共用，看着像每个标签里都有）
         '<div class="bz-bar bz-rm-mapbar">' + seg("rmmetric", RM_METRIC) + seg("rmview", [["map", "地图"], ["list", "列表"]]) +
@@ -2515,7 +2517,7 @@
       data: d.updating && d.updating.running || S.rm.updWait ? spin + "正在更新" : d.updated ? ago(d.updated) + "更新过" : "",
       check: j && j.running && j.kind === "real" ? spin + (bt && bt.running ? "核实中 " + Math.min(bt.n, bt.i + 1) + "/" + bt.n : "正在核实") :
         bt && bt.running ? spin + "排队中 " + bt.i + "/" + bt.n : bt && bt.paused ? "暂停了 " + bt.i + "/" + bt.n : ((d.checks || []).length ? (d.checks || []).length + " 个核实过" : ""),
-      trade: tb && tb.running ? spin + "抓取中 " + tb.i + "/" + tb.n : "",
+      trade: tb && tb.running ? spin + "抓取中 " + tb.i + "/" + tb.n : Object.values((d.logins && d.logins.sites) || {}).some((x) => x.waiting) ? spin + "等你登录" : "",
     };
     tabs.querySelectorAll("[data-rmts]").forEach((x) => { x.innerHTML = st[x.dataset.rmts] || ""; });
   }
@@ -2864,6 +2866,7 @@
     rmReportRender();
     rmRunRender();
     $("bzRmTBar").innerHTML = rmTBarHTML();
+    $("bzRmLogin").innerHTML = rmLoginHTML();
     $("bzRmUpd").textContent = !d ? (S.rm.err ? "读不到：" + S.rm.err : "正在读…") : up ? "正在更新：" + (d.updating.stage || "…") :
       d.updated ? "数据" + ago(d.updated) + "更新过；超过 12 小时没更新，打开这一页会自动更新。" : "还没取过数据。";
     const vb = root.querySelector('.bz-seg[data-seg="rmview"]');
@@ -2898,6 +2901,8 @@
       S.rm.data = await api("/biz/real"); S.rm.err = ""; S.rm.at = Date.now();
     } catch (e) { S.rm.err = e.message; }
     const nowUpd = !!(S.rm.data && S.rm.data.updating && S.rm.data.updating.running);
+    const ls = (S.rm.data && S.rm.data.logins && S.rm.data.logins.sites) || {};          // v198：登录好了提示一下
+    Object.keys(ls).forEach((k) => { if (S.rm.lwait && S.rm.lwait[k] && !ls[k].waiting) { delete S.rm.lwait[k]; toast(ls[k].logged ? ls[k].name + " 登录好了，窗口已经收起来；之后爬虫抓" + ls[k].name + "会用它。" : ls[k].name + " 的登录窗口等太久，先收起来了，需要的话再点一次登录。"); } });
     if (S.rm.updWait && !nowUpd && (wasUpd || (S.rm.data && S.rm.data.report && S.rm.data.report.at * 1000 > Date.now() - 120000))) {
       S.rm.updWait = false; S.rm.showReport = true;                     // v193：更新做完了 → 出汇报
       const rp = S.rm.data.report;
@@ -2909,6 +2914,7 @@
     if (bt && (bt.running || bt.stopping) && !(S.job && S.job.running)) pollJob();   // v195：全部核实是后台自己开的任务，界面要自己去问进度（不然看不到「正在核实」和实时画面）
     if (S.rm.data && S.rm.data.updating && S.rm.data.updating.running) S.rm.timer = setTimeout(() => rmLoad(), 3000);
     else if (S.rm.updWait) S.rm.timer = setTimeout(() => rmLoad(), 1500);
+    else if (Object.values((S.rm.data && S.rm.data.logins && S.rm.data.logins.sites) || {}).some((x) => x.waiting)) S.rm.timer = setTimeout(() => rmLoad(), 3000);   // v198
     else if (((bt && (bt.running || bt.stopping)) || (S.rm.data && S.rm.data.tbatch && S.rm.data.tbatch.running)) && S.pane === "real") S.rm.timer = setTimeout(() => rmLoad(), 8000);   // v192
     else if (S.pane === "real") S.rm.timer = setTimeout(() => { if (S.pane === "real") rmLoad(); }, 30000);   // v195：开着这一页就隔半分钟看一眼（后台自己开始的任务也能看到）
     else if (force && S.rm.sel) rmSelect(S.rm.sel, true);
@@ -2976,6 +2982,24 @@
       '<div class="cx-ail-slot" id="bzRmLive" hidden></div>';
     bzLivePlace();
   }
+  // v198：京东 / 1688 登录、国外平台开关
+  function rmLoginHTML() {
+    const d = S.rm.data || {}, L = (d.logins && d.logins.sites) || {}, c = d.trade_cfg || {};
+    const row = (k) => {
+      const x = L[k] || { name: k === "jd" ? "京东" : "1688" };
+      const st = x.waiting ? '<span class="bz-rm-bad"><span class="bz-spin" aria-hidden="true"></span>登录窗口开着，等你登录…（屏幕上弹出来的那个 Chrome）</span>' :
+        x.logged ? '<span class="bz-rm-ok">✓ 已登录</span><small class="bz-dim">（' + esc(ago(x.at)) + "登录的；爬虫抓" + esc(x.name) + "时会用它）</small>" :
+        x.expired ? '<span class="bz-rm-bad">登录过期了</span><small class="bz-dim">（抓的时候又被要求登录）</small>' : '<span class="bz-dim">没登录</span>';
+      const btn = x.waiting ? "" : x.logged ? '<button type="button" class="bz-btn sm ghost" data-rm-login="' + k + '">重新登录</button><button type="button" class="bz-link" data-rm-logout="' + k + '">退出</button>' :
+        '<button type="button" class="bz-btn sm" data-rm-login="' + k + '">登录' + esc(x.name) + "</button>";
+      return '<div class="bz-rm-lrow"><b>' + esc(x.name) + "</b>" + st + '<span class="sp"></span>' + btn + "</div>";
+    };
+    return '<div class="bz-rm-login-in"><div><b>要登录才给看的平台</b><p class="bz-dim">京东、1688 现在搜东西要登录。点「登录」会在你屏幕上弹出一个专门给爬虫用的 Chrome（和你自己的 Chrome、AI 池都分开），' +
+      "扫码或输密码登录就行；软件看到登录好了，会自动把窗口收到屏幕外。登录一次一直能用，过期了这里会提示。</p>" + row("jd") + row("b2b") +
+      (d.logins && d.logins.err ? '<p class="bz-rm-bad">' + esc(d.logins.err) + "</p>" : "") + "</div>" +
+      '<div><b>国外平台</b><label class="bz-rm-chkbox"><input type="checkbox" id="bzRmForeign"' + (c.foreign !== false ? " checked" : "") + "> 也抓国外的主流平台</label>" +
+      '<p class="bz-dim">亚马逊（美国站，含「上个月卖了多少」）、eBay（只看已经成交的）、速卖通、阿里巴巴国际站。要能上外网：走软件设置里的代理；搜索词自动翻成英文；价格是美元，按 1 美元≈7.1 元换算。只在卖货的行业和跨境电商这类赛道去抓。</p></div></div>';
+  }
   // v193：交易平台「全部抓一遍」
   function rmTBarHTML() {
     const tb = S.rm.data && S.rm.data.tbatch;
@@ -2983,7 +3007,7 @@
     let h = '<div class="bz-rm-tbar-in"><div><b>爬虫什么时候去抓交易平台？</b>' +
       '<p class="bz-dim">① 核实任何一个方向（下拉框选的、自己写的、「全部核实」排队的）时，会先自动抓；② 体检卡里点「去平台抓」；③ 点右边按钮，把全部行业抓一遍（不用 AI）。' +
       "不是每个平台都适合每个行业：1688、义乌购、京东、苏宁易购、什么值得买只在卖货的行业（吃穿用、电子、医药、宠物…）去抓；猪八戒只在卖服务的行业（教育、软件、AI、营销…）去抓；政府采购网每个都抓。表格里「适用」就是会去抓的行业数。" +
-      "京东和 1688 现在搜东西要登录才给看，软件不硬闯：连着 3 次要登录就先跳过 7 天，用不用登录的义乌购（批发价）和苏宁易购（零售价）顶上。</p></div>";
+      "京东和 1688 要登录：在上面登录一次，之后就用登录好的浏览器去抓；没登录的话，连着 3 次被要求登录就先跳过 7 天，用不用登录的义乌购（批发价）和苏宁易购（零售价）顶上。</p></div>";
     if (tb && tb.running) {
       const pct = tb.n ? Math.round((tb.i / tb.n) * 100) : 0;
       h += '<div class="bz-rm-tprog"><p><span class="bz-spin" aria-hidden="true"></span><b>正在抓：' + esc(tb.cur_name || "…") + "</b>　" + tb.i + " / " + tb.n +
@@ -3689,6 +3713,19 @@
       }
       if ((b = t.closest(".bz-seg button[data-v]"))) { onSeg(b.parentNode.dataset.seg, b.dataset.v); return; }
       if ((b = t.closest("[data-rmtab]"))) { rmSetTab(b.dataset.rmtab); return; }              // v195：三个标签
+      if ((b = t.closest("[data-rm-login]"))) {                                                  // v198：打开登录窗口
+        const site = b.dataset.rmLogin;
+        b.disabled = true; b.textContent = "正在打开…";
+        const r = await api("/biz/real/login", { site: site }).catch((e) => ({ ok: false, error: e.message }));
+        if (!r.ok) { toast(r.error || "登录窗口没打开"); b.disabled = false; }
+        else { S.rm.lwait = Object.assign(S.rm.lwait || {}, { [site]: 1 }); toast("登录窗口已经弹出来了（一个新的 Chrome），在里面扫码或输密码登录。"); }
+        rmLoad(); return;
+      }
+      if ((b = t.closest("[data-rm-logout]"))) {
+        if (!confirm("退出登录？之后爬虫抓这个平台会又被要求登录。")) return;
+        await api("/biz/real/login", { site: b.dataset.rmLogout, action: "logout" }).catch(() => null);
+        rmLoad(); return;
+      }
       if ((b = t.closest("[data-rm-chk]"))) { rmOpenCheck(b.dataset.rmChk); return; }            // v191：真实市场
       if ((b = t.closest("[data-rm-redo]"))) { const v = b.dataset.rmRedo; if (S.byId[v]) rmCheck("", v); else rmCheck(v, ""); return; }
       if ((b = t.closest("[data-rm-del]"))) {
@@ -3971,6 +4008,7 @@
     root.addEventListener("change", async (e) => {
       const t = e.target;
       if (t.matches("#bzCuForm select[data-cu]")) { cuQueueSave(120); return; }        // v187：商业定制
+      if (t.id === "bzRmForeign") { await api("/biz/real/trade_cfg", { foreign: t.checked }).catch(() => null); toast(t.checked ? "之后会顺便抓国外平台。" : "之后不抓国外平台了。"); rmLoad(); return; }   // v198
       if (t.id === "bzRmPick") { S.rm.pick = t.value; if (t.value) $("bzRmTarget").value = ""; return; }        // v192：真实市场下拉框
       if (t.id === "bzRmBScope") { S.rm.bscope = t.value; $("bzRmBatch").innerHTML = rmBatchHTML(); return; }
       if (t.id === "bzRmBTodo") { S.rm.btodo = t.checked; $("bzRmBatch").innerHTML = rmBatchHTML(); return; }

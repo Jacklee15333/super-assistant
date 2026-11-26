@@ -1007,7 +1007,7 @@ def overview():
                     "extra": "利润率 %s%%" % ir["总计"]["margin"] if ir["总计"].get("margin") is not None else ""})
     return {"ok": True, "updated": d.get("updated", 0), "updating": dict(_upd), "report": d.get("last_report"), "sources": srcs, "kpi": kpi, "by": by,
             "listed": {k: L.get(k) for k in ("annual", "latest", "annual_name", "latest_name", "companies")},
-            "checks": [_check_brief(c) for c in _checks()[:300]], "batch": batch_status(), "tbatch": _tbatch(), "now": int(time.time())}
+            "checks": [_check_brief(c) for c in _checks()[:300]], "batch": batch_status(), "tbatch": _tbatch(), "logins": _logins(), "trade_cfg": _tcfg(), "now": int(time.time())}
 
 
 def item(gid):
@@ -1327,6 +1327,22 @@ def batch_ids(scope, todo):
         ids = [g for g in ids if g not in done]
         name += "里还没核实过的"
     return ids, name
+
+
+def _logins():
+    try:
+        import trade_browser as TB
+        return TB.status()
+    except Exception as e:
+        return {"sites": {}, "err": str(e)[:120]}
+
+
+def _tcfg():
+    try:
+        import biz_trade as BT
+        return BT.cfg()
+    except Exception:
+        return {}
 
 
 def _tbatch():

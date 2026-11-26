@@ -1,9 +1,9 @@
 {
  "ccgp": {
   "pref": "direct",
-  "at": 1795703845,
-  "n_ok": 16,
-  "last_ok": 1795703845,
+  "at": 1795704221,
+  "n_ok": 17,
+  "last_ok": 1795704221,
   "via": "普通方式",
   "err": "",
   "login_streak": 0
@@ -17,11 +17,11 @@
   "err": ""
  },
  "b2b": {
-  "at": 1795703670,
-  "n_bad": 13,
+  "at": 1795704327,
+  "n_bad": 14,
   "err": "Scrapling 快速：要登录或被拦（login.1688）；Scrapling 浏览器：Scrapling 浏览器打开超时（timeout）",
-  "login_streak": 2,
-  "login_at": 1795703670
+  "login_streak": 3,
+  "login_at": 1795704327
  },
  "jd": {
   "at": 1795703754,
@@ -41,10 +41,10 @@
   "login_streak": 0
  },
  "ywg": {
-  "login_streak": 2,
-  "login_at": 1795703692,
-  "at": 1795703692,
-  "n_bad": 2,
+  "login_streak": 3,
+  "login_at": 1795704344,
+  "at": 1795704344,
+  "n_bad": 3,
   "err": "Scrapling 快速：页面是空壳（只有 3 个字）；Scrapling 浏览器：页面是空壳（只有 241 个字）"
  },
  "sn": {
