@@ -31,7 +31,7 @@ import biz_trade_x as X
 TRADE_FILE = BZ.BIZ_DIR / "real" / "trade.json"
 STATE_FILE = BZ.BIZ_DIR / "real" / "trade_state.json"
 SC_NAME = {"direct": "普通方式", "fast": "Scrapling 快速", "browser": "Scrapling 浏览器", "login": "已登录的浏览器",
-           "chrome": "爬虫专用 Chrome", "api": "官方接口"}
+           "chrome": "爬虫专用 Chrome", "api": "官方接口", "unlock": "付费解锁服务"}
 
 PLATFORMS = [
     {"key": "ccgp", "name": "中国政府采购网", "kind": "采购", "url": "http://www.ccgp.gov.cn/",
@@ -72,6 +72,7 @@ PLATFORMS += [{"key": p["key"], "name": p["name"], "kind": p["kind"], "url": p["
 for _p in PLATFORMS:
     _p.setdefault("region", "cn")
 FOREIGN = {p["key"] for p in PLATFORMS if p.get("foreign")}
+API_KEYS = {p["key"] for p in PLATFORMS if p.get("api")}
 LOGIN_SITES = {p["key"] for p in PLATFORMS if p.get("login")}
 CN_CHROME = {"ccgp", "b2b", "ywg", "jd", "tb", "pdd", "sn", "smzdm", "zbj", "xy"}     # 国内平台：前三档都不行时用爬虫专用 Chrome
 USD = 7.1
@@ -180,8 +181,10 @@ def fetch(pkey, url, ok, trace):
     pref = (st.get(pkey) or {}).get("pref", "")
     order = ["direct", "fast", "browser"]
     TB = _tbmod()
-    if TB and pkey in CN_CHROME:
+    if TB and (pkey in CN_CHROME or pkey in FOREIGN):        # v202：国外平台也用爬虫 Chrome（走代理）
         order.append("chrome")
+    if pkey in FOREIGN and pkey not in LOGIN_SITES and unlock_cfg().get("provider"):
+        order.append("unlock")                             # v202：都不行，才用付费解锁服务（要你填钥匙）
     if TB and pkey in TB.SITES and TB.logged_in(pkey):     # v198：你登录过：先用登录好的浏览器（v199：只用它，免得没登录的方式把账号连累了）
         order, pref = ["login"], "login"
     if pref in order:
@@ -192,8 +195,10 @@ def fetch(pkey, url, ok, trace):
         t0 = time.time()
         try:
             if m in ("login", "chrome"):
-                r = TB.fetch_ex(url, site=pkey if m == "login" else None, login=(m == "login"))
+                r = TB.fetch_ex(url, site=pkey if m == "login" else None, login=(m == "login"), vkey=pkey, vname=P_NAME.get(pkey, pkey))
                 h, final = r["html"], r["url"]
+            elif m == "unlock":
+                h, final = _unlock(url, pkey)
             else:
                 h, final = _direct(url) if m == "direct" else _sc(url, m)
             txt = _plain(h)
@@ -210,6 +215,8 @@ def fetch(pkey, url, ok, trace):
             r = X.human(str(e).split("\n")[0])[:90]
         trace.append({"m": SC_NAME[m], "ok": False, "ms": int((time.time() - t0) * 1000), "why": r})
         why.append("%s：%s" % (SC_NAME[m], r))
+        if m == "unlock":
+            why[-1] = "%s：%s" % (unlock_name(), r)
         if "还没装好" in r or "今天在" in r:
             if "今天在" in r:
                 break
@@ -580,7 +587,8 @@ def probe(target, only=None):
         _run["running"][key] = int(time.time())
     res = {}
 
-    live = _live["now"].setdefault(key, {"kw": kw, "started": int(time.time()), "plats": {p: "wait" for p in plats}})
+    live = _live["now"].setdefault(key, {"kw": kw, "started": int(time.time()), "plats": {p: "wait" for p in plats},
+                                         "urls": {p: search_url(p, kw) for p in plats}})
 
     def one(p):
         trace, t0 = [], time.time()
@@ -905,14 +913,15 @@ def _feed(kw, p, r):
     if last.get("p") == p and last.get("txt") == txt[:160]:          # 同一条连着出现只记一次
         last["at"] = int(time.time())
         return
-    _live["feed"] = (_live["feed"] + [{"at": int(time.time()), "kw": kw, "p": p, "name": P_NAME.get(p, p), "ok": bool(r.get("ok")), "txt": txt[:160]}])[-30:]
+    _live["feed"] = (_live["feed"] + [{"at": int(time.time()), "kw": kw, "p": p, "name": P_NAME.get(p, p), "ok": bool(r.get("ok")), "txt": txt[:160],
+                                        "url": r.get("url") or search_url(p, kw)}])[-30:]
 
 
 def live():
     now = []
     for k, v in list(_live["now"].items()):
         now.append({"target": k, "name": BZ._resolve(k)[0] if k else "", "kw": v["kw"], "started": v["started"],
-                    "plats": [[p, st, P_NAME.get(p, p)] for p, st in v["plats"].items()]})
+                    "plats": [[p, st, P_NAME.get(p, p), (v.get("urls") or {}).get(p, "")] for p, st in v["plats"].items()]})
     return {"now": now, "feed": _live["feed"][-12:][::-1]}
 
 
@@ -926,7 +935,7 @@ def try_one(key, kw):
     sk = _skip_why(key)
     if sk and "要先登录" in sk:
         return {"ok": False, "error": sk}
-    _try[key] = {"running": True, "kw": kw, "started": int(time.time())}
+    _try[key] = {"running": True, "kw": kw, "started": int(time.time()), "url": search_url(key, kw)}
 
     def go():
         trace, t0 = [], time.time()
@@ -938,6 +947,7 @@ def try_one(key, kw):
         _note(key, r)
         _feed(kw, key, r)
         _try[key] = {"running": False, "kw": kw, "at": int(time.time()), "ok": bool(r.get("ok")), "txt": _one_line(key, r, kw),
+                     "url": r.get("url") or search_url(key, kw),
                      "ms": r.get("ms", 0), "steps": [("%s %s" % (t.get("m"), "✓" if t.get("ok") else "✗ " + str(t.get("why", ""))[:40])) for t in r.get("trace") or []]}
     threading.Thread(target=go, daemon=True, name="biz-trade-try").start()
     return {"ok": True, "running": True, "kw": kw}
@@ -946,3 +956,132 @@ def try_one(key, kw):
 def try_status():
     cut = time.time() - 3600
     return {k: v for k, v in _try.items() if v.get("running") or v.get("at", 0) > cut}
+
+
+# ───────────────────────── v202：付费解锁服务（可选）─────────────────────────
+# 国外平台用免费办法（直连、Scrapling、爬虫 Chrome）都抓不到时，交给它：它用真人家宽 IP + 自动过验证去打开网页，把网页内容还回来。
+# 钥匙加密存在本机（trade_browser.SECRET_FILE），不进 memory、不会传到 GitHub。每天最多用 UNLOCK_CAP 次，免得把额度用光。
+UNLOCKERS = {
+    "scrapfly": {"name": "Scrapfly", "site": "https://scrapfly.io/", "free": "注册送 1000 点，打开难站一次约 25 点"},
+    "scraperapi": {"name": "ScraperAPI", "site": "https://www.scraperapi.com/", "free": "注册送 5000 点，打开难站一次约 10～25 点"},
+    "zenrows": {"name": "ZenRows", "site": "https://www.zenrows.com/", "free": "注册有免费试用额度，打开难站一次约 25 点"},
+    "scrapedo": {"name": "Scrape.do", "site": "https://scrape.do/", "free": "注册有免费试用额度"},
+}
+UNLOCK_CAP = 100
+CC = {"amazon": "us", "ebay": "us", "aliexpress": "us", "alibaba": "us", "walmart": "us", "amz_uk": "gb", "amz_de": "de", "amz_fr": "fr",
+      "amz_jp": "jp", "rakuten": "jp", "yja": "jp", "amz_in": "in", "flipkart": "in", "indiamart": "in", "lazada": "sg", "meli_mx": "mx",
+      "meli_br": "br", "amz_br": "br", "amz_ae": "ae", "jumia": "ng", "mic": "us", "dhgate": "us", "kickstarter": "us"}
+
+
+def unlock_cfg():
+    TB = _tbmod()
+    try:
+        c = (TB.get_secret("unlock") if TB else None) or {}
+    except Exception:
+        c = {}
+    return c if c.get("provider") in UNLOCKERS and c.get("key") else {}
+
+
+def unlock_name():
+    return UNLOCKERS.get(unlock_cfg().get("provider"), {}).get("name", "付费解锁服务")
+
+
+def unlock_info():
+    """给界面：用的哪家、钥匙尾号、今天用了几次（不给钥匙本身）。"""
+    c = unlock_cfg()
+    u = _read(STATE_FILE, {}).get("_unlock") or {}
+    today = time.strftime("%Y-%m-%d")
+    return {"provider": c.get("provider", ""), "tail": (c.get("key") or "")[-4:], "today": u.get("n", 0) if u.get("day") == today else 0,
+            "cap": UNLOCK_CAP, "list": [{"k": k, "name": v["name"], "site": v["site"], "free": v["free"]} for k, v in UNLOCKERS.items()]}
+
+
+def set_unlock(provider, key):
+    TB = _tbmod()
+    if not TB:
+        return {"ok": False, "error": "存不了"}
+    if not provider:
+        TB.set_secret("unlock", None)
+        return {"ok": True, "unlock": unlock_info()}
+    if provider not in UNLOCKERS:
+        return {"ok": False, "error": "不认识的服务"}
+    key = (key or "").strip() or (unlock_cfg().get("key") if unlock_cfg().get("provider") == provider else "")
+    if not key:
+        return {"ok": False, "error": "要填钥匙（API Key）"}
+    TB.set_secret("unlock", {"provider": provider, "key": key})
+    return {"ok": True, "unlock": unlock_info()}
+
+
+def unlock_url(provider, key, url, cc):
+    q = urllib.parse.quote(url, safe="")
+    if provider == "scrapfly":
+        return "https://api.scrapfly.io/scrape?key=%s&url=%s&asp=true&render_js=true%s" % (key, q, "&country=" + cc if cc else "")
+    if provider == "scraperapi":
+        return "https://api.scraperapi.com/?api_key=%s&url=%s&render=true%s" % (key, q, "&country_code=" + cc if cc else "")
+    if provider == "zenrows":
+        return "https://api.zenrows.com/v1/?apikey=%s&url=%s&js_render=true&premium_proxy=true%s" % (key, q, "&proxy_country=" + cc if cc else "")
+    return "https://api.scrape.do/?token=%s&url=%s&render=true&super=true%s" % (key, q, "&geoCode=" + cc if cc else "")
+
+
+def _unlock(url, pkey):
+    c = unlock_cfg()
+    if not c:
+        raise RuntimeError("没设置付费解锁服务")
+    today = time.strftime("%Y-%m-%d")
+    with _lock:
+        st = _read(STATE_FILE, {})
+        u = st.get("_unlock") or {}
+        if u.get("day") != today:
+            u = {"day": today, "n": 0}
+        if u["n"] >= UNLOCK_CAP:
+            raise RuntimeError("今天已经用了 %d 次，先停一停（免得把额度用光），明天接着用" % UNLOCK_CAP)
+        u["n"] += 1
+        st["_unlock"] = u
+        _write(STATE_FILE, st)
+    api = unlock_url(c["provider"], c["key"], url, CC.get(pkey, ""))
+    import biz_crawler as BC
+    last = ""
+    for px in BC._proxies(api):
+        try:
+            r = BC._req_json(api, proxy=px, timeout=120)
+            if isinstance(r, dict):                       # Scrapfly 返回 JSON：result.content 才是网页
+                res = r.get("result") or {}
+                if res.get("content"):
+                    return res["content"], res.get("url") or url
+                last = str(r.get("message") or r.get("error") or r.get("code") or "返回的不是网页")[:80]
+                continue
+            if isinstance(r, str) and len(r) > 200:
+                return r, url
+            last = "返回的内容太少"
+        except Exception as e:
+            m = str(e)
+            last = ("钥匙不对或额度用完了（%s）" % m[:40]) if re.search(r"\b(401|402|403)\b", m) else X.human(m)[:80]
+    raise RuntimeError(last or "连不上")
+
+
+# ───────────────────────── v202：点平台就能跳到它的搜索页 ─────────────────────────
+DOMESTIC_URL = {"ccgp": ccgp_url, "b2b": b2b_url, "ywg": ywg_url, "jd": jd_url, "tb": tb_url, "pdd": pdd_url, "sn": sn_url, "smzdm": smzdm_url,
+                "zbj": zbj_url, "xy": lambda kw: "https://www.goofish.com/search?q=" + urllib.parse.quote(kw)}
+
+
+def search_url(p, kw):
+    """这个平台搜这个词的网址（不联网：翻译只用内置词表和翻过的）；拼不出就给首页。"""
+    home = next((x["url"] for x in PLATFORMS if x["key"] == p), "")
+    try:
+        if p in DOMESTIC_URL:
+            return DOMESTIC_URL[p](kw)
+        if p in FOREIGN_URL:
+            en = X.cached_tr(kw, "en")
+            return FOREIGN_URL[p](en) if en else home
+        xp = X.BY_KEY.get(p)
+        if xp and xp.get("url"):
+            q = X.cached_tr(kw, xp.get("lang", "en"))
+            return X.build_url(xp, q) if q else home
+        if p == "freelancer":
+            en = X.cached_tr(kw, "en")
+            return "https://www.freelancer.com/search/projects?q=" + urllib.parse.quote(en) if en else home
+        if p == "kickstarter":
+            en = X.cached_tr(kw, "en")
+            return "https://www.kickstarter.com/discover/advanced?term=" + urllib.parse.quote(en) if en else home
+    except Exception:
+        pass
+    return home

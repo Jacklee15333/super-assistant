@@ -1485,3 +1485,13 @@ body.dark .view-biz .bz-rm-pchips .pc.bad { color: #e59a9a; }
 @media (max-width: 900px) { .view-biz .bz-rm-tact { flex-direction: column; } }
 .view-biz .bz-rm-tmsg { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 9px 12px; margin: 0 0 10px; border-radius: 10px; background: var(--bg-hover); font-size: 13px; }
 .view-biz .bz-rm-tmsg span { flex: 1; min-width: 240px; }
+
+/* ===== v202：点平台打开搜索页、付费解锁服务 ===== */
+.view-biz a.pc { text-decoration: none; cursor: pointer; }
+.view-biz a.pc:hover { border-color: var(--accent); color: var(--accent); }
+.view-biz .bz-rm-unlock { margin-top: 8px; font-size: 12.5px; }
+.view-biz .bz-rm-unlock summary { cursor: pointer; color: var(--text-dim); }
+.view-biz .bz-rm-unlock .in { padding: 6px 0 0; }
+.view-biz .bz-rm-unlock .in p { margin: 4px 0; line-height: 1.6; }
+.view-biz .bz-rm-unlock .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 6px 0; }
+.view-biz .bz-rm-unlock .row .bz-input { width: 260px; }

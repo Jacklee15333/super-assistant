@@ -340,6 +340,22 @@ def _tr_mymemory(kw, lang):
     return ""
 
 
+def cached_tr(kw, lang="en"):
+    """不联网：内置词表 / 翻过的记录里有就给，没有返回 None（给界面拼「去看看」的链接用）。"""
+    kw = (kw or "").strip()
+    if not re.search(r"[\u4e00-\u9fff]", kw):
+        return kw or None
+    if lang == "en":
+        try:
+            from biz_trade_en import EN
+            if kw in EN:
+                return EN[kw]
+        except Exception:
+            pass
+    hit = (_read(TR_FILE, {}).get(lang) or {}).get(kw)
+    return hit or (cached_tr(kw, "en") if lang != "en" else None)
+
+
 def translate(kw, lang="en"):
     """中文搜索词 → 外文。内置词表 → 记住的 → 微软 → 谷歌 → MyMemory；非英文翻不了就退回英文。"""
     kw = (kw or "").strip()
@@ -461,7 +477,7 @@ def _amz(key, name, tld, cur, lang, prx, dec=".", region="", what=""):
 
 
 G = [
-    {"key": "walmart", "name": "沃尔玛 Walmart（美国）", "region": "na", "kind": "国外零售", "home": "https://www.walmart.com/", "cur": "USD", "lang": "en",
+    {"key": "walmart", "cc": "us", "name": "沃尔玛 Walmart（美国）", "region": "na", "kind": "国外零售", "home": "https://www.walmart.com/", "cur": "USD", "lang": "en",
      "url": "https://www.walmart.com/search?q={q}", "price": [r'"price"\s*:\s*([\d.]+)\s*[,}]', r'\$\s*([\d,]+\.\d{2})'],
      "sold": [r"([\d,.]+\s*[Kk]?)\+?\s*bought since yesterday"], "fit": "goods", "what": "美国第二大零售商：零售价格带、评价数"},
     _amz("amz_uk", "亚马逊 英国站", "co.uk", "GBP", "en", r'a-offscreen">\s*£\s*([\d,]+\.\d{2})', region="eu"),

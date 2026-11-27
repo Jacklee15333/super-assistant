@@ -6736,6 +6736,9 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(_tb.open_login(body.get("site", "")))
                 if path == "/biz/real/trade_cfg":                    # v198：交易平台设置（国外平台开关）
                     import biz_trade as _bt
+                    if isinstance(body.get("unlock"), dict):            # v202：付费解锁服务（钥匙加密存在本机）
+                        u = body["unlock"]
+                        return self._send(_bt.set_unlock(u.get("provider", ""), u.get("key", "")))
                     return self._send(_bt.set_cfg(foreign=body.get("foreign"), regions=body.get("regions"), off=body.get("off")))   # v199：按地区开关
                 if path == "/biz/real/check_delete":
                     import biz_real as _br

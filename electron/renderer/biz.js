@@ -2505,7 +2505,14 @@
         '<div class="bz-rm-batch" id="bzRmBatch"></div>' +
         '<div class="bz-rm-checks" id="bzRmChecks"></div></section>' +
       '<section class="bz-rm-tp" data-rmtp="trade" hidden>' +
-        '<div class="bz-rm-tact"><div id="bzRmTAct"></div>' +                                     // v201：整页只有一张全世界平台总表
+        '<div class="bz-rm-tact"><div><div id="bzRmTAct"></div>' +                                // v201：整页只有一张全世界平台总表
+          '<details class="bz-rm-unlock"><summary>更强的抓取：付费解锁服务（可选）<span id="bzRmUnlockSt"></span></summary>' +       // v202
+          '<div class="in"><p class="bz-dim">国外平台（亚马逊、Jumia、Lazada 这类）用免费办法都抓不到时，才交给它：它用真人家里的网络 IP、自动过验证去打开网页。' +
+          "要你自己去它网站注册、拿一个钥匙（API Key）填在这里；钥匙加密存在你电脑上，不会传到 GitHub。每天最多用 100 次。</p>" +
+          '<div class="row"><select class="bz-select" id="bzRmUnlockP" aria-label="用哪家"></select>' +
+          '<input class="bz-input" id="bzRmUnlockK" type="password" autocomplete="off" placeholder="粘贴钥匙（API Key）" aria-label="钥匙">' +
+          '<button type="button" class="bz-btn sm" data-act="rm-unlock-save">保存</button><button type="button" class="bz-link" data-act="rm-unlock-off">不用了</button></div>' +
+          '<p class="bz-dim" id="bzRmUnlockNote"></p></div></details></div>' +
           '<label class="bz-rm-tkw">试抓用的词<input class="bz-input" id="bzRmTryKw" maxlength="30" value="宠物" aria-label="试抓用的词"></label></div>' +
         '<div id="bzRmTLive"></div><div class="bz-tablewrap" id="bzRmTTable"></div></section>' +
       '<section class="bz-rm-tp bz-rm-tp-map" data-rmtp="map">' +                    // v196：地图也是一个标签（以前放在三个标签下面共用，看着像每个标签里都有）
@@ -3010,10 +3017,11 @@
       Object.values(d.ttry || {}).some((x) => x.running) || Object.keys(S.rm.tryWait || {}).length);
   }
   function rmTData() {
-    const d = S.rm.data || {}, src = {}, now = {};
+    const d = S.rm.data || {}, src = {}, now = {}, nowUrl = {};
     (d.sources || []).forEach((x) => { if (x.crawl) src[x.key.replace(/^tp_/, "")] = x; });
-    ((d.tlive && d.tlive.now) || []).forEach((n) => n.plats.forEach((q) => { if (q[1] === "run") now[q[0]] = n.kw; }));
-    return { d: d, L: (d.logins && d.logins.sites) || {}, src: src, now: now, tr: d.ttry || {}, off: new Set((d.trade_cfg || {}).off || []) };
+    ((d.tlive && d.tlive.now) || []).forEach((n) => n.plats.forEach((q) => { if (q[1] === "run") { now[q[0]] = n.kw; nowUrl[q[0]] = q[3] || ""; } }));
+    return { d: d, L: (d.logins && d.logins.sites) || {}, vf: (d.logins && d.logins.verify) || {}, src: src, now: now, nowUrl: nowUrl, tr: d.ttry || {},
+      off: new Set((d.trade_cfg || {}).off || []) };
   }
   function rmTMatch(x, T, F) {
     const s = x.key && T.src[x.key];
@@ -3053,12 +3061,13 @@
       (tb.bad ? " · 没抓到 " + tb.bad : "") + " · 还要约 " + hrs(tb.eta) + '</p><div class="bz-rm-bar"><i style="width:' + (tb.n ? Math.round((tb.i / tb.n) * 100) : 0) + '%"></i></div></div>';
     else if (tb && tb.ended && Date.now() / 1000 - tb.ended < 86400) h += '<p class="bz-dim bz-rm-tlast">上次「' + esc(tb.name) + "」" + esc(ago(tb.ended)) + "抓完了：抓到 " + tb.ok + " 个行业，没抓到 " + tb.bad + " 个" + (tb.skipped ? "，跳过 " + tb.skipped + " 个 3 天内抓过的" : "") + "。</p>";
     (lv.now || []).forEach((n) => {
-      h += '<div class="bz-rm-pchips"><span class="lab">「' + esc(n.kw) + "」正在各个平台上搜：</span>" + n.plats.map((q) => '<span class="pc ' + q[1] + '">' +
-        (q[1] === "run" ? rmSpin : q[1] === "ok" ? "✓ " : q[1] === "bad" ? "✗ " : q[1] === "skip" ? "– " : "") + esc(rmShort(q[2])) + "</span>").join("") + "</div>";
+      h += '<div class="bz-rm-pchips"><span class="lab">「' + esc(n.kw) + "」正在各个平台上搜（点一下打开它的搜索页）：</span>" + n.plats.map((q) =>
+        (q[3] ? '<a class="pc ' + q[1] + '" href="' + esc(q[3]) + '" target="_blank" rel="noopener" data-open="1" title="打开' + esc(rmShort(q[2])) + '搜「' + esc(n.kw) + '」的页面">' : '<span class="pc ' + q[1] + '">') +
+        (q[1] === "run" ? rmSpin : q[1] === "ok" ? "✓ " : q[1] === "bad" ? "✗ " : q[1] === "skip" ? "– " : "") + esc(rmShort(q[2])) + (q[3] ? "</a>" : "</span>")).join("") + "</div>";
     });
     const feed = (lv.feed || []).filter((f) => running || (lv.now || []).length || Date.now() / 1000 - f.at < 600);
     if (feed.length) h += '<div class="bz-rm-feed"><b>刚抓到的</b>' + feed.slice(0, 8).map((f) => '<p class="' + (f.ok ? "" : "bad") + '"><span>' + hhmm(f.at).slice(0, 5) + "</span>" +
-      (f.ok ? "✓ " : "✗ ") + esc(f.txt) + "</p>").join("") + "</div>";
+      (f.ok ? "✓ " : "✗ ") + esc(f.txt) + (f.url ? ' <a class="bz-link" href="' + esc(f.url) + '" target="_blank" rel="noopener" data-open="1">打开看看</a>' : "") + "</p>").join("") + "</div>";
     return h;
   }
   function rmTStatus(x, T) {
@@ -3073,10 +3082,14 @@
         (lg.expired ? '<span class="bz-rm-bad">登录过期了</span> ' : '<span class="bz-dim">要登录才抓</span> ') + '<button type="button" class="bz-btn sm" data-rm-login="' + k + '">登录' + esc(lg.name) + "</button>" +
           (lg.hint ? '<br><small class="bz-dim">' + esc(lg.hint) + "</small>" : "");
     } else h += '<span class="bz-rm-acc a-' + esc(x.a) + '">' + esc(x.an) + "</span>";
-    if (T.now[x.key]) h += '<div class="bz-rm-now">' + rmSpin + "正在抓「" + esc(T.now[x.key]) + "」…</div>";
-    if (tr && tr.running) h += '<div class="bz-rm-now">' + rmSpin + "正在试抓「" + esc(tr.kw) + "」…（几十秒）</div>";
+    const vf = !lg && T.vf[x.key];                                                               // v202：不用登录的平台弹了验证
+    if (vf) h += vf.waiting ? '<div class="bz-rm-bad">' + rmSpin + "验证窗口开着，在弹出的 Chrome 里过一下验证…</div>" :
+      '<div><span class="bz-rm-bad">弹了滑块 / 验证码</span> <button type="button" class="bz-btn sm" data-rm-verify="' + k + '">去验证</button></div>';
+    const lnk = (u, t) => (u ? ' <a class="bz-link" href="' + esc(u) + '" target="_blank" rel="noopener" data-open="1">' + t + "</a>" : "");
+    if (T.now[x.key]) h += '<div class="bz-rm-now">' + rmSpin + "正在抓「" + esc(T.now[x.key]) + "」…" + lnk(T.nowUrl[x.key], "打开看看") + "</div>";
+    if (tr && tr.running) h += '<div class="bz-rm-now">' + rmSpin + "正在试抓「" + esc(tr.kw) + "」…（几十秒）" + lnk(tr.url, "打开看看") + "</div>";
     else if (tr && tr.at) h += '<div class="bz-rm-tryres ' + (tr.ok ? "bz-rm-ok" : "bz-rm-bad") + '" title="' + esc((tr.steps || []).join("\n")) + '">' + (tr.ok ? "✓ 试抓「" : "✗ 试抓「") +
-      esc(tr.kw) + "」" + (tr.ok ? "成功：" : "没成功：") + esc((tr.txt || "").replace(/^[^：]+：/, "").slice(0, 110)) + "</div>";
+      esc(tr.kw) + "」" + (tr.ok ? "成功：" : "没成功：") + esc((tr.txt || "").replace(/^[^：]+：/, "").slice(0, 110)) + "</div>" + (tr.url ? '<div>' + lnk(tr.url, "打开它的搜索页看看 ↗") + "</div>" : "");
     else if (s.n_ok || s.n_bad) h += '<div><small class="' + (s.n_ok ? "bz-dim" : "bz-rm-bad") + '">' + (s.n_ok ? "抓到过 " + s.n_ok + " 次" : "还没抓到过") + (s.n_bad ? "，没抓到 " + s.n_bad + " 次" : "") +
       (s.n_ok && s.via ? "（管用的：" + esc(s.via) + "）" : "") + "</small>" + (!s.n_ok && s.err ? '<br><small class="bz-dim" title="' + esc(s.err) + '">原因：' + esc(s.err.slice(0, 60)) + "</small>" : "") + "</div>";
     else h += '<div><small class="bz-dim">还没抓过</small></div>';
@@ -3140,9 +3153,23 @@
       rmSetHTML(tr.querySelector("td.st"), rmTStatus(x, T));
     });
   }
+  function rmUnlockRender() {                                         // v202：付费解锁服务的状态
+    const u = (S.rm.data && S.rm.data.trade_cfg && S.rm.data.trade_cfg.unlock) || null, sel = $("bzRmUnlockP");
+    if (!u || !sel) return;
+    if (!sel.options.length) {
+      sel.innerHTML = u.list.map((x) => '<option value="' + esc(x.k) + '">' + esc(x.name) + "</option>").join("");
+      sel.value = u.provider || "scrapfly";
+    }
+    rmSetHTML($("bzRmUnlockSt"), u.provider ? ' <span class="bz-rm-ok">✓ 在用 ' + esc((u.list.find((x) => x.k === u.provider) || {}).name || "") + "（钥匙 …" + esc(u.tail) + "），今天用了 " + u.today + "/" + u.cap + " 次</span>" :
+      ' <span class="bz-dim">没开</span>');
+    const cur = u.list.find((x) => x.k === sel.value) || u.list[0];
+    rmSetHTML($("bzRmUnlockNote"), cur ? '去 <a class="bz-link" href="' + esc(cur.site) + '" target="_blank" rel="noopener">' + esc(cur.name) + "</a> 注册拿钥匙：" + esc(cur.free) + "。" +
+      "各家的测试结果出入很大（每家自己测都说自己最好），建议先用免费额度在「试抓」里试试抓不到的那几个平台。" : "");
+  }
   function rmTradeRender() {
     const a = $("bzRmTAct");
     if (!a) return;
+    rmUnlockRender();
     rmSetHTML(a, rmTActHTML());
     rmSetHTML($("bzRmTLive"), rmTLiveHTML());
     if (!S.rm.cat && !S.rm.catLoading && !S.rm.catErr) rmCatLoad();
@@ -3953,6 +3980,17 @@
           rmLoad();
         }
         else if (a === "rm-report-close") { S.rm.showReport = false; renderReal(); }
+        else if (a === "rm-unlock-save" || a === "rm-unlock-off") {                            // v202：付费解锁服务
+          const off = a === "rm-unlock-off";
+          if (off && !confirm("不用付费解锁服务了？（会删掉存在电脑上的钥匙）")) return;
+          const body = off ? { provider: "" } : { provider: $("bzRmUnlockP").value, key: $("bzRmUnlockK").value };
+          const r = await api("/biz/real/trade_cfg", { unlock: body }).catch((e) => ({ ok: false, error: e.message }));
+          if (!r.ok) { toast(r.error || "没存上"); return; }
+          $("bzRmUnlockK").value = "";
+          if (S.rm.data && S.rm.data.trade_cfg) S.rm.data.trade_cfg.unlock = r.unlock;
+          toast(off ? "不用付费解锁服务了，钥匙已删掉。" : "存好了：国外平台免费办法都抓不到时，会交给 " + ((r.unlock.list.find((x) => x.k === r.unlock.provider) || {}).name || "") + "。在表里点「试抓」试试。");
+          rmUnlockRender();
+        }
         else if (a === "rm-ton" || a === "rm-toff") {                                           // v201：当前筛选的都抓 / 都不抓
           const T = rmTData(), keys = rmTRows(T).filter((x) => x.key && T.src[x.key]).map((x) => x.key), off = new Set(T.off);
           keys.forEach((k) => (a === "rm-ton" ? off.delete(k) : off.add(k)));
@@ -4242,9 +4280,20 @@
         return;
       }
     });
+    root.addEventListener("mousedown", (e) => {                                                   // v202：点平台 → 打开它的搜索页
+      const a = e.button === 0 && e.target.closest("a[data-open]");
+      if (a) { window.open(a.href, "_blank", "noopener"); a.dataset.opened = String(Date.now()); }
+    });
+    root.addEventListener("click", (e) => {
+      const a = e.target.closest("a[data-open]");
+      if (!a) return;
+      e.preventDefault();                                                                         // mousedown 已经打开过了
+      if (!a.dataset.opened || Date.now() - Number(a.dataset.opened) > 1500) window.open(a.href, "_blank", "noopener");   // 键盘回车这种没有 mousedown 的
+    }, true);
     root.addEventListener("change", async (e) => {
       const t = e.target;
       if (t.matches("#bzCuForm select[data-cu]")) { cuQueueSave(120); return; }        // v187：商业定制
+      if (t.id === "bzRmUnlockP") { rmUnlockRender(); return; }                                  // v202
       if (t.matches("[data-rm-on]")) {                                                          // v201：每个平台单独勾选抓不抓
         const off = new Set(rmTData().off), k = t.dataset.rmOn;
         if (t.checked) off.delete(k); else off.add(k);

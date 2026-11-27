@@ -16,6 +16,8 @@ v200：「一键登录全部」——没登录的平台一次全打开（一个�
       点「登录」前先清掉这个平台的旧登录信息（不然过期的旧 Cookie 还在，软件会误以为马上就登录好了）。
 v201：加闲鱼、Shopee（东南亚）、Upwork（全球接单）三个要登录的平台；国外平台在这个 Chrome 里也能打开——
       国内网站直连，其余的走软件设置里的代理（用一个代理规则文件 PAC 分流，代理连不上时自动直连）。
+v202：任何平台（不只要登录的）在爬虫 Chrome 里弹滑块 / 验证码，都记下来，表里那一行出「去验证」；
+      付费解锁服务的钥匙也加密存在这里（secrets.bin），不进 memory、不会传到 GitHub。
 所有页面操作都在一个专门的线程里做（Playwright 只能在一个线程里用）；闲置 5 分钟自动关掉浏览器，省内存。
 """
 from __future__ import annotations
@@ -46,6 +48,7 @@ def _home():
 HOME = _home()
 PROFILE = HOME / "profile"
 COOKIE_FILE = HOME / "cookies.bin"
+SECRET_FILE = HOME / "secrets.bin"
 OLD_PROFILE = BZ.BIZ_DIR / "real" / "browser_profile"      # v198 放在 memory 里（会被提交到 GitHub），v199 搬走
 STATE_FILE = BZ.BIZ_DIR / "real" / "login_state.json"
 OFFSCREEN = -12000
@@ -137,6 +140,29 @@ def _unprotect(b):
     if b[:5] == b"PLAIN" and os.name != "nt":
         return b[5:]
     raise ValueError("认不出的登录信息文件")
+
+
+def get_secret(name):
+    try:
+        return json.loads(_unprotect(SECRET_FILE.read_bytes()).decode("utf-8")).get(name)
+    except Exception:
+        return None
+
+
+def set_secret(name, value):
+    try:
+        d = json.loads(_unprotect(SECRET_FILE.read_bytes()).decode("utf-8"))
+    except Exception:
+        d = {}
+    if value:
+        d[name] = value
+    else:
+        d.pop(name, None)
+    SECRET_FILE.write_bytes(_protect(json.dumps(d).encode("utf-8")))
+
+
+def _nm(site):
+    return SITES[site]["name"] if site in SITES else ((_read().get(site) or {}).get("name") or site)
 
 
 def _save_cookies(force=False):
@@ -429,7 +455,7 @@ def _done_login(site, ok):
     now = int(time.time())
     if L.get("mode") == "verify":
         s.update(verify=False, checked=now) if ok else s.update(checked=now)
-        _log("%s 验证%s" % (SITES[site]["name"], "过了" if ok else "窗口等太久，先收起来了"))
+        _log("%s 验证%s" % (_nm(site), "过了" if ok else "窗口等太久，先收起来了"))
     elif ok:
         s.update(logged=True, at=now, checked=now, expired=False, verify=False)
         _log("%s 登录好了" % SITES[site]["name"])
@@ -492,9 +518,10 @@ def _open_login(site, mode="login"):
     if mode == "login":
         _clear_site(site)              # 旧的（多半过期了）先清掉，免得一打开就被当成「登录好了」
     pg = ctx.new_page()
-    url = SITES[site]["login"]
     if mode == "verify":
-        url = (_read().get(site) or {}).get("verify_url") or SITES[site]["home"]
+        url = (_read().get(site) or {}).get("verify_url") or SITES.get(site, {}).get("home") or "about:blank"
+    else:
+        url = SITES[site]["login"]
     pg.goto(url, wait_until="domcontentloaded", timeout=40000)
     _show(pg, True)
     _st["login"][site] = {"started": time.time(), "page": pg, "checked": 0, "mode": mode, "shown": time.time()}
@@ -538,7 +565,7 @@ def open_login_all(force=False):
 
 
 def open_login(site, mode="login"):
-    if site not in SITES:
+    if site not in SITES and not (mode == "verify" and (_read().get(site) or {}).get("verify_url")):
         return {"ok": False, "error": "不认识的网站"}
     try:
         _run(_open_login, site, mode, timeout=60)
@@ -581,12 +608,14 @@ def mark_expired(site):
         _log("%s 的登录过期了" % SITES[site]["name"])
 
 
-def need_verify(site, url):
+def need_verify(site, url, name=None):
     d = _read()
     s = d.setdefault(site, {})
     s.update(verify=True, verify_url=url, verify_at=int(time.time()))
+    if name and site not in SITES:
+        s["name"] = name
     _write(d)
-    _log("%s 弹了验证，等你点「去验证」" % SITES[site]["name"])
+    _log("%s 弹了验证，等你点「去验证」" % _nm(site))
 
 
 def _count(site):
@@ -668,8 +697,9 @@ def _fetch2(url, wait_ms, scrolls):
             pass
 
 
-def fetch_ex(url, site=None, login=False, wait_ms=2500, scrolls=3):
-    """用爬虫专用 Chrome 打开一页。login=True 时 site 是要登录的平台（算次数、慢慢搜、过期 / 验证会记下来）。"""
+def fetch_ex(url, site=None, login=False, wait_ms=2500, scrolls=3, vkey=None, vname=None):
+    """用爬虫专用 Chrome 打开一页。login=True 时 site 是要登录的平台（算次数、慢慢搜、过期 / 验证会记下来）。
+    v202：vkey＝哪个平台在抓（不用登录的也算）：弹验证就记下来，界面那一行出「去验证」。"""
     if login and site in SITES:
         _count(site)
     key = site or re.sub(r"^https?://([^/]+).*$", r"\1", url)
@@ -689,6 +719,14 @@ def fetch_ex(url, site=None, login=False, wait_ms=2500, scrolls=3):
                 _run(_save_cookies, timeout=60)
             except Exception:
                 pass
+    elif vkey:
+        if r["block"] == "captcha":
+            need_verify(vkey, url, vname)
+        elif not r["block"]:
+            d = _read()
+            if (d.get(vkey) or {}).get("verify"):
+                d[vkey]["verify"] = False
+                _write(d)
     return r
 
 
@@ -715,6 +753,12 @@ def status():
         x["foreign"] = bool(s.get("foreign"))
         x["hint"] = s.get("hint", "")
         out[site] = x
+    verify = {}                                            # v202：不用登录的平台弹了验证
+    for k, v in d.items():
+        if k in SITES or not isinstance(v, dict):
+            continue
+        if v.get("verify") or k in _st["login"]:
+            verify[k] = {"name": v.get("name") or k, "waiting": k in _st["login"], "verify": bool(v.get("verify"))}
     b = _st["batch"]
     batch = None
     if b:
@@ -722,4 +766,4 @@ def status():
         batch = {"n": len(b["sites"]), "left": left, "left_names": [SITES[x]["name"] for x in left],
                  "cur": SITES[left[0]]["name"] if left else "", "done": len(b["sites"]) - len(left)}
     return {"sites": out, "order": ORDER, "open": bool(_st["ctx"]), "err": _st["err"], "engine": engine_name(), "home": str(HOME),
-            "batch": batch, "proxy": bool(_proxy())}
+            "batch": batch, "proxy": bool(_proxy()), "verify": verify}
