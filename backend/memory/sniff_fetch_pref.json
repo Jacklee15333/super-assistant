@@ -39,10 +39,6 @@
     "mode": "browser",
     "at": "2026-11-20 13:16"
   },
-  "sspai.com": {
-    "mode": "fast",
-    "at": "2026-11-20 23:19"
-  },
   "trends.google.com": {
     "mode": "fast",
     "at": "2026-11-24 00:13"
@@ -62,5 +58,9 @@
   "producthunt.com": {
     "mode": "browser",
     "at": "2026-11-26 16:23"
+  },
+  "oneusefulthing.org": {
+    "mode": "browser",
+    "at": "2026-11-26 23:15"
   }
 }
