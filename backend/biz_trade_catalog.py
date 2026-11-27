@@ -201,6 +201,121 @@ L = [
 ]
 
 
+# ───────────────────────── v203：同一个平台的「还能从哪拿数据」放在一起 ─────────────────────────
+# 这些原来单独一行的数据工具，挪进它们服务的那个平台下面
+MERGED = {"千里马 / 剑鱼标讯", "七麦数据", "蝉妈妈 / 飞瓜", "魔镜洞察", "生意参谋 / 京东商智", "星图数据", "Keepa", "Jungle Scout / Helium 10", "Kalodata / FastMoss"}
+L = [x for x in L if x[0] not in MERGED]
+
+# 各地的统计机构：真实市场规模最可靠的来源（类型「统计机构」）
+L += [
+    ("国家统计局", "cn", "中国", "统计机构", "https://www.stats.gov.cn/", "社零、网上零售、工业营收利润、居民收支（软件已在用）", "auto", ""),
+    ("商务部 商务数据中心", "cn", "中国", "统计机构", "http://data.mofcom.gov.cn/", "网络零售、重点商品、外贸数据", "manual", ""),
+    ("国家邮政局", "cn", "中国", "统计机构", "https://www.spb.gov.cn/", "每月快递业务量（网购活跃度）", "manual", ""),
+    ("中国汽车工业协会", "cn", "中国", "统计机构", "http://www.caam.org.cn/", "汽车、新能源车月度产销", "manual", ""),
+    ("中国物流与采购联合会", "cn", "中国", "统计机构", "http://www.chinawuliu.com.cn/", "采购经理指数 PMI、物流数据", "manual", ""),
+    ("工业和信息化部", "cn", "中国", "统计机构", "https://www.miit.gov.cn/", "电子信息、通信、软件业运行数据", "manual", ""),
+    ("国家药监局", "cn", "中国", "统计机构", "https://www.nmpa.gov.cn/", "药品、医疗器械审批数量（新产品供给）", "manual", ""),
+    ("中国连锁经营协会", "cn", "中国", "统计机构", "http://www.ccfa.org.cn/", "连锁百强、便利店、茶饮咖啡行业报告", "manual", ""),
+    ("美国人口普查局 零售与电商", "na", "美国", "统计机构", "https://www.census.gov/retail/index.html", "月度零售、季度网购销售额（分品类）", "manual", ""),
+    ("美国劳工统计局 BLS", "na", "美国", "统计机构", "https://www.bls.gov/", "物价 CPI、各行业就业和工资", "manual", ""),
+    ("美国经济分析局 BEA", "na", "美国", "统计机构", "https://www.bea.gov/", "居民消费支出 PCE（分品类）", "manual", ""),
+    ("加拿大统计局", "na", "加拿大", "统计机构", "https://www.statcan.gc.ca/", "零售、电商销售额", "manual", ""),
+    ("欧盟统计局 Eurostat", "eu", "欧盟", "统计机构", "https://ec.europa.eu/eurostat", "零售、网购普及率、各国消费", "manual", ""),
+    ("英国国家统计局 ONS", "eu", "英国", "统计机构", "https://www.ons.gov.uk/", "月度零售、网购占比", "manual", ""),
+    ("德国联邦统计局 Destatis", "eu", "德国", "统计机构", "https://www.destatis.de/", "零售、工业数据", "manual", ""),
+    ("日本经济产业省 商业动态统计", "jk", "日本", "统计机构", "https://www.meti.go.jp/statistics/", "零售销售额、每年的电商市场调查", "manual", ""),
+    ("韩国统计厅 KOSIS", "jk", "韩国", "统计机构", "https://kosis.kr/", "网购交易额（分品类，每月）", "manual", ""),
+    ("e-Conomy SEA 报告", "sea", "东南亚", "统计机构", "https://economysea.withgoogle.com/", "谷歌、淡马锡、贝恩每年出的东南亚电商规模", "manual", ""),
+    ("印度统计部 MOSPI / IBEF", "sa", "印度", "统计机构", "https://www.ibef.org/", "印度各行业规模报告", "manual", ""),
+    ("巴西统计局 IBGE", "latam", "巴西", "统计机构", "https://www.ibge.gov.br/", "零售、消费数据", "manual", ""),
+    ("墨西哥统计局 INEGI", "latam", "墨西哥", "统计机构", "https://www.inegi.org.mx/", "零售、消费数据", "manual", ""),
+    ("世界银行 / 国际货币基金组织", "global", "全球", "统计机构", "https://data.worldbank.org/", "各国 GDP、人口、消费支出（免费接口）", "key", ""),
+    ("联合国贸发会议 UNCTAD", "global", "全球", "统计机构", "https://unctad.org/", "全球电商规模、跨境电商报告", "manual", ""),
+    ("世界贸易组织 WTO 统计", "global", "全球", "统计机构", "https://stats.wto.org/", "各国各品类贸易额", "manual", ""),
+]
+
+# 每个平台还能从哪拿数据：(类型, 名字, 网址, 说明, 软件在用吗：done＝已在用 / apify＝填了 Apify 令牌就用)
+_AMZ = [("官方接口", "Amazon Creators API", "https://affiliate-program.amazon.com/creatorsapi/docs/en-us/introduction",
+         "原来的商品接口已经停了，换成它；要亚马逊联盟会员、30 天内至少 10 笔有效销售", ""),
+        ("现成爬虫", "Apify 亚马逊搜索爬虫", "https://apify.com/santamaria-automations/amazon-search-scraper", "20 个站点，按结果付费", "apify"),
+        ("数据服务", "Keepa", "https://keepa.com/", "价格历史、销量排名，有接口（付费）", ""),
+        ("数据服务", "Jungle Scout / Helium 10", "https://www.junglescout.com/", "每个商品的月销量估算（付费）", "")]
+_TT = [("数据服务", "Kalodata", "https://www.kalodata.com/", "TikTok Shop 商品和达人销量（付费）", ""),
+       ("数据服务", "FastMoss", "https://www.fastmoss.com/", "TikTok Shop 销量（付费）", "")]
+_MP = [("数据服务", "MPStats", "https://mpstats.io/", "Wildberries / Ozon 商品销量分析（付费）", "")]
+CH = {
+    "tb": [("联盟接口", "淘宝联盟开放平台（淘宝客）", "https://open.taobao.com/", "商品搜索能拿价格和销量；要实名、媒体备案、申请推广者权限", ""),
+           ("卖家后台", "生意参谋", "https://sycm.taobao.com/", "行业大盘、品类排行；要有淘宝 / 天猫店铺", ""),
+           ("数据服务", "魔镜洞察", "https://www.mktindex.com/", "淘宝、京东、抖音各品类的销售额（付费）", ""),
+           ("数据服务", "星图数据", "http://www.syntun.com.cn/", "双 11、618 全网销售额（公开报告免费）", ""),
+           ("现成爬虫", "Apify 上的淘宝爬虫", "https://apify.com/store?search=taobao", "别人维护的爬虫，按结果付费", "")],
+    "jd": [("联盟接口", "京东联盟开放平台", "https://union.jd.com/", "商品、价格、30 天引单量；关键词搜索接口要单独申请", ""),
+           ("卖家后台", "京东商智", "https://sz.jd.com/", "行业数据；要有京东店铺", ""),
+           ("现成爬虫", "Apify 京东爬虫", "https://apify.com/apimy/jd-products-scraper", "按结果付费", "")],
+    "pdd": [("联盟接口", "多多进宝开放平台", "https://open.pinduoduo.com/", "商品搜索能拿价格和销量提示；要注册、推广位备案", "")],
+    "b2b": [("官方接口", "1688 开放平台", "https://open.1688.com/", "要企业认证，适合采购商和 ERP", ""),
+            ("现成爬虫", "Apify 上的 1688 爬虫", "https://apify.com/store?search=1688", "按结果付费", "")],
+    "xy": [("现成爬虫", "Apify 上的闲鱼爬虫", "https://apify.com/store?search=xianyu", "按结果付费（先搜一下有没有好用的）", "")],
+    "ccgp": [("官方接口", "全国公共资源交易平台", "http://www.ggzy.gov.cn/", "省市级的采购、工程、中标公告", ""),
+             ("数据服务", "剑鱼标讯 / 千里马", "https://www.jianyu360.cn/", "全网招投标聚合、按行业订阅（付费）", "")],
+    "appstore_cn": [("官方接口", "苹果 iTunes 搜索接口", "https://itunes.apple.com/", "免费、不用钥匙", "done"),
+                    ("数据服务", "七麦数据", "https://www.qimai.cn/", "App 排名、下载量估算（部分免费）", ""),
+                    ("数据服务", "点点数据", "https://www.diandian.com/", "App 下载和收入估算（付费）", "")],
+    "appstore_us": [("官方接口", "iTunes Search API", "https://itunes.apple.com/", "免费、不用钥匙", "done"),
+                    ("数据服务", "Sensor Tower", "https://sensortower.com/", "全球 App 下载和收入估算（付费）", "")],
+    "ebay": [("官方接口", "eBay Browse API", "https://developer.ebay.com/", "免费注册开发者账号，能搜在售商品", ""),
+             ("卖家后台", "Terapeak（eBay 卖家中心）", "https://www.ebay.com/sh/research", "已成交商品的价格和数量；要 eBay 账号", ""),
+             ("现成爬虫", "Apify eBay 已成交爬虫", "https://apify.com/apimy/ebay-sold-listings-scraper", "按结果付费", "")],
+    "walmart": [("联盟接口", "Walmart 联盟", "https://affiliates.walmart.com/", "联盟会员能用商品接口", ""),
+                ("现成爬虫", "Apify 上的沃尔玛爬虫", "https://apify.com/store?search=walmart", "按结果付费", "")],
+    "aliexpress": [("联盟接口", "速卖通联盟接口", "https://portals.aliexpress.com/", "联盟会员能搜商品、拿价格和销量", "")],
+    "alibaba": [("现成爬虫", "Apify 上的阿里巴巴国际站爬虫", "https://apify.com/store?search=alibaba", "按结果付费", "")],
+    "rakuten": [("官方接口", "乐天 Web Service 商品搜索", "https://webservice.rakuten.co.jp/", "免费注册拿 applicationId", "")],
+    "yja": [("数据服务", "aucfan", "https://aucfan.com/", "日本拍卖、二手成交价历史（部分免费）", "")],
+    "flipkart": [("联盟接口", "Flipkart 联盟", "https://affiliate.flipkart.com/", "联盟会员有商品接口", "")],
+    "lazada": [("现成爬虫", "Apify Lazada 爬虫", "https://apify.com/lergassy/lazada-scraper", "6 个国家；约 2 美元 / 1000 个商品，免费套餐每月送 5 美元", "apify"),
+               ("官方接口", "Lazada 开放平台", "https://open.lazada.com/", "主要给卖家和合作伙伴", "")],
+    "shopee": [("现成爬虫", "Apify Shopee 爬虫", "https://apify.com/lergassy/shopee-scraper", "11 个市场，按结果付费；不用你登录", "apify"),
+               ("联盟接口", "Shopee 联盟", "https://affiliate.shopee.sg/", "联盟会员能拿商品数据", "")],
+    "meli_mx": [("官方接口", "Mercado Libre Developers", "https://developers.mercadolibre.com/", "官方接口，要注册应用", "")],
+    "meli_br": [("官方接口", "Mercado Libre Developers", "https://developers.mercadolibre.com/", "官方接口，要注册应用", "")],
+    "jumia": [("现成爬虫", "Apify 上的 Jumia 爬虫", "https://apify.com/store?search=jumia", "按结果付费", "")],
+    "mic": [("现成爬虫", "Apify 上的中国制造网爬虫", "https://apify.com/store?search=made-in-china", "按结果付费", "")],
+    "dhgate": [("现成爬虫", "Apify 上的敦煌网爬虫", "https://apify.com/store?search=dhgate", "按结果付费", "")],
+    "usaspending": [("官方接口", "USAspending API", "https://api.usaspending.gov/", "免费、不用钥匙", "done"),
+                    ("官方接口", "SAM.gov 招标接口", "https://open.gsa.gov/api/get-opportunities-public-api/", "正在招标的项目，免费钥匙", "")],
+    "ted": [("官方接口", "TED Search API", "https://docs.ted.europa.eu/api/", "免费、不用钥匙", "done")],
+    "freelancer": [("官方接口", "Freelancer API", "https://developers.freelancer.com/", "公开项目搜索", "done")],
+    "upwork": [("官方接口", "Upwork API", "https://www.upwork.com/developer", "要申请", "")],
+    "kickstarter": [("数据服务", "Kicktraq", "https://www.kicktraq.com/", "众筹项目每天的筹款曲线（免费）", "")],
+    # 不是软件自己抓的平台，按名字挂
+    "抖音电商（抖店）": [("联盟接口", "抖店开放平台 / 精选联盟", "https://op.jinritemai.com/", "给商家和达人机构", ""),
+                   ("数据服务", "蝉妈妈", "https://www.chanmama.com/", "抖音直播和商品销量（付费）", ""),
+                   ("数据服务", "飞瓜数据", "https://www.feigua.cn/", "抖音、快手带货数据（付费）", "")],
+    "快手小店": [("数据服务", "飞瓜数据", "https://www.feigua.cn/", "快手带货数据（付费）", "")],
+    "小红书": [("数据服务", "千瓜数据", "https://www.qian-gua.com/", "小红书笔记和品牌投放（付费）", "")],
+    "TikTok Shop 美国": _TT, "TikTok Shop 东南亚": _TT,
+    "美团 / 大众点评": [("官方接口", "高德地图地点搜索", "https://lbs.amap.com/", "按类别数一个城市有多少家店，免费钥匙", ""),
+                   ("官方接口", "百度地图地点检索", "https://lbsyun.baidu.com/", "同上，免费钥匙", "")],
+    "企查查 / 天眼查": [("官方接口", "国家企业信用信息公示系统", "https://www.gsxt.gov.cn/", "官方工商登记，一家一家查（免费）", "")],
+    "Etsy": [("官方接口", "Etsy Open API", "https://developers.etsy.com/", "免费钥匙", "")],
+    "Best Buy": [("官方接口", "Best Buy Developer API", "https://developer.bestbuy.com/", "免费钥匙", "")],
+    "Naver 购物": [("官方接口", "Naver 搜索接口（购物）", "https://developers.naver.com/", "免费钥匙", "")],
+    "雅虎购物": [("官方接口", "Yahoo!ショッピング Web API", "https://developer.yahoo.co.jp/", "免费注册拿 appid", "")],
+    "Coupang": [("联盟接口", "Coupang Partners", "https://partners.coupang.com/", "联盟会员有接口", "")],
+    "bol": [("联盟接口", "bol 联盟接口", "https://partner.bol.com/", "联盟会员能拿商品数据", "")],
+    "Allegro": [("官方接口", "Allegro REST API", "https://developer.allegro.pl/", "要注册应用", "")],
+    "Wildberries": _MP, "Ozon": _MP,
+    "Yelp / Google 地图": [("官方接口", "Yelp Fusion API", "https://docs.developer.yelp.com/", "免费钥匙", ""),
+                         ("官方接口", "Google Places API", "https://developers.google.com/maps/documentation/places/web-service", "按次收费，有免费额度", "")],
+    "美国人口普查局 进出口": [("官方接口", "Census 国际贸易接口", "https://www.census.gov/data/developers/data-sets/international-trade.html", "免费钥匙", "")],
+    "联合国 UN Comtrade": [("官方接口", "Comtrade API", "https://comtradedeveloper.un.org/", "免费钥匙", "")],
+    "国家统计局": [("官方接口", "国家数据 data.stats.gov.cn", "https://data.stats.gov.cn/", "所有统计指标都能查（软件读的是发布页）", "done")],
+}
+for _k in ("amazon", "amz_uk", "amz_de", "amz_fr", "amz_jp", "amz_in", "amz_br", "amz_ae"):
+    CH[_k] = _AMZ
+
+
 def catalog():
     """全世界的交易平台总表（v201：交易平台抓取整页就是这张表）。软件会抓的平台每个一行，状态由界面实时合上。"""
     st, plats = {}, []
@@ -218,7 +333,8 @@ def catalog():
             L2.append((p["name"], CAT_REGION.get(p.get("region", "cn"), "global"), "", p.get("kind", ""), p["url"], p["what"],
                        "login" if p.get("login") else "auto", p["key"]))
     for n, r, c, k, u, w, a, key in L2:
-        x = {"n": n, "r": r, "rn": R[r], "c": c, "k": k, "u": u, "w": w, "a": a, "an": A[a], "key": key, "why": WHY.get(a, "")}
+        x = {"n": n, "r": r, "rn": R[r], "c": c, "k": k, "u": u, "w": w, "a": a, "an": A[a], "key": key, "why": WHY.get(a, ""),
+             "ch": [{"k": q[0], "n": q[1], "u": q[2], "w": q[3], "f": q[4]} for q in (CH.get(key) or CH.get(n) or [])]}
         s = st.get(key) or {}
         if key and s:
             x.update(n_ok=s.get("n_ok", 0), n_bad=s.get("n_bad", 0), skip=s.get("skip", ""))

@@ -22,6 +22,7 @@ import re
 import statistics
 import threading
 import time
+import json
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 
@@ -31,7 +32,7 @@ import biz_trade_x as X
 TRADE_FILE = BZ.BIZ_DIR / "real" / "trade.json"
 STATE_FILE = BZ.BIZ_DIR / "real" / "trade_state.json"
 SC_NAME = {"direct": "普通方式", "fast": "Scrapling 快速", "browser": "Scrapling 浏览器", "login": "已登录的浏览器",
-           "chrome": "爬虫专用 Chrome", "api": "官方接口", "unlock": "付费解锁服务"}
+           "chrome": "爬虫专用 Chrome", "api": "官方接口", "unlock": "付费解锁服务", "apify": "Apify 现成爬虫"}
 
 PLATFORMS = [
     {"key": "ccgp", "name": "中国政府采购网", "kind": "采购", "url": "http://www.ccgp.gov.cn/",
@@ -187,6 +188,15 @@ def fetch(pkey, url, ok, trace):
         order.append("unlock")                             # v202：都不行，才用付费解锁服务（要你填钥匙）
     if TB and pkey in TB.SITES and TB.logged_in(pkey):     # v198：你登录过：先用登录好的浏览器（v199：只用它，免得没登录的方式把账号连累了）
         order, pref = ["login"], "login"
+        if apify_can(pkey):
+            order.append("apify")
+    elif pkey in LOGIN_SITES:                              # v203：没登录的，只能交给 Apify（不用你的账号）
+        order, pref = ["apify"], ""
+    elif apify_can(pkey):
+        order.append("apify")                              # v203：免费办法都不行，交给 Apify 现成爬虫（按结果付费）
+    if "apify" in order and "unlock" in order:            # v203：Apify 按结果付费、给的是整理好的数据，排在解锁服务前面
+        order.remove("apify")
+        order.insert(order.index("unlock"), "apify")
     if pref in order:
         order.remove(pref)
         order.insert(0, pref)
@@ -199,6 +209,8 @@ def fetch(pkey, url, ok, trace):
                 h, final = r["html"], r["url"]
             elif m == "unlock":
                 h, final = _unlock(url, pkey)
+            elif m == "apify":
+                h, final = _apify(url, pkey)
             else:
                 h, final = _direct(url) if m == "direct" else _sc(url, m)
             txt = _plain(h)
@@ -460,8 +472,14 @@ def probe_foreign(key, kw, trace):
     en = english(kw)
     url = FOREIGN_URL[key](en)
     prx, srx = FOREIGN_RX[key]
-    h, m = fetch(key, url, lambda x: bool(parse_foreign(x, prx)["band"]), trace)
+    def ok(x):
+        return bool(parse_foreign(x, prx)["band"]) or len(X.goods_json(x)) >= 3
+    h, m = fetch(key, url, ok, trace)
+    its = X.goods_json(h)
     g = parse_foreign(h, prx, srx)
+    if len(its) >= 3:                                     # v203：接口数据 / Apify 给的商品更准
+        sold = [i["s"] for i in its if i.get("s")]
+        g.update(band=_band([i["p"] for i in its]), sold=int(sum(sold)) if sold else g.get("sold"), sold_n=len(sold) or g.get("sold_n"), src="接口数据")
     g.update(url=url, via=m, en=en)
     return g
 
@@ -642,7 +660,7 @@ def _skip_why(p):
         return ""
     if p in FOREIGN and not cfg().get("foreign", True):
         return "国外平台在设置里关掉了"
-    if p in LOGIN_SITES and TB and p in TB.SITES:
+    if p in LOGIN_SITES and TB and p in TB.SITES and not apify_can(p):
         return "要先登录（在「交易平台抓取」的表里点「登录%s」，或点上面「一键登录全部」）" % TB.SITES[p]["name"]
     s = _read(STATE_FILE, {}).get(p) or {}
     if s.get("fail_streak", 0) >= FAIL_SKIP_N and time.time() - s.get("fail_at", 0) < 86400:
@@ -1085,3 +1103,85 @@ def search_url(p, kw):
     except Exception:
         pass
     return home
+
+
+# ───────────────────────── v203：Apify 现成爬虫（可选，按结果付费）─────────────────────────
+# Apify 上别人写好、一直在维护的爬虫：被封、改版都由他们处理，我们只按拿到的商品付钱（抓不到不收钱）。
+# 免费套餐每月送 5 美元额度；Lazada 这个爬虫约 2 美元 / 1000 个商品。令牌加密存在本机，不进 memory、不传 GitHub。
+APIFY_CAP = 150           # 每天最多跑这么多次，免得把额度用光
+APIFY_ITEMS = 40          # 每次最多要 40 个商品（够算价格带，也省钱）
+AMZ_ACTOR = "santamaria-automations/amazon-search-scraper"
+APIFY = {
+    "lazada": {"actor": "lergassy/lazada-scraper", "q": "q", "input": lambda q, url: {"country": "SG", "searchTerms": [q], "maxItems": APIFY_ITEMS}},
+    "shopee": {"actor": "lergassy/shopee-scraper", "q": "keyword", "input": lambda q, url: {"country": "SG", "searchTerms": [q], "maxItems": APIFY_ITEMS}},
+}
+for _k in ("amazon", "amz_uk", "amz_de", "amz_fr", "amz_jp", "amz_in", "amz_br", "amz_ae"):
+    APIFY[_k] = {"actor": AMZ_ACTOR, "q": "k", "input": lambda q, url: {"startUrls": [{"url": url}]}}
+
+
+def apify_cfg():
+    TB = _tbmod()
+    try:
+        c = (TB.get_secret("apify") if TB else None) or {}
+    except Exception:
+        c = {}
+    return c if c.get("token") else {}
+
+
+def apify_can(p):
+    return p in APIFY and bool(apify_cfg())
+
+
+def apify_info():
+    c = apify_cfg()
+    u = _read(STATE_FILE, {}).get("_apify") or {}
+    today = time.strftime("%Y-%m-%d")
+    return {"on": bool(c), "tail": (c.get("token") or "")[-4:], "today": u.get("n", 0) if u.get("day") == today else 0, "cap": APIFY_CAP,
+            "plats": [P_NAME.get(k, k) for k in APIFY], "keys": list(APIFY), "site": "https://console.apify.com/sign-up",
+            "token_url": "https://console.apify.com/settings/integrations"}
+
+
+def set_apify(token):
+    TB = _tbmod()
+    if not TB:
+        return {"ok": False, "error": "存不了"}
+    token = (token or "").strip()
+    TB.set_secret("apify", {"token": token} if token else None)
+    return {"ok": True, "apify": apify_info()}
+
+
+def _apify(url, pkey):
+    c, a = apify_cfg(), APIFY.get(pkey)
+    if not c or not a:
+        raise RuntimeError("没设置 Apify")
+    q = (urllib.parse.parse_qs(urllib.parse.urlparse(url).query).get(a["q"]) or [""])[0]
+    today = time.strftime("%Y-%m-%d")
+    with _lock:
+        st = _read(STATE_FILE, {})
+        u = st.get("_apify") or {}
+        if u.get("day") != today:
+            u = {"day": today, "n": 0}
+        if u["n"] >= APIFY_CAP:
+            raise RuntimeError("Apify 今天已经跑了 %d 次，先停一停（免得把额度用光），明天接着用" % APIFY_CAP)
+        u["n"] += 1
+        st["_apify"] = u
+        _write(STATE_FILE, st)
+    api = ("https://api.apify.com/v2/acts/%s/run-sync-get-dataset-items?token=%s&timeout=240&maxItems=%d"
+           % (a["actor"].replace("/", "~"), urllib.parse.quote(c["token"]), APIFY_ITEMS))
+    import biz_crawler as BC
+    last = ""
+    for px in BC._proxies(api):
+        try:
+            r = BC._req_json(api, data=a["input"](q, url), proxy=px, timeout=300)
+            if isinstance(r, list):
+                rows = [x for x in r if isinstance(x, dict) and x.get("type") != "error"]
+                if not rows:
+                    last = "Apify 跑完了，但没拿到商品" + ("（%s）" % str((r[0] or {}).get("error") or "")[:60] if r and isinstance(r[0], dict) else "")
+                    continue
+                return '<script type="application/json" data-apify="1">%s</script>' % json.dumps(rows, ensure_ascii=False).replace("</", "<\\/"), url
+            last = str(((r or {}).get("error") or {}).get("message") if isinstance(r, dict) else r)[:90] or "返回的不是数据"
+        except Exception as e:
+            m = str(e)
+            last = ("令牌不对（401）" if "401" in m else "额度用完了或要付费（402）" if "402" in m else "Apify 跑太久没回来（超时）" if "timed out" in m.lower()
+                    else X.human(m)[:90])
+    raise RuntimeError(last or "连不上 Apify")
