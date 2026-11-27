@@ -37,36 +37,334 @@
   "n_bad": 9
  },
  "ywg": {
-  "at": 1795704344,
-  "n_bad": 3,
-  "err": "Scrapling 快速：页面是空壳（只有 3 个字）；Scrapling 浏览器：页面是空壳（只有 241 个字）"
+  "at": 1795747706,
+  "n_bad": 9,
+  "err": "Scrapling 浏览器：页面是空壳（只有 241 个字）；爬虫专用 Chrome：页面是空壳（只有 241 个字）",
+  "fail_streak": 6,
+  "fail_at": 1795747706
  },
  "sn": {
-  "at": 1795704439,
-  "n_bad": 3,
-  "err": "Scrapling 快速：要登录或被拦（请登录）；Scrapling 浏览器：要登录或被拦（Captcha）"
+  "at": 1795747932,
+  "n_bad": 4,
+  "err": "",
+  "pref": "chrome",
+  "login_streak": 0,
+  "fail_streak": 0,
+  "n_ok": 10,
+  "last_ok": 1795747932,
+  "via": "爬虫专用 Chrome",
+  "fail_at": 1795747896
  },
  "amazon": {
-  "at": 1795740595,
-  "n_bad": 83,
-  "err": "搜索词翻不成英文（微软翻译连不上）"
+  "at": 1795748267,
+  "n_bad": 89,
+  "err": "Scrapling 快速：页面是空壳（只有 0 个字）；Scrapling 浏览器：网站自己出错了（5xx），过会儿再试",
+  "fail_streak": 6,
+  "fail_at": 1795748267
  },
  "ebay": {
-  "at": 1795740597,
-  "n_bad": 83,
-  "err": "搜索词翻不成英文（微软翻译连不上）"
+  "at": 1795748260,
+  "n_bad": 89,
+  "err": "Scrapling 快速：被拒绝访问（403，可能被识别成爬虫）；Scrapling 浏览器：被拒绝访问（403，可能被识别成爬虫）",
+  "fail_streak": 6,
+  "fail_at": 1795748260
  },
  "aliexpress": {
-  "at": 1795740599,
+  "at": 1795748221,
   "n_bad": 83,
-  "err": "搜索词翻不成英文（微软翻译连不上）"
+  "err": "",
+  "pref": "browser",
+  "login_streak": 0,
+  "fail_streak": 0,
+  "n_ok": 6,
+  "last_ok": 1795748221,
+  "via": "Scrapling 浏览器"
  },
  "alibaba": {
-  "at": 1795740601,
+  "at": 1795748252,
   "n_bad": 82,
-  "err": "搜索词翻不成英文（微软翻译连不上）"
+  "err": "",
+  "pref": "browser",
+  "login_streak": 0,
+  "fail_streak": 0,
+  "n_ok": 6,
+  "last_ok": 1795748252,
+  "via": "Scrapling 浏览器"
  },
  "_cfg": {
   "mig199": 1
+ },
+ "appstore_cn": {
+  "login_streak": 0,
+  "fail_streak": 0,
+  "at": 1795747909,
+  "n_ok": 2,
+  "last_ok": 1795747909,
+  "via": "官方接口",
+  "err": ""
+ },
+ "appstore_us": {
+  "login_streak": 0,
+  "fail_streak": 0,
+  "at": 1795747910,
+  "n_ok": 2,
+  "last_ok": 1795747910,
+  "via": "官方接口",
+  "err": ""
+ },
+ "freelancer": {
+  "login_streak": 0,
+  "fail_streak": 0,
+  "at": 1795747908,
+  "n_ok": 2,
+  "last_ok": 1795747908,
+  "via": "官方接口",
+  "err": ""
+ },
+ "usaspending": {
+  "login_streak": 0,
+  "fail_streak": 0,
+  "at": 1795748130,
+  "n_ok": 11,
+  "last_ok": 1795748130,
+  "via": "官方接口",
+  "err": ""
+ },
+ "ted": {
+  "login_streak": 0,
+  "fail_streak": 0,
+  "at": 1795748131,
+  "n_ok": 11,
+  "last_ok": 1795748131,
+  "via": "官方接口",
+  "err": ""
+ },
+ "tb": {
+  "fail_streak": 0,
+  "fail_at": 1795746973,
+  "at": 1795747027,
+  "n_bad": 1,
+  "err": "",
+  "login_streak": 0,
+  "n_ok": 1,
+  "last_ok": 1795747027,
+  "via": "已登录的浏览器"
+ },
+ "pdd": {
+  "fail_streak": 0,
+  "fail_at": 1795746973,
+  "at": 1795747027,
+  "n_bad": 1,
+  "err": "",
+  "login_streak": 0,
+  "n_ok": 1,
+  "last_ok": 1795747027,
+  "via": "已登录的浏览器"
+ },
+ "xy": {
+  "login_streak": 0,
+  "fail_streak": 1,
+  "at": 1795748207,
+  "n_ok": 11,
+  "last_ok": 1795747946,
+  "via": "已登录的浏览器",
+  "err": "已登录的浏览器：BrowserContext.new_page: Target page, context or browser has been closed",
+  "fail_at": 1795748207,
+  "n_bad": 1
+ },
+ "walmart": {
+  "pref": "fast",
+  "login_streak": 0,
+  "fail_streak": 0,
+  "at": 1795748224,
+  "n_ok": 6,
+  "last_ok": 1795748224,
+  "via": "Scrapling 快速",
+  "err": ""
+ },
+ "amz_uk": {
+  "fail_streak": 0,
+  "fail_at": 1795747774,
+  "at": 1795748008,
+  "n_bad": 4,
+  "err": "",
+  "pref": "browser",
+  "login_streak": 0,
+  "n_ok": 1,
+  "last_ok": 1795748008,
+  "via": "Scrapling 浏览器"
+ },
+ "amz_jp": {
+  "pref": "fast",
+  "login_streak": 0,
+  "fail_streak": 0,
+  "at": 1795747988,
+  "n_ok": 4,
+  "last_ok": 1795747988,
+  "via": "Scrapling 快速",
+  "err": "",
+  "fail_at": 1795747626,
+  "n_bad": 1
+ },
+ "rakuten": {
+  "pref": "direct",
+  "login_streak": 0,
+  "fail_streak": 0,
+  "at": 1795747989,
+  "n_ok": 5,
+  "last_ok": 1795747989,
+  "via": "普通方式",
+  "err": ""
+ },
+ "yja": {
+  "pref": "direct",
+  "login_streak": 0,
+  "fail_streak": 0,
+  "at": 1795747990,
+  "n_ok": 5,
+  "last_ok": 1795747990,
+  "via": "普通方式",
+  "err": ""
+ },
+ "amz_in": {
+  "pref": "fast",
+  "login_streak": 0,
+  "fail_streak": 2,
+  "at": 1795748111,
+  "n_ok": 3,
+  "last_ok": 1795747604,
+  "via": "Scrapling 快速",
+  "err": "普通方式：页面是空壳（只有 0 个字）；Scrapling 浏览器：网站自己出错了（5xx），过会儿再试",
+  "fail_at": 1795748111,
+  "n_bad": 2
+ },
+ "amz_de": {
+  "fail_streak": 5,
+  "fail_at": 1795748029,
+  "at": 1795748029,
+  "n_bad": 5,
+  "err": "Scrapling 快速：没认出商品 / 公告列表；Scrapling 浏览器：网站自己出错了（5xx），过会儿再试"
+ },
+ "flipkart": {
+  "pref": "direct",
+  "login_streak": 0,
+  "fail_streak": 0,
+  "at": 1795748010,
+  "n_ok": 5,
+  "last_ok": 1795748010,
+  "via": "普通方式",
+  "err": ""
+ },
+ "indiamart": {
+  "pref": "direct",
+  "login_streak": 0,
+  "fail_streak": 0,
+  "at": 1795748013,
+  "n_ok": 5,
+  "last_ok": 1795748013,
+  "via": "普通方式",
+  "err": ""
+ },
+ "meli_mx": {
+  "pref": "direct",
+  "login_streak": 0,
+  "fail_streak": 0,
+  "at": 1795748034,
+  "n_ok": 5,
+  "last_ok": 1795748034,
+  "via": "普通方式",
+  "err": ""
+ },
+ "meli_br": {
+  "pref": "direct",
+  "login_streak": 0,
+  "fail_streak": 0,
+  "at": 1795748038,
+  "n_ok": 5,
+  "last_ok": 1795748038,
+  "via": "普通方式",
+  "err": ""
+ },
+ "amz_br": {
+  "pref": "direct",
+  "login_streak": 0,
+  "fail_streak": 0,
+  "at": 1795748039,
+  "n_ok": 4,
+  "last_ok": 1795748039,
+  "via": "普通方式",
+  "err": "",
+  "fail_at": 1795747647,
+  "n_bad": 1
+ },
+ "amz_ae": {
+  "pref": "browser",
+  "login_streak": 0,
+  "fail_streak": 1,
+  "at": 1795748149,
+  "n_ok": 4,
+  "last_ok": 1795747829,
+  "via": "Scrapling 浏览器",
+  "err": "普通方式：页面是空壳（只有 0 个字）；Scrapling 快速：页面是空壳（只有 0 个字）",
+  "fail_at": 1795748149,
+  "n_bad": 1
+ },
+ "dhgate": {
+  "pref": "direct",
+  "login_streak": 0,
+  "fail_streak": 0,
+  "at": 1795748114,
+  "n_ok": 5,
+  "last_ok": 1795748114,
+  "via": "普通方式",
+  "err": ""
+ },
+ "lazada": {
+  "fail_streak": 5,
+  "fail_at": 1795748128,
+  "at": 1795748128,
+  "n_bad": 5,
+  "err": "Scrapling 快速：被拦了（punish）；Scrapling 浏览器：被拦了（punish）"
+ },
+ "jumia": {
+  "fail_streak": 5,
+  "fail_at": 1795748199,
+  "at": 1795748199,
+  "n_bad": 5,
+  "err": "Scrapling 快速：被拒绝访问（403，可能被识别成爬虫）；Scrapling 浏览器：被拒绝访问（403，可能被识别成爬虫）"
+ },
+ "mic": {
+  "fail_streak": 0,
+  "fail_at": 1795747191,
+  "at": 1795748113,
+  "n_bad": 1,
+  "err": "",
+  "pref": "direct",
+  "login_streak": 0,
+  "n_ok": 4,
+  "last_ok": 1795748113,
+  "via": "普通方式"
+ },
+ "amz_fr": {
+  "fail_streak": 1,
+  "fail_at": 1795748070,
+  "at": 1795748070,
+  "n_bad": 3,
+  "err": "普通方式：页面是空壳（只有 157 个字）；Scrapling 快速：页面是空壳（只有 157 个字）",
+  "pref": "browser",
+  "login_streak": 0,
+  "n_ok": 1,
+  "last_ok": 1795747794,
+  "via": "Scrapling 浏览器"
+ },
+ "kickstarter": {
+  "pref": "browser",
+  "login_streak": 0,
+  "fail_streak": 0,
+  "at": 1795748207,
+  "n_ok": 3,
+  "last_ok": 1795748207,
+  "via": "官方接口",
+  "err": ""
  }
 }

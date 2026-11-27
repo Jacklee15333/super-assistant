@@ -2,7 +2,7 @@
  "t:ai": {
   "target": "t:ai",
   "kw": "人工智能",
-  "at": 1795698460,
+  "at": 1795746973,
   "res": {
    "ccgp": {
     "total": 3379,
@@ -118,13 +118,249 @@
      }
     ],
     "ms": 1647
+   },
+   "appstore_cn": {
+    "kind2": "app",
+    "total": 39,
+    "paid_n": 0,
+    "band": null,
+    "ratings": 7289929,
+    "top": [
+     {
+      "n": "豆包 - 生活工作 AI 助手",
+      "r": 5693157
+     },
+     {
+      "n": "千问 - 阿里AI助手",
+      "r": 379219
+     },
+     {
+      "n": "Google Chrome",
+      "r": 341901
+     }
+    ],
+    "cur": "CNY",
+    "fx": 1.0,
+    "q": "人工智能",
+    "url": "https://apps.apple.com/cn/",
+    "via": "api",
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 1954
+     }
+    ],
+    "ms": 1956
+   },
+   "upwork": {
+    "ok": false,
+    "skipped": true,
+    "error": "要先登录（在「交易平台抓取」的表里点「登录Upwork」，或点上面「一键登录全部」）",
+    "trace": [],
+    "ms": 0
+   },
+   "freelancer": {
+    "kind2": "svc",
+    "total": 52,
+    "band": {
+     "n": 32,
+     "min": 20.0,
+     "p25": 140.0,
+     "mid": 301.68,
+     "p75": 853.12,
+     "max": 6250.0
+    },
+    "hourly": {
+     "n": 18,
+     "min": 2.7,
+     "p25": 5.0,
+     "mid": 7.44,
+     "p75": 17.35,
+     "max": 20.0
+    },
+    "n": 50,
+    "bids_avg": 67.2,
+    "cur": "USD",
+    "fx": 6.674963,
+    "q": "artificial intelligence",
+    "url": "https://www.freelancer.com/search/projects?q=artificial%20intelligence",
+    "via": "api",
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 1304
+     }
+    ],
+    "ms": 2519
+   },
+   "appstore_us": {
+    "kind2": "app",
+    "total": 42,
+    "paid_n": 0,
+    "band": null,
+    "ratings": 18381812,
+    "top": [
+     {
+      "n": "ChatGPT",
+      "r": 12601212
+     },
+     {
+      "n": "Google Gemini",
+      "r": 2462961
+     },
+     {
+      "n": "Grok",
+      "r": 1641102
+     }
+    ],
+    "cur": "USD",
+    "fx": 7.1,
+    "q": "artificial intelligence",
+    "url": "https://apps.apple.com/us/",
+    "via": "api",
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 2190
+     }
+    ],
+    "ms": 2465
+   },
+   "usaspending": {
+    "kind2": "gov",
+    "total": 362,
+    "amt_mid": 11331963.219999999,
+    "amt_sum": 904382085.64,
+    "amt_n": 50,
+    "items": [
+     {
+      "t": "RESEARCH AND DEVELOPMENT EFFORT TO DESIGN AND DEVELOP PROTOTYPES TO ARTIFICIAL INTELLIGENC",
+      "buyer": "Department of Defense",
+      "who": "ECS FEDERAL, LLC",
+      "amt": 120492195.74,
+      "d": "2020-04-23"
+     },
+     {
+      "t": "CONTRACT TO RESEARCH, DEVELOP, MODIFY, DEPLOY, OPERATE, AND MAINTAIN ARTIFICIAL INTELLIGEN",
+      "buyer": "Department of Defense",
+      "who": "ECS FEDERAL, LLC",
+      "amt": 83498695.2,
+      "d": "2025-01-30"
+     },
+     {
+      "t": "THIS AWARD IS IN SUPPORT OF THE CHIEF DATA ARTIFICIAL INTELLIGENCE OFFICE CDAO WAR DATA PL",
+      "buyer": "General Services Administration",
+      "who": "ACCENTURE FEDERAL SERVICES LLC",
+      "amt": 59694523.0,
+      "d": "2026-07-28"
+     },
+     {
+      "t": "CYBER ANALYTICS AND DETECTION (CAD) OMNIBUS PROCUREMENT FOR MAINTENANCE, DEVELOPMENT, AND ",
+      "buyer": "Department of Defense",
+      "who": "ENLIGHTEN, LLC",
+      "amt": 42570240.44,
+      "d": "2026-03-01"
+     },
+     {
+      "t": "ADVANCED TEST AND EVALUATION (T&E) FOR THE EXPONENTIAL PACE OF ARTIFICIAL INTELLIGENCE / M",
+      "buyer": "Department of Defense",
+      "who": "MORSECORP, INC",
+      "amt": 41434075.13,
+      "d": "2022-08-26"
+     },
+     {
+      "t": "12MONTH BASE PERIOD 12MONTH OP. EST ACCELERATING DATA AND ARTIFICIAL INTELLIGENCE(ADA)INCI",
+      "buyer": "Department of Defense",
+      "who": "BYTECUBED, LLC",
+      "amt": 34571375.28,
+      "d": "2025-06-03"
+     }
+    ],
+    "cur": "USD",
+    "fx": 6.674963,
+    "q": "artificial intelligence",
+    "url": "https://www.usaspending.gov/search",
+    "via": "api",
+    "days": 365,
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 3521
+     }
+    ],
+    "ms": 3709
+   },
+   "ted": {
+    "kind2": "gov",
+    "total": 139,
+    "items": [
+     {
+      "t": "Latvia – Medical equipments – Ultrasonogrāfijas iekārtu piegāde",
+      "buyer": "Sabiedrība ar ierobežotu atbildību \"Daugavpils reģ",
+      "d": "2026-06-02",
+      "u": "https://ted.europa.eu/en/notice/-/detail/377157-2026"
+     },
+     {
+      "t": "Belgium – Technical analysis or consultancy services – The EU’s international partnerships",
+      "buyer": "European Commission, INTPA - International Partner",
+      "d": "2026-06-05",
+      "u": "https://ted.europa.eu/en/notice/-/detail/386058-2026"
+     },
+     {
+      "t": "Norway – Servers – Intention notice server platform",
+      "buyer": "Høgskolen i Østfold",
+      "d": "2026-06-05",
+      "u": "https://ted.europa.eu/en/notice/-/detail/386365-2026"
+     },
+     {
+      "t": "Germany – Advertising and marketing services – Vergabe einer Rahmenvereinbarung der Touris",
+      "buyer": "Tourismus, Freizeit & Kultur GmbH Kühlungsborn",
+      "d": "2026-06-09",
+      "u": "https://ted.europa.eu/en/notice/-/detail/392841-2026"
+     },
+     {
+      "t": "Ireland – Industrial and technical training services – Multi-party Framework Agreement for",
+      "buyer": "The Irish Centre for Business Excellence",
+      "d": "2026-06-09",
+      "u": "https://ted.europa.eu/en/notice/-/detail/394181-2026"
+     },
+     {
+      "t": "Ireland – IT services: consulting, software development, Internet and support – Artificial",
+      "buyer": "Co-operation Ireland",
+      "d": "2026-06-10",
+      "u": "https://ted.europa.eu/en/notice/-/detail/395985-2026"
+     }
+    ],
+    "cur": "EUR",
+    "fx": 7.324555888042856,
+    "q": "artificial intelligence",
+    "url": "https://ted.europa.eu/en/search/result?FT=artificial%20intelligence",
+    "via": "api",
+    "days": 180,
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 2189
+     }
+    ],
+    "ms": 2196
    }
   }
  },
  "t:compute": {
   "target": "t:compute",
   "kw": "算力",
-  "at": 1795699133,
+  "at": 1795746999,
   "res": {
    "ccgp": {
     "total": 1184,
@@ -296,6 +532,256 @@
      }
     ],
     "ms": 10928
+   },
+   "ywg": {
+    "ok": false,
+    "error": "Scrapling 浏览器：页面是空壳（只有 241 个字）；爬虫专用 Chrome：页面是空壳（只有 241 个字）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 304,
+      "why": "页面是空壳（只有 3 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 500,
+      "why": "页面是空壳（只有 3 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 8223,
+      "why": "页面是空壳（只有 241 个字）"
+     },
+     {
+      "m": "爬虫专用 Chrome",
+      "ok": false,
+      "ms": 6832,
+      "why": "页面是空壳（只有 241 个字）"
+     }
+    ],
+    "ms": 15871
+   },
+   "tb": {
+    "ok": false,
+    "error": "已登录的浏览器：[WinError 32] 另一个程序正在使用此文件，进程无法访问。: 'D:\\\\my projects\\\\超能小助\\\\backend\\\\memory\\\\biz\\\\real\\\\lo",
+    "trace": [
+     {
+      "m": "已登录的浏览器",
+      "ok": false,
+      "ms": 38,
+      "why": "[WinError 32] 另一个程序正在使用此文件，进程无法访问。: 'D:\\\\my projects\\\\超能小助\\\\backend\\\\memory\\\\biz\\\\real\\\\lo"
+     }
+    ],
+    "ms": 47
+   },
+   "pdd": {
+    "ok": false,
+    "error": "已登录的浏览器：[WinError 32] 另一个程序正在使用此文件，进程无法访问。: 'D:\\\\my projects\\\\超能小助\\\\backend\\\\memory\\\\biz\\\\real\\\\lo",
+    "trace": [
+     {
+      "m": "已登录的浏览器",
+      "ok": false,
+      "ms": 140,
+      "why": "[WinError 32] 另一个程序正在使用此文件，进程无法访问。: 'D:\\\\my projects\\\\超能小助\\\\backend\\\\memory\\\\biz\\\\real\\\\lo"
+     }
+    ],
+    "ms": 151
+   },
+   "xy": {
+    "band": {
+     "n": 30,
+     "min": 1.0,
+     "p25": 1.33,
+     "mid": 3.1,
+     "p75": 11.25,
+     "max": 19999.0
+    },
+    "sold": 4805,
+    "sold_n": 13,
+    "comments": null,
+    "total": null,
+    "src": "网页文字",
+    "url": "https://www.goofish.com/search?q=%E7%AE%97%E5%8A%9B",
+    "via": "login",
+    "ok": true,
+    "trace": [
+     {
+      "m": "已登录的浏览器",
+      "ok": true,
+      "ms": 7435
+     }
+    ],
+    "ms": 7450
+   },
+   "sn": {
+    "band": {
+     "n": 54,
+     "min": 31.0,
+     "p25": 59.15,
+     "mid": 75.35,
+     "p75": 121.75,
+     "max": 11966.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "src": "网页文字",
+    "url": "https://search.suning.com/%E7%AE%97%E5%8A%9B/",
+    "via": "chrome",
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 521,
+      "why": "没认出商品 / 公告列表"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 606,
+      "why": "没认出商品 / 公告列表"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 18715,
+      "why": "被拦了（Captcha）"
+     },
+     {
+      "m": "爬虫专用 Chrome",
+      "ok": true,
+      "ms": 6363
+     }
+    ],
+    "ms": 26259
+   },
+   "usaspending": {
+    "kind2": "gov",
+    "total": 12,
+    "amt_mid": 498927.835,
+    "amt_sum": 28933871.39,
+    "amt_n": 12,
+    "items": [
+     {
+      "t": "GPU SERVERS FOR AI IDIQ",
+      "buyer": "Department of Justice",
+      "who": "THUNDERCAT TECHNOLOGY, LLC",
+      "amt": 18864219.78,
+      "d": "2026-09-25"
+     },
+     {
+      "t": "DELIVERY ORDER 1 FOR GPU SERVERS FOR AI IDIQ",
+      "buyer": "Department of Justice",
+      "who": "THUNDERCAT TECHNOLOGY, LLC",
+      "amt": 4353787.39,
+      "d": "2026-09-09"
+     },
+     {
+      "t": "DELL GRAPHICAL PROCESSING UNIT (GPU) SERVERS - NIH/NIEHS",
+      "buyer": "Department of Health and Human Services",
+      "who": "V3GATE, LLC",
+      "amt": 1550226.1,
+      "d": "2026-09-11"
+     },
+     {
+      "t": "ARTIFICIAL INTELLIGENCE SERVERS1 10U B200 GOLD SERIES GPU SERVER SYS-A21GE-NBRT-G1 QTY 2 2",
+      "buyer": "Department of Defense",
+      "who": "BETTER DIRECT, LLC",
+      "amt": 1341229.26,
+      "d": "2026-03-17"
+     },
+     {
+      "t": "04C26F1305 PROCUREMENT FOR ITLAB GPU SERVERS",
+      "buyer": "Department of Homeland Security",
+      "who": "CTG FEDERAL, LLC",
+      "amt": 999999.86,
+      "d": "2026-09-30"
+     },
+     {
+      "t": "LHNCBC SEEKS TO PROCURE TWO (2) DELL POWEREDGE XE7740 GPU SERVERS TO PROVIDE SCALABLE ENTE",
+      "buyer": "Department of Health and Human Services",
+      "who": "STERLING COMPUTERS CORPORATION",
+      "amt": 717865.67,
+      "d": "2026-09-23"
+     }
+    ],
+    "cur": "USD",
+    "fx": 6.674963,
+    "q": "GPU server",
+    "url": "https://www.usaspending.gov/search",
+    "via": "api",
+    "days": 365,
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 3251
+     }
+    ],
+    "ms": 3326
+   },
+   "ted": {
+    "kind2": "gov",
+    "total": 28,
+    "items": [
+     {
+      "t": "Germany – Computer servers – GPU-Server",
+      "buyer": "Hochschule Wismar",
+      "d": "2026-06-08",
+      "u": "https://ted.europa.eu/en/notice/-/detail/389539-2026"
+     },
+     {
+      "t": "Czechia – Mainframe computer – CESNET – Dodávka výpočetních uzlů a diskového úložiště pro ",
+      "buyer": "CESNET, zájmové sdružení právnických osob",
+      "d": "2026-06-18",
+      "u": "https://ted.europa.eu/en/notice/-/detail/419056-2026"
+     },
+     {
+      "t": "Germany – Servers – Vergabeverfahren zum Abschluss einer Rahmenvereinbarung zur Lieferung ",
+      "buyer": "Universität Heidelberg",
+      "d": "2026-06-22",
+      "u": "https://ted.europa.eu/en/notice/-/detail/426600-2026"
+     },
+     {
+      "t": "Germany – Servers – 6 NVidia DGX A100 GPU Server (Refurbished) 2 Nvidia DGX H100 GPU Serve",
+      "buyer": "Heinrich-Heine-Universität Düsseldorf",
+      "d": "2026-06-25",
+      "u": "https://ted.europa.eu/en/notice/-/detail/436838-2026"
+     },
+     {
+      "t": "Germany – Computer servers – GPU-Server",
+      "buyer": "Technische Universität München",
+      "d": "2026-06-26",
+      "u": "https://ted.europa.eu/en/notice/-/detail/441482-2026"
+     },
+     {
+      "t": "Germany – Mainframe computer – Hochleistung GPU Server",
+      "buyer": "Einkauf und Vergabemanagement der SBK",
+      "d": "2026-06-29",
+      "u": "https://ted.europa.eu/en/notice/-/detail/442750-2026"
+     }
+    ],
+    "cur": "EUR",
+    "fx": 7.324555888042856,
+    "q": "GPU server",
+    "url": "https://ted.europa.eu/en/search/result?FT=GPU%20server",
+    "via": "api",
+    "days": 180,
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 1609
+     }
+    ],
+    "ms": 1781
    }
   }
  },
@@ -466,7 +952,7 @@
  "t:autodrive": {
   "target": "t:autodrive",
   "kw": "自动驾驶",
-  "at": 1795700565,
+  "at": 1795747223,
   "res": {
    "ccgp": {
     "total": 77,
@@ -626,13 +1112,178 @@
      }
     ],
     "ms": 10883
+   },
+   "ywg": {
+    "ok": false,
+    "error": "Scrapling 浏览器：页面是空壳（只有 241 个字）；爬虫专用 Chrome：页面是空壳（只有 241 个字）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 71,
+      "why": "页面是空壳（只有 3 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 366,
+      "why": "页面是空壳（只有 3 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 26059,
+      "why": "页面是空壳（只有 241 个字）"
+     },
+     {
+      "m": "爬虫专用 Chrome",
+      "ok": false,
+      "ms": 5129,
+      "why": "页面是空壳（只有 241 个字）"
+     }
+    ],
+    "ms": 31627
+   },
+   "tb": {
+    "ok": false,
+    "skipped": true,
+    "error": "要先登录（在「交易平台抓取」的表里点「登录淘宝 / 天猫」，或点上面「一键登录全部」）",
+    "trace": [],
+    "ms": 0
+   },
+   "pdd": {
+    "ok": false,
+    "skipped": true,
+    "error": "要先登录（在「交易平台抓取」的表里点「登录拼多多」，或点上面「一键登录全部」）",
+    "trace": [],
+    "ms": 0
+   },
+   "xy": {
+    "band": {
+     "n": 30,
+     "min": 1.0,
+     "p25": 337.5,
+     "mid": 70108.5,
+     "p75": 92600.0,
+     "max": 337800.0
+    },
+    "sold": 250,
+    "sold_n": 11,
+    "comments": null,
+    "total": null,
+    "src": "网页文字",
+    "url": "https://www.goofish.com/search?q=%E8%87%AA%E5%8A%A8%E9%A9%BE%E9%A9%B6",
+    "via": "login",
+    "ok": true,
+    "trace": [
+     {
+      "m": "已登录的浏览器",
+      "ok": true,
+      "ms": 11495
+     }
+    ],
+    "ms": 11508
+   },
+   "sn": {
+    "band": {
+     "n": 70,
+     "min": 9.0,
+     "p25": 50.8,
+     "mid": 70.38,
+     "p75": 107.0,
+     "max": 581.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "src": "网页文字",
+    "url": "https://search.suning.com/%E8%87%AA%E5%8A%A8%E9%A9%BE%E9%A9%B6/",
+    "via": "chrome",
+    "ok": true,
+    "trace": [
+     {
+      "m": "爬虫专用 Chrome",
+      "ok": true,
+      "ms": 5921
+     }
+    ],
+    "ms": 5937
+   },
+   "usaspending": {
+    "kind2": "gov",
+    "total": 0,
+    "amt_mid": null,
+    "amt_sum": 0,
+    "amt_n": 0,
+    "items": [],
+    "cur": "USD",
+    "fx": 6.674963,
+    "q": "autonomous driving",
+    "url": "https://www.usaspending.gov/search",
+    "via": "api",
+    "days": 365,
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 25140
+     }
+    ],
+    "ms": 25143
+   },
+   "ted": {
+    "kind2": "gov",
+    "total": 4,
+    "items": [
+     {
+      "t": "Romania – Industrial robots – Furnizare roboti bipezi si patrupezi, extra baterii pentru r",
+      "buyer": "DOTLUMEN SRL",
+      "d": "2026-09-14",
+      "u": "https://ted.europa.eu/en/notice/-/detail/631084-2026"
+     },
+     {
+      "t": "Romania – Industrial robots – Furnizare roboti bipezi si patrupezi, extra baterii pentru r",
+      "buyer": "DOTLUMEN SRL",
+      "d": "2026-09-25",
+      "u": "https://ted.europa.eu/en/notice/-/detail/661803-2026"
+     },
+     {
+      "t": "Ireland – Vehicle conversion kits – Drive-by-Wire System for Autonomous Vehicle Research",
+      "buyer": "Future Mobility Campus Ireland CLG",
+      "d": "2026-10-05",
+      "u": "https://ted.europa.eu/en/notice/-/detail/684803-2026"
+     },
+     {
+      "t": "Romania – Industrial robots – Furnizare roboti bipezi si patrupezi, extra baterii pentru r",
+      "buyer": "DOTLUMEN SRL",
+      "d": "2026-11-10",
+      "u": "https://ted.europa.eu/en/notice/-/detail/782258-2026"
+     }
+    ],
+    "cur": "EUR",
+    "fx": 7.324555888042856,
+    "q": "autonomous driving",
+    "url": "https://ted.europa.eu/en/search/result?FT=autonomous%20driving",
+    "via": "api",
+    "days": 180,
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 1648
+     }
+    ],
+    "ms": 1648
    }
   }
  },
  "t:ev": {
   "target": "t:ev",
   "kw": "新能源车",
-  "at": 1795700708,
+  "at": 1795747526,
   "res": {
    "ccgp": {
     "total": 29,
@@ -788,13 +1439,863 @@
      }
     ],
     "ms": 11787
+   },
+   "ywg": {
+    "ok": false,
+    "error": "Scrapling 浏览器：页面是空壳（只有 241 个字）；爬虫专用 Chrome：页面是空壳（只有 241 个字）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 86,
+      "why": "页面是空壳（只有 3 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 611,
+      "why": "页面是空壳（只有 3 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 40344,
+      "why": "页面是空壳（只有 241 个字）"
+     },
+     {
+      "m": "爬虫专用 Chrome",
+      "ok": false,
+      "ms": 5568,
+      "why": "页面是空壳（只有 241 个字）"
+     }
+    ],
+    "ms": 46612
+   },
+   "tb": {
+    "ok": false,
+    "skipped": true,
+    "error": "要先登录（在「交易平台抓取」的表里点「登录淘宝 / 天猫」，或点上面「一键登录全部」）",
+    "trace": [],
+    "ms": 0
+   },
+   "pdd": {
+    "ok": false,
+    "skipped": true,
+    "error": "要先登录（在「交易平台抓取」的表里点「登录拼多多」，或点上面「一键登录全部」）",
+    "trace": [],
+    "ms": 0
+   },
+   "xy": {
+    "band": {
+     "n": 30,
+     "min": 11800.0,
+     "p25": 15135.0,
+     "mid": 19000.0,
+     "p75": 25250.0,
+     "max": 31800.0
+    },
+    "sold": 6287,
+    "sold_n": 26,
+    "comments": null,
+    "total": null,
+    "src": "网页文字",
+    "url": "https://www.goofish.com/search?q=%E6%96%B0%E8%83%BD%E6%BA%90%E8%BD%A6",
+    "via": "login",
+    "ok": true,
+    "trace": [
+     {
+      "m": "已登录的浏览器",
+      "ok": true,
+      "ms": 11417
+     }
+    ],
+    "ms": 11432
+   },
+   "sn": {
+    "band": {
+     "n": 61,
+     "min": 1.0,
+     "p25": 22623.0,
+     "mid": 52206.0,
+     "p75": 115017.5,
+     "max": 1175556.2
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "src": "网页文字",
+    "url": "https://search.suning.com/%E6%96%B0%E8%83%BD%E6%BA%90%E8%BD%A6/",
+    "via": "chrome",
+    "ok": true,
+    "trace": [
+     {
+      "m": "爬虫专用 Chrome",
+      "ok": true,
+      "ms": 5543
+     }
+    ],
+    "ms": 5557
+   },
+   "amazon": {
+    "ok": false,
+    "error": "Scrapling 快速：页面是空壳（只有 0 个字）；Scrapling 浏览器：网站自己出错了（5xx），过会儿再试",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 976,
+      "why": "页面是空壳（只有 0 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 1241,
+      "why": "页面是空壳（只有 0 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 66730,
+      "why": "网站自己出错了（5xx），过会儿再试"
+     }
+    ],
+    "ms": 68950
+   },
+   "ebay": {
+    "ok": false,
+    "error": "Scrapling 快速：被拒绝访问（403，可能被识别成爬虫）；Scrapling 浏览器：被拒绝访问（403，可能被识别成爬虫）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 370,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 979,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 85599,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     }
+    ],
+    "ms": 86950
+   },
+   "aliexpress": {
+    "band": {
+     "n": 4,
+     "min": 1.0,
+     "p25": 1.0,
+     "mid": 1.0,
+     "p75": 1.75,
+     "max": 2.0
+    },
+    "cur": "$",
+    "sold": null,
+    "sold_n": 0,
+    "total": null,
+    "url": "https://www.aliexpress.com/w/wholesale-electric-vehicle.html",
+    "via": "browser",
+    "en": "electric vehicle",
+    "ok": true,
+    "trace": [
+     {
+      "m": "Scrapling 浏览器",
+      "ok": true,
+      "ms": 100357
+     }
+    ],
+    "ms": 100361
+   },
+   "alibaba": {
+    "band": {
+     "n": 6,
+     "min": 1.0,
+     "p25": 1.0,
+     "mid": 1.0,
+     "p75": 1.25,
+     "max": 2.0
+    },
+    "cur": "$",
+    "sold": null,
+    "sold_n": 0,
+    "total": null,
+    "url": "https://www.alibaba.com/trade/search?SearchText=electric+vehicle",
+    "via": "browser",
+    "en": "electric vehicle",
+    "ok": true,
+    "trace": [
+     {
+      "m": "Scrapling 浏览器",
+      "ok": true,
+      "ms": 106516
+     }
+    ],
+    "ms": 106521
+   },
+   "walmart": {
+    "band": {
+     "n": 29,
+     "min": 59.89,
+     "p25": 114.99,
+     "mid": 159.99,
+     "p75": 217.48,
+     "max": 329.99
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": 14329,
+    "total": null,
+    "n_items": 29,
+    "src": "接口数据",
+    "url": "https://www.walmart.com/search?q=electric+vehicle",
+    "via": "fast",
+    "q": "electric vehicle",
+    "cur": "USD",
+    "fx": 6.674963,
+    "ok": true,
+    "trace": [
+     {
+      "m": "Scrapling 快速",
+      "ok": true,
+      "ms": 3345
+     }
+    ],
+    "ms": 3389
+   },
+   "amz_uk": {
+    "ok": false,
+    "error": "Scrapling 快速：页面是空壳（只有 157 个字）；Scrapling 浏览器：网站自己出错了（5xx），过会儿再试",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 337,
+      "why": "页面是空壳（只有 157 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 678,
+      "why": "页面是空壳（只有 157 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 118874,
+      "why": "网站自己出错了（5xx），过会儿再试"
+     }
+    ],
+    "ms": 119889
+   },
+   "amz_de": {
+    "ok": false,
+    "error": "Scrapling 快速：没认出商品 / 公告列表；Scrapling 浏览器：网站自己出错了（5xx），过会儿再试",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 627,
+      "why": "HTTP 503"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 1992,
+      "why": "没认出商品 / 公告列表"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 130589,
+      "why": "网站自己出错了（5xx），过会儿再试"
+     }
+    ],
+    "ms": 135093
+   },
+   "amz_fr": {
+    "ok": false,
+    "error": "Scrapling 快速：页面是空壳（只有 157 个字）；Scrapling 浏览器：网站自己出错了（5xx），过会儿再试",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 483,
+      "why": "页面是空壳（只有 157 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 803,
+      "why": "页面是空壳（只有 157 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 131489,
+      "why": "网站自己出错了（5xx），过会儿再试"
+     }
+    ],
+    "ms": 136207
+   },
+   "amz_jp": {
+    "band": {
+     "n": 60,
+     "min": 105.0,
+     "p25": 1100.0,
+     "mid": 2317.5,
+     "p75": 3180.0,
+     "max": 10330.0
+    },
+    "sold": 1700,
+    "sold_n": 4,
+    "comments": null,
+    "total": 105,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://www.amazon.co.jp/s?k=%E6%96%B0%E3%82%A8%E3%83%8D%E3%83%AB%E3%82%AE%E3%83%BC%E8%BB%8A",
+    "via": "fast",
+    "q": "新エネルギー車",
+    "cur": "JPY",
+    "fx": 0.0419078292489904,
+    "ok": true,
+    "trace": [
+     {
+      "m": "Scrapling 快速",
+      "ok": true,
+      "ms": 1717
+     }
+    ],
+    "ms": 3299
+   },
+   "rakuten": {
+    "band": {
+     "n": 7,
+     "min": 1555.0,
+     "p25": 1556.0,
+     "mid": 6858.0,
+     "p75": 7620.0,
+     "max": 8004.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": 1,
+    "total": null,
+    "n_items": 7,
+    "src": "接口数据",
+    "url": "https://search.rakuten.co.jp/search/mall/%E6%96%B0%E3%82%A8%E3%83%8D%E3%83%AB%E3%82%AE%E3%83%BC%E8%BB%8A/",
+    "via": "direct",
+    "q": "新エネルギー車",
+    "cur": "JPY",
+    "fx": 0.0419078292489904,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 860
+     }
+    ],
+    "ms": 863
+   },
+   "yja": {
+    "band": {
+     "n": 3,
+     "min": 560.0,
+     "p25": 560.0,
+     "mid": 880.0,
+     "p75": 1200.0,
+     "max": 1200.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": 2,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://auctions.yahoo.co.jp/closedsearch/closedsearch?p=%E6%96%B0%E3%82%A8%E3%83%8D%E3%83%AB%E3%82%AE%E3%83%BC%E8%BB%8A&va=%E6%96%B0%E3%82%A8%E3%83%8D%E3%83%AB%E3%82%AE%E3%83%BC%E8%BB%8A&b=1&n=100",
+    "via": "direct",
+    "q": "新エネルギー車",
+    "cur": "JPY",
+    "fx": 0.0419078292489904,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 654
+     }
+    ],
+    "ms": 658
+   },
+   "amz_in": {
+    "band": {
+     "n": 91,
+     "min": 1999.0,
+     "p25": 8499.0,
+     "mid": 26999.0,
+     "p75": 77998.0,
+     "max": 199798.0
+    },
+    "sold": 3800,
+    "sold_n": 20,
+    "comments": null,
+    "total": 40000,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://www.amazon.in/s?k=electric+vehicle",
+    "via": "fast",
+    "q": "electric vehicle",
+    "cur": "INR",
+    "fx": 0.07214583080281105,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 588,
+      "why": "HTTP 503"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": true,
+      "ms": 2025
+     }
+    ],
+    "ms": 2630
+   },
+   "flipkart": {
+    "band": {
+     "n": 31,
+     "min": 5000.0,
+     "p25": 125990.0,
+     "mid": 135990.0,
+     "p75": 156999.0,
+     "max": 189969.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://www.flipkart.com/search?q=electric+vehicle",
+    "via": "direct",
+    "q": "electric vehicle",
+    "cur": "INR",
+    "fx": 0.07214583080281105,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 2355
+     }
+    ],
+    "ms": 2359
+   },
+   "indiamart": {
+    "band": {
+     "n": 118,
+     "min": 1.0,
+     "p25": 115000.25,
+     "mid": 145000.5,
+     "p75": 180001.0,
+     "max": 480000.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://dir.indiamart.com/search.mp?ss=electric+vehicle",
+    "via": "direct",
+    "q": "electric vehicle",
+    "cur": "INR",
+    "fx": 0.07214583080281105,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 1955
+     }
+    ],
+    "ms": 1958
+   },
+   "lazada": {
+    "ok": false,
+    "error": "Scrapling 快速：被拦了（punish）；Scrapling 浏览器：被拦了（punish）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 453,
+      "why": "被拦了（punish）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 742,
+      "why": "被拦了（punish）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 95971,
+      "why": "被拦了（punish）"
+     }
+    ],
+    "ms": 97167
+   },
+   "meli_mx": {
+    "band": {
+     "n": 27,
+     "min": 179000.0,
+     "p25": 325000.0,
+     "mid": 399000.0,
+     "p75": 528000.0,
+     "max": 659900.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "n_items": 27,
+    "src": "接口数据",
+    "url": "https://listado.mercadolibre.com.mx/Veh%C3%ADculos-de-nueva-energ%C3%ADa",
+    "via": "direct",
+    "q": "Vehículos de nueva energía",
+    "cur": "MXN",
+    "fx": 0.3388947583022187,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 2231
+     }
+    ],
+    "ms": 4199
+   },
+   "meli_br": {
+    "band": {
+     "n": 48,
+     "min": 23.75,
+     "p25": 66.13,
+     "mid": 109.44,
+     "p75": 212.72,
+     "max": 3099.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": 26,
+    "total": null,
+    "n_items": 48,
+    "src": "接口数据",
+    "url": "https://lista.mercadolivre.com.br/Novos-ve%C3%ADculos-energ%C3%A9ticos",
+    "via": "direct",
+    "q": "Novos veículos energéticos",
+    "cur": "BRL",
+    "fx": 1.1575218178898545,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 2908
+     }
+    ],
+    "ms": 5398
+   },
+   "amz_br": {
+    "band": {
+     "n": 3,
+     "min": 40.61,
+     "p25": 40.61,
+     "mid": 234.7,
+     "p75": 243.67,
+     "max": 243.67
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://www.amazon.com.br/s?k=Novos+ve%C3%ADculos+energ%C3%A9ticos",
+    "via": "direct",
+    "q": "Novos veículos energéticos",
+    "cur": "BRL",
+    "fx": 1.1575218178898545,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 1106
+     }
+    ],
+    "ms": 1109
+   },
+   "amz_ae": {
+    "band": {
+     "n": 93,
+     "min": 29.97,
+     "p25": 194.38,
+     "mid": 470.0,
+     "p75": 835.09,
+     "max": 2812.7
+    },
+    "sold": 100,
+    "sold_n": 2,
+    "comments": null,
+    "total": 8000,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://www.amazon.ae/s?k=electric+vehicle",
+    "via": "fast",
+    "q": "electric vehicle",
+    "cur": "AED",
+    "fx": 1.8175528931245746,
+    "ok": true,
+    "trace": [
+     {
+      "m": "Scrapling 快速",
+      "ok": true,
+      "ms": 1809
+     }
+    ],
+    "ms": 1825
+   },
+   "jumia": {
+    "ok": false,
+    "error": "Scrapling 快速：被拒绝访问（403，可能被识别成爬虫）；Scrapling 浏览器：被拒绝访问（403，可能被识别成爬虫）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 392,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 670,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 97131,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     }
+    ],
+    "ms": 98196
+   },
+   "mic": {
+    "band": {
+     "n": 38,
+     "min": 269.0,
+     "p25": 15000.0,
+     "mid": 20250.0,
+     "p75": 35750.0,
+     "max": 70000.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://www.made-in-china.com/multi-search/electric+vehicle/F1/1.html",
+    "via": "direct",
+    "q": "electric vehicle",
+    "cur": "USD",
+    "fx": 6.674963,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 2023
+     }
+    ],
+    "ms": 2038
+   },
+   "dhgate": {
+    "band": {
+     "n": 160,
+     "min": 0.77,
+     "p25": 9.4,
+     "mid": 20.69,
+     "p75": 41.39,
+     "max": 2110.56
+    },
+    "sold": 41,
+    "sold_n": 6,
+    "comments": null,
+    "total": null,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://www.dhgate.com/wholesale/search.do?act=search&searchkey=electric+vehicle",
+    "via": "direct",
+    "q": "electric vehicle",
+    "cur": "USD",
+    "fx": 6.674963,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 922
+     }
+    ],
+    "ms": 930
+   },
+   "shopee": {
+    "ok": false,
+    "skipped": true,
+    "error": "要先登录（在「交易平台抓取」的表里点「登录Shopee」，或点上面「一键登录全部」）",
+    "trace": [],
+    "ms": 0
+   },
+   "usaspending": {
+    "kind2": "gov",
+    "total": 3446,
+    "amt_mid": 158444.505,
+    "amt_sum": 45010993.05,
+    "amt_n": 50,
+    "items": [
+     {
+      "t": "ORDER FOR THE DOE EERE CIO BUSINESS OPERATIONS SUPPORT SERVICES (CBOSS) FOR THE THE JOINT ",
+      "buyer": "Department of Energy",
+      "who": "ACCENTURE FEDERAL SERVICES LLC",
+      "amt": 16229091.65,
+      "d": "2023-05-02"
+     },
+     {
+      "t": "EVCF ELECTRIC VEHICLE CHARGING FACILITIES, VARIOUS LOCATIONS, NAVFAC NW AOR",
+      "buyer": "Department of Defense",
+      "who": "CHUGACH SOLUTIONS ENTERPRISE, LLC",
+      "amt": 13046563.9,
+      "d": "2024-09-20"
+     },
+     {
+      "t": "FURNISH AND INSTALL NEW EMERGENCY ELECTRIC GENERATORS, ELECTRIC VEHICLE CHARGING STATIONS,",
+      "buyer": "Department of Defense",
+      "who": "PTSI MANAGED SERVICES INC",
+      "amt": 2224934.0,
+      "d": "2024-09-30"
+     },
+     {
+      "t": "ELECTRIC VEHICLE CHARGING STATION MAKE-READY INFRASTRUCTURE INSTALL",
+      "buyer": "Department of Defense",
+      "who": "EVERSOURCE ENERGY SERVICE COMPANY",
+      "amt": 1838943.0,
+      "d": "2023-09-29"
+     },
+     {
+      "t": "P867 - DBB FOR MICROGRID WITH ELECTRIC VEHICLE (EV) CHARGING INFR",
+      "buyer": "Department of Defense",
+      "who": "SUMMER CONSULTANTS, INC.",
+      "amt": 1636273.0,
+      "d": "2024-08-19"
+     },
+     {
+      "t": "THE CONTRACTOR SHALL PROVIDE ALL LABOR, EQUIPMENT, MATERIALS, AND TRANSPORTATION TO DESIGN",
+      "buyer": "Department of Defense",
+      "who": "WESTON SOLUTIONS INC",
+      "amt": 952643.24,
+      "d": "2022-09-30"
+     }
+    ],
+    "cur": "USD",
+    "fx": 6.674963,
+    "q": "electric vehicle",
+    "url": "https://www.usaspending.gov/search",
+    "via": "api",
+    "days": 365,
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 2298
+     }
+    ],
+    "ms": 2299
+   },
+   "ted": {
+    "kind2": "gov",
+    "total": 999,
+    "items": [
+     {
+      "t": "Bulgaria – Electric vehicles – „Закупуване на електрическо превозно средство, включително ",
+      "buyer": "ОБЩИНА ТРЯВНА",
+      "d": "2026-06-01",
+      "u": "https://ted.europa.eu/en/notice/-/detail/370827-2026"
+     },
+     {
+      "t": "Switzerland – Electric vehicles – VoitSPM_A1 / Acquisition et entretien de voitures de pat",
+      "buyer": "Centrale municipale d'achat et d'impression de la ",
+      "d": "2026-06-01",
+      "u": "https://ted.europa.eu/en/notice/-/detail/370923-2026"
+     },
+     {
+      "t": "Czechia – Passenger cars – VZ 90626 – Dodávka 2 kusů osobních vozidel s elektrickým pohone",
+      "buyer": "HLAVNÍ MĚSTO PRAHA",
+      "d": "2026-06-01",
+      "u": "https://ted.europa.eu/en/notice/-/detail/371261-2026"
+     },
+     {
+      "t": "Sweden – Motor vehicles – Skåpbil, el",
+      "buyer": "TRANÅS KOMMUN",
+      "d": "2026-06-01",
+      "u": "https://ted.europa.eu/en/notice/-/detail/371316-2026"
+     },
+     {
+      "t": "Romania – Electric vehicles – “Achizitionare microbuze scolare, electrice si hibrid (plug-",
+      "buyer": "Consiliul Judetean Dambovita",
+      "d": "2026-06-01",
+      "u": "https://ted.europa.eu/en/notice/-/detail/371693-2026"
+     },
+     {
+      "t": "Portugal – Computer-related equipment – Fornecimento dos equipamentos complementares a ins",
+      "buyer": "Direção Regional das Pescas",
+      "d": "2026-06-01",
+      "u": "https://ted.europa.eu/en/notice/-/detail/372242-2026"
+     }
+    ],
+    "cur": "EUR",
+    "fx": 7.324555888042856,
+    "q": "electric vehicle",
+    "url": "https://ted.europa.eu/en/search/result?FT=electric%20vehicle",
+    "via": "api",
+    "days": 180,
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 1913
+     }
+    ],
+    "ms": 1914
    }
   }
  },
  "t:lowalt": {
   "target": "t:lowalt",
   "kw": "低空经济",
-  "at": 1795700827,
+  "at": 1795747689,
   "res": {
    "ccgp": {
     "total": 248,
@@ -952,13 +2453,883 @@
      }
     ],
     "ms": 10342
+   },
+   "ywg": {
+    "ok": false,
+    "error": "Scrapling 浏览器：页面是空壳（只有 241 个字）；爬虫专用 Chrome：页面是空壳（只有 241 个字）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 73,
+      "why": "页面是空壳（只有 3 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 357,
+      "why": "页面是空壳（只有 3 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 8179,
+      "why": "页面是空壳（只有 241 个字）"
+     },
+     {
+      "m": "爬虫专用 Chrome",
+      "ok": false,
+      "ms": 8287,
+      "why": "页面是空壳（只有 241 个字）"
+     }
+    ],
+    "ms": 16898
+   },
+   "tb": {
+    "ok": false,
+    "skipped": true,
+    "error": "要先登录（在「交易平台抓取」的表里点「登录淘宝 / 天猫」，或点上面「一键登录全部」）",
+    "trace": [],
+    "ms": 0
+   },
+   "pdd": {
+    "ok": false,
+    "skipped": true,
+    "error": "要先登录（在「交易平台抓取」的表里点「登录拼多多」，或点上面「一键登录全部」）",
+    "trace": [],
+    "ms": 0
+   },
+   "xy": {
+    "band": {
+     "n": 30,
+     "min": 1.0,
+     "p25": 1.0,
+     "mid": 1.79,
+     "p75": 4.19,
+     "max": 28.0
+    },
+    "sold": 675,
+    "sold_n": 9,
+    "comments": null,
+    "total": null,
+    "src": "网页文字",
+    "url": "https://www.goofish.com/search?q=%E4%BD%8E%E7%A9%BA%E7%BB%8F%E6%B5%8E",
+    "via": "login",
+    "ok": true,
+    "trace": [
+     {
+      "m": "已登录的浏览器",
+      "ok": true,
+      "ms": 16926
+     }
+    ],
+    "ms": 16938
+   },
+   "sn": {
+    "band": {
+     "n": 27,
+     "min": 34.68,
+     "p25": 56.0,
+     "mid": 67.8,
+     "p75": 87.0,
+     "max": 16029.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "src": "网页文字",
+    "url": "https://search.suning.com/%E4%BD%8E%E7%A9%BA%E7%BB%8F%E6%B5%8E/",
+    "via": "chrome",
+    "ok": true,
+    "trace": [
+     {
+      "m": "爬虫专用 Chrome",
+      "ok": true,
+      "ms": 5664
+     }
+    ],
+    "ms": 5671
+   },
+   "amazon": {
+    "ok": false,
+    "error": "Scrapling 快速：页面是空壳（只有 0 个字）；Scrapling 浏览器：网站自己出错了（5xx），过会儿再试",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 963,
+      "why": "页面是空壳（只有 0 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 1182,
+      "why": "页面是空壳（只有 0 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 13919,
+      "why": "网站自己出错了（5xx），过会儿再试"
+     }
+    ],
+    "ms": 16067
+   },
+   "ebay": {
+    "ok": false,
+    "error": "Scrapling 快速：被拒绝访问（403，可能被识别成爬虫）；Scrapling 浏览器：被拒绝访问（403，可能被识别成爬虫）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 339,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 914,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 16844,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     }
+    ],
+    "ms": 18098
+   },
+   "aliexpress": {
+    "band": {
+     "n": 4,
+     "min": 1.0,
+     "p25": 1.0,
+     "mid": 1.0,
+     "p75": 1.75,
+     "max": 2.0
+    },
+    "cur": "$",
+    "sold": null,
+    "sold_n": 0,
+    "total": null,
+    "url": "https://www.aliexpress.com/w/wholesale-drone.html",
+    "via": "browser",
+    "en": "drone",
+    "ok": true,
+    "trace": [
+     {
+      "m": "Scrapling 浏览器",
+      "ok": true,
+      "ms": 18565
+     }
+    ],
+    "ms": 18570
+   },
+   "alibaba": {
+    "band": {
+     "n": 6,
+     "min": 1.0,
+     "p25": 1.0,
+     "mid": 1.0,
+     "p75": 1.25,
+     "max": 2.0
+    },
+    "cur": "$",
+    "sold": null,
+    "sold_n": 0,
+    "total": null,
+    "url": "https://www.alibaba.com/trade/search?SearchText=drone",
+    "via": "browser",
+    "en": "drone",
+    "ok": true,
+    "trace": [
+     {
+      "m": "Scrapling 浏览器",
+      "ok": true,
+      "ms": 47704
+     }
+    ],
+    "ms": 47708
+   },
+   "walmart": {
+    "band": {
+     "n": 32,
+     "min": 13.99,
+     "p25": 27.99,
+     "mid": 48.25,
+     "p75": 74.99,
+     "max": 272.99
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": 16143,
+    "total": null,
+    "n_items": 32,
+    "src": "接口数据",
+    "url": "https://www.walmart.com/search?q=drone",
+    "via": "fast",
+    "q": "drone",
+    "cur": "USD",
+    "fx": 6.674963,
+    "ok": true,
+    "trace": [
+     {
+      "m": "Scrapling 快速",
+      "ok": true,
+      "ms": 2752
+     }
+    ],
+    "ms": 2790
+   },
+   "amz_uk": {
+    "ok": false,
+    "error": "Scrapling 快速：页面是空壳（只有 157 个字）；Scrapling 浏览器：网站自己出错了（5xx），过会儿再试",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 218,
+      "why": "页面是空壳（只有 157 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 487,
+      "why": "页面是空壳（只有 157 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 53451,
+      "why": "网站自己出错了（5xx），过会儿再试"
+     }
+    ],
+    "ms": 54158
+   },
+   "amz_de": {
+    "ok": false,
+    "error": "Scrapling 快速：没认出商品 / 公告列表；Scrapling 浏览器：网站自己出错了（5xx），过会儿再试",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 484,
+      "why": "HTTP 503"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 1779,
+      "why": "没认出商品 / 公告列表"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 53354,
+      "why": "网站自己出错了（5xx），过会儿再试"
+     }
+    ],
+    "ms": 57804
+   },
+   "amz_fr": {
+    "ok": false,
+    "error": "Scrapling 快速：页面是空壳（只有 157 个字）；Scrapling 浏览器：网站自己出错了（5xx），过会儿再试",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 212,
+      "why": "页面是空壳（只有 157 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 506,
+      "why": "页面是空壳（只有 157 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 53566,
+      "why": "网站自己出错了（5xx），过会儿再试"
+     }
+    ],
+    "ms": 55874
+   },
+   "amz_jp": {
+    "ok": false,
+    "error": "普通方式：页面是空壳（只有 0 个字）；Scrapling 浏览器：没认出商品 / 公告列表",
+    "trace": [
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 2559,
+      "why": "没认出商品 / 公告列表"
+     },
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 615,
+      "why": "页面是空壳（只有 0 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 30115,
+      "why": "没认出商品 / 公告列表"
+     }
+    ],
+    "ms": 36078
+   },
+   "rakuten": {
+    "band": {
+     "n": 10,
+     "min": 413.0,
+     "p25": 984.25,
+     "mid": 1417.0,
+     "p75": 2482.0,
+     "max": 2731.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "n_items": 10,
+    "src": "接口数据",
+    "url": "https://search.rakuten.co.jp/search/mall/%E4%BD%8E%E7%A9%BA%E7%B5%8C%E6%B8%88/",
+    "via": "direct",
+    "q": "低空経済",
+    "cur": "JPY",
+    "fx": 0.0419078292489904,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 676
+     }
+    ],
+    "ms": 681
+   },
+   "yja": {
+    "band": {
+     "n": 100,
+     "min": 220.0,
+     "p25": 800.0,
+     "mid": 1050.0,
+     "p75": 1725.75,
+     "max": 5800.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": 1195,
+    "n_items": 100,
+    "src": "接口数据",
+    "url": "https://auctions.yahoo.co.jp/closedsearch/closedsearch?p=%E4%BD%8E%E7%A9%BA%E7%B5%8C%E6%B8%88&va=%E4%BD%8E%E7%A9%BA%E7%B5%8C%E6%B8%88&b=1&n=100",
+    "via": "direct",
+    "q": "低空経済",
+    "cur": "JPY",
+    "fx": 0.0419078292489904,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 840
+     }
+    ],
+    "ms": 857
+   },
+   "amz_in": {
+    "band": {
+     "n": 129,
+     "min": 549.0,
+     "p25": 1399.0,
+     "mid": 2499.0,
+     "p75": 6999.0,
+     "max": 249000.0
+    },
+    "sold": 4150,
+    "sold_n": 17,
+    "comments": null,
+    "total": 50000,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://www.amazon.in/s?k=drone",
+    "via": "fast",
+    "q": "drone",
+    "cur": "INR",
+    "fx": 0.07214583080281105,
+    "ok": true,
+    "trace": [
+     {
+      "m": "Scrapling 快速",
+      "ok": true,
+      "ms": 2792
+     }
+    ],
+    "ms": 2801
+   },
+   "flipkart": {
+    "band": {
+     "n": 31,
+     "min": 199.0,
+     "p25": 1896.0,
+     "mid": 1945.0,
+     "p75": 2246.0,
+     "max": 25000.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://www.flipkart.com/search?q=drone",
+    "via": "direct",
+    "q": "drone",
+    "cur": "INR",
+    "fx": 0.07214583080281105,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 1601
+     }
+    ],
+    "ms": 1603
+   },
+   "indiamart": {
+    "band": {
+     "n": 25,
+     "min": 3.5,
+     "p25": 47.0,
+     "mid": 1480.0,
+     "p75": 19500.0,
+     "max": 525000.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://dir.indiamart.com/search.mp?ss=drone",
+    "via": "direct",
+    "q": "drone",
+    "cur": "INR",
+    "fx": 0.07214583080281105,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 1699
+     }
+    ],
+    "ms": 1702
+   },
+   "lazada": {
+    "ok": false,
+    "error": "Scrapling 快速：被拦了（punish）；Scrapling 浏览器：被拦了（punish）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 4206,
+      "why": "被拦了（punish）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 614,
+      "why": "被拦了（punish）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 27323,
+      "why": "被拦了（punish）"
+     }
+    ],
+    "ms": 32144
+   },
+   "meli_mx": {
+    "band": {
+     "n": 48,
+     "min": 37.7,
+     "p25": 392.09,
+     "mid": 529.0,
+     "p75": 1149.0,
+     "max": 5950000.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": 11726,
+    "total": null,
+    "n_items": 48,
+    "src": "接口数据",
+    "url": "https://listado.mercadolibre.com.mx/econom%C3%ADa-de-baja-altitud",
+    "via": "direct",
+    "q": "economía de baja altitud",
+    "cur": "MXN",
+    "fx": 0.3388947583022187,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 1379
+     }
+    ],
+    "ms": 3449
+   },
+   "meli_br": {
+    "band": {
+     "n": 48,
+     "min": 9.46,
+     "p25": 41.86,
+     "mid": 133.26,
+     "p75": 627.96,
+     "max": 4409.91
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": 6660,
+    "total": null,
+    "n_items": 48,
+    "src": "接口数据",
+    "url": "https://lista.mercadolivre.com.br/economia-de-baixa-altitude",
+    "via": "direct",
+    "q": "economia de baixa altitude",
+    "cur": "BRL",
+    "fx": 1.1575218178898545,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 1368
+     }
+    ],
+    "ms": 3213
+   },
+   "amz_br": {
+    "ok": false,
+    "error": "Scrapling 快速：没认出商品 / 公告列表；Scrapling 浏览器：网站自己出错了（5xx），过会儿再试",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 1091,
+      "why": "没认出商品 / 公告列表"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 1103,
+      "why": "没认出商品 / 公告列表"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 31193,
+      "why": "网站自己出错了（5xx），过会儿再试"
+     }
+    ],
+    "ms": 33389
+   },
+   "amz_ae": {
+    "band": {
+     "n": 55,
+     "min": 14.44,
+     "p25": 26.99,
+     "mid": 128.99,
+     "p75": 211.0,
+     "max": 25960.0
+    },
+    "sold": 150,
+    "sold_n": 3,
+    "comments": null,
+    "total": 10000,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://www.amazon.ae/s?k=drone",
+    "via": "fast",
+    "q": "drone",
+    "cur": "AED",
+    "fx": 1.8175528931245746,
+    "ok": true,
+    "trace": [
+     {
+      "m": "Scrapling 快速",
+      "ok": true,
+      "ms": 1624
+     }
+    ],
+    "ms": 1632
+   },
+   "jumia": {
+    "ok": false,
+    "error": "Scrapling 快速：被拒绝访问（403，可能被识别成爬虫）；Scrapling 浏览器：被拒绝访问（403，可能被识别成爬虫）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 221,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 534,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 70837,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     }
+    ],
+    "ms": 71594
+   },
+   "mic": {
+    "band": {
+     "n": 37,
+     "min": 0.52,
+     "p25": 156.0,
+     "mid": 335.0,
+     "p75": 339.0,
+     "max": 11382.77
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://www.made-in-china.com/multi-search/drone/F1/1.html",
+    "via": "direct",
+    "q": "drone",
+    "cur": "USD",
+    "fx": 6.674963,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 2681
+     }
+    ],
+    "ms": 2689
+   },
+   "dhgate": {
+    "band": {
+     "n": 150,
+     "min": 0.73,
+     "p25": 24.54,
+     "mid": 42.12,
+     "p75": 57.56,
+     "max": 120.71
+    },
+    "sold": 358,
+    "sold_n": 15,
+    "comments": null,
+    "total": null,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://www.dhgate.com/wholesale/search.do?act=search&searchkey=drone",
+    "via": "direct",
+    "q": "drone",
+    "cur": "USD",
+    "fx": 6.674963,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 694
+     }
+    ],
+    "ms": 701
+   },
+   "shopee": {
+    "ok": false,
+    "skipped": true,
+    "error": "要先登录（在「交易平台抓取」的表里点「登录Shopee」，或点上面「一键登录全部」）",
+    "trace": [],
+    "ms": 0
+   },
+   "kickstarter": {
+    "kind2": "crowd",
+    "total": 816,
+    "band": {
+     "n": 5,
+     "min": 773.34,
+     "p25": 819.36,
+     "mid": 10922.51,
+     "p75": 167800.43,
+     "max": 249289.84
+    },
+    "sum": 348162.08798265,
+    "n": 12,
+    "won": 3,
+    "backers": 727,
+    "cur": "USD",
+    "fx": 6.674963,
+    "q": "drone",
+    "url": "https://www.kickstarter.com/discover/advanced?term=drone",
+    "via": "api",
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": false,
+      "ms": 614,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     },
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 1211
+     }
+    ],
+    "ms": 1830
+   },
+   "usaspending": {
+    "kind2": "gov",
+    "total": 392,
+    "amt_mid": 9996868.55,
+    "amt_sum": 1181638897.5,
+    "amt_n": 50,
+    "items": [
+     {
+      "t": "PROCUREMENT OF SUPPLIES AND SERVICES FOR AS3 SURVEYOR DRONES, BUMBLEBEE V1, BUMBLEBEE V2, ",
+      "buyer": "Department of Defense",
+      "who": "NAPATREE TECHNOLOGY LLC",
+      "amt": 265382200.0,
+      "d": "2026-03-10"
+     },
+     {
+      "t": "JPL LUNAR DRONES (54-232663)",
+      "buyer": "National Aeronautics and Space Administration",
+      "who": "CALIFORNIA INSTITUTE OF TECHNOLOGY",
+      "amt": 137370288.39,
+      "d": "2026-04-27"
+     },
+     {
+      "t": "IN SUPPORT OF EXECUTIVE ORDER- UNLEASHING AMERICA DRONE DOMINANCE, THE ARMY CONTRACTING CO",
+      "buyer": "Department of Defense",
+      "who": "GRIFFON AEROSPACE, INC.",
+      "amt": 77729004.5,
+      "d": "2026-03-16"
+     },
+     {
+      "t": "CONSTRUCTION OF WEG SUBSCALE DRONE FACILITIES",
+      "buyer": "Department of Defense",
+      "who": "BL HARBERT INTERNATIONAL LLC",
+      "amt": 75886925.45,
+      "d": "2021-12-10"
+     },
+     {
+      "t": "IN ACCORDANCE WITH THE DIRECTIVES ESTABLISHED IN THE DEPARTMENT OF WAR MEMORANDUM DATED 10",
+      "buyer": "Department of Defense",
+      "who": "GRIFFON AEROSPACE, INC.",
+      "amt": 67940895.16,
+      "d": "2026-06-03"
+     },
+     {
+      "t": "UAS PROJECT OFFICE, LAUNCHED EFFECTS HAS A REQUIREMENT TO PURCHASE DRONES.",
+      "buyer": "Department of Defense",
+      "who": "INTEGRATE DG LLC",
+      "amt": 64015279.0,
+      "d": "2026-07-09"
+     }
+    ],
+    "cur": "USD",
+    "fx": 6.674963,
+    "q": "drone",
+    "url": "https://www.usaspending.gov/search",
+    "via": "api",
+    "days": 365,
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 1870
+     }
+    ],
+    "ms": 1871
+   },
+   "ted": {
+    "kind2": "gov",
+    "total": 368,
+    "items": [
+     {
+      "t": "France – Earthmoving work – MARCHE PUBLIC DE TRAVAUX POUR LA RESTRUCTURATION DE L'EPAC « L",
+      "buyer": "EPAC Les Deux Séquoias",
+      "d": "2026-06-01",
+      "u": "https://ted.europa.eu/en/notice/-/detail/371757-2026"
+     },
+     {
+      "t": "Spain – Internet services – Apoyo a la gestión de redes sociales y la creación de piezas a",
+      "buyer": "Área de Gobierno de Vicealcaldía, Portavoz, Seguri",
+      "d": "2026-06-01",
+      "u": "https://ted.europa.eu/en/notice/-/detail/374187-2026"
+     },
+     {
+      "t": "Denmark – Insurance services – Indkøb af forsikringer, Arbejdsmarkedets Tillægspension (AT",
+      "buyer": "Hansson & Partners A/S Forsikringsmæglerselskab",
+      "d": "2026-06-01",
+      "u": "https://ted.europa.eu/en/notice/-/detail/374507-2026"
+     },
+     {
+      "t": "Latvia – Non-piloted aircraft – Dronu piegāde",
+      "buyer": "Latvijas Universitāte",
+      "d": "2026-06-01",
+      "u": "https://ted.europa.eu/en/notice/-/detail/374523-2026"
+     },
+     {
+      "t": "France – Library furniture – FOURNITURE LIVRAISON ET INSTALLATION DE MATERIELS POUR LE POL",
+      "buyer": "CDC Dronne et Belle",
+      "d": "2026-06-02",
+      "u": "https://ted.europa.eu/en/notice/-/detail/376338-2026"
+     },
+     {
+      "t": "Hungary – Stamp-impressed paper – Vásárlási utalványok beszerzése 2026 - Újra",
+      "buyer": "Magyar Diáksport Szövetség",
+      "d": "2026-06-02",
+      "u": "https://ted.europa.eu/en/notice/-/detail/376672-2026"
+     }
+    ],
+    "cur": "EUR",
+    "fx": 7.324555888042856,
+    "q": "drone",
+    "url": "https://ted.europa.eu/en/search/result?FT=drone",
+    "via": "api",
+    "days": 180,
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 1611
+     }
+    ],
+    "ms": 1612
    }
   }
  },
  "t:space": {
   "target": "t:space",
   "kw": "商业航天",
-  "at": 1795700946,
+  "at": 1795747707,
   "res": {
    "ccgp": {
     "total": 22,
@@ -1118,13 +3489,233 @@
      }
     ],
     "ms": 10289
+   },
+   "ywg": {
+    "ok": false,
+    "error": "Scrapling 浏览器：页面是空壳（只有 241 个字）；爬虫专用 Chrome：页面是空壳（只有 241 个字）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 60,
+      "why": "页面是空壳（只有 3 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 378,
+      "why": "页面是空壳（只有 3 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 7952,
+      "why": "页面是空壳（只有 241 个字）"
+     },
+     {
+      "m": "爬虫专用 Chrome",
+      "ok": false,
+      "ms": 8580,
+      "why": "页面是空壳（只有 241 个字）"
+     }
+    ],
+    "ms": 16972
+   },
+   "tb": {
+    "ok": false,
+    "skipped": true,
+    "error": "要先登录（在「交易平台抓取」的表里点「登录淘宝 / 天猫」，或点上面「一键登录全部」）",
+    "trace": [],
+    "ms": 0
+   },
+   "pdd": {
+    "ok": false,
+    "skipped": true,
+    "error": "要先登录（在「交易平台抓取」的表里点「登录拼多多」，或点上面「一键登录全部」）",
+    "trace": [],
+    "ms": 0
+   },
+   "xy": {
+    "band": {
+     "n": 29,
+     "min": 28.11,
+     "p25": 47.45,
+     "mid": 2100.0,
+     "p75": 500000.0,
+     "max": 1600000.0
+    },
+    "sold": 101,
+    "sold_n": 10,
+    "comments": null,
+    "total": null,
+    "src": "网页文字",
+    "url": "https://www.goofish.com/search?q=%E5%95%86%E4%B8%9A%E8%88%AA%E5%A4%A9",
+    "via": "login",
+    "ok": true,
+    "trace": [
+     {
+      "m": "已登录的浏览器",
+      "ok": true,
+      "ms": 16996
+     }
+    ],
+    "ms": 17005
+   },
+   "sn": {
+    "band": {
+     "n": 10,
+     "min": 46.0,
+     "p25": 54.34,
+     "mid": 62.65,
+     "p75": 104.78,
+     "max": 151.64
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "src": "网页文字",
+    "url": "https://search.suning.com/%E5%95%86%E4%B8%9A%E8%88%AA%E5%A4%A9/",
+    "via": "chrome",
+    "ok": true,
+    "trace": [
+     {
+      "m": "爬虫专用 Chrome",
+      "ok": true,
+      "ms": 6100
+     }
+    ],
+    "ms": 6106
+   },
+   "usaspending": {
+    "kind2": "gov",
+    "total": 17911,
+    "amt_mid": 248856008.81,
+    "amt_sum": 31889103176.63,
+    "amt_n": 50,
+    "items": [
+     {
+      "t": "MANAGEMENT AND OPERATIONS OF NEVADA TEST SITE AND SATELLITE FACILITIES",
+      "buyer": "Department of Energy",
+      "who": "NATIONAL SECURITY TECHNOLOGIES, LLC",
+      "amt": 5633229761.95,
+      "d": "2006-07-01"
+     },
+     {
+      "t": "EUROPA CLIPPER PROJECT  THE CONTRACT IS THE SPONSORING AGREEMENT BETWEEN THE NATIONAL AERO",
+      "buyer": "National Aeronautics and Space Administration",
+      "who": "CALIFORNIA INSTITUTE OF TECHNOLOGY",
+      "amt": 2985859580.98,
+      "d": "2018-10-01"
+     },
+     {
+      "t": "THE PURPOSE OF THIS DELIVERY ORDER AWARD IS TO ADD FUNDING FOR FTI TELECOMMUNICATIONS SERV",
+      "buyer": "Department of Transportation",
+      "who": "HARRIS CORPORATION",
+      "amt": 2366708833.41,
+      "d": "2021-07-01"
+     },
+     {
+      "t": "THE GOVERNMENT IS PROCURING THE NEXT-GENERATION GEOSTATIONARY OPERATIONAL ENVIRONMENTAL SA",
+      "buyer": "National Aeronautics and Space Administration",
+      "who": "LOCKHEED MARTIN CORP",
+      "amt": 2032829134.57,
+      "d": "2008-12-04"
+     },
+     {
+      "t": "THE PURPOSE OF THIS CONTRACT IS TO DEVELOP THE GROUND SYSTEM THAT WILL SUPPORT NOAA S NEXT",
+      "buyer": "Department of Commerce",
+      "who": "L3HARRIS TECHNOLOGIES, INC.",
+      "amt": 1826088581.86,
+      "d": "2009-05-27"
+     },
+     {
+      "t": "DEEP SPACE NETWORK (DSN)  THE CONTRACT IS THE SPONSORING AGREEMENT BETWEEN THE NATIONAL AE",
+      "buyer": "National Aeronautics and Space Administration",
+      "who": "CALIFORNIA INSTITUTE OF TECHNOLOGY",
+      "amt": 1581664549.58,
+      "d": "2018-10-01"
+     }
+    ],
+    "cur": "USD",
+    "fx": 6.674963,
+    "q": "satellite",
+    "url": "https://www.usaspending.gov/search",
+    "via": "api",
+    "days": 365,
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 2700
+     }
+    ],
+    "ms": 2702
+   },
+   "ted": {
+    "kind2": "gov",
+    "total": 9233,
+    "items": [
+     {
+      "t": "Germany – Electricity, heating, solar and nuclear energy – Stromlieferung 2027 - FAIR",
+      "buyer": "FAIR - Facility for Antiproton and Ion Research in",
+      "d": "2026-06-01",
+      "u": "https://ted.europa.eu/en/notice/-/detail/370733-2026"
+     },
+     {
+      "t": "Germany – Portable computers – Leasing Notebook",
+      "buyer": "NBank",
+      "d": "2026-06-01",
+      "u": "https://ted.europa.eu/en/notice/-/detail/370834-2026"
+     },
+     {
+      "t": "Germany – Excavating and earthmoving work – VOB 16-25O Errichtung eines Berufsschulcampus ",
+      "buyer": "Landkreis Vorpommern-Rügen",
+      "d": "2026-06-01",
+      "u": "https://ted.europa.eu/en/notice/-/detail/370893-2026"
+     },
+     {
+      "t": "Germany – Metalworking – Access - Metallbauarbeiten - Labor- und Bürogebäude",
+      "buyer": "Access e.V.",
+      "d": "2026-06-01",
+      "u": "https://ted.europa.eu/en/notice/-/detail/370911-2026"
+     },
+     {
+      "t": "Germany – IT services: consulting, software development, Internet and support – Donau-Ille",
+      "buyer": "Donau-Iller-Nahverkehrsverbund-GmbH",
+      "d": "2026-06-01",
+      "u": "https://ted.europa.eu/en/notice/-/detail/370964-2026"
+     },
+     {
+      "t": "Germany – Transport services (excl. Waste transport) – 7000007713 Rahmenvereinbarung Logis",
+      "buyer": "Deutsche Gesellschaft für Internationale Zusammena",
+      "d": "2026-06-01",
+      "u": "https://ted.europa.eu/en/notice/-/detail/371012-2026"
+     }
+    ],
+    "cur": "EUR",
+    "fx": 7.324555888042856,
+    "q": "satellite",
+    "url": "https://ted.europa.eu/en/search/result?FT=satellite",
+    "via": "api",
+    "days": 180,
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 1439
+     }
+    ],
+    "ms": 1439
    }
   }
  },
  "t:energy": {
   "target": "t:energy",
   "kw": "储能",
-  "at": 1795701086,
+  "at": 1795747880,
   "res": {
    "ccgp": {
     "total": 308,
@@ -1284,13 +3875,777 @@
      }
     ],
     "ms": 28365
+   },
+   "ywg": {
+    "ok": false,
+    "skipped": true,
+    "error": "连着 6 次被拦或没认出，先跳过，明天再试",
+    "trace": [],
+    "ms": 0
+   },
+   "tb": {
+    "ok": false,
+    "skipped": true,
+    "error": "要先登录（在「交易平台抓取」的表里点「登录淘宝 / 天猫」，或点上面「一键登录全部」）",
+    "trace": [],
+    "ms": 0
+   },
+   "pdd": {
+    "ok": false,
+    "skipped": true,
+    "error": "要先登录（在「交易平台抓取」的表里点「登录拼多多」，或点上面「一键登录全部」）",
+    "trace": [],
+    "ms": 0
+   },
+   "xy": {
+    "band": {
+     "n": 30,
+     "min": 1.5,
+     "p25": 19.16,
+     "mid": 82.44,
+     "p75": 255.0,
+     "max": 3240.0
+    },
+    "sold": 1457,
+    "sold_n": 16,
+    "comments": null,
+    "total": null,
+    "src": "网页文字",
+    "url": "https://www.goofish.com/search?q=%E5%82%A8%E8%83%BD",
+    "via": "login",
+    "ok": true,
+    "trace": [
+     {
+      "m": "已登录的浏览器",
+      "ok": true,
+      "ms": 14599
+     }
+    ],
+    "ms": 14608
+   },
+   "sn": {
+    "band": {
+     "n": 80,
+     "min": 18.24,
+     "p25": 69.25,
+     "mid": 120.51,
+     "p75": 28940.0,
+     "max": 542000.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "src": "网页文字",
+    "url": "https://search.suning.com/%E5%82%A8%E8%83%BD/",
+    "via": "chrome",
+    "ok": true,
+    "trace": [
+     {
+      "m": "爬虫专用 Chrome",
+      "ok": true,
+      "ms": 5832
+     }
+    ],
+    "ms": 5845
+   },
+   "amazon": {
+    "ok": false,
+    "error": "Scrapling 快速：页面是空壳（只有 0 个字）；Scrapling 浏览器：网站自己出错了（5xx），过会儿再试",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 851,
+      "why": "页面是空壳（只有 0 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 937,
+      "why": "页面是空壳（只有 0 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 14795,
+      "why": "网站自己出错了（5xx），过会儿再试"
+     }
+    ],
+    "ms": 16586
+   },
+   "ebay": {
+    "ok": false,
+    "error": "Scrapling 快速：被拒绝访问（403，可能被识别成爬虫）；Scrapling 浏览器：被拒绝访问（403，可能被识别成爬虫）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 299,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 851,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 7667,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     }
+    ],
+    "ms": 8820
+   },
+   "aliexpress": {
+    "band": {
+     "n": 4,
+     "min": 1.0,
+     "p25": 1.0,
+     "mid": 1.0,
+     "p75": 1.75,
+     "max": 2.0
+    },
+    "cur": "$",
+    "sold": null,
+    "sold_n": 0,
+    "total": null,
+    "url": "https://www.aliexpress.com/w/wholesale-energy-storage-battery.html",
+    "via": "browser",
+    "en": "energy storage battery",
+    "ok": true,
+    "trace": [
+     {
+      "m": "Scrapling 浏览器",
+      "ok": true,
+      "ms": 21982
+     }
+    ],
+    "ms": 21987
+   },
+   "alibaba": {
+    "band": {
+     "n": 6,
+     "min": 1.0,
+     "p25": 1.0,
+     "mid": 1.0,
+     "p75": 1.25,
+     "max": 2.0
+    },
+    "cur": "$",
+    "sold": null,
+    "sold_n": 0,
+    "total": null,
+    "url": "https://www.alibaba.com/trade/search?SearchText=energy+storage+battery",
+    "via": "browser",
+    "en": "energy storage battery",
+    "ok": true,
+    "trace": [
+     {
+      "m": "Scrapling 浏览器",
+      "ok": true,
+      "ms": 49816
+     }
+    ],
+    "ms": 49820
+   },
+   "walmart": {
+    "band": {
+     "n": 52,
+     "min": 7.88,
+     "p25": 12.88,
+     "mid": 64.5,
+     "p75": 387.0,
+     "max": 2099.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": 115616,
+    "total": null,
+    "n_items": 52,
+    "src": "接口数据",
+    "url": "https://www.walmart.com/search?q=energy+storage+battery",
+    "via": "fast",
+    "q": "energy storage battery",
+    "cur": "USD",
+    "fx": 6.674963,
+    "ok": true,
+    "trace": [
+     {
+      "m": "Scrapling 快速",
+      "ok": true,
+      "ms": 2819
+     }
+    ],
+    "ms": 2851
+   },
+   "amz_uk": {
+    "ok": false,
+    "error": "Scrapling 快速：页面是空壳（只有 157 个字）；Scrapling 浏览器：网站自己出错了（5xx），过会儿再试",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 215,
+      "why": "页面是空壳（只有 157 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 526,
+      "why": "页面是空壳（只有 157 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 50605,
+      "why": "网站自己出错了（5xx），过会儿再试"
+     }
+    ],
+    "ms": 51348
+   },
+   "amz_de": {
+    "ok": false,
+    "error": "Scrapling 快速：没认出商品 / 公告列表；Scrapling 浏览器：网站自己出错了（5xx），过会儿再试",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 593,
+      "why": "HTTP 503"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 1753,
+      "why": "没认出商品 / 公告列表"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 54508,
+      "why": "网站自己出错了（5xx），过会儿再试"
+     }
+    ],
+    "ms": 58214
+   },
+   "amz_fr": {
+    "band": {
+     "n": 53,
+     "min": 10.0,
+     "p25": 30.43,
+     "mid": 43.9,
+     "p75": 66.76,
+     "max": 172.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://www.amazon.fr/s?k=stockage+d%27%C3%A9nergie",
+    "via": "browser",
+    "q": "stockage d'énergie",
+    "cur": "EUR",
+    "fx": 7.324555888042856,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 274,
+      "why": "页面是空壳（只有 157 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 518,
+      "why": "页面是空壳（只有 157 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": true,
+      "ms": 57551
+     }
+    ],
+    "ms": 60096
+   },
+   "amz_jp": {
+    "band": {
+     "n": 31,
+     "min": 115.0,
+     "p25": 1400.0,
+     "mid": 2860.0,
+     "p75": 3655.0,
+     "max": 8822.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://www.amazon.co.jp/s?k=%E3%82%A8%E3%83%8D%E3%83%AB%E3%82%AE%E3%83%BC%E8%B2%AF%E8%94%B5",
+    "via": "fast",
+    "q": "エネルギー貯蔵",
+    "cur": "JPY",
+    "fx": 0.0419078292489904,
+    "ok": true,
+    "trace": [
+     {
+      "m": "Scrapling 快速",
+      "ok": true,
+      "ms": 2568
+     }
+    ],
+    "ms": 3871
+   },
+   "rakuten": {
+    "band": {
+     "n": 9,
+     "min": 30.0,
+     "p25": 40.0,
+     "mid": 200.0,
+     "p75": 2299.0,
+     "max": 6505.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "n_items": 9,
+    "src": "接口数据",
+    "url": "https://search.rakuten.co.jp/search/mall/%E3%82%A8%E3%83%8D%E3%83%AB%E3%82%AE%E3%83%BC%E8%B2%AF%E8%94%B5/",
+    "via": "direct",
+    "q": "エネルギー貯蔵",
+    "cur": "JPY",
+    "fx": 0.0419078292489904,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 641
+     }
+    ],
+    "ms": 643
+   },
+   "yja": {
+    "band": {
+     "n": 7,
+     "min": 110.0,
+     "p25": 110.0,
+     "mid": 800.0,
+     "p75": 3460.0,
+     "max": 8600.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": 7,
+    "n_items": 7,
+    "src": "接口数据",
+    "url": "https://auctions.yahoo.co.jp/closedsearch/closedsearch?p=%E3%82%A8%E3%83%8D%E3%83%AB%E3%82%AE%E3%83%BC%E8%B2%AF%E8%94%B5&va=%E3%82%A8%E3%83%8D%E3%83%AB%E3%82%AE%E3%83%BC%E8%B2%AF%E8%94%B5&b=1&n=100",
+    "via": "direct",
+    "q": "エネルギー貯蔵",
+    "cur": "JPY",
+    "fx": 0.0419078292489904,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 710
+     }
+    ],
+    "ms": 713
+   },
+   "amz_in": {
+    "ok": false,
+    "error": "普通方式：页面是空壳（只有 0 个字）；Scrapling 浏览器：网站自己出错了（5xx），过会儿再试",
+    "trace": [
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 733,
+      "why": "页面是空壳（只有 0 个字）"
+     },
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 325,
+      "why": "页面是空壳（只有 0 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 31342,
+      "why": "网站自己出错了（5xx），过会儿再试"
+     }
+    ],
+    "ms": 32401
+   },
+   "flipkart": {
+    "band": {
+     "n": 47,
+     "min": 65.0,
+     "p25": 607.0,
+     "mid": 1756.0,
+     "p75": 18099.0,
+     "max": 81713.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": 1110,
+    "total": null,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://www.flipkart.com/search?q=energy+storage+battery",
+    "via": "direct",
+    "q": "energy storage battery",
+    "cur": "INR",
+    "fx": 0.07214583080281105,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 1161
+     }
+    ],
+    "ms": 1165
+   },
+   "indiamart": {
+    "band": {
+     "n": 64,
+     "min": 2.02,
+     "p25": 2500.25,
+     "mid": 8000.5,
+     "p75": 15000.0,
+     "max": 62800000.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://dir.indiamart.com/search.mp?ss=energy+storage+battery",
+    "via": "direct",
+    "q": "energy storage battery",
+    "cur": "INR",
+    "fx": 0.07214583080281105,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 2027
+     }
+    ],
+    "ms": 2030
+   },
+   "lazada": {
+    "ok": false,
+    "error": "Scrapling 快速：被拦了（punish）；Scrapling 浏览器：被拦了（punish）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 328,
+      "why": "被拦了（punish）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 1354,
+      "why": "被拦了（punish）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 36801,
+      "why": "被拦了（punish）"
+     }
+    ],
+    "ms": 38483
+   },
+   "meli_mx": {
+    "band": {
+     "n": 47,
+     "min": 83.4,
+     "p25": 256.5,
+     "mid": 1282.83,
+     "p75": 1819.0,
+     "max": 48837.2
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": 884,
+    "total": null,
+    "n_items": 47,
+    "src": "接口数据",
+    "url": "https://listado.mercadolibre.com.mx/almacenamiento-de-energ%C3%ADa",
+    "via": "direct",
+    "q": "almacenamiento de energía",
+    "cur": "MXN",
+    "fx": 0.3388947583022187,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 1240
+     }
+    ],
+    "ms": 4203
+   },
+   "meli_br": {
+    "band": {
+     "n": 48,
+     "min": 19.0,
+     "p25": 124.1,
+     "mid": 280.6,
+     "p75": 4071.5,
+     "max": 12508.8
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": 1718,
+    "total": null,
+    "n_items": 48,
+    "src": "接口数据",
+    "url": "https://lista.mercadolivre.com.br/armazenamento-de-energia",
+    "via": "direct",
+    "q": "armazenamento de energia",
+    "cur": "BRL",
+    "fx": 1.1575218178898545,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 1431
+     }
+    ],
+    "ms": 3120
+   },
+   "amz_br": {
+    "band": {
+     "n": 109,
+     "min": 11.19,
+     "p25": 117.41,
+     "mid": 486.09,
+     "p75": 2295.0,
+     "max": 22999.0
+    },
+    "sold": 400,
+    "sold_n": 5,
+    "comments": null,
+    "total": null,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://www.amazon.com.br/s?k=armazenamento+de+energia",
+    "via": "direct",
+    "q": "armazenamento de energia",
+    "cur": "BRL",
+    "fx": 1.1575218178898545,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 1522
+     }
+    ],
+    "ms": 1534
+   },
+   "amz_ae": {
+    "band": {
+     "n": 57,
+     "min": 13.56,
+     "p25": 51.1,
+     "mid": 107.9,
+     "p75": 378.95,
+     "max": 8270.0
+    },
+    "sold": 100,
+    "sold_n": 1,
+    "comments": null,
+    "total": 224,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://www.amazon.ae/s?k=energy+storage+battery",
+    "via": "browser",
+    "q": "energy storage battery",
+    "cur": "AED",
+    "fx": 1.8175528931245746,
+    "ok": true,
+    "trace": [
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 655,
+      "why": "页面是空壳（只有 0 个字）"
+     },
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 375,
+      "why": "页面是空壳（只有 0 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": true,
+      "ms": 37139
+     }
+    ],
+    "ms": 38186
+   },
+   "jumia": {
+    "ok": false,
+    "error": "Scrapling 快速：被拒绝访问（403，可能被识别成爬虫）；Scrapling 浏览器：被拒绝访问（403，可能被识别成爬虫）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 350,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 763,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 84264,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     }
+    ],
+    "ms": 85378
+   },
+   "mic": {
+    "band": {
+     "n": 37,
+     "min": 0.07,
+     "p25": 429.09,
+     "mid": 879.0,
+     "p75": 1571.86,
+     "max": 590972.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://www.made-in-china.com/multi-search/energy+storage+battery/F1/1.html",
+    "via": "direct",
+    "q": "energy storage battery",
+    "cur": "USD",
+    "fx": 6.674963,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 2146
+     }
+    ],
+    "ms": 2154
+   },
+   "dhgate": {
+    "band": {
+     "n": 147,
+     "min": 107.74,
+     "p25": 883.55,
+     "mid": 1004.03,
+     "p75": 1316.02,
+     "max": 4020.11
+    },
+    "sold": 75,
+    "sold_n": 4,
+    "comments": null,
+    "total": null,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://www.dhgate.com/wholesale/search.do?act=search&searchkey=energy+storage+battery",
+    "via": "direct",
+    "q": "energy storage battery",
+    "cur": "USD",
+    "fx": 6.674963,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 634
+     }
+    ],
+    "ms": 641
+   },
+   "shopee": {
+    "ok": false,
+    "skipped": true,
+    "error": "要先登录（在「交易平台抓取」的表里点「登录Shopee」，或点上面「一键登录全部」）",
+    "trace": [],
+    "ms": 0
+   },
+   "usaspending": {
+    "kind2": "gov",
+    "total": 0,
+    "amt_mid": null,
+    "amt_sum": 0,
+    "amt_n": 0,
+    "items": [],
+    "cur": "USD",
+    "fx": 6.674963,
+    "q": "energy storage battery",
+    "url": "https://www.usaspending.gov/search",
+    "via": "api",
+    "days": 365,
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 1977
+     }
+    ],
+    "ms": 1979
+   },
+   "ted": {
+    "kind2": "gov",
+    "total": 0,
+    "items": [],
+    "cur": "EUR",
+    "fx": 7.324555888042856,
+    "q": "energy storage battery",
+    "url": "https://ted.europa.eu/en/search/result?FT=energy%20storage%20battery",
+    "via": "api",
+    "days": 180,
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 830
+     }
+    ],
+    "ms": 830
    }
   }
  },
  "t:chip": {
   "target": "t:chip",
   "kw": "国产替代",
-  "at": 1795701225,
+  "at": 1795747896,
   "res": {
    "ccgp": {
     "total": 6,
@@ -1436,13 +4791,168 @@
      }
     ],
     "ms": 30394
+   },
+   "ywg": {
+    "ok": false,
+    "skipped": true,
+    "error": "连着 6 次被拦或没认出，先跳过，明天再试",
+    "trace": [],
+    "ms": 0
+   },
+   "tb": {
+    "ok": false,
+    "skipped": true,
+    "error": "要先登录（在「交易平台抓取」的表里点「登录淘宝 / 天猫」，或点上面「一键登录全部」）",
+    "trace": [],
+    "ms": 0
+   },
+   "pdd": {
+    "ok": false,
+    "skipped": true,
+    "error": "要先登录（在「交易平台抓取」的表里点「登录拼多多」，或点上面「一键登录全部」）",
+    "trace": [],
+    "ms": 0
+   },
+   "xy": {
+    "band": {
+     "n": 30,
+     "min": 1.0,
+     "p25": 1.08,
+     "mid": 8.46,
+     "p75": 9.9,
+     "max": 3500.0
+    },
+    "sold": 232,
+    "sold_n": 8,
+    "comments": null,
+    "total": null,
+    "src": "网页文字",
+    "url": "https://www.goofish.com/search?q=%E5%9B%BD%E4%BA%A7%E6%9B%BF%E4%BB%A3",
+    "via": "login",
+    "ok": true,
+    "trace": [
+     {
+      "m": "已登录的浏览器",
+      "ok": true,
+      "ms": 10277
+     }
+    ],
+    "ms": 10288
+   },
+   "sn": {
+    "ok": false,
+    "error": "Scrapling 快速：没认出商品 / 公告列表；Scrapling 浏览器：被拦了（Captcha）",
+    "trace": [
+     {
+      "m": "爬虫专用 Chrome",
+      "ok": false,
+      "ms": 5296,
+      "why": "被拦了（Captcha）"
+     },
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 149,
+      "why": "没认出商品 / 公告列表"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 474,
+      "why": "没认出商品 / 公告列表"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 10582,
+      "why": "被拦了（Captcha）"
+     }
+    ],
+    "ms": 16504
+   },
+   "usaspending": {
+    "kind2": "gov",
+    "total": 2,
+    "amt_mid": 2191478.5,
+    "amt_sum": 4382957.0,
+    "amt_n": 2,
+    "items": [
+     {
+      "t": "THIS CALL ORDER IS TO LAUNCH AN OPEN INNOVATION PRIZE COMPETITION FOR THE CAREER AND TECHN",
+      "buyer": "Department of Education",
+      "who": "KAPTIVATE LLC",
+      "amt": 3482957.0,
+      "d": "2024-08-05"
+     },
+     {
+      "t": "OU03-25-NEW-183 AND OU03-FY26-212-NEW ADVANCED TEST VEHICLE TO STUDY RELIABILITY OF MATERI",
+      "buyer": "Department of Commerce",
+      "who": "THE RESEARCH FOUNDATION FOR THE STATE UNIVERSITY OF NEW YORK",
+      "amt": 900000.0,
+      "d": "2025-12-23"
+     }
+    ],
+    "cur": "USD",
+    "fx": 6.674963,
+    "q": "semiconductor chip",
+    "url": "https://www.usaspending.gov/search",
+    "via": "api",
+    "days": 365,
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 2374
+     }
+    ],
+    "ms": 2376
+   },
+   "ted": {
+    "kind2": "gov",
+    "total": 3,
+    "items": [
+     {
+      "t": "Germany – Laboratory, optical and precision equipments (excl. glasses) – Flip Chip Die Bon",
+      "buyer": "FAIR - Facility for Antiproton and Ion Research in",
+      "d": "2026-08-24",
+      "u": "https://ted.europa.eu/en/notice/-/detail/582477-2026"
+     },
+     {
+      "t": "Germany – Laboratory, optical and precision equipments (excl. glasses) – Flip Chip Die Bon",
+      "buyer": "FAIR - Facility for Antiproton and Ion Research in",
+      "d": "2026-09-29",
+      "u": "https://ted.europa.eu/en/notice/-/detail/667627-2026"
+     },
+     {
+      "t": "Finland – Machinery and apparatus for filtering or purifying gases – Procurement of a wast",
+      "buyer": "Tampere University Foundation sr",
+      "d": "2026-11-26",
+      "u": "https://ted.europa.eu/en/notice/-/detail/821430-2026"
+     }
+    ],
+    "cur": "EUR",
+    "fx": 7.324555888042856,
+    "q": "semiconductor chip",
+    "url": "https://ted.europa.eu/en/search/result?FT=semiconductor%20chip",
+    "via": "api",
+    "days": 180,
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 1028
+     }
+    ],
+    "ms": 1031
    }
   }
  },
  "t:biotech": {
   "target": "t:biotech",
   "kw": "创新药",
-  "at": 1795701348,
+  "at": 1795747907,
   "res": {
    "ccgp": {
     "total": 12,
@@ -1602,13 +5112,172 @@
      }
     ],
     "ms": 13205
+   },
+   "ywg": {
+    "ok": false,
+    "skipped": true,
+    "error": "连着 6 次被拦或没认出，先跳过，明天再试",
+    "trace": [],
+    "ms": 0
+   },
+   "tb": {
+    "ok": false,
+    "skipped": true,
+    "error": "要先登录（在「交易平台抓取」的表里点「登录淘宝 / 天猫」，或点上面「一键登录全部」）",
+    "trace": [],
+    "ms": 0
+   },
+   "pdd": {
+    "ok": false,
+    "skipped": true,
+    "error": "要先登录（在「交易平台抓取」的表里点「登录拼多多」，或点上面「一键登录全部」）",
+    "trace": [],
+    "ms": 0
+   },
+   "xy": {
+    "band": {
+     "n": 30,
+     "min": 1.9,
+     "p25": 2.9,
+     "mid": 3.95,
+     "p75": 9.15,
+     "max": 16.0
+    },
+    "sold": 102,
+    "sold_n": 13,
+    "comments": null,
+    "total": 26,
+    "src": "网页文字",
+    "url": "https://www.goofish.com/search?q=%E5%88%9B%E6%96%B0%E8%8D%AF",
+    "via": "login",
+    "ok": true,
+    "trace": [
+     {
+      "m": "已登录的浏览器",
+      "ok": true,
+      "ms": 10750
+     }
+    ],
+    "ms": 10759
+   },
+   "sn": {
+    "band": {
+     "n": 15,
+     "min": 52.81,
+     "p25": 104.0,
+     "mid": 130.0,
+     "p75": 202.64,
+     "max": 391.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "src": "网页文字",
+    "url": "https://search.suning.com/%E5%88%9B%E6%96%B0%E8%8D%AF/",
+    "via": "chrome",
+    "ok": true,
+    "trace": [
+     {
+      "m": "爬虫专用 Chrome",
+      "ok": true,
+      "ms": 5852
+     }
+    ],
+    "ms": 5859
+   },
+   "usaspending": {
+    "kind2": "gov",
+    "total": 18,
+    "amt_mid": 1171136.525,
+    "amt_sum": 42633768.25,
+    "amt_n": 18,
+    "items": [
+     {
+      "t": "UEI: HCWKVFGBPA64 LABOR HOUR AWARD CENTER FOR DRUG EVALUATION AND RESEARCH (CDER) OFFICE O",
+      "buyer": "Department of Health and Human Services",
+      "who": "KAIVA STRATEGIES, LLC",
+      "amt": 8989194.06,
+      "d": "2023-09-05"
+     },
+     {
+      "t": "NEW DRUGS REGULATORY PROGRAM (NDRP) MODERNIZATION TRANSITION PROJECT SUPPORT TO CDER?S OFF",
+      "buyer": "Department of Health and Human Services",
+      "who": "EAGLE HILL CONSULTING, LLC",
+      "amt": 8631445.49,
+      "d": "2022-09-07"
+     },
+     {
+      "t": "LABOR HOUR AWARD CENTER FOR DRUG EVALUATION AND RESEARCH (CDER) OFFICE OF NEW DRUGS (OND) ",
+      "buyer": "Department of Health and Human Services",
+      "who": "KAIVA STRATEGIES, LLC",
+      "amt": 7282271.49,
+      "d": "2025-06-25"
+     },
+     {
+      "t": "LABOR HOUR AWARD CDER OFFICE OF NEW DRUGS (OND) - MODERNIZING THE SCIENCE OF SAFETY DATA A",
+      "buyer": "Department of Health and Human Services",
+      "who": "SPATIAL FRONT INC",
+      "amt": 4399657.24,
+      "d": "2024-01-09"
+     },
+     {
+      "t": "CDER STREAMLINE PROCESS AND ENHANCE FUNCTIONS FOR NEW DRUG REVIEW",
+      "buyer": "Department of Health and Human Services",
+      "who": "AGISOL LLC",
+      "amt": 2978070.05,
+      "d": "2023-06-08"
+     },
+     {
+      "t": "FY2023 STREAMLINE PROCESSES AND ENHANCE NEW DRUG REVIEW",
+      "buyer": "Department of Health and Human Services",
+      "who": "EAGLE HILL CONSULTING, LLC",
+      "amt": 1982863.58,
+      "d": "2023-02-16"
+     }
+    ],
+    "cur": "USD",
+    "fx": 6.674963,
+    "q": "new drug",
+    "url": "https://www.usaspending.gov/search",
+    "via": "api",
+    "days": 365,
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 2575
+     }
+    ],
+    "ms": 2577
+   },
+   "ted": {
+    "kind2": "gov",
+    "total": 0,
+    "items": [],
+    "cur": "EUR",
+    "fx": 7.324555888042856,
+    "q": "new drug",
+    "url": "https://ted.europa.eu/en/search/result?FT=new%20drug",
+    "via": "api",
+    "days": 180,
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 1036
+     }
+    ],
+    "ms": 1037
    }
   }
  },
  "t:silver": {
   "target": "t:silver",
   "kw": "养老",
-  "at": 1795701470,
+  "at": 1795747927,
   "res": {
    "ccgp": {
     "total": 4887,
@@ -1791,13 +5460,290 @@
      }
     ],
     "ms": 10386
+   },
+   "ywg": {
+    "ok": false,
+    "skipped": true,
+    "error": "连着 6 次被拦或没认出，先跳过，明天再试",
+    "trace": [],
+    "ms": 0
+   },
+   "tb": {
+    "ok": false,
+    "skipped": true,
+    "error": "要先登录（在「交易平台抓取」的表里点「登录淘宝 / 天猫」，或点上面「一键登录全部」）",
+    "trace": [],
+    "ms": 0
+   },
+   "pdd": {
+    "ok": false,
+    "skipped": true,
+    "error": "要先登录（在「交易平台抓取」的表里点「登录拼多多」，或点上面「一键登录全部」）",
+    "trace": [],
+    "ms": 0
+   },
+   "xy": {
+    "band": {
+     "n": 31,
+     "min": 100.0,
+     "p25": 5000.0,
+     "mid": 7000.0,
+     "p75": 8500.0,
+     "max": 30000.0
+    },
+    "sold": 497,
+    "sold_n": 19,
+    "comments": null,
+    "total": null,
+    "src": "网页文字",
+    "url": "https://www.goofish.com/search?q=%E5%85%BB%E8%80%81",
+    "via": "login",
+    "ok": true,
+    "trace": [
+     {
+      "m": "已登录的浏览器",
+      "ok": true,
+      "ms": 19391
+     }
+    ],
+    "ms": 19399
+   },
+   "sn": {
+    "band": {
+     "n": 85,
+     "min": 8.48,
+     "p25": 30.08,
+     "mid": 42.48,
+     "p75": 59.92,
+     "max": 171.36
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "src": "网页文字",
+    "url": "https://search.suning.com/%E5%85%BB%E8%80%81/",
+    "via": "chrome",
+    "ok": true,
+    "trace": [
+     {
+      "m": "爬虫专用 Chrome",
+      "ok": true,
+      "ms": 6324
+     }
+    ],
+    "ms": 6339
+   },
+   "appstore_cn": {
+    "kind2": "app",
+    "total": 47,
+    "paid_n": 0,
+    "band": null,
+    "ratings": 816392,
+    "top": [
+     {
+      "n": "好福利",
+      "r": 519155
+     },
+     {
+      "n": "陕西社会保险",
+      "r": 206655
+     },
+     {
+      "n": "迷失传说-正版传奇月卡版三端互通,无挖宝稳定养老",
+      "r": 30469
+     }
+    ],
+    "cur": "CNY",
+    "fx": 1.0,
+    "q": "养老",
+    "url": "https://apps.apple.com/cn/",
+    "via": "api",
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 2085
+     }
+    ],
+    "ms": 2087
+   },
+   "upwork": {
+    "ok": false,
+    "skipped": true,
+    "error": "要先登录（在「交易平台抓取」的表里点「登录Upwork」，或点上面「一键登录全部」）",
+    "trace": [],
+    "ms": 0
+   },
+   "freelancer": {
+    "kind2": "svc",
+    "total": 88,
+    "band": {
+     "n": 40,
+     "min": 11.35,
+     "p25": 75.67,
+     "mid": 270.25,
+     "p75": 500.0,
+     "max": 9999.68
+    },
+    "hourly": {
+     "n": 10,
+     "min": 3.33,
+     "p25": 5.91,
+     "mid": 11.5,
+     "p75": 24.38,
+     "max": 50.0
+    },
+    "n": 50,
+    "bids_avg": 90.5,
+    "cur": "USD",
+    "fx": 6.674963,
+    "q": "elderly care",
+    "url": "https://www.freelancer.com/search/projects?q=elderly%20care",
+    "via": "api",
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 862
+     }
+    ],
+    "ms": 864
+   },
+   "appstore_us": {
+    "kind2": "app",
+    "total": 47,
+    "paid_n": 1,
+    "band": null,
+    "ratings": 34919,
+    "top": [
+     {
+      "n": "AxisCare Mobile",
+      "r": 31442
+     },
+     {
+      "n": "CareLinx: In-Home Care",
+      "r": 2043
+     },
+     {
+      "n": "Papa Pal: Find flexible work",
+      "r": 893
+     }
+    ],
+    "cur": "USD",
+    "fx": 6.674963,
+    "q": "elderly care",
+    "url": "https://apps.apple.com/us/",
+    "via": "api",
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 1921
+     }
+    ],
+    "ms": 1922
+   },
+   "kickstarter": {
+    "kind2": "crowd",
+    "total": 18,
+    "band": {
+     "n": 11,
+     "min": 1.0,
+     "p25": 1.27,
+     "mid": 446.61,
+     "p75": 4488.18,
+     "max": 15256.93
+    },
+    "sum": 31631.81746781,
+    "n": 12,
+    "won": 5,
+    "backers": 167,
+    "cur": "USD",
+    "fx": 6.674963,
+    "q": "elderly care",
+    "url": "https://www.kickstarter.com/discover/advanced?term=elderly%20care",
+    "via": "api",
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": false,
+      "ms": 784,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     },
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 345,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 595,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": true,
+      "ms": 9271
+     }
+    ],
+    "ms": 11001
+   },
+   "usaspending": {
+    "kind2": "gov",
+    "total": 0,
+    "amt_mid": null,
+    "amt_sum": 0,
+    "amt_n": 0,
+    "items": [],
+    "cur": "USD",
+    "fx": 6.674963,
+    "q": "elderly care",
+    "url": "https://www.usaspending.gov/search",
+    "via": "api",
+    "days": 365,
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 2363
+     }
+    ],
+    "ms": 2363
+   },
+   "ted": {
+    "kind2": "gov",
+    "total": 0,
+    "items": [],
+    "cur": "EUR",
+    "fx": 7.324555888042856,
+    "q": "elderly care",
+    "url": "https://ted.europa.eu/en/search/result?FT=elderly%20care",
+    "via": "api",
+    "days": 180,
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 929
+     }
+    ],
+    "ms": 931
    }
   }
  },
  "t:pet": {
   "target": "t:pet",
   "kw": "宠物",
-  "at": 1795701510,
+  "at": 1795748207,
   "res": {
    "ccgp": {
     "total": 82,
@@ -1955,6 +5901,811 @@
      }
     ],
     "ms": 10376
+   },
+   "ywg": {
+    "ok": false,
+    "skipped": true,
+    "error": "连着 6 次被拦或没认出，先跳过，明天再试",
+    "trace": [],
+    "ms": 0
+   },
+   "tb": {
+    "ok": false,
+    "skipped": true,
+    "error": "要先登录（在「交易平台抓取」的表里点「登录淘宝 / 天猫」，或点上面「一键登录全部」）",
+    "trace": [],
+    "ms": 0
+   },
+   "pdd": {
+    "ok": false,
+    "skipped": true,
+    "error": "要先登录（在「交易平台抓取」的表里点「登录拼多多」，或点上面「一键登录全部」）",
+    "trace": [],
+    "ms": 0
+   },
+   "xy": {
+    "band": {
+     "n": 30,
+     "min": 1.16,
+     "p25": 1.29,
+     "mid": 1.57,
+     "p75": 2.33,
+     "max": 35.0
+    },
+    "sold": 1880,
+    "sold_n": 20,
+    "comments": null,
+    "total": null,
+    "src": "网页文字",
+    "url": "https://www.goofish.com/search?q=%E5%AE%A0%E7%89%A9",
+    "via": "login",
+    "ok": true,
+    "trace": [
+     {
+      "m": "已登录的浏览器",
+      "ok": true,
+      "ms": 19603
+     }
+    ],
+    "ms": 19613
+   },
+   "sn": {
+    "band": {
+     "n": 96,
+     "min": 12.9,
+     "p25": 25.0,
+     "mid": 31.45,
+     "p75": 75.1,
+     "max": 159.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "src": "网页文字",
+    "url": "https://search.suning.com/%E5%AE%A0%E7%89%A9/",
+    "via": "chrome",
+    "ok": true,
+    "trace": [
+     {
+      "m": "爬虫专用 Chrome",
+      "ok": true,
+      "ms": 5713
+     }
+    ],
+    "ms": 5733
+   },
+   "amazon": {
+    "ok": false,
+    "error": "Scrapling 快速：页面是空壳（只有 0 个字）；Scrapling 浏览器：网站自己出错了（5xx），过会儿再试",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 1032,
+      "why": "页面是空壳（只有 0 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 1003,
+      "why": "页面是空壳（只有 0 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 14183,
+      "why": "网站自己出错了（5xx），过会儿再试"
+     }
+    ],
+    "ms": 16221
+   },
+   "ebay": {
+    "ok": false,
+    "error": "Scrapling 快速：被拒绝访问（403，可能被识别成爬虫）；Scrapling 浏览器：被拒绝访问（403，可能被识别成爬虫）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 248,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 763,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 7480,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     }
+    ],
+    "ms": 8495
+   },
+   "aliexpress": {
+    "band": {
+     "n": 4,
+     "min": 1.0,
+     "p25": 1.0,
+     "mid": 1.0,
+     "p75": 1.75,
+     "max": 2.0
+    },
+    "cur": "$",
+    "sold": null,
+    "sold_n": 0,
+    "total": null,
+    "url": "https://www.aliexpress.com/w/wholesale-pet-supplies.html",
+    "via": "browser",
+    "en": "pet supplies",
+    "ok": true,
+    "trace": [
+     {
+      "m": "Scrapling 浏览器",
+      "ok": true,
+      "ms": 21708
+     }
+    ],
+    "ms": 21713
+   },
+   "alibaba": {
+    "band": {
+     "n": 6,
+     "min": 1.0,
+     "p25": 1.0,
+     "mid": 1.0,
+     "p75": 1.25,
+     "max": 2.0
+    },
+    "cur": "$",
+    "sold": null,
+    "sold_n": 0,
+    "total": null,
+    "url": "https://www.alibaba.com/trade/search?SearchText=pet+supplies",
+    "via": "browser",
+    "en": "pet supplies",
+    "ok": true,
+    "trace": [
+     {
+      "m": "Scrapling 浏览器",
+      "ok": true,
+      "ms": 49542
+     }
+    ],
+    "ms": 49546
+   },
+   "walmart": {
+    "band": {
+     "n": 39,
+     "min": 3.97,
+     "p25": 14.99,
+     "mid": 43.99,
+     "p75": 101.99,
+     "max": 399.93
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": 10625,
+    "total": null,
+    "n_items": 39,
+    "src": "接口数据",
+    "url": "https://www.walmart.com/search?q=pet+supplies",
+    "via": "fast",
+    "q": "pet supplies",
+    "cur": "USD",
+    "fx": 6.674963,
+    "ok": true,
+    "trace": [
+     {
+      "m": "Scrapling 快速",
+      "ok": true,
+      "ms": 2632
+     }
+    ],
+    "ms": 2666
+   },
+   "amz_uk": {
+    "band": {
+     "n": 123,
+     "min": 0.02,
+     "p25": 5.49,
+     "mid": 10.56,
+     "p75": 16.99,
+     "max": 35.95
+    },
+    "sold": 194950,
+    "sold_n": 49,
+    "comments": null,
+    "total": 50000,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://www.amazon.co.uk/s?k=pet+supplies",
+    "via": "browser",
+    "q": "pet supplies",
+    "cur": "GBP",
+    "fx": 8.747957815606442,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 322,
+      "why": "页面是空壳（只有 157 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 642,
+      "why": "页面是空壳（只有 157 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": true,
+      "ms": 61240
+     }
+    ],
+    "ms": 62229
+   },
+   "amz_de": {
+    "ok": false,
+    "error": "Scrapling 快速：没认出商品 / 公告列表；Scrapling 浏览器：网站自己出错了（5xx），过会儿再试",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 555,
+      "why": "HTTP 503"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 1863,
+      "why": "没认出商品 / 公告列表"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 78955,
+      "why": "网站自己出错了（5xx），过会儿再试"
+     }
+    ],
+    "ms": 82680
+   },
+   "amz_fr": {
+    "ok": false,
+    "error": "普通方式：页面是空壳（只有 157 个字）；Scrapling 快速：页面是空壳（只有 157 个字）",
+    "trace": [
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 113710,
+      "why": "网站自己出错了（5xx），过会儿再试"
+     },
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 340,
+      "why": "页面是空壳（只有 157 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 626,
+      "why": "页面是空壳（只有 157 个字）"
+     }
+    ],
+    "ms": 115901
+   },
+   "amz_jp": {
+    "band": {
+     "n": 176,
+     "min": 1.0,
+     "p25": 944.0,
+     "mid": 1796.0,
+     "p75": 3364.5,
+     "max": 53890.0
+    },
+    "sold": 135650,
+    "sold_n": 59,
+    "comments": null,
+    "total": 40000,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://www.amazon.co.jp/s?k=%E3%83%9A%E3%83%83%E3%83%88",
+    "via": "fast",
+    "q": "ペット",
+    "cur": "JPY",
+    "fx": 0.0419078292489904,
+    "ok": true,
+    "trace": [
+     {
+      "m": "Scrapling 快速",
+      "ok": true,
+      "ms": 1733
+     }
+    ],
+    "ms": 3561
+   },
+   "rakuten": {
+    "band": {
+     "n": 10,
+     "min": 3680.0,
+     "p25": 4197.5,
+     "mid": 4480.0,
+     "p75": 5055.0,
+     "max": 13500.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": 88573,
+    "total": null,
+    "n_items": 10,
+    "src": "接口数据",
+    "url": "https://search.rakuten.co.jp/search/mall/%E3%83%9A%E3%83%83%E3%83%88/",
+    "via": "direct",
+    "q": "ペット",
+    "cur": "JPY",
+    "fx": 0.0419078292489904,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 1008
+     }
+    ],
+    "ms": 1015
+   },
+   "yja": {
+    "band": {
+     "n": 100,
+     "min": 300.0,
+     "p25": 780.0,
+     "mid": 1185.0,
+     "p75": 2922.5,
+     "max": 36000.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": 90163,
+    "n_items": 100,
+    "src": "接口数据",
+    "url": "https://auctions.yahoo.co.jp/closedsearch/closedsearch?p=%E3%83%9A%E3%83%83%E3%83%88&va=%E3%83%9A%E3%83%83%E3%83%88&b=1&n=100",
+    "via": "direct",
+    "q": "ペット",
+    "cur": "JPY",
+    "fx": 0.0419078292489904,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 858
+     }
+    ],
+    "ms": 899
+   },
+   "amz_in": {
+    "ok": false,
+    "error": "普通方式：页面是空壳（只有 0 个字）；Scrapling 浏览器：网站自己出错了（5xx），过会儿再试",
+    "trace": [
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 990,
+      "why": "页面是空壳（只有 0 个字）"
+     },
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 383,
+      "why": "页面是空壳（只有 0 个字）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 119849,
+      "why": "网站自己出错了（5xx），过会儿再试"
+     }
+    ],
+    "ms": 121224
+   },
+   "flipkart": {
+    "band": {
+     "n": 65,
+     "min": 100.0,
+     "p25": 176.0,
+     "mid": 220.0,
+     "p75": 394.5,
+     "max": 25000.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": 23725,
+    "total": null,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://www.flipkart.com/search?q=pet+supplies",
+    "via": "direct",
+    "q": "pet supplies",
+    "cur": "INR",
+    "fx": 0.07214583080281105,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 1914
+     }
+    ],
+    "ms": 1923
+   },
+   "indiamart": {
+    "band": {
+     "n": 211,
+     "min": 15.0,
+     "p25": 100.0,
+     "mid": 200.0,
+     "p75": 401.0,
+     "max": 5500.0
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://dir.indiamart.com/search.mp?ss=pet+supplies",
+    "via": "direct",
+    "q": "pet supplies",
+    "cur": "INR",
+    "fx": 0.07214583080281105,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 2926
+     }
+    ],
+    "ms": 2930
+   },
+   "lazada": {
+    "ok": false,
+    "error": "Scrapling 快速：被拦了（punish）；Scrapling 浏览器：被拦了（punish）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 583,
+      "why": "被拦了（punish）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 811,
+      "why": "被拦了（punish）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 113681,
+      "why": "被拦了（punish）"
+     }
+    ],
+    "ms": 115076
+   },
+   "meli_mx": {
+    "band": {
+     "n": 48,
+     "min": 67.66,
+     "p25": 137.03,
+     "mid": 220.2,
+     "p75": 299.32,
+     "max": 2949.04
+    },
+    "sold": 10100,
+    "sold_n": 2,
+    "comments": 37735,
+    "total": null,
+    "n_items": 48,
+    "src": "接口数据",
+    "url": "https://listado.mercadolibre.com.mx/mascota",
+    "via": "direct",
+    "q": "mascota",
+    "cur": "MXN",
+    "fx": 0.3388947583022187,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 3513
+     }
+    ],
+    "ms": 5010
+   },
+   "meli_br": {
+    "band": {
+     "n": 47,
+     "min": 22.43,
+     "p25": 38.19,
+     "mid": 73.0,
+     "p75": 139.32,
+     "max": 578.55
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": 120171,
+    "total": null,
+    "n_items": 47,
+    "src": "接口数据",
+    "url": "https://lista.mercadolivre.com.br/bicho-de-estima%C3%A7%C3%A3o",
+    "via": "direct",
+    "q": "bicho de estimação",
+    "cur": "BRL",
+    "fx": 1.1575218178898545,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 1959
+     }
+    ],
+    "ms": 3683
+   },
+   "amz_br": {
+    "band": {
+     "n": 92,
+     "min": 5.9,
+     "p25": 24.63,
+     "mid": 39.9,
+     "p75": 67.15,
+     "max": 201.7
+    },
+    "sold": 50,
+    "sold_n": 1,
+    "comments": null,
+    "total": null,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://www.amazon.com.br/s?k=bicho+de+estima%C3%A7%C3%A3o",
+    "via": "direct",
+    "q": "bicho de estimação",
+    "cur": "BRL",
+    "fx": 1.1575218178898545,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 1685
+     }
+    ],
+    "ms": 1697
+   },
+   "amz_ae": {
+    "ok": false,
+    "error": "普通方式：页面是空壳（只有 0 个字）；Scrapling 快速：页面是空壳（只有 0 个字）",
+    "trace": [
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 108422,
+      "why": "网站自己出错了（5xx），过会儿再试"
+     },
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 404,
+      "why": "页面是空壳（只有 0 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 764,
+      "why": "页面是空壳（只有 0 个字）"
+     }
+    ],
+    "ms": 109590
+   },
+   "jumia": {
+    "ok": false,
+    "error": "Scrapling 快速：被拒绝访问（403，可能被识别成爬虫）；Scrapling 浏览器：被拒绝访问（403，可能被识别成爬虫）",
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 332,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 794,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 127766,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     }
+    ],
+    "ms": 128894
+   },
+   "mic": {
+    "band": {
+     "n": 3,
+     "min": 1.85,
+     "p25": 1.85,
+     "mid": 2.63,
+     "p75": 5.3,
+     "max": 5.3
+    },
+    "sold": null,
+    "sold_n": 0,
+    "comments": null,
+    "total": null,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://www.made-in-china.com/multi-search/pet+supplies/F1/1.html",
+    "via": "direct",
+    "q": "pet supplies",
+    "cur": "USD",
+    "fx": 6.674963,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 1504
+     }
+    ],
+    "ms": 1513
+   },
+   "dhgate": {
+    "band": {
+     "n": 187,
+     "min": 0.58,
+     "p25": 9.01,
+     "mid": 13.28,
+     "p75": 24.13,
+     "max": 80.81
+    },
+    "sold": 340,
+    "sold_n": 17,
+    "comments": null,
+    "total": null,
+    "n_items": 0,
+    "src": "网页文字",
+    "url": "https://www.dhgate.com/wholesale/search.do?act=search&searchkey=pet+supplies",
+    "via": "direct",
+    "q": "pet supplies",
+    "cur": "USD",
+    "fx": 6.674963,
+    "ok": true,
+    "trace": [
+     {
+      "m": "普通方式",
+      "ok": true,
+      "ms": 1080
+     }
+    ],
+    "ms": 1088
+   },
+   "shopee": {
+    "ok": false,
+    "skipped": true,
+    "error": "要先登录（在「交易平台抓取」的表里点「登录Shopee」，或点上面「一键登录全部」）",
+    "trace": [],
+    "ms": 0
+   },
+   "kickstarter": {
+    "kind2": "crowd",
+    "total": 21,
+    "band": {
+     "n": 8,
+     "min": 1.0,
+     "p25": 31.25,
+     "mid": 320.49,
+     "p75": 2756.44,
+     "max": 7877.0
+    },
+    "sum": 13943.73535005,
+    "n": 12,
+    "won": 2,
+    "backers": 102,
+    "cur": "USD",
+    "fx": 6.674963,
+    "q": "pet supplies",
+    "url": "https://www.kickstarter.com/discover/advanced?term=pet%20supplies",
+    "via": "api",
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": false,
+      "ms": 627,
+      "why": "被拒绝访问（403，可能被识别成爬虫）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": true,
+      "ms": 92582
+     }
+    ],
+    "ms": 93212
+   },
+   "usaspending": {
+    "kind2": "gov",
+    "total": 3,
+    "amt_mid": 219160.02,
+    "amt_sum": 704859.59,
+    "amt_n": 3,
+    "items": [
+     {
+      "t": "EQUINE FEED",
+      "buyer": "Department of Homeland Security",
+      "who": "ARIZONA FEEDS COUNTRY STORES LLC",
+      "amt": 382000.0,
+      "d": "2026-05-30"
+     },
+     {
+      "t": "EQUINE FEED SUPPLY",
+      "buyer": "Department of Homeland Security",
+      "who": "ARIZONA FEEDS COUNTRY STORES LLC",
+      "amt": 219160.02,
+      "d": "2025-09-30"
+     },
+     {
+      "t": "EQUINE FEED SUPPLY",
+      "buyer": "Department of Homeland Security",
+      "who": "ARIZONA FEEDS COUNTRY STORES LLC",
+      "amt": 103699.57,
+      "d": "2025-05-30"
+     }
+    ],
+    "cur": "USD",
+    "fx": 6.674963,
+    "q": "pet supplies",
+    "url": "https://www.usaspending.gov/search",
+    "via": "api",
+    "days": 365,
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 2429
+     }
+    ],
+    "ms": 2430
+   },
+   "ted": {
+    "kind2": "gov",
+    "total": 0,
+    "items": [],
+    "cur": "EUR",
+    "fx": 7.324555888042856,
+    "q": "pet supplies",
+    "url": "https://ted.europa.eu/en/search/result?FT=pet%20supplies",
+    "via": "api",
+    "days": 180,
+    "ok": true,
+    "trace": [
+     {
+      "m": "官方接口",
+      "ok": true,
+      "ms": 1099
+     }
+    ],
+    "ms": 1099
    }
   }
  },

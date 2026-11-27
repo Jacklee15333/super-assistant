@@ -1,0 +1,40 @@
+{
+ "de": {
+  "人形机器人": "humanoider Roboter",
+  "新能源车": "Neue Energiefahrzeuge",
+  "低空经济": "Wirtschaft in geringer Höhe",
+  "储能": "Energiespeicher",
+  "宠物": "Haustier",
+  "新消费": "neuer Verbrauch"
+ },
+ "fr": {
+  "人形机器人": "robot humanoïde",
+  "新能源车": "Véhicules à énergies nouvelles",
+  "低空经济": "économie de basse altitude",
+  "储能": "stockage d'énergie",
+  "宠物": "animal de compagnie",
+  "新消费": "nouvelle consommation"
+ },
+ "ja": {
+  "人形机器人": "人型ロボット",
+  "新能源车": "新エネルギー車",
+  "低空经济": "低空経済",
+  "储能": "エネルギー貯蔵",
+  "宠物": "ペット",
+  "新消费": "新たな消費"
+ },
+ "es": {
+  "人形机器人": "robot humanoide",
+  "新能源车": "Vehículos de nueva energía",
+  "低空经济": "economía de baja altitud",
+  "储能": "almacenamiento de energía",
+  "宠物": "mascota"
+ },
+ "pt": {
+  "人形机器人": "robô humanóide",
+  "新能源车": "Novos veículos energéticos",
+  "低空经济": "economia de baixa altitude",
+  "储能": "armazenamento de energia",
+  "宠物": "bicho de estimação"
+ }
+}

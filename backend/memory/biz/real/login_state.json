@@ -1,35 +1,17 @@
 {
- "jd": {
-  "logged": true,
-  "at": 1795743425,
-  "checked": 1795743425,
-  "expired": false,
-  "verify": false
- },
- "b2b": {
-  "logged": true,
-  "at": 1795740472,
-  "checked": 1795740472,
-  "expired": false
- },
- "tb": {
-  "logged": true,
-  "at": 1795743466,
-  "checked": 1795743466,
-  "expired": false,
-  "verify": false
- },
- "pdd": {
-  "logged": true,
-  "at": 1795743505,
-  "checked": 1795743505,
-  "expired": false,
-  "verify": false
- },
  "xy": {
   "logged": true,
-  "at": 1795746819,
-  "checked": 1795746819,
+  "at": 1795747055,
+  "checked": 1795747055,
+  "expired": false,
+  "verify": false,
+  "day": "2026-11-27",
+  "n_today": 10
+ },
+ "jd": {
+  "logged": true,
+  "at": 1795748096,
+  "checked": 1795748096,
   "expired": false,
   "verify": false
  }

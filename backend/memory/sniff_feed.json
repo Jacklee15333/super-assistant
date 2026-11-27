@@ -1,138 +1,6 @@
 [
   {
     "kind": "发布",
-    "title": "A coding app stops using Claude and Codex sign-in files to count users",
-    "summary": "一款编程应用停止使用Claude和Codex的登录文件来统计用户数量，这属于软件开发和用户隐私保护方向。此举可能是出于对用户数据追踪的担忧，反映开发者对隐私和合规问题的重视，值得关注。",
-    "importance": "中",
-    "source_title": "Indie Hackers",
-    "link": "https://www.indiehackers.com",
-    "category": "趋势瞭望台",
-    "key": "9789832c65180ed0",
-    "ts": "2026-11-26 21:54"
-  },
-  {
-    "kind": "功能",
-    "title": "Tournaments for AI bots",
-    "summary": "Metaculus新增的AI预测算法竞赛平台，允许AI模型参与预测挑战赛。这种功能可能促进AI预测能力的比拼和优化，推动AI在风险预测、趋势分析等领域的技术进步。",
-    "importance": "中",
-    "source_title": "Metaculus",
-    "link": "https://www.metaculus.com",
-    "category": "趋势瞭望台",
-    "key": "debc1b76fa36f63f",
-    "ts": "2026-11-26 21:55"
-  },
-  {
-    "kind": "功能",
-    "title": "Rumble-2-Flash: an open 0.5B speech model for 40+ languages",
-    "summary": "Rumble-2-Flash 是一个开源的语音模型，支持 40 多种语言，参数规模为 0.5B。该模型的发布为多语言语音识别和合成提供了新的选择，尤其适合需要轻量级、多语言支持的场景，有助于推动语音技术在不同语言社区中的普及和应用。",
-    "importance": "中",
-    "source_title": "Hugging Face 博客",
-    "link": "https://huggingface.co/blog",
-    "category": "AI动态",
-    "key": "5550392fdcdb5ffb",
-    "ts": "2026-11-26 22:18"
-  },
-  {
-    "kind": "发布",
-    "title": "GPT-6.2 Astra模型突破代码记录",
-    "summary": "该条目提到GPT-6.2 Astra模型在代码高尔夫领域取得突破，可能属于新一代AI编程模型。此类模型通过优化代码效率解决开发者在代码简洁性与功能完整性之间的平衡问题，属于AI编程工具领域的重要进展。",
-    "importance": "高",
-    "source_title": "Hacker News",
-    "link": "https://news.ycombinator.com/",
-    "category": "AI动态",
-    "key": "2e4acd5195026743",
-    "ts": "2026-11-26 22:19"
-  },
-  {
-    "kind": "功能",
-    "title": "SSH协议作为GUI框架的发现",
-    "summary": "该条目指出SSH协议被重新解读为GUI框架，可能揭示其在图形界面开发中的潜在应用。属于底层技术架构创新，可能为分布式系统和远程图形交互提供新思路，但需结合具体实现验证其可行性。",
-    "importance": "中",
-    "source_title": "Hacker News",
-    "link": "https://news.ycombinator.com/",
-    "category": "AI动态",
-    "key": "54b6b57a014eadcd",
-    "ts": "2026-11-26 22:19"
-  },
-  {
-    "kind": "功能",
-    "title": "超指数级整数分解算法",
-    "summary": "该条目涉及无需条件的亚指数时间整数分解方法，属于密码学与算法领域的重要突破。相关技术可能对现代加密体系（如RSA）的安全性产生影响，属于基础数学研究向工程应用转化的典型案例。",
-    "importance": "高",
-    "source_title": "Hacker News",
-    "link": "https://news.ycombinator.com/",
-    "category": "AI动态",
-    "key": "2dfb9afbbce8ff58",
-    "ts": "2026-11-26 22:19"
-  },
-  {
-    "kind": "发布",
-    "title": "Moat：OpenRouter替代方案",
-    "summary": "该条目介绍名为Moat的AI服务替代品，定位与OpenRouter相似。属于AI推理服务领域的新参与者，可能通过差异化技术（如成本结构、性能优化）影响开源模型部署生态。",
-    "importance": "中",
-    "source_title": "Hacker News",
-    "link": "https://news.ycombinator.com/",
-    "category": "AI动态",
-    "key": "3e6ce4e419477123",
-    "ts": "2026-11-26 22:19"
-  },
-  {
-    "kind": "概念",
-    "title": "AI最火的时候，最赚钱的是一块布",
-    "summary": "这句话可能指AI技术在纺织业或相关材料领域的应用，如智能布料或柔性电子。这表明AI技术正在渗透到传统制造业，推动新材料和新产品的创新，为AI在实体经济中的落地提供更多可能性。",
-    "importance": "低",
-    "source_title": "36氪",
-    "link": "https://36kr.com",
-    "category": "趋势瞭望台",
-    "key": "565fb8c575f73239",
-    "ts": "2026-11-26 22:19"
-  },
-  {
-    "kind": "功能",
-    "title": "AI 3D界的“X光”技术",
-    "summary": "该技术通过单张图像生成高精度3D模型，可能涉及AI与3D重建领域的突破。此类技术能显著降低3D建模成本，适用于文物修复、工业设计等领域，或推动AI视觉生成技术向更高维度发展",
-    "importance": "高",
-    "source_title": "量子位",
-    "link": "https://www.qbitai.com",
-    "category": "趋势瞭望台",
-    "key": "e569c91cbb599913",
-    "ts": "2026-11-26 22:20"
-  },
-  {
-    "kind": "概念",
-    "title": "General Looped Model",
-    "summary": "中国团队对Loop架构的创新应用，属于深度学习模型设计的新方法论。这种循环结构可能提升模型训练效率或资源利用率，在大规模模型开发中可能带来性能突破",
-    "importance": "高",
-    "source_title": "量子位",
-    "link": "https://www.qbitai.com",
-    "category": "趋势瞭望台",
-    "key": "84a7c94703bf4c10",
-    "ts": "2026-11-26 22:20"
-  },
-  {
-    "kind": "概念",
-    "title": "空间物理原生基模",
-    "summary": "Envision AI公司提出的新方法论，融合语言、几何、物理规律，属于物理AI与空间计算交叉领域。该技术试图构建统一的物理世界模拟框架，可能影响自动驾驶、机器人等具身智能应用的发展。",
-    "importance": "高",
-    "source_title": "雷峰网",
-    "link": "https://www.leiphone.com",
-    "category": "趋势瞭望台",
-    "key": "127e4ee9e865dcc6",
-    "ts": "2026-11-26 22:20"
-  },
-  {
-    "kind": "发布",
-    "title": "Motubrain 2.0 Physical AI",
-    "summary": "生数科技推出的智能驾驶新系统，属于自动驾驶技术方向。该系统整合物理AI能力，可能提升车辆在复杂环境下的感知与决策效率，反映智能驾驶技术的演进趋势。",
-    "importance": "中",
-    "source_title": "雷峰网",
-    "link": "https://www.leiphone.com",
-    "category": "趋势瞭望台",
-    "key": "05ca2545d1d67319",
-    "ts": "2026-11-26 22:20"
-  },
-  {
-    "kind": "发布",
     "title": "IRON高阶通用人形机器人",
     "summary": "小鹏发布IRON人形机器人，实现大模型端侧部署和毫秒级响应。属于机器人与AI结合的硬件产品，可能推动人形机器人在工业或服务场景的实用化。",
     "importance": "高",
@@ -10998,5 +10866,137 @@
     "category": "趋势瞭望台",
     "key": "88c5ded9753ff59a",
     "ts": "2026-11-27 10:31"
+  },
+  {
+    "kind": "发布",
+    "title": "SenseNova-RoboRSI: Integrating VLA and Code as Policy Through Model–Harness Co-Evolution",
+    "summary": "SenseNova-RoboRSI 是一个结合视觉语言模型（VLA）和代码策略的新型模型，通过模型与 Harness 的协同进化实现更高效的机器人控制。它属于机器人人工智能领域，能够提升机器人在复杂环境中的自主决策和执行能力。",
+    "importance": "高",
+    "source_title": "Hugging Face 博客",
+    "link": "https://huggingface.co/blog",
+    "category": "AI动态",
+    "key": "5b3c6da68ddf7d35",
+    "ts": "2026-11-27 10:56"
+  },
+  {
+    "kind": "功能",
+    "title": "AI made self-hosting fun again",
+    "summary": "该条目描述了一种结合AI技术简化自托管系统的新方法。属于运维自动化和DevOps领域，可能通过智能化配置或故障排查降低自托管门槛，对开发者和运维人员有一定参考价值。",
+    "importance": "中",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "820cf79886fee076",
+    "ts": "2026-11-27 10:56"
+  },
+  {
+    "kind": "概念",
+    "title": "An introduction to uncertainty in machine learning",
+    "summary": "该文章探讨机器学习中的不确定性处理问题，属于AI基础理论方向。对理解模型预测可信度、决策可靠性等核心问题有启发意义，可能涉及概率建模等前沿方法。",
+    "importance": "高",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "b6e0d6e6d9debe6c",
+    "ts": "2026-11-27 10:56"
+  },
+  {
+    "kind": "发布",
+    "title": "Moat: OpenRouter replacement",
+    "summary": "一个替代OpenRouter的新型API路由服务，属于云原生基础设施范畴。可能通过更高效的路由算法或开源特性，为开发者提供更具性价比的API管理方案。",
+    "importance": "中",
+    "source_title": "Hacker News",
+    "link": "https://news.ycombinator.com/",
+    "category": "AI动态",
+    "key": "ad05bd2b323d4f5b",
+    "ts": "2026-11-27 10:56"
+  },
+  {
+    "kind": "发布",
+    "title": "36氪首发丨中科院博士做二维半导体制造全流程产线设备，完成数千万天使轮融资",
+    "summary": "这项技术属于半导体制造领域，涉及二维半导体材料的全流程产线设备研发。二维半导体因其在电子器件中的潜力而备受关注，该技术的突破可能推动新一代芯片制造的发展，提升我国在高端制造领域的竞争力。",
+    "importance": "高",
+    "source_title": "36氪",
+    "link": "https://36kr.com",
+    "category": "趋势瞭望台",
+    "key": "d19e67ddcbcf2be4",
+    "ts": "2026-11-27 10:57"
+  },
+  {
+    "kind": "发布",
+    "title": "36氪首发丨多地国资押注，这家中性原子量子计算企业获数亿元B轮投资",
+    "summary": "中性原子量子计算是当前量子计算领域的重要方向之一，该企业获得数亿元投资，表明国资对这一方向的高度重视。中性原子量子计算在量子通信和量子计算领域具有广泛应用前景，可能成为未来科技竞争的关键领域。",
+    "importance": "高",
+    "source_title": "36氪",
+    "link": "https://36kr.com",
+    "category": "趋势瞭望台",
+    "key": "db9785cad7ad6417",
+    "ts": "2026-11-27 10:57"
+  },
+  {
+    "kind": "概念",
+    "title": "GPT-6 Astra参与，83页论文让物理圈炸锅",
+    "summary": "GPT-6 Astra的参与表明大模型在物理研究中的应用正在扩展，该论文可能涉及量子引力等前沿领域。这种跨学科融合可能推动物理研究的新范式，但也引发对AI在科学研究中角色的讨论，值得关注其后续发展。",
+    "importance": "中",
+    "source_title": "36氪",
+    "link": "https://36kr.com",
+    "category": "趋势瞭望台",
+    "key": "2678e2b9b8887cf1",
+    "ts": "2026-11-27 10:57"
+  },
+  {
+    "kind": "功能",
+    "title": "3D DRAM，重磅官宣 DRAM产业正从平面微缩向3D堆叠技术转型",
+    "summary": "3D DRAM技术代表了DRAM产业从平面微缩向3D堆叠技术的转型，这种技术能够提升存储密度和性能，满足未来高性能计算和人工智能等对存储需求的快速增长。该技术的官宣标志着行业进入新的发展阶段。",
+    "importance": "中",
+    "source_title": "36氪",
+    "link": "https://36kr.com",
+    "category": "趋势瞭望台",
+    "key": "7ed3ff8f23aa9c21",
+    "ts": "2026-11-27 10:57"
+  },
+  {
+    "kind": "功能",
+    "title": "Karpathy点燃LLM Wiki，中国公司率先做成了企业级产品",
+    "summary": "LLM Wiki的出现表明大语言模型在知识管理、协作和应用开发方面的新趋势，中国公司率先将其转化为企业级产品，说明其在企业应用中的潜力和市场需求正在快速增长，可能推动相关工具和平台的发展。",
+    "importance": "中",
+    "source_title": "36氪",
+    "link": "https://36kr.com",
+    "category": "趋势瞭望台",
+    "key": "0bb02ac2c54f3694",
+    "ts": "2026-11-27 10:57"
+  },
+  {
+    "kind": "功能",
+    "title": "AI制药进入临床大考",
+    "summary": "科技巨头在AI制药领域加大投入，从算力、模型、数据到实验和临床验证，正推动AI制药从“工具外挂”向真正具备临床价值的阶段迈进。这标志着AI在药物研发中的作用从辅助工具逐步转变为关键环节，可能加速新药研发进程并降低成本。",
+    "importance": "高",
+    "source_title": "钛媒体",
+    "link": "https://www.tmtpost.com",
+    "category": "趋势瞭望台",
+    "key": "100bcc8423b9f1db",
+    "ts": "2026-11-27 10:57"
+  },
+  {
+    "kind": "概念",
+    "title": "服务贸易发展“十五五”规划印发",
+    "summary": "《服务贸易发展“十五五”规划》部署7方面25项重点任务，强调推动云计算、大模型等人工智能相关服务出海，培育人工智能领域服务贸易新业态。这表明中国正加快人工智能服务的全球化布局，推动科技与贸易深度融合，为相关企业创造新的发展机遇。",
+    "importance": "中",
+    "source_title": "钛媒体",
+    "link": "https://www.tmtpost.com",
+    "category": "趋势瞭望台",
+    "key": "dc13ae7e9efdc9a4",
+    "ts": "2026-11-27 10:57"
+  },
+  {
+    "kind": "概念",
+    "title": "5G-A网络规模覆盖及6G网络建设启动",
+    "summary": "三部委部署推进5G-A网络规模覆盖，并适时开展6G网络建设，表明中国正加快新一代通信技术的演进与部署。这将为未来智能社会、工业互联网、车联网等应用提供更强大的网络基础，推动数字经济的进一步发展。",
+    "importance": "中",
+    "source_title": "钛媒体",
+    "link": "https://www.tmtpost.com",
+    "category": "趋势瞭望台",
+    "key": "01d9aa47e2d2c5e2",
+    "ts": "2026-11-27 10:57"
   }
 ]

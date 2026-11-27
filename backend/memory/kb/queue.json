@@ -78,10 +78,10 @@
   "url": "",
   "who": "",
   "added": 1795743211,
-  "status": "running",
-  "tries": 1,
+  "status": "pending",
+  "tries": 2,
   "error": "AI 池这次没整理成：回复里没有页面",
-  "next_try": 1795746439
+  "next_try": 1795748408
  },
  {
   "sid": "research:research-20261127-092820-美国对华半导体出口管制与芯片企业国会游说国家安全政策背后的商.md",
@@ -91,21 +91,9 @@
   "who": "",
   "added": 1795743211,
   "status": "pending",
-  "tries": 1,
+  "tries": 2,
   "error": "AI 池这次没整理成：回复里没有页面",
-  "next_try": 1795746753
- },
- {
-  "sid": "note:20261126-101353-上海朱晓东冰柜案_这期必看瓜子二手车.md",
-  "kind": "note",
-  "title": "上海朱晓东冰柜案 这期必看。",
-  "url": "https://www.douyin.com/video/7707115417474551074",
-  "who": "穿山贾说了啥",
-  "added": 1795744139,
-  "status": "pending",
-  "tries": 0,
-  "error": "",
-  "next_try": 0
+  "next_try": 1795748820
  },
  {
   "sid": "note:20261126-100947-普通人应对恶意指南弱者气息__社交.md",
@@ -114,7 +102,7 @@
   "url": "https://www.douyin.com/video/7696769230741490986",
   "who": "+1的销售人生",
   "added": 1795745149,
-  "status": "pending",
+  "status": "running",
   "tries": 0,
   "error": "",
   "next_try": 0
