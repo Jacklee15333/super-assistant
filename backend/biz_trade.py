@@ -46,6 +46,8 @@ PLATFORMS = [
      "what": "全国最大的网购平台：零售价格带、「多少人付款」"},
     {"key": "pdd", "name": "拼多多", "kind": "零售", "url": "https://www.pinduoduo.com/", "login": True,
      "what": "下沉市场的价格带、「已拼多少件」"},
+    {"key": "xy", "name": "闲鱼", "kind": "二手成交", "url": "https://www.goofish.com/", "login": True,
+     "what": "二手价、「多少人想要」：东西卖不卖得掉、旧货值多少"},
     {"key": "sn", "name": "苏宁易购", "kind": "零售", "url": "https://www.suning.com/",
      "what": "不用登录的零售价：家电、数码、日用、食品的标价和评价数（京东要登录时靠它）"},
     {"key": "smzdm", "name": "什么值得买", "kind": "到手价", "url": "https://www.smzdm.com/",
@@ -66,12 +68,12 @@ PLATFORMS.insert(next(i for i, p in enumerate(PLATFORMS) if p["key"] == "zbj") +
                  {"key": X.APPSTORE_CN["key"], "name": X.APPSTORE_CN["name"], "kind": X.APPSTORE_CN["kind"], "url": X.APPSTORE_CN["home"],
                   "what": X.APPSTORE_CN["what"], "api": True})
 PLATFORMS += [{"key": p["key"], "name": p["name"], "kind": p["kind"], "url": p["home"], "what": p["what"], "foreign": True,
-               "region": p["region"], "api": bool(p.get("api"))} for p in X.G]
+               "region": p["region"], "api": bool(p.get("api")), "login": bool(p.get("login"))} for p in X.G]
 for _p in PLATFORMS:
     _p.setdefault("region", "cn")
 FOREIGN = {p["key"] for p in PLATFORMS if p.get("foreign")}
 LOGIN_SITES = {p["key"] for p in PLATFORMS if p.get("login")}
-CN_CHROME = {"ccgp", "b2b", "ywg", "jd", "tb", "pdd", "sn", "smzdm", "zbj"}     # 国内平台：前三档都不行时用爬虫专用 Chrome
+CN_CHROME = {"ccgp", "b2b", "ywg", "jd", "tb", "pdd", "sn", "smzdm", "zbj", "xy"}     # 国内平台：前三档都不行时用爬虫专用 Chrome
 USD = 7.1
 P_NAME = {p["key"]: p["name"] for p in PLATFORMS}
 
@@ -110,7 +112,8 @@ def _plain(h):
 
 # ───────────────────────── 抓网页：直连 → Scrapling 快速 → 浏览器 ─────────────────────────
 # v199：分成三种。「请登录」很多网站页面顶上本来就有（苏宁：您好，请登录），只在页面几乎没内容时才算被要求登录
-_LOGIN_URL = re.compile(r"(passport\.jd\.com|login\.taobao\.com|login\.tmall\.com|login\.1688\.com|yangkeduo\.com/login|passport\.alibaba|signin\.ebay|ap/signin)", re.I)
+_LOGIN_URL = re.compile(r"(passport\.jd\.com|login\.taobao\.com|login\.tmall\.com|login\.1688\.com|yangkeduo\.com/login|passport\.alibaba|signin\.ebay|ap/signin|"
+                        r"passport\.goofish|shopee\.sg/buyer/login|upwork\.com/ab/account-security/login)", re.I)
 _CAPTCHA = re.compile(r"(punish|滑动验证|拖动下方滑块|请拖动|安全验证|访问过于频繁|频繁访问|人机验证|请完成验证|验证一下|captcha|访问受限|系统繁忙|"
                       r"Robot Check|Robot or human|Pardon Our Interruption|unusual traffic|Access Denied|verify you are a human)", re.I)
 _SOFT = re.compile(r"(请登录|登录后|扫码登录|密码登录)")
@@ -204,7 +207,7 @@ def fetch(pkey, url, ok, trace):
                 return h, m
             r = _why(h, final, txt)
         except Exception as e:
-            r = str(e).split("\n")[0][:90]
+            r = X.human(str(e).split("\n")[0])[:90]
         trace.append({"m": SC_NAME[m], "ok": False, "ms": int((time.time() - t0) * 1000), "why": r})
         why.append("%s：%s" % (SC_NAME[m], r))
         if "还没装好" in r or "今天在" in r:
@@ -395,6 +398,9 @@ def set_cfg(**kw):
             r = c.setdefault("regions", {})
             r.update({k: bool(v) for k, v in kw.pop("regions").items() if k in dict(X.REGIONS)})
         kw.pop("regions", None)
+        if isinstance(kw.get("off"), list):
+            c["off"] = sorted({str(x) for x in kw.pop("off") if str(x) in P_NAME})
+        kw.pop("off", None)
         c.update({k: v for k, v in kw.items() if v is not None})
         _write(STATE_FILE, st)
     return {"ok": True, "cfg": cfg()}
@@ -467,6 +473,7 @@ PROBES = {
     "alibaba": lambda kw, tr: probe_foreign("alibaba", kw, tr),
     "tb": lambda kw, tr: probe_goods("tb", tb_url(kw), kw, tr),
     "pdd": lambda kw, tr: probe_goods("pdd", pdd_url(kw), kw, tr, int_div=100.0),
+    "xy": lambda kw, tr: probe_goods("xy", "https://www.goofish.com/search?q=" + urllib.parse.quote(kw), kw, tr),
 }
 PROBES.update(X.probes(fetch))             # v199：全世界的平台 + 官方公开接口
 FAIL_SKIP_N = 6            # 连着 6 次被拦 / 空壳（不是要登录）→ 先跳过 1 天
@@ -482,12 +489,16 @@ CROWD_L2 = {"消费电子", "小家电", "文娱用品", "家居用品", "饰品
 CROWD_TRK = {"t:newcons", "t:pet", "t:robot", "t:lowalt", "t:silver"}
 NO_GOV_L1 = {"银行", "非银金融", "房地产"}
 FOREIGN_TRK = {"t:crossborder", "t:pet", "t:newcons", "t:ev", "t:energy", "t:robot", "t:lowalt"}
-CN_GOODS = ["b2b", "ywg", "jd", "tb", "pdd", "sn", "smzdm"]
+CN_GOODS = ["b2b", "ywg", "jd", "tb", "pdd", "xy", "sn", "smzdm"]
 
 
 def regions_on():
-    r = cfg().get("regions") or {}
-    return {k for k, _n in X.REGIONS if r.get(k, True)}
+    """v201：不再按地区开关（界面改成一张总表，每个平台单独勾选）。"""
+    return {k for k, _n in X.REGIONS}
+
+
+def off_set():
+    return set(cfg().get("off") or [])
 
 
 def plan(target):
@@ -553,9 +564,8 @@ def plan(target):
         for p in X.G:
             if p["fit"] == f and p["region"] in on:
                 plats.append(p["key"])
-    if custom:
-        pass
-    return kw, list(dict.fromkeys(plats))
+    off = off_set()                                       # v201：表里取消勾选的平台不去抓
+    return kw, [p for p in dict.fromkeys(plats) if p not in off]
 
 
 def probe(target, only=None):
@@ -570,17 +580,23 @@ def probe(target, only=None):
         _run["running"][key] = int(time.time())
     res = {}
 
+    live = _live["now"].setdefault(key, {"kw": kw, "started": int(time.time()), "plats": {p: "wait" for p in plats}})
+
     def one(p):
         trace, t0 = [], time.time()
         sk = _skip_why(p)
         if sk:
+            live["plats"][p] = "skip"
             return p, {"ok": False, "skipped": True, "error": sk, "trace": [], "ms": 0}
+        live["plats"][p] = "run"
         try:
             r = PROBES[p](kw, trace)
             r.update(ok=True, trace=trace, ms=int((time.time() - t0) * 1000))
         except Exception as e:
             r = {"ok": False, "error": str(e)[:200], "trace": trace, "ms": int((time.time() - t0) * 1000)}
         _note(p, r)
+        live["plats"][p] = "ok" if r.get("ok") else "bad"
+        _feed(kw, p, r)
         return p, r
     try:
         with ThreadPoolExecutor(max_workers=4) as ex:        # v199：几个平台同时抓（同一个平台还是一个一个来）
@@ -589,9 +605,14 @@ def probe(target, only=None):
     finally:
         with _lock:
             _run["running"].pop(key, None)
+            _live["now"].pop(key, None)
     rec = {"target": key, "kw": kw, "at": int(time.time()), "res": res}
     with _lock:
         all_ = _read(TRADE_FILE, {})
+        if only and key in all_:                          # v201：只补几个平台时，和以前抓到的合在一起
+            merged = dict((all_[key] or {}).get("res") or {})
+            merged.update(res)
+            rec["res"] = merged
         all_[key] = rec
         if len(all_) > 400:
             for k in sorted(all_, key=lambda k: all_[k].get("at", 0))[:len(all_) - 400]:
@@ -614,7 +635,7 @@ def _skip_why(p):
     if p in FOREIGN and not cfg().get("foreign", True):
         return "国外平台在设置里关掉了"
     if p in LOGIN_SITES and TB and p in TB.SITES:
-        return "要先登录（在「交易平台抓取」标签最上面点「登录%s」）" % TB.SITES[p]["name"]
+        return "要先登录（在「交易平台抓取」的表里点「登录%s」，或点上面「一键登录全部」）" % TB.SITES[p]["name"]
     s = _read(STATE_FILE, {}).get(p) or {}
     if s.get("fail_streak", 0) >= FAIL_SKIP_N and time.time() - s.get("fail_at", 0) < 86400:
         return "连着 %d 次被拦或没认出，先跳过，明天再试" % s["fail_streak"]
@@ -666,6 +687,7 @@ def status():
         x = dict(p)
         x.update(st.get(p["key"]) or {})
         x["skip"] = _skip_why(p["key"])
+        x["err"] = "；".join(X.human(e) for e in str(x.get("err") or "").split("；") if e)        # v201：旧记录里的报错也翻成人话
         x["foreign"] = bool(p.get("foreign"))
         x["rname"] = X.R_NAME.get(p.get("region", "cn"), "")
         out.append(x)
@@ -768,12 +790,25 @@ def batch_start(scope="all", fresh_days=3):
             ids, name = trk + l2, "全部（新兴赛道 + 二级行业）"
         old = _read(TRADE_FILE, {})
         cut = time.time() - fresh_days * 86400
-        keep = [g for g in ids if (old.get(g) or {}).get("at", 0) < cut]
-        _tb.update(running=True, stop=False, ids=keep, i=0, ok=0, bad=0, cur="", started=int(time.time()), ended=0, name=name,
-                   skipped=len(ids) - len(keep))
+        keep, n_fill = [], 0
+        for g in ids:                                      # v201：3 天内抓过的，只补还没抓过的平台（新加的、之前没登录跳过的）
+            rec = old.get(g) or {}
+            if rec.get("at", 0) < cut:
+                keep.append((g, None))
+                continue
+            got = rec.get("res") or {}
+            miss = [p for p in plan(g)[1] if p not in got or got[p].get("skipped")]
+            if miss:
+                keep.append((g, miss))
+                n_fill += 1
+        _tb.update(running=bool(keep), stop=False, ids=keep, i=0, ok=0, bad=0, cur="", started=int(time.time()), ended=0 if keep else int(time.time()),
+                   name=name, skipped=len(ids) - len(keep), fill=n_fill)
+    if not keep:
+        _log("一个个抓交易平台：%s 都是 %d 天内抓过的，而且每个平台都抓过了，这次没有要抓的" % (name, fresh_days))
+        return {"ok": True, "n": 0, "skipped": len(ids), "fill": 0}
     threading.Thread(target=_tb_loop, daemon=True, name="biz-trade-batch").start()
-    _log("开始一个个抓交易平台：%s，%d 个（%d 天内抓过的 %d 个跳过）" % (name, len(keep), fresh_days, len(ids) - len(keep)))
-    return {"ok": True, "n": len(keep), "skipped": len(ids) - len(keep)}
+    _log("开始一个个抓交易平台：%s，%d 个（其中 %d 个只补新平台；%d 天内全抓过的 %d 个跳过）" % (name, len(keep), n_fill, fresh_days, len(ids) - len(keep)))
+    return {"ok": True, "n": len(keep), "skipped": len(ids) - len(keep), "fill": n_fill}
 
 
 def batch_stop():
@@ -783,12 +818,12 @@ def batch_stop():
 
 def _tb_loop():
     try:
-        for i, g in enumerate(list(_tb["ids"])):
+        for i, (g, only) in enumerate(list(_tb["ids"])):
             if _tb["stop"]:
                 break
             _tb.update(i=i, cur=g)
             try:
-                r = probe(g)
+                r = probe(g, only)
                 rec = (r or {}).get("rec") or {}
                 if any(x.get("ok") for x in (rec.get("res") or {}).values()):
                     _tb["ok"] += 1
@@ -805,7 +840,7 @@ def _tb_loop():
 def batch_status():
     if not _tb["started"]:
         return None
-    d = {k: _tb[k] for k in ("running", "stop", "i", "ok", "bad", "started", "ended", "name", "skipped")}
+    d = {k: _tb.get(k) for k in ("running", "stop", "i", "ok", "bad", "started", "ended", "name", "skipped", "fill")}
     d["n"] = len(_tb["ids"])
     d["cur_name"] = BZ._resolve(_tb["cur"])[0] if _tb["cur"] else ""
     done = _tb["ok"] + _tb["bad"]
@@ -850,3 +885,64 @@ def _migrate():
 
 
 _migrate()
+
+
+# ───────────────────────── v201：抓取时界面上实时看得到（正在抓哪个平台、刚抓到什么）；单个平台「试抓」─────────────────────────
+_live = {"now": {}, "feed": []}
+_try = {}
+
+
+def _one_line(p, r, kw):
+    try:
+        return (lines({"kw": kw, "at": int(time.time()), "res": {p: r}}) or [{}])[0].get("txt", "")
+    except Exception:
+        return ""
+
+
+def _feed(kw, p, r):
+    txt = _one_line(p, r, kw)
+    last = _live["feed"][-1] if _live["feed"] else {}
+    if last.get("p") == p and last.get("txt") == txt[:160]:          # 同一条连着出现只记一次
+        last["at"] = int(time.time())
+        return
+    _live["feed"] = (_live["feed"] + [{"at": int(time.time()), "kw": kw, "p": p, "name": P_NAME.get(p, p), "ok": bool(r.get("ok")), "txt": txt[:160]}])[-30:]
+
+
+def live():
+    now = []
+    for k, v in list(_live["now"].items()):
+        now.append({"target": k, "name": BZ._resolve(k)[0] if k else "", "kw": v["kw"], "started": v["started"],
+                    "plats": [[p, st, P_NAME.get(p, p)] for p, st in v["plats"].items()]})
+    return {"now": now, "feed": _live["feed"][-12:][::-1]}
+
+
+def try_one(key, kw):
+    """在表里点「试抓」：只抓这一个平台、用你写的词，几十秒内出结果。"""
+    kw = (kw or "").strip()[:30] or "宠物"
+    if key not in PROBES:
+        return {"ok": False, "error": "不认识的平台"}
+    if (_try.get(key) or {}).get("running"):
+        return {"ok": False, "error": "这个平台正在试抓"}
+    sk = _skip_why(key)
+    if sk and "要先登录" in sk:
+        return {"ok": False, "error": sk}
+    _try[key] = {"running": True, "kw": kw, "started": int(time.time())}
+
+    def go():
+        trace, t0 = [], time.time()
+        try:
+            r = PROBES[key](kw, trace)
+            r.update(ok=True, trace=trace, ms=int((time.time() - t0) * 1000))
+        except Exception as e:
+            r = {"ok": False, "error": str(e)[:200], "trace": trace, "ms": int((time.time() - t0) * 1000)}
+        _note(key, r)
+        _feed(kw, key, r)
+        _try[key] = {"running": False, "kw": kw, "at": int(time.time()), "ok": bool(r.get("ok")), "txt": _one_line(key, r, kw),
+                     "ms": r.get("ms", 0), "steps": [("%s %s" % (t.get("m"), "✓" if t.get("ok") else "✗ " + str(t.get("why", ""))[:40])) for t in r.get("trace") or []]}
+    threading.Thread(target=go, daemon=True, name="biz-trade-try").start()
+    return {"ok": True, "running": True, "kw": kw}
+
+
+def try_status():
+    cut = time.time() - 3600
+    return {k: v for k, v in _try.items() if v.get("running") or v.get("at", 0) > cut}

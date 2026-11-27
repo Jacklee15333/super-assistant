@@ -2505,10 +2505,9 @@
         '<div class="bz-rm-batch" id="bzRmBatch"></div>' +
         '<div class="bz-rm-checks" id="bzRmChecks"></div></section>' +
       '<section class="bz-rm-tp" data-rmtp="trade" hidden>' +
-        '<div class="bz-rm-login" id="bzRmLogin"></div>' +                                        // v198：京东 / 1688 登录、国外平台
-        '<div class="bz-rm-tbar" id="bzRmTBar"></div><div class="bz-tablewrap" id="bzRmSrc"></div>' +
-        '<div class="bz-rm-cat"><button type="button" class="bz-btn ghost" data-act="rm-cat" id="bzRmCatBtn">🌍 全世界的交易平台目录（按地区、类型列出，写清楚软件能不能抓）</button>' +   // v199
-        '<div id="bzRmCat" hidden></div></div></section>' +
+        '<div class="bz-rm-tact"><div id="bzRmTAct"></div>' +                                     // v201：整页只有一张全世界平台总表
+          '<label class="bz-rm-tkw">试抓用的词<input class="bz-input" id="bzRmTryKw" maxlength="30" value="宠物" aria-label="试抓用的词"></label></div>' +
+        '<div id="bzRmTLive"></div><div class="bz-tablewrap" id="bzRmTTable"></div></section>' +
       '<section class="bz-rm-tp bz-rm-tp-map" data-rmtp="map">' +                    // v196：地图也是一个标签（以前放在三个标签下面共用，看着像每个标签里都有）
         '<div class="bz-bar bz-rm-mapbar">' + seg("rmmetric", RM_METRIC) + seg("rmview", [["map", "地图"], ["list", "列表"]]) +
           '<input type="search" class="bz-input" id="bzRmQ" placeholder="找行业：白酒、化妆品、教育…" aria-label="找行业"></div>' +
@@ -2882,8 +2881,7 @@
     }
     rmReportRender();
     rmRunRender();
-    $("bzRmTBar").innerHTML = rmTBarHTML();
-    $("bzRmLogin").innerHTML = rmLoginHTML();
+    rmTradeRender();
     $("bzRmUpd").textContent = !d ? (S.rm.err ? "读不到：" + S.rm.err : "正在读…") : up ? "正在更新：" + (d.updating.stage || "…") :
       d.updated ? "数据" + ago(d.updated) + "更新过；超过 12 小时没更新，打开这一页会自动更新。" : "还没取过数据。";
     const vb = root.querySelector('.bz-seg[data-seg="rmview"]');
@@ -2901,7 +2899,6 @@
     $("bzRmBatch").innerHTML = rmBatchHTML();
     const pk = $("bzRmPick");
     if (pk && document.activeElement !== pk) pk.innerHTML = rmPickOptions();
-    $("bzRmSrc").innerHTML = rmSrcHTML("crawl");
     $("bzRmSrcAuto").innerHTML = rmSrcHTML("auto");
     rmTabsRender();
   }
@@ -2919,6 +2916,8 @@
     } catch (e) { S.rm.err = e.message; }
     const nowUpd = !!(S.rm.data && S.rm.data.updating && S.rm.data.updating.running);
     const ls = (S.rm.data && S.rm.data.logins && S.rm.data.logins.sites) || {};          // v198：登录好了提示一下
+    const tt = (S.rm.data && S.rm.data.ttry) || {};                                          // v201：试抓做完了提示一下
+    Object.keys(S.rm.tryWait || {}).forEach((k) => { if (tt[k] && !tt[k].running && tt[k].at) { delete S.rm.tryWait[k]; toast((tt[k].ok ? "✓ 试抓成功：" : "✗ 试抓没成功：") + (tt[k].txt || "").slice(0, 70)); } });
     Object.keys(ls).forEach((k) => { if (S.rm.lwait && S.rm.lwait[k] && !ls[k].waiting) { delete S.rm.lwait[k]; toast(ls[k].logged ? ls[k].name + " 登录好了，窗口已经收起来；之后爬虫抓" + ls[k].name + "会用它。" : ls[k].name + " 的登录窗口等太久，先收起来了，需要的话再点一次登录。"); } });
     if (S.rm.updWait && !nowUpd && (wasUpd || (S.rm.data && S.rm.data.report && S.rm.data.report.at * 1000 > Date.now() - 120000))) {
       S.rm.updWait = false; S.rm.showReport = true;                     // v193：更新做完了 → 出汇报
@@ -2932,6 +2931,7 @@
     if (S.rm.data && S.rm.data.updating && S.rm.data.updating.running) S.rm.timer = setTimeout(() => rmLoad(), 3000);
     else if (S.rm.updWait) S.rm.timer = setTimeout(() => rmLoad(), 1500);
     else if (Object.values((S.rm.data && S.rm.data.logins && S.rm.data.logins.sites) || {}).some((x) => x.waiting) || Object.keys(S.rm.lwait || {}).length) S.rm.timer = setTimeout(() => rmLoad(), 3000);   // v198
+    else if (rmTBusy() && S.pane === "real") S.rm.timer = setTimeout(() => rmLoad(), 2500);   // v201：抓取 / 试抓时 2.5 秒刷一次，看得到进度
     else if (((bt && (bt.running || bt.stopping)) || (S.rm.data && S.rm.data.tbatch && S.rm.data.tbatch.running)) && S.pane === "real") S.rm.timer = setTimeout(() => rmLoad(), 8000);   // v192
     else if (S.pane === "real") S.rm.timer = setTimeout(() => { if (S.pane === "real") rmLoad(); }, 30000);   // v195：开着这一页就隔半分钟看一眼（后台自己开始的任务也能看到）
     else if (force && S.rm.sel) rmSelect(S.rm.sel, true);
@@ -3000,34 +3000,159 @@
     bzLivePlace();
   }
   // v198：京东 / 1688 登录、国外平台开关
-  // v199：全世界的交易平台目录
-  async function rmCatToggle() {
-    const box = $("bzRmCat");
-    if (!box) return;
-    box.hidden = !box.hidden;
-    if (box.hidden) return;
-    if (!S.rm.cat) {
-      box.innerHTML = loading("正在读目录…");
-      const r = await api("/biz/real/catalog").catch((e) => ({ ok: false, error: e.message }));
-      if (!r.ok) { box.innerHTML = empty("读不到：" + esc(r.error || "")); return; }
-      S.rm.cat = r;
-    }
+  // v201：交易平台抓取——一个操作栏 + 实时进度 + 一张全世界平台总表
+  const RM_TF = [["", "全部"], ["sw", "软件会抓"], ["login", "要登录的"], ["ok", "抓到过"], ["bad", "还没抓到"], ["self", "只能自己看"]];
+  const rmSpin = '<span class="bz-spin" aria-hidden="true"></span>';
+  const rmShort = (n) => String(n || "").replace(/（.*?）/g, "").trim();
+  function rmTBusy() {
+    const d = S.rm.data || {};
+    return !!((d.tbatch && d.tbatch.running) || (d.tlive && d.tlive.now && d.tlive.now.length) ||
+      Object.values(d.ttry || {}).some((x) => x.running) || Object.keys(S.rm.tryWait || {}).length);
+  }
+  function rmTData() {
+    const d = S.rm.data || {}, src = {}, now = {};
+    (d.sources || []).forEach((x) => { if (x.crawl) src[x.key.replace(/^tp_/, "")] = x; });
+    ((d.tlive && d.tlive.now) || []).forEach((n) => n.plats.forEach((q) => { if (q[1] === "run") now[q[0]] = n.kw; }));
+    return { d: d, L: (d.logins && d.logins.sites) || {}, src: src, now: now, tr: d.ttry || {}, off: new Set((d.trade_cfg || {}).off || []) };
+  }
+  function rmTMatch(x, T, F) {
+    const s = x.key && T.src[x.key];
+    if (F === "sw") return !!s;
+    if (F === "login") return x.a === "login";
+    if (F === "ok") return !!(s && s.n_ok);
+    if (F === "bad") return !!(s && !s.n_ok);
+    if (F === "self") return !s;
+    return true;
+  }
+  function rmTRows(T) {
+    const c = S.rm.cat, R = S.rm.catR || "", K = S.rm.catK || "", F = S.rm.tf || "";
+    return c ? c.rows.filter((x) => (!R || x.r === R) && (!K || x.k === K) && rmTMatch(x, T, F)) : [];
+  }
+  function rmTActHTML() {
+    const d = S.rm.data || {}, LG = d.logins || {}, L = LG.sites || {}, tb = d.tbatch, B = LG.batch;
+    const notIn = (LG.order || []).filter((k) => !(L[k] || {}).logged);
+    let h = '<div class="bz-rm-tbtns">';
+    h += S.rm.tallBusy ? '<button type="button" class="bz-btn" disabled>' + rmSpin + "正在启动…</button>" :
+      tb && tb.running ? '<button type="button" class="bz-btn ghost" data-act="rm-tstop"' + (tb.stop ? " disabled" : "") + ">" + (tb.stop ? "正在停…" : "■ 停止抓取") + "</button>" :
+      '<button type="button" class="bz-btn" data-act="rm-tall">▶ 所有行业抓一遍</button>';
+    if (!(B && B.left && B.left.length)) h += notIn.length ? '<button type="button" class="bz-btn ghost" data-act="rm-login-all">一键登录全部（' + notIn.length + " 个没登录）</button>" :
+      '<span class="bz-rm-ok">✓ 要登录的平台都登录了</span><button type="button" class="bz-link" data-act="rm-login-all" data-force="1">全部重新登录</button>';
+    return h + '</div><p class="bz-dim bz-rm-thelp">下面每个平台：<b>勾上</b>就会去抓（「所有行业抓一遍」和 AI 核实时用）；点<b>「试抓」</b>马上用右边的词抓一下，几十秒出结果；要登录的点<b>「登录」</b>，扫码一次一直能用。' +
+      (LG.proxy === false ? "　<b>注意：</b>软件设置里没配代理，国外平台可能打不开。" : "") + "</p>";
+  }
+  function rmTLiveHTML() {
+    const d = S.rm.data || {}, LG = d.logins || {}, tb = d.tbatch, B = LG.batch, lv = d.tlive || {};
+    const hrs = (sec) => (sec >= 3600 ? (sec / 3600).toFixed(1).replace(/\.0$/, "") + " 小时" : Math.max(1, Math.round(sec / 60)) + " 分钟");
+    let h = "";
+    if (B && B.left && B.left.length) h += '<div class="bz-rm-lbatch">' + rmSpin + "<b>一键登录进行中（" + B.done + "/" + B.n + "）</b>：弹出来的 Chrome 里开了 " + B.n +
+      " 个标签页，现在在前面的是 <b>" + esc(B.cur) + "</b>，登录好会自动跳到下一个" + (B.left.length > 1 ? "（后面还有：" + esc(B.left_names.slice(1).join("、")) + "）" : "") + "。不想登的直接关掉那个标签页。</div>";
+    const running = tb && tb.running, m = S.rm.tallMsg;
+    if (m && !running && Date.now() - m.at < 10 * 60000) h += '<div class="bz-rm-tmsg"><span>' + esc(m.txt) + "</span>" +
+      (m.zero ? '<button type="button" class="bz-btn sm" data-act="rm-tall" data-fresh="0">全部重新抓（不跳过）</button>' : "") + '<button type="button" class="bz-link" data-act="rm-tmsg-x">知道了</button></div>';
+    if (running) h += '<div class="bz-rm-tlive"><p>' + rmSpin + "<b>正在抓：" + esc(tb.cur_name || "…") + "</b>　第 " + Math.min(tb.n, tb.i + 1) + " / " + tb.n + " 个行业 · 抓到 " + tb.ok +
+      (tb.bad ? " · 没抓到 " + tb.bad : "") + " · 还要约 " + hrs(tb.eta) + '</p><div class="bz-rm-bar"><i style="width:' + (tb.n ? Math.round((tb.i / tb.n) * 100) : 0) + '%"></i></div></div>';
+    else if (tb && tb.ended && Date.now() / 1000 - tb.ended < 86400) h += '<p class="bz-dim bz-rm-tlast">上次「' + esc(tb.name) + "」" + esc(ago(tb.ended)) + "抓完了：抓到 " + tb.ok + " 个行业，没抓到 " + tb.bad + " 个" + (tb.skipped ? "，跳过 " + tb.skipped + " 个 3 天内抓过的" : "") + "。</p>";
+    (lv.now || []).forEach((n) => {
+      h += '<div class="bz-rm-pchips"><span class="lab">「' + esc(n.kw) + "」正在各个平台上搜：</span>" + n.plats.map((q) => '<span class="pc ' + q[1] + '">' +
+        (q[1] === "run" ? rmSpin : q[1] === "ok" ? "✓ " : q[1] === "bad" ? "✗ " : q[1] === "skip" ? "– " : "") + esc(rmShort(q[2])) + "</span>").join("") + "</div>";
+    });
+    const feed = (lv.feed || []).filter((f) => running || (lv.now || []).length || Date.now() / 1000 - f.at < 600);
+    if (feed.length) h += '<div class="bz-rm-feed"><b>刚抓到的</b>' + feed.slice(0, 8).map((f) => '<p class="' + (f.ok ? "" : "bad") + '"><span>' + hhmm(f.at).slice(0, 5) + "</span>" +
+      (f.ok ? "✓ " : "✗ ") + esc(f.txt) + "</p>").join("") + "</div>";
+    return h;
+  }
+  function rmTStatus(x, T) {
+    const s = x.key && T.src[x.key];
+    if (!s) return '<span class="bz-rm-acc a-' + esc(x.a) + '">' + esc(x.an) + '</span><br><small class="bz-dim">' + esc(x.why || "") + "</small>";
+    const lg = T.L[x.key], tr = T.tr[x.key], k = esc(x.key);
+    let h = "";
+    if (lg) {
+      h += lg.waiting ? '<span class="bz-rm-bad">' + rmSpin + (lg.mode === "verify" ? "验证窗口开着，过一下验证…" : "登录窗口开着，等你登录…") + "</span>" :
+        lg.verify ? '<span class="bz-rm-bad">要过一下验证</span> <button type="button" class="bz-btn sm" data-rm-verify="' + k + '">去验证</button>' :
+        lg.logged ? '<span class="bz-rm-ok">✓ 已登录</span>' + (lg.today ? ' <small class="bz-dim">今天搜了 ' + lg.today + "/" + (lg.cap || 100) + "</small>" : "") + ' <button type="button" class="bz-link" data-rm-logout="' + k + '">退出</button>' :
+        (lg.expired ? '<span class="bz-rm-bad">登录过期了</span> ' : '<span class="bz-dim">要登录才抓</span> ') + '<button type="button" class="bz-btn sm" data-rm-login="' + k + '">登录' + esc(lg.name) + "</button>" +
+          (lg.hint ? '<br><small class="bz-dim">' + esc(lg.hint) + "</small>" : "");
+    } else h += '<span class="bz-rm-acc a-' + esc(x.a) + '">' + esc(x.an) + "</span>";
+    if (T.now[x.key]) h += '<div class="bz-rm-now">' + rmSpin + "正在抓「" + esc(T.now[x.key]) + "」…</div>";
+    if (tr && tr.running) h += '<div class="bz-rm-now">' + rmSpin + "正在试抓「" + esc(tr.kw) + "」…（几十秒）</div>";
+    else if (tr && tr.at) h += '<div class="bz-rm-tryres ' + (tr.ok ? "bz-rm-ok" : "bz-rm-bad") + '" title="' + esc((tr.steps || []).join("\n")) + '">' + (tr.ok ? "✓ 试抓「" : "✗ 试抓「") +
+      esc(tr.kw) + "」" + (tr.ok ? "成功：" : "没成功：") + esc((tr.txt || "").replace(/^[^：]+：/, "").slice(0, 110)) + "</div>";
+    else if (s.n_ok || s.n_bad) h += '<div><small class="' + (s.n_ok ? "bz-dim" : "bz-rm-bad") + '">' + (s.n_ok ? "抓到过 " + s.n_ok + " 次" : "还没抓到过") + (s.n_bad ? "，没抓到 " + s.n_bad + " 次" : "") +
+      (s.n_ok && s.via ? "（管用的：" + esc(s.via) + "）" : "") + "</small>" + (!s.n_ok && s.err ? '<br><small class="bz-dim" title="' + esc(s.err) + '">原因：' + esc(s.err.slice(0, 60)) + "</small>" : "") + "</div>";
+    else h += '<div><small class="bz-dim">还没抓过</small></div>';
+    if (s.skip && !/要先登录/.test(s.skip)) h += '<div><small class="bz-rm-bad">' + esc(s.skip) + "</small></div>";
+    if (!(lg && !lg.logged) && !(tr && tr.running)) h += '<button type="button" class="bz-btn sm ghost bz-rm-trybtn" data-rm-try="' + k + '">试抓</button>';
+    return h;
+  }
+  function rmTTableHTML() {
+    const c = S.rm.cat;
+    if (!c) return loading(S.rm.catErr ? "读不到平台表：" + S.rm.catErr : "正在读平台表…");
+    const T = rmTData(), rows = rmTRows(T), R = S.rm.catR || "", K = S.rm.catK || "", F = S.rm.tf || "";
+    const chip = (attr, v, label, on) => '<button type="button" class="' + (on ? "on" : "") + '" data-' + attr + '="' + esc(v) + '">' + esc(label) + "</button>";
+    return '<div class="bz-rm-thead">' + rmTHeadHTML(T, rows) + "</div>" +
+      (rows.length ? '<table class="bz-ltab bz-rm-catt"><thead><tr><th class="on">抓</th><th>平台</th><th>国家 / 地区</th><th>类型</th><th>能看到什么</th><th class="st">状态</th></tr></thead><tbody>' +
+        rows.map((x) => {
+          const s = x.key && T.src[x.key];
+          return '<tr class="' + (s ? (T.off.has(x.key) ? "off" : "") : "self") + '"><td class="on">' + (s ? '<input type="checkbox" data-rm-on="' + esc(x.key) + '"' + (T.off.has(x.key) ? "" : " checked") +
+            ' aria-label="抓不抓' + esc(x.n) + '">' : "") + '</td><td class="nm"><a class="bz-link strong" href="' + esc(x.u) + '" target="_blank" rel="noopener">' + esc(x.n) + "</a></td><td>" +
+            esc(x.c || x.rn) + '</td><td class="ds">' + esc(x.k) + '</td><td class="ds">' + esc(x.w) + '</td><td class="st">' + rmTStatus(x, T) + "</td></tr>";
+        }).join("") + "</tbody></table>" : empty("这个筛选下没有平台。"));
+  }
+  function rmTHeadHTML(T, rows) {
+    const c = S.rm.cat, R = S.rm.catR || "", K = S.rm.catK || "", F = S.rm.tf || "";
+    const chip = (attr, v, label, on) => '<button type="button" class="' + (on ? "on" : "") + '" data-' + attr + '="' + esc(v) + '">' + esc(label) + "</button>";
+    const sw = rows.filter((x) => x.key && T.src[x.key]);
+    return '<div class="bz-rm-tfilt"><div class="bz-rm-chips"><span class="lab">看哪些</span>' +
+      RM_TF.map((f) => chip("rm-tf", f[0], f[1] + " " + c.rows.filter((x) => rmTMatch(x, T, f[0])).length, F === f[0])).join("") + "</div>" +
+      '<div class="bz-rm-chips"><span class="lab">地区</span>' + chip("rm-catr", "", "全部", !R) + c.regions.map((g) => chip("rm-catr", g.k, g.n, R === g.k)).join("") + "</div>" +
+      '<div class="bz-rm-chips"><span class="lab">类型</span>' + chip("rm-catk", "", "全部", !K) + c.kinds.map((k) => chip("rm-catk", k, k, K === k)).join("") + "</div></div>" +
+      '<p class="bz-dim bz-rm-tbulk">列出 ' + rows.length + " 个平台" + (sw.length ? "，其中软件会抓的 " + sw.length + ' 个：<button type="button" class="bz-link" data-act="rm-ton">这些都抓</button> · <button type="button" class="bz-link" data-act="rm-toff">这些都不抓</button>' : "") + "</p>";
+  }
+  async function rmCatLoad() {
+    S.rm.catLoading = true;
+    const r = await api("/biz/real/catalog").catch((e) => ({ ok: false, error: e.message }));
+    S.rm.catLoading = false;
+    if (r.ok) S.rm.cat = r; else S.rm.catErr = r.error || "读不到";
     rmCatRender();
   }
+  // 实时刷新时只改变了的地方（整张表重画的话，正好点在按钮上时会点空）
+  function rmSetHTML(el, html) { if (el && el.__h !== html) { el.innerHTML = html; el.__h = html; } }
   function rmCatRender() {
-    const box = $("bzRmCat"), c = S.rm.cat;
-    if (!box || !c) return;
-    const R = S.rm.catR || "", K = S.rm.catK || "";
-    const rows = c.rows.filter((x) => (!R || x.r === R) && (!K || x.k === K));
-    const chip = (attr, v, label, on) => '<button type="button" class="' + (on ? "on" : "") + '" data-' + attr + '="' + esc(v) + '">' + esc(label) + "</button>";
-    box.innerHTML = '<p class="bz-dim">一共 ' + c.n + " 个平台，软件会自动抓的 " + c.n_auto + " 个（「✓ 自动抓」「登录后自动抓」）。其余的：「要申请免费钥匙」的以后可以接；「付费数据」最准但要钱；「先自己看」的是反爬很严或只能在 App 里看。</p>" +
-      '<div class="bz-rm-chips">' + chip("rm-catr", "", "全部地区", !R) + c.regions.map((g) => chip("rm-catr", g.k, g.n + " " + g.c, R === g.k)).join("") + "</div>" +
-      '<div class="bz-rm-chips">' + chip("rm-catk", "", "全部类型", !K) + c.kinds.map((k) => chip("rm-catk", k, k, K === k)).join("") + "</div>" +
-      '<table class="bz-ltab bz-rm-catt"><thead><tr><th>平台</th><th>国家 / 地区</th><th>类型</th><th>能看到什么</th><th>软件能不能抓</th></tr></thead><tbody>' +
-      rows.map((x) => '<tr><td class="nm"><a class="bz-link strong" href="' + esc(x.u) + '" target="_blank" rel="noopener">' + esc(x.n) + "</a></td><td>" + esc(x.c) +
-        '</td><td class="ds">' + esc(x.k) + '</td><td class="ds">' + esc(x.w) + '</td><td><span class="bz-rm-acc a-' + esc(x.a) + '">' + esc(x.an) + "</span>" + (x.a === "login" && x.key && rmNeedLogin(x.key) ? " " + rmLoginBtn(x.key) : "") +
-        (x.key && (x.n_ok || x.n_bad) ? '<br><small class="bz-dim">抓到过 ' + (x.n_ok || 0) + " 次，没抓到 " + (x.n_bad || 0) + " 次</small>" : "") + "</td></tr>").join("") +
-      "</tbody></table>";
+    const t = $("bzRmTTable");
+    if (!t) return;
+    if (!S.rm.cat) { t.innerHTML = rmTTableHTML(); t.__sig = ""; return; }
+    const T = rmTData(), rows = rmTRows(T);
+    const sig = [S.rm.catR || "", S.rm.catK || "", S.rm.tf || "", Object.keys(T.src).length, rows.map((x) => x.n).join("|")].join("#");   // 平台状态还没到时画的表，到了要整张重画
+    const trs = t.querySelectorAll("tbody tr");
+    if (t.__sig !== sig || trs.length !== rows.length) {
+      t.innerHTML = rmTTableHTML(); t.__sig = sig;
+      const h = t.querySelector(".bz-rm-thead");
+      if (h) h.__h = rmTHeadHTML(T, rows);
+      t.querySelectorAll("tbody tr").forEach((tr, i) => { const st = tr.querySelector("td.st"); if (st) st.__h = rmTStatus(rows[i], T); });
+      return;
+    }
+    rmSetHTML(t.querySelector(".bz-rm-thead"), rmTHeadHTML(T, rows));
+    rows.forEach((x, i) => {
+      const tr = trs[i], s = x.key && T.src[x.key], cls = s ? (T.off.has(x.key) ? "off" : "") : "self";
+      if (tr.className !== cls) tr.className = cls;
+      const cb = tr.querySelector("[data-rm-on]");
+      if (cb && cb.checked === T.off.has(x.key)) cb.checked = !T.off.has(x.key);
+      rmSetHTML(tr.querySelector("td.st"), rmTStatus(x, T));
+    });
+  }
+  function rmTradeRender() {
+    const a = $("bzRmTAct");
+    if (!a) return;
+    rmSetHTML(a, rmTActHTML());
+    rmSetHTML($("bzRmTLive"), rmTLiveHTML());
+    if (!S.rm.cat && !S.rm.catLoading && !S.rm.catErr) rmCatLoad();
+    rmCatRender();
+  }
+  async function rmTSetOff(off, msg) {
+    const r = await api("/biz/real/trade_cfg", { off: Array.from(off) }).catch(() => null);
+    if (r && r.cfg && S.rm.data) S.rm.data.trade_cfg = r.cfg;
+    if (msg) toast(msg);
+    rmTradeRender();
   }
   function rmLoginHTML() {                                          // v198：京东 / 1688 登录；v199：加淘宝、拼多多、过验证、按地区选国外平台
     const d = S.rm.data || {}, LG = d.logins || {}, L = LG.sites || {}, c = d.trade_cfg || {}, regs = d.trade_regions || [];
@@ -3792,6 +3917,18 @@
         toast(r.ok ? "验证窗口弹出来了：在里面拖一下滑块或输验证码，过了软件会自动收起窗口。" : r.error || "窗口没打开");
         rmLoad(); return;
       }
+      if ((b = t.closest("[data-rm-tf]"))) { S.rm.tf = b.dataset.rmTf; rmCatRender(); return; }                  // v201：总表筛选
+      if ((b = t.closest("[data-rm-try]"))) {                                                    // v201：试抓一个平台
+        const k = b.dataset.rmTry, kw = (($("bzRmTryKw") || {}).value || "").trim() || "宠物";
+        const nm = rmShort(((S.rm.data && S.rm.data.sources) || []).find((x) => x.key === "tp_" + k)?.name || k);
+        b.disabled = true; b.innerHTML = rmSpin + "开始试抓…";
+        const r = await api("/biz/real/trade", { action: "try", key: k, kw: kw }).catch((e) => ({ ok: false, error: e.message }));
+        if (!r.ok) { toast(r.error || "没开始"); b.disabled = false; b.textContent = "试抓"; return; }
+        S.rm.tryWait = Object.assign(S.rm.tryWait || {}, { [k]: 1 });
+        if (S.rm.data) { S.rm.data.ttry = S.rm.data.ttry || {}; S.rm.data.ttry[k] = { running: true, kw: r.kw }; }
+        toast("开始试抓：用「" + r.kw + "」去" + nm + "搜一下，几十秒后结果出现在这一行。");
+        rmTradeRender(); rmLoad(); return;
+      }
       if ((b = t.closest("[data-rm-catr]"))) { S.rm.catR = b.dataset.rmCatr; rmCatRender(); return; }          // v199：目录筛选
       if ((b = t.closest("[data-rm-catk]"))) { S.rm.catK = b.dataset.rmCatk; rmCatRender(); return; }
       if ((b = t.closest("[data-rm-logout]"))) {
@@ -3816,7 +3953,23 @@
           rmLoad();
         }
         else if (a === "rm-report-close") { S.rm.showReport = false; renderReal(); }
-        else if (a === "rm-tall") { b.disabled = true; await api("/biz/real/trade", { action: "all", scope: "all" }).then((r) => toast(r.ok ? "开始一个个抓了：" + r.n + " 个行业" + (r.skipped ? "（3 天内抓过的 " + r.skipped + " 个跳过）" : "") : r.error)).catch(() => null); rmLoad(); }
+        else if (a === "rm-ton" || a === "rm-toff") {                                           // v201：当前筛选的都抓 / 都不抓
+          const T = rmTData(), keys = rmTRows(T).filter((x) => x.key && T.src[x.key]).map((x) => x.key), off = new Set(T.off);
+          keys.forEach((k) => (a === "rm-ton" ? off.delete(k) : off.add(k)));
+          rmTSetOff(off, (a === "rm-ton" ? "这 " : "这 ") + keys.length + " 个平台之后" + (a === "rm-ton" ? "都会抓。" : "都不抓了。"));
+        }
+        else if (a === "rm-tall") {                                                              // v201：点了马上有反应，结果留在页面上
+          const fresh = b.dataset.fresh === "0" ? 0 : 3;
+          S.rm.tallBusy = true; S.rm.tallMsg = null; rmTradeRender();
+          const r = await api("/biz/real/trade", { action: "all", scope: "all", fresh: fresh }).catch((e) => ({ ok: false, error: e.message }));
+          S.rm.tallBusy = false;
+          if (!r.ok) S.rm.tallMsg = { at: Date.now(), txt: "没开始：" + (r.error || "") };
+          else if (!r.n) S.rm.tallMsg = { at: Date.now(), zero: true, txt: "这 " + r.skipped + " 个行业 3 天内都抓过了，表里勾上的平台也都抓过，这次没有要抓的。想马上全部重新抓一遍，点右边。" };
+          else S.rm.tallMsg = { at: Date.now(), txt: "开始抓了：" + r.n + " 个行业" + (r.fill ? "（其中 " + r.fill + " 个以前抓过，这次只补新加的 / 之前没登录的平台）" : "") + (r.skipped ? "，" + r.skipped + " 个 3 天内全抓过的跳过" : "") + "。" };
+          toast(S.rm.tallMsg.txt.slice(0, 60));
+          rmLoad();
+        }
+        else if (a === "rm-tmsg-x") { S.rm.tallMsg = null; rmTradeRender(); }
         else if (a === "rm-cat") { rmCatToggle(); }
         else if (a === "rm-login-all") {                                                         // v200：一键登录全部
           const force = b.dataset.force === "1";
@@ -4092,6 +4245,12 @@
     root.addEventListener("change", async (e) => {
       const t = e.target;
       if (t.matches("#bzCuForm select[data-cu]")) { cuQueueSave(120); return; }        // v187：商业定制
+      if (t.matches("[data-rm-on]")) {                                                          // v201：每个平台单独勾选抓不抓
+        const off = new Set(rmTData().off), k = t.dataset.rmOn;
+        if (t.checked) off.delete(k); else off.add(k);
+        const nm = rmShort(((S.rm.data && S.rm.data.sources) || []).find((x) => x.key === "tp_" + k)?.name || k);
+        rmTSetOff(off, (t.checked ? "之后会抓：" : "之后不抓：") + nm); return;
+      }
       if (t.matches("[data-rm-reg]")) {                                                          // v199：按地区开关国外平台
         const regions = {};
         root.querySelectorAll("[data-rm-reg]").forEach((x) => { regions[x.dataset.rmReg] = x.checked; });

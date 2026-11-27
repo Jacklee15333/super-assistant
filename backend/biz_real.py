@@ -1012,7 +1012,7 @@ def overview():
                     "extra": "利润率 %s%%" % ir["总计"]["margin"] if ir["总计"].get("margin") is not None else ""})
     return {"ok": True, "updated": d.get("updated", 0), "updating": dict(_upd), "report": d.get("last_report"), "sources": srcs, "kpi": kpi, "by": by,
             "listed": {k: L.get(k) for k in ("annual", "latest", "annual_name", "latest_name", "companies")},
-            "checks": [_check_brief(c) for c in _checks()[:300]], "batch": batch_status(), "tbatch": _tbatch(), "logins": _logins(), "trade_cfg": _tcfg(), "trade_regions": _tregions(), "now": int(time.time())}
+            "checks": [_check_brief(c) for c in _checks()[:300]], "batch": batch_status(), "tbatch": _tbatch(), "logins": _logins(), "trade_cfg": _tcfg(), "trade_regions": _tregions(), "tlive": _tlive(), "ttry": _ttry(), "now": int(time.time())}
 
 
 def item(gid):
@@ -1346,6 +1346,22 @@ def _tcfg():
     try:
         import biz_trade as BT
         return BT.cfg()
+    except Exception:
+        return {}
+
+
+def _tlive():
+    try:
+        import biz_trade as BT
+        return BT.live()
+    except Exception:
+        return {"now": [], "feed": []}
+
+
+def _ttry():
+    try:
+        import biz_trade as BT
+        return BT.try_status()
     except Exception:
         return {}
 

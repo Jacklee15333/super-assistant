@@ -11,7 +11,10 @@
 
 R = {"cn": "中国", "na": "北美", "eu": "欧洲", "ru": "俄罗斯 / 中亚", "jk": "日本 / 韩国", "sea": "东南亚", "sa": "南亚", "latam": "拉美",
      "mea": "中东 / 非洲", "oc": "大洋洲", "global": "全球 / 跨境"}
-A = {"auto": "✓ 自动抓", "login": "登录后自动抓", "key": "要申请免费钥匙", "paid": "付费数据", "manual": "先自己看"}
+A = {"auto": "自动抓", "login": "登录后自动抓", "key": "要申请免费钥匙", "paid": "付费数据", "manual": "只能自己看"}
+WHY = {"key": "平台有免费的官方接口，要你去申请一个钥匙，软件以后可以接上", "paid": "数据要付费才能看",
+       "manual": "反爬很严、数字被加密，或者只能在手机 App 里看：点名字自己去看"}
+CAT_REGION = {"cn": "cn", "na": "na", "eu": "eu", "jp": "jk", "sa": "sa", "sea": "sea", "latam": "latam", "mea": "mea", "b2b": "global", "svc": "global", "gov": "global"}
 
 # (名字, 地区, 国家 / 地方, 类型, 网址, 能看到什么, 软件能不能抓, 软件里的平台 key)
 L = [
@@ -31,7 +34,7 @@ L = [
     ("小红书", "cn", "中国", "直播 / 内容电商", "https://www.xiaohongshu.com/", "种草笔记多不多（热度，不是销量）", "manual", ""),
     ("唯品会", "cn", "中国", "零售电商", "https://www.vip.com/", "品牌特卖价", "manual", ""),
     ("得物", "cn", "中国", "二手 / 成交价", "https://www.dewu.com/", "球鞋、潮玩的真实成交价（App 里看）", "manual", ""),
-    ("闲鱼", "cn", "中国", "二手 / 成交价", "https://www.goofish.com/", "二手价、「多少人想要」", "manual", ""),
+    ("闲鱼", "cn", "中国", "二手 / 成交价", "https://www.goofish.com/", "二手价、「多少人想要」：东西卖不卖得掉", "login", "xy"),
     ("转转", "cn", "中国", "二手 / 成交价", "https://www.zhuanzhuan.com/", "二手手机数码的回收价和成交价", "manual", ""),
     ("当当", "cn", "中国", "零售电商", "https://www.dangdang.com/", "图书、文具的价格和评论数", "manual", ""),
     ("美团 / 大众点评", "cn", "中国", "本地生活", "https://www.dianping.com/", "一个城市有多少家店、人均消费、评价数（反爬很严）", "manual", ""),
@@ -80,7 +83,7 @@ L = [
     ("Facebook Marketplace / Craigslist", "na", "美国", "二手 / 成交价", "https://www.facebook.com/marketplace/", "本地二手挂牌价", "manual", ""),
     ("Mercari 美国", "na", "美国", "二手 / 成交价", "https://www.mercari.com/", "二手已售价格", "manual", ""),
     ("StockX", "na", "美国 / 全球", "二手 / 成交价", "https://stockx.com/", "球鞋、潮玩、显卡的真实成交价", "manual", ""),
-    ("Upwork", "na", "美国 / 全球", "服务接单", "https://www.upwork.com/", "全球自由职业项目预算（要登录）", "manual", ""),
+    ("Upwork", "global", "全球", "服务接单", "https://www.upwork.com/", "全球最大的自由职业平台：正在招人的项目预算（要登录）", "login", "upwork"),
     ("Fiverr", "na", "全球", "服务接单", "https://www.fiverr.com/", "各类服务的标价", "manual", ""),
     ("Thumbtack", "na", "美国", "本地生活", "https://www.thumbtack.com/", "装修、搬家、家教等本地服务报价", "manual", ""),
     ("美国联邦政府采购 USAspending", "na", "美国", "政府采购", "https://www.usaspending.gov/", "联邦合同的份数、金额、买方", "auto", "usaspending"),
@@ -98,7 +101,9 @@ L = [
     ("美国人口普查局 进出口", "na", "美国", "进出口数据", "https://www.census.gov/foreign-trade/", "美国按商品的进出口额（有免费接口）", "key", ""),
     ("美国农业部 Market News", "na", "美国", "大宗商品价格", "https://www.ams.usda.gov/market-news", "农产品批发价", "manual", ""),
     # ── 欧洲 ──
-    ("亚马逊 英国 / 德国 / 法国站", "eu", "英国、德国、法国", "零售电商", "https://www.amazon.de/", "零售价、「上个月卖了多少」", "auto", "amz_de"),
+    ("亚马逊 英国站", "eu", "英国", "零售电商", "https://www.amazon.co.uk/", "零售价、「上个月卖了多少」", "auto", "amz_uk"),
+    ("亚马逊 德国站", "eu", "德国", "零售电商", "https://www.amazon.de/", "零售价、「上个月卖了多少」", "auto", "amz_de"),
+    ("亚马逊 法国站", "eu", "法国", "零售电商", "https://www.amazon.fr/", "零售价、「上个月卖了多少」", "auto", "amz_fr"),
     ("亚马逊 意大利 / 西班牙站", "eu", "意大利、西班牙", "零售电商", "https://www.amazon.it/", "零售价", "manual", ""),
     ("Allegro", "eu", "波兰", "零售电商", "https://allegro.pl/", "波兰第一的电商", "manual", ""),
     ("Zalando", "eu", "德国 / 全欧", "零售电商", "https://www.zalando.com/", "服装鞋包价格", "manual", ""),
@@ -137,7 +142,7 @@ L = [
     ("Coconala / Lancers", "jk", "日本", "服务接单", "https://coconala.com/", "日本的服务报价", "manual", ""),
     ("Makuake", "jk", "日本", "众筹", "https://www.makuake.com/", "日本新品众筹金额", "manual", ""),
     # ── 东南亚 ──
-    ("Shopee", "sea", "东南亚 + 巴西", "零售电商", "https://shopee.sg/", "东南亚第一：价格、已售（搜索要登录）", "manual", ""),
+    ("Shopee", "sea", "东南亚 + 巴西", "零售电商", "https://shopee.sg/", "东南亚第一：价格、「已售多少」（搜索要登录）", "login", "shopee"),
     ("Lazada", "sea", "东南亚六国", "零售电商", "https://www.lazada.sg/", "价格、「已售多少」", "auto", "lazada"),
     ("TikTok Shop 东南亚", "sea", "东南亚", "直播 / 内容电商", "https://shop.tiktok.com/", "短视频带货", "manual", ""),
     ("Tokopedia", "sea", "印尼", "零售电商", "https://www.tokopedia.com/", "印尼本土电商（已并入 TikTok Shop）", "manual", ""),
@@ -153,7 +158,8 @@ L = [
     ("Daraz", "sa", "巴基斯坦、孟加拉等", "零售电商", "https://www.daraz.pk/", "南亚电商（阿里旗下）", "manual", ""),
     ("印度政府采购 GeM", "sa", "印度", "政府采购", "https://gem.gov.in/", "印度政府采购的商品和价格", "manual", ""),
     # ── 拉美 ──
-    ("美客多 Mercado Libre（墨西哥 / 巴西）", "latam", "墨西哥、巴西", "零售电商", "https://www.mercadolibre.com.mx/", "拉美第一：价格、「卖出多少」", "auto", "meli_mx"),
+    ("美客多 Mercado Libre（墨西哥）", "latam", "墨西哥", "零售电商", "https://www.mercadolibre.com.mx/", "拉美第一：价格、「卖出多少」", "auto", "meli_mx"),
+    ("美客多 Mercado Livre（巴西）", "latam", "巴西", "零售电商", "https://www.mercadolivre.com.br/", "巴西的价格、「卖出多少」", "auto", "meli_br"),
     ("美客多（阿根廷等）", "latam", "阿根廷、智利、哥伦比亚", "零售电商", "https://www.mercadolibre.com.ar/", "当地价格", "manual", ""),
     ("亚马逊 巴西站", "latam", "巴西", "零售电商", "https://www.amazon.com.br/", "零售价、「上个月卖了多少」", "auto", "amz_br"),
     ("亚马逊 墨西哥站", "latam", "墨西哥", "零售电商", "https://www.amazon.com.mx/", "零售价", "manual", ""),
@@ -196,16 +202,23 @@ L = [
 
 
 def catalog():
-    """目录 + 软件里自动抓的那些平台的状态（抓到过几次）。"""
-    st = {}
+    """全世界的交易平台总表（v201：交易平台抓取整页就是这张表）。软件会抓的平台每个一行，状态由界面实时合上。"""
+    st, plats = {}, []
     try:
         import biz_trade as BT
         st = {p["key"]: p for p in BT.status()}
+        plats = BT.PLATFORMS
     except Exception:
         pass
     rows = []
-    for n, r, c, k, u, w, a, key in L:
-        x = {"n": n, "r": r, "rn": R[r], "c": c, "k": k, "u": u, "w": w, "a": a, "an": A[a], "key": key}
+    L2 = list(L)
+    have = {x[7] for x in L2 if x[7]}
+    for p in plats:                                     # 软件会抓、但上面没写的平台：自动补一行
+        if p["key"] not in have:
+            L2.append((p["name"], CAT_REGION.get(p.get("region", "cn"), "global"), "", p.get("kind", ""), p["url"], p["what"],
+                       "login" if p.get("login") else "auto", p["key"]))
+    for n, r, c, k, u, w, a, key in L2:
+        x = {"n": n, "r": r, "rn": R[r], "c": c, "k": k, "u": u, "w": w, "a": a, "an": A[a], "key": key, "why": WHY.get(a, "")}
         s = st.get(key) or {}
         if key and s:
             x.update(n_ok=s.get("n_ok", 0), n_bad=s.get("n_bad", 0), skip=s.get("skip", ""))

@@ -14,6 +14,8 @@ v199 改了这些（v198 登录两分钟就「过期」，原因是下面前两�
   · 平台弹滑块 / 验证码时不硬闯：标成「要过一下验证」，你点一下，窗口弹出来，自己拖一下就好。
 v200：「一键登录全部」——没登录的平台一次全打开（一个窗口里几个标签页），登好一个自动关掉、跳到下一个；
       点「登录」前先清掉这个平台的旧登录信息（不然过期的旧 Cookie 还在，软件会误以为马上就登录好了）。
+v201：加闲鱼、Shopee（东南亚）、Upwork（全球接单）三个要登录的平台；国外平台在这个 Chrome 里也能打开——
+      国内网站直连，其余的走软件设置里的代理（用一个代理规则文件 PAC 分流，代理连不上时自动直连）。
 所有页面操作都在一个专门的线程里做（Playwright 只能在一个线程里用）；闲置 5 分钟自动关掉浏览器，省内存。
 """
 from __future__ import annotations
@@ -62,16 +64,29 @@ SITES = {
             "domain": "yangkeduo.com", "domains": ("yangkeduo.com", "pinduoduo.com"), "cookies": ("PDDAccessToken", "pdd_user_id")},
     "b2b": {"name": "1688", "login": "https://login.1688.com/member/signin.htm?Done=https%3A%2F%2Fwww.1688.com%2F", "home": "https://www.1688.com/",
             "domain": "1688.com", "domains": ("1688.com",), "cookies": ("__cn_logon__", "unb", "cookie17", "__cn_logon_id__")},
+    "xy": {"name": "闲鱼", "login": "https://www.goofish.com/", "home": "https://www.goofish.com/", "hint": "打开后点页面右上角的「登录」",
+           "domain": "goofish.com", "domains": ("goofish.com",), "cookies": ("unb",)},
+    "shopee": {"name": "Shopee", "login": "https://shopee.sg/buyer/login", "home": "https://shopee.sg/", "foreign": True,
+               "domain": "shopee.sg", "domains": ("shopee.sg",), "cookies": ("SPC_U",)},
+    "upwork": {"name": "Upwork", "login": "https://www.upwork.com/ab/account-security/login", "home": "https://www.upwork.com/", "foreign": True,
+               "domain": "upwork.com", "domains": ("upwork.com",), "cookies": ("master_access_token", "oauth2_global_js_token", "user_uid")},
 }
-ORDER = ["jd", "tb", "pdd", "b2b"]
-KEEP = ("jd.com", "taobao.com", "tmall.com", "1688.com", "yangkeduo.com", "pinduoduo.com", "alibaba.com")
-LOGIN_URL = re.compile(r"(passport\.jd\.com|login\.taobao\.com|login\.tmall\.com|login\.1688\.com|yangkeduo\.com/login|passport\.alibaba)", re.I)
+ORDER = ["jd", "tb", "pdd", "b2b", "xy", "shopee", "upwork"]
+KEEP = ("jd.com", "taobao.com", "tmall.com", "1688.com", "yangkeduo.com", "pinduoduo.com", "alibaba.com", "goofish.com", "shopee.sg", "upwork.com")
+# 国内网站：爬虫 Chrome 里直连；其余走代理（PAC 分流）
+CN_DIRECT = ("jd.com", "360buyimg.com", "jdpay.com", "jd.hk", "3.cn", "taobao.com", "tmall.com", "alicdn.com", "alibaba.com", "1688.com",
+             "mmstat.com", "tbcdn.cn", "alipay.com", "alipayobjects.com", "aliyun.com", "aliyuncs.com", "taobao.net", "tanx.com",
+             "alibabausercontent.com", "yangkeduo.com", "pinduoduo.com", "pddpic.com", "pddugc.com", "goofish.com", "xianyu.com", "yiwugo.com",
+             "suning.com", "smzdm.com", "zbj.com", "zbjimg.com", "baidu.com", "bdstatic.com", "qq.com", "gtimg.com", "weibo.com",
+             "dianping.com", "meituan.com", "xiaohongshu.com", "xhscdn.com", "douyin.com", "bytedance.com", "amap.com")
+LOGIN_URL = re.compile(r"(passport\.jd\.com|login\.taobao\.com|login\.tmall\.com|login\.1688\.com|yangkeduo\.com/login|passport\.alibaba|"
+                       r"passport\.goofish|shopee\.sg/buyer/login|upwork\.com/ab/account-security/login)", re.I)
 CAPTCHA = re.compile(r"(滑动验证|拖动下方滑块|请拖动|安全验证|访问过于频繁|频繁访问|人机验证|请完成验证|验证一下|captcha|punish|x5sec|baxia-dialog|"
                      r"Robot Check|Robot or human|Pardon Our Interruption|unusual traffic|verify you are a human|Access Denied)", re.I)
 
 _q = queue.Queue()
 _st = {"thread": None, "pw": None, "ctx": None, "eng": "", "last": 0, "login": {}, "visible": False, "err": "", "saved": 0,
-       "last_at": {}, "old_done": False, "tried_install": 0, "batch": None}
+       "last_at": {}, "old_done": False, "tried_install": 0, "batch": None, "px": None}
 _lock = threading.Lock()
 _pace_lock = threading.Lock()
 
@@ -268,11 +283,41 @@ def _run(fn, *args, timeout=300):
     return box.get("r")
 
 
+def _proxy():
+    """软件设置里的代理（国外网站用）；没配就是空。"""
+    try:
+        import web_tools as W
+        return W.proxy_for("https://www.upwork.com/") or ""
+    except Exception:
+        return ""
+
+
+def pac_url(px):
+    """PAC 代理规则：本机、国内网站直连；其余走代理，代理连不上就直连。写成 data: 网址直接交给 Chrome。"""
+    import base64
+    m = re.match(r"^(\w+)://(?:[^@/]*@)?([^/]+)", px or "")
+    if not m:
+        return ""
+    tok = ("SOCKS5 %s; SOCKS %s" % (m.group(2), m.group(2))) if m.group(1).lower().startswith("socks") else "PROXY %s" % m.group(2)
+    js = ('function FindProxyForURL(url, host) {'
+          ' if (isPlainHostName(host) || host == "localhost" || /^(127\\.|10\\.|192\\.168\\.|172\\.(1[6-9]|2\\d|3[01])\\.)/.test(host)) return "DIRECT";'
+          ' if (/\\.cn$/.test(host)) return "DIRECT";'
+          ' var cn = %s;'
+          ' for (var i = 0; i < cn.length; i++) { var d = cn[i]; if (host == d || host.slice(-d.length - 1) == "." + d) return "DIRECT"; }'
+          ' return "%s; DIRECT"; }') % (json.dumps(list(CN_DIRECT)), tok)
+    return "data:application/x-ns-proxy-autoconfig;base64," + base64.b64encode(js.encode("utf-8")).decode("ascii")
+
+
 def _ctx():
     if _st["ctx"]:
         try:
             _st["ctx"].pages          # 还活着
-            return _st["ctx"]
+            if _st["px"] == _proxy() or _st["login"]:
+                return _st["ctx"]
+            _log("代理设置变了，重开一下爬虫浏览器")
+            _save_cookies(force=True)
+            _st["ctx"].close()
+            _st["ctx"] = None
         except Exception:
             _st["ctx"] = None
     _cleanup_old_profile()
@@ -286,7 +331,9 @@ def _ctx():
         _st["pw"], _st["eng"] = sp().start(), eng
     PROFILE.mkdir(parents=True, exist_ok=True)
     env = {k: v for k, v in os.environ.items() if k.upper() not in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY")}
-    args = ["--window-position=%d,0" % OFFSCREEN, "--no-proxy-server", "--disable-background-timer-throttling",
+    px = _proxy()
+    pac = pac_url(px)
+    args = ["--window-position=%d,0" % OFFSCREEN, ("--proxy-pac-url=" + pac) if pac else "--no-proxy-server", "--disable-background-timer-throttling",
             "--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding", "--disable-features=CalculateNativeWinOcclusion"]
     patched = eng == "Patchright"
     if not patched:
@@ -300,7 +347,7 @@ def _ctx():
             if ch:
                 kw["channel"] = ch
             _st["ctx"] = _st["pw"].chromium.launch_persistent_context(str(PROFILE), **kw)
-            _st["visible"] = False
+            _st["visible"], _st["px"] = False, px
             n = _restore_cookies(_st["ctx"])
             _log("打开了（%s · %s%s）" % (eng, ch or "自带 Chromium", "，放回了 %d 条登录信息" % n if n else ""))
             return _st["ctx"]
@@ -330,7 +377,7 @@ def _logged(site):
     except Exception:
         return False
     for c in cs:
-        if s["domain"] in (c.get("domain") or "") and c.get("name") in s["cookies"] and c.get("value") and c.get("value") != "false":
+        if s["domain"] in (c.get("domain") or "") and c.get("name") in s["cookies"] and c.get("value") and c.get("value") not in ("false", "-", "0"):
             return True
     return False
 
@@ -665,6 +712,8 @@ def status():
             x["mode"] = _st["login"][site].get("mode", "login")
         x["today"] = x.get("n_today", 0) if x.get("day") == today else 0
         x["cap"] = DAILY_CAP
+        x["foreign"] = bool(s.get("foreign"))
+        x["hint"] = s.get("hint", "")
         out[site] = x
     b = _st["batch"]
     batch = None
@@ -673,4 +722,4 @@ def status():
         batch = {"n": len(b["sites"]), "left": left, "left_names": [SITES[x]["name"] for x in left],
                  "cur": SITES[left[0]]["name"] if left else "", "done": len(b["sites"]) - len(left)}
     return {"sites": out, "order": ORDER, "open": bool(_st["ctx"]), "err": _st["err"], "engine": engine_name(), "home": str(HOME),
-            "batch": batch}
+            "batch": batch, "proxy": bool(_proxy())}

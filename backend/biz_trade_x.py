@@ -39,8 +39,27 @@ def _write(p, data):
     BZ._write_json(p, data)
 
 
+_ERR = [(r"Errno 111|Connection refused|ECONNREFUSED", "连不上（被拒绝：多半是代理没开或网站拦了）"),
+        (r"Errno -2|Errno 11001|getaddrinfo|Name or service not known|nodename nor servname|ERR_NAME_NOT_RESOLVED", "找不到这个网站（网络或代理有问题）"),
+        (r"timed out|timeout|Timeout|ERR_TIMED_OUT", "等太久没回应（超时）"),
+        (r"ERR_PROXY_CONNECTION_FAILED|ProxyError|Tunnel connection failed", "代理连不上（看看代理软件开着没有）"),
+        (r"ERR_CONNECTION_RESET|Connection reset|RemoteDisconnected|10054", "连接被网站掐断了"),
+        (r"SSL|CERTIFICATE|ERR_CERT", "加密连接出错（网络或代理问题）"),
+        (r"HTTP Error 403|\b403\b", "被拒绝访问（403，可能被识别成爬虫）"), (r"HTTP Error 429|\b429\b", "访问太频繁（429）"),
+        (r"HTTP Error 404|\b404\b", "网址不存在（404，平台可能改版了）"), (r"HTTP Error 5\d\d", "网站自己出错了（5xx），过会儿再试")]
+
+
+def human(msg):
+    """把网络报错翻成人话。"""
+    m = str(msg or "")
+    for rx, say in _ERR:
+        if re.search(rx, m):
+            return say
+    return m
+
+
 def _short(e):
-    s = str(e).split("\n")[0]
+    s = human(str(e).split("\n")[0])
     return s[:90] or e.__class__.__name__
 
 
@@ -142,7 +161,7 @@ _PRICE = ("price", "salePrice", "jdPrice", "finalPrice", "promotionPrice", "pric
           "price_info", "priceInfo", "amount", "value")
 _SOLD = ("realSales", "sales", "sold", "saleQuantity", "sales_tip", "salesTip", "soldCount", "volume", "monthSales", "tradeQuantity",
          "bookedCount", "saleCount", "inOrderCount30Days", "totalSold", "buyCount", "sale_num", "soldQuantity", "goodsSales",
-         "itemSoldCntShow", "soldNum", "sellCount", "saleNum", "boughtCount", "quantitySumMonth")
+         "itemSoldCntShow", "soldNum", "sellCount", "saleNum", "boughtCount", "quantitySumMonth", "historical_sold", "wantNum")
 _CMT = ("commentCount", "comments", "comment_count", "reviewCount", "reviews", "review", "feedbacks", "ratingCount",
         "userRatingCount", "rating_count", "evaluateCount", "commentNum", "commentFuzzy", "numberOfReviews", "reviewsCount",
         "ratingsTotal", "totalReviews")
@@ -483,6 +502,13 @@ G = [
     {"key": "dhgate", "name": "敦煌网 DHgate", "region": "b2b", "kind": "跨境批发", "home": "https://www.dhgate.com/", "cur": "USD", "lang": "en",
      "url": "https://www.dhgate.com/wholesale/search.do?act=search&searchkey={q}", "price": [r'US\s*\$\s*([\d,]+(?:\.\d+)?)'],
      "sold": [r"([\d,]+)\s*[Ss]old"], "fit": "goods", "what": "跨境小额批发：国外小商家进货价、卖出多少"},
+    # ── v201：要登录的国外平台（用登录好的爬虫 Chrome 抓，国外网站自动走代理）──
+    {"key": "shopee", "name": "Shopee（东南亚·新加坡站）", "region": "sea", "kind": "国外零售", "home": "https://shopee.sg/", "cur": "SGD", "lang": "en",
+     "login": True, "int_div": 100000.0, "url": "https://shopee.sg/search?keyword={q}", "price": [r'\$\s*([\d,]+\.\d{2})'],
+     "sold": [r"([\d.,]+\s*[kK]?)\+?\s*sold"], "fit": "goods", "what": "东南亚第一的电商：零售价格带、「已售多少」（搜索要登录）"},
+    {"key": "upwork", "name": "Upwork（全球接单）", "region": "svc", "kind": "国外服务接单", "home": "https://www.upwork.com/", "cur": "USD", "lang": "en",
+     "login": True, "url": "https://www.upwork.com/nx/search/jobs/?q={q}", "price": [r'(?:budget|Budget)[^$]{0,40}\$\s*([\d,]+(?:\.\d{2})?)', r'\$\s*([\d,]+(?:\.\d{2})?)'],
+     "fit": "svc", "what": "全球最大的自由职业平台：正在招人的项目预算（要登录）"},
     # ── 官方公开接口（不用登录、不用钥匙）──
     {"key": "freelancer", "name": "Freelancer（全球接单）", "region": "svc", "kind": "国外服务接单", "home": "https://www.freelancer.com/", "api": "freelancer",
      "fit": "svc", "what": "全世界的人正在花钱找人做的项目：预算多少、多少人抢"},
@@ -727,6 +753,9 @@ def line(key, r, kw, nm):
                 r.get("n") or 0, _n(b["mid"]), cny(b["mid"]), _n(r.get("sum")), _yi((r.get("sum") or 0) * rate), _n(r.get("backers") or 0), r.get("won") or 0)
         return s
     b = r.get("band") or {}
+    if key == "upwork":
+        return "%s：搜「%s」正在招人的项目里 %d 个写了预算，中间一半 $%s～$%s（约 ¥%s～¥%s），中位数 $%s" % (
+            nm, q, b.get("n", 0), _n(b.get("p25")), _n(b.get("p75")), _n((b.get("p25") or 0) * rate), _n((b.get("p75") or 0) * rate), _n(b.get("mid")))
     s = "%s：搜「%s」" % (nm, q)
     if r.get("total"):
         s += "共 %s 个结果，" % _n(r["total"])
