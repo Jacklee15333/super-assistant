@@ -22,21 +22,21 @@
   "n_bad": 3
  },
  "b2b": {
-  "at": 1795704865,
-  "n_bad": 17,
+  "at": 1795740552,
+  "n_bad": 18,
   "err": "Scrapling 快速：要登录或被拦（login.1688）；Scrapling 浏览器：Scrapling 浏览器打开超时（timeout）",
-  "login_streak": 3,
-  "login_at": 1795704865,
+  "login_streak": 4,
+  "login_at": 1795740552,
   "n_ok": 1,
   "last_ok": 1795704412,
   "via": "已登录的浏览器"
  },
  "jd": {
-  "at": 1795704712,
-  "n_bad": 16,
-  "err": "Scrapling 快速：页面是空壳（只有 4 个字）；Scrapling 浏览器：要登录或被拦（passport.jd.com）",
-  "login_streak": 5,
-  "login_at": 1795704712
+  "at": 1795740593,
+  "n_bad": 17,
+  "err": "Scrapling 快速：Timeout: Failed to perform, curl: (28) Resolving timed out after 24765 milliseco；Scrapling 浏览器：要登录或被拦（passport.jd.com）",
+  "login_streak": 6,
+  "login_at": 1795740593
  },
  "smzdm": {
   "pref": "browser",
@@ -64,23 +64,23 @@
   "err": "Scrapling 快速：要登录或被拦（请登录）；Scrapling 浏览器：要登录或被拦（Captcha）"
  },
  "amazon": {
-  "at": 1795706661,
-  "n_bad": 82,
+  "at": 1795740595,
+  "n_bad": 83,
   "err": "搜索词翻不成英文（微软翻译连不上）"
  },
  "ebay": {
-  "at": 1795706663,
-  "n_bad": 82,
+  "at": 1795740597,
+  "n_bad": 83,
   "err": "搜索词翻不成英文（微软翻译连不上）"
  },
  "aliexpress": {
-  "at": 1795706666,
-  "n_bad": 82,
+  "at": 1795740599,
+  "n_bad": 83,
   "err": "搜索词翻不成英文（微软翻译连不上）"
  },
  "alibaba": {
-  "at": 1795706669,
-  "n_bad": 81,
+  "at": 1795740601,
+  "n_bad": 82,
   "err": "搜索词翻不成英文（微软翻译连不上）"
  }
 }

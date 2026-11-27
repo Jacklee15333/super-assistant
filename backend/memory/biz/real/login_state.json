@@ -1,14 +1,14 @@
 {
  "jd": {
   "logged": false,
-  "at": 1795704567,
-  "checked": 1795704702,
+  "at": 1795740453,
+  "checked": 1795740558,
   "expired": true
  },
  "b2b": {
-  "logged": false,
-  "at": 1795704470,
-  "checked": 1795704605,
-  "expired": true
+  "logged": true,
+  "at": 1795740472,
+  "checked": 1795740472,
+  "expired": false
  }
 }

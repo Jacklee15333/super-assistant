@@ -15443,5 +15443,126 @@
     "ms": 0
    }
   }
+ },
+ "汽车/乘用车": {
+  "target": "汽车/乘用车",
+  "kw": "乘用车",
+  "at": 1795740602,
+  "res": {
+   "ccgp": {
+    "ok": false,
+    "skipped": true,
+    "error": "连着 3 次都要登录才给看，先跳过（7 天后再试）",
+    "trace": [],
+    "ms": 0
+   },
+   "b2b": {
+    "ok": false,
+    "error": "Scrapling 快速：要登录或被拦（login.1688）；Scrapling 浏览器：Scrapling 浏览器打开超时（timeout）",
+    "trace": [
+     {
+      "m": "已登录的浏览器",
+      "ok": false,
+      "ms": 5099,
+      "why": "要登录或被拦（login.taobao）"
+     },
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 141,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 375,
+      "why": "要登录或被拦（login.1688）"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 90512,
+      "why": "Scrapling 浏览器打开超时（timeout）"
+     }
+    ],
+    "ms": 96130
+   },
+   "ywg": {
+    "ok": false,
+    "skipped": true,
+    "error": "连着 3 次都要登录才给看，先跳过（7 天后再试）",
+    "trace": [],
+    "ms": 0
+   },
+   "jd": {
+    "ok": false,
+    "error": "Scrapling 快速：Timeout: Failed to perform, curl: (28) Resolving timed out after 24765 milliseco；Scrapling 浏览器：要登录或被拦（passport.jd.com）",
+    "trace": [
+     {
+      "m": "已登录的浏览器",
+      "ok": false,
+      "ms": 5057,
+      "why": "要登录或被拦（passport.jd.com）"
+     },
+     {
+      "m": "普通方式",
+      "ok": false,
+      "ms": 275,
+      "why": "页面是空壳（只有 4 个字）"
+     },
+     {
+      "m": "Scrapling 快速",
+      "ok": false,
+      "ms": 25258,
+      "why": "Timeout: Failed to perform, curl: (28) Resolving timed out after 24765 milliseco"
+     },
+     {
+      "m": "Scrapling 浏览器",
+      "ok": false,
+      "ms": 8814,
+      "why": "要登录或被拦（passport.jd.com）"
+     }
+    ],
+    "ms": 39405
+   },
+   "sn": {
+    "ok": false,
+    "skipped": true,
+    "error": "连着 3 次都要登录才给看，先跳过（7 天后再试）",
+    "trace": [],
+    "ms": 0
+   },
+   "smzdm": {
+    "ok": false,
+    "skipped": true,
+    "error": "连着 3 次都要登录才给看，先跳过（7 天后再试）",
+    "trace": [],
+    "ms": 0
+   },
+   "amazon": {
+    "ok": false,
+    "error": "搜索词翻不成英文（微软翻译连不上）",
+    "trace": [],
+    "ms": 1239
+   },
+   "ebay": {
+    "ok": false,
+    "error": "搜索词翻不成英文（微软翻译连不上）",
+    "trace": [],
+    "ms": 1080
+   },
+   "aliexpress": {
+    "ok": false,
+    "error": "搜索词翻不成英文（微软翻译连不上）",
+    "trace": [],
+    "ms": 1081
+   },
+   "alibaba": {
+    "ok": false,
+    "error": "搜索词翻不成英文（微软翻译连不上）",
+    "trace": [],
+    "ms": 765
+   }
+  }
  }
 }
