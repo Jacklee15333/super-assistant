@@ -3013,13 +3013,20 @@
   // v201：交易平台抓取——一个操作栏 + 实时进度 + 一张全世界平台总表
   const RM_TF = [["", "全部"], ["sw", "软件会抓"], ["login", "要登录的"], ["ok", "抓到过"], ["bad", "还没抓到"], ["self", "只能自己看"], ["ch", "还有别的拿数据办法"]];
   const RM_CHK = { "官方接口": "gov", "联盟接口": "aff", "现成爬虫": "act", "数据服务": "paid", "卖家后台": "sel" };
-  function rmChHTML(x) {                                              // v203：这个平台还能从哪拿数据（官方接口、联盟接口、现成爬虫、数据服务、卖家后台）
+  function rmChHTML(x) {                                              // v203：这个平台还能从哪拿数据（官方接口、联盟接口、现成爬虫、数据服务、卖家后台）；v204：每条加「怎么用」
+    if ((!x.ch || !x.ch.length) && x.h && x.h.length) return '<details class="bz-rm-how"><summary>怎么用（' + x.h.length + " 步）</summary><ol>" + x.h.map((t) => "<li>" + esc(t) + "</li>").join("") + "</ol></details>";
     if (!x.ch || !x.ch.length) return "";
     const ap = !!(S.rm.data && S.rm.data.trade_cfg && S.rm.data.trade_cfg.apify && S.rm.data.trade_cfg.apify.on);
-    return '<details class="bz-rm-ch"><summary>还能从哪拿（' + x.ch.length + "）</summary><ul>" + x.ch.map((c) =>
+    const info = (S.rm.cat && S.rm.cat.kind_info) || {}, kinds = [...new Set(x.ch.map((c) => c.k))];
+    const can = (c) => (c.f === "done" ? '<span class="bz-rm-ok">✓ 软件已经在用</span>' : c.f === "apify" ? (ap ? '<span class="bz-rm-ok">✓ 软件在用（Apify）</span>' :
+      '<span class="bz-rm-can">填了 Apify 令牌软件就自动用</span>') : c.k === "官方接口" || c.k === "联盟接口" || c.k === "现成爬虫" ? '<span class="bz-rm-can">拿到钥匙后告诉我，能接进软件</span>' :
+      '<span class="bz-dim">软件接不了，要到它网站上看</span>');
+    return '<details class="bz-rm-ch"><summary>还能从哪拿（' + x.ch.length + "）· 怎么用</summary>" +
+      '<p class="bz-rm-chinfo">' + kinds.map((k) => '<span class="bz-rm-chk k-' + (RM_CHK[k] || "x") + '">' + esc(k) + "</span>" + esc(info[k] || "")).join("<br>") + "</p><ul>" + x.ch.map((c) =>
       '<li><span class="bz-rm-chk k-' + (RM_CHK[c.k] || "x") + '">' + esc(c.k) + '</span><a class="bz-link" href="' + esc(c.u) + '" target="_blank" rel="noopener">' + esc(c.n) + "</a>" +
-      '<small class="bz-dim">' + esc(c.w) + "</small>" + (c.f === "done" ? '<small class="bz-rm-ok">✓ 软件在用</small>' :
-        c.f === "apify" ? (ap ? '<small class="bz-rm-ok">✓ 软件在用（Apify）</small>' : '<small class="bz-dim">（填了 Apify 令牌，软件就会用）</small>') : "") + "</li>").join("") + "</ul></details>";
+      '<small class="bz-dim">' + esc(c.w) + "</small><small>" + can(c) + "</small>" +
+      (c.h && c.h.length ? '<details class="bz-rm-how"><summary>怎么用（' + c.h.length + " 步）</summary><ol>" + c.h.map((t) => "<li>" + esc(t) + "</li>").join("") + "</ol></details>" : "") +
+      "</li>").join("") + "</ul></details>";
   }
   const rmSpin = '<span class="bz-spin" aria-hidden="true"></span>';
   const rmShort = (n) => String(n || "").replace(/（.*?）/g, "").trim();

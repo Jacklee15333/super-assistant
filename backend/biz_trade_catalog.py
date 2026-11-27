@@ -316,6 +316,95 @@ for _k in ("amazon", "amz_uk", "amz_de", "amz_fr", "amz_jp", "amz_in", "amz_br",
     CH[_k] = _AMZ
 
 
+# ───────────────────────── v204：每条渠道「怎么用」 ─────────────────────────
+TELL = "拿到后在软件里跟我说一声（把名字和钥匙类型告诉我，钥匙本身不用发），我在「更强的抓取」里加一个填它的地方，接上后软件自动用"
+APIFY_STEPS = ["去 Apify 注册（免费套餐每月送 5 美元额度，不用绑卡就能试）",
+               "登录 Apify 控制台，进「Settings（设置）」→「API & Integrations」，复制里面的 API token（令牌）",
+               "回到软件：交易平台抓取 → 展开「更强的抓取」→ ① Apify 现成爬虫，粘贴令牌点「保存」",
+               "之后免费办法抓不到时，软件自动交给它；可以在表里点这个平台的「试抓」马上试一下"]
+KIND_STEPS = {
+    "官方接口": lambda n: ["打开「%s」，注册一个开发者账号（一般免费）" % n,
+                       "在后台新建一个「应用」，拿到它给的钥匙（叫 API Key、Client ID、AppKey 之类）", TELL],
+    "联盟接口": lambda n: ["在「%s」注册成为推广者（联盟会员），一般要实名" % n,
+                       "按它的要求完成备案、建推广位，再申请接口权限（有的要审核几天）",
+                       "批下来后拿到 AppKey 和 Secret。" + TELL,
+                       "注意：联盟接口给的是推广价和销量提示，和页面上的价格不一定完全一样"],
+    "现成爬虫": lambda n: ["打开链接，在 Apify 商店的搜索结果里挑一个：看「Monthly users（每月用户）」多、评分高、最近更新过的",
+                       "注册 Apify 后，点那个爬虫的「Try for free」，在网页上填个关键词先试一次，看结果对不对",
+                       "好用的话，把它的名字（形如 作者/xxx-scraper）告诉我，我接进软件；令牌按上面 Apify 的办法填"],
+    "数据服务": lambda n: ["打开「%s」注册；大多有免费试用或部分免费内容，深度数据要付费" % n,
+                       "在它网站上按品类、关键词查，能导出表格的就导出来",
+                       "软件暂时接不了（多数没有公开接口，或者只卖企业版）。查到的数字可以记下来，核实时对照着看"],
+    "卖家后台": lambda n: ["要先在这个平台开店，用店铺账号才能登录「%s」" % n,
+                       "登录后在「市场」「行业」「搜索分析」这类页面看行业大盘和品类排行",
+                       "软件接不了：这些数据平台只给店主看"],
+}
+DONE_STEPS = ["软件已经在用，你不用做什么", "想自己看原始数据，点上面的名字打开它的网站"]
+HOW = {
+    "淘宝联盟开放平台（淘宝客）": ["打开 pub.alimama.com，用淘宝账号登录，完成实名认证和媒体备案",
+                           "创建一个推广位，记下推广位 ID（adzone_id）",
+                           "打开 open.taobao.com 创建应用，申请「淘宝客【推广者】」权限（里面有物料搜索接口），拿到 AppKey 和 AppSecret",
+                           "三样都有了，" + TELL],
+    "京东联盟开放平台": ["打开 union.jd.com，用京东账号登录，完成实名认证",
+                  "在京东联盟的开放平台新建应用，拿到 AppKey 和 AppSecret",
+                  "「关键词查商品」的接口要单独申请权限；批下来之前只能拿到京东挑好的精选商品",
+                  TELL],
+    "多多进宝开放平台": ["打开开放平台，注册「多多进宝」开发者，新建应用拿到 client_id 和 client_secret",
+                  "建一个推广位，并做「授权备案」（拼多多要求的，不备案搜不到商品）", TELL],
+    "1688 开放平台": ["要企业认证（营业执照），个人一般用不了", "认证后新建应用、申请商品类接口", TELL],
+    "Amazon Creators API": ["先加入亚马逊联盟（Amazon Associates），而且 30 天内要有至少 10 笔有效销售，接口才开放",
+                            "达到后登录 Associates Central →「Tools」→「Product Advertising API」→ 管理凭证，生成新的 Creators API 凭证",
+                            "门槛对一般人太高。想要亚马逊数据，更现实的是用 Apify（下面那条）或 Keepa"],
+    "Keepa": ["打开 keepa.com 注册；网页上免费就能看每个商品的价格历史曲线",
+              "要「数据接口」得另外付费订阅 API（按用量计费）",
+              "订阅后，" + TELL + "（能查价格历史、销量排名）"],
+    "Jungle Scout / Helium 10": ["注册后付费订阅（有试用期），在网页上搜关键词看每个商品的月销量估算",
+                                 "软件接不了，查到的月销量可以记下来对照看"],
+    "eBay Browse API": ["打开 developer.ebay.com 注册开发者账号（免费）",
+                        "新建应用，在「Production（正式）」那一栏拿到 Client ID 和 Client Secret", TELL + "（能搜 eBay 在售商品的价格）"],
+    "Terapeak（eBay 卖家中心）": ["用 eBay 账号登录，打开 Seller Hub 里的「Research（Terapeak）」",
+                              "输关键词，能看到过去一年卖出了多少件、成交均价（卖家免费用）", "软件接不了，只能在那里看"],
+    "SAM.gov 招标接口": ["打开 sam.gov 注册账号", "登录后在个人账户（Workspace）里申请「Public API Key」（免费）",
+                      TELL + "（能查美国联邦正在招标、还没定的项目）"],
+    "乐天 Web Service 商品搜索": ["用乐天账号登录 webservice.rakuten.co.jp", "新建应用，拿到 applicationId（免费）",
+                             TELL + "，接上后乐天改用官方接口抓，比抓网页稳"],
+    "Yahoo!ショッピング Web API": ["用 Yahoo! JAPAN ID 登录 developer.yahoo.co.jp", "注册应用拿到 Client ID（就是 appid，免费）", TELL],
+    "Naver 搜索接口（购物）": ["用 Naver 账号登录 developers.naver.com", "注册应用，接口选「搜索」，拿到 Client ID 和 Client Secret（免费）",
+                         TELL + "（韩国全网比价的价格）"],
+    "高德地图地点搜索": ["打开 lbs.amap.com 注册开发者（个人就行）", "进控制台新建应用，添加一个「Web 服务」类型的 Key（有免费额度）",
+                 TELL + "：我可以加一个功能，数一个城市里某类店（宠物店、奶茶店……）有多少家"],
+    "百度地图地点检索": ["打开 lbsyun.baidu.com 注册开发者", "控制台新建应用拿到 AK（有免费额度）", TELL],
+    "Comtrade API": ["打开 comtradedeveloper.un.org 注册", "订阅免费的那个 API 产品，拿到 key", TELL + "（各国按商品的进出口额）"],
+    "Census 国际贸易接口": ["在美国人口普查局的开发者页面申请 API Key（免费，填邮箱就行）", TELL + "（美国按商品的进口额，比如从中国进口了多少）"],
+    "全国公共资源交易平台": ["直接打开网站，按关键词搜公告（不用注册）", "软件现在只自动抓中国政府采购网；要的话跟我说，我把它也加进抓取"],
+    "国家企业信用信息公示系统": ["直接打开网站，按公司名查工商登记（免费）", "一家一家查，适合核实某个公司；数一个行业有多少家公司要用企查查这类付费工具"],
+    "Upwork API": ["在 Upwork 开发者页面提交申请，说明用途，要人工审核", "批下来拿到 Key 和 Secret，" + TELL + "；在这之前用登录方式抓就行"],
+    "抖店开放平台 / 精选联盟": ["要商家、达人或机构资质才能申请", "个人想看抖音带货数据，更现实的是用蝉妈妈、飞瓜这类工具（下面那几条）"],
+    "国家数据 data.stats.gov.cn": DONE_STEPS[:1] + ["想查更多指标，打开网站按「月度 / 季度 / 年度」和行业找，可以下载表格"],
+}
+KIND_INFO = {"官方接口": "平台自己开放的数据通道：最稳、最准，一般要注册拿一个免费钥匙",
+             "联盟接口": "给帮平台卖货的推广者用的接口：要先成为推广者、实名、有的要审核",
+             "现成爬虫": "Apify 上别人写好、一直在维护的爬虫：按拿到的结果付费，抓不到不收钱",
+             "数据服务": "专业数据公司长期跟踪算出来的数：最准但要付费，大多只能在他们网站上看",
+             "卖家后台": "平台给店主看的行业数据：要先开店"}
+
+
+def how_for(kind, name, flag):
+    if flag == "done":
+        return HOW.get(name) or DONE_STEPS
+    if flag == "apify":
+        return APIFY_STEPS
+    if name in HOW:
+        return HOW[name]
+    f = KIND_STEPS.get(kind)
+    return f(name) if f else ["打开上面的链接看说明"]
+
+
+INST_STEPS = ["打开网站，找「数据」「统计数据」「Statistics」「Data」这类栏目",
+              "按行业或商品类别找最新一期，大多能下载表格（Excel / CSV）",
+              "软件已经自动读国家统计局；其他机构想让软件自动取，跟我说是哪个、要哪张表"]
+
+
 def catalog():
     """全世界的交易平台总表（v201：交易平台抓取整页就是这张表）。软件会抓的平台每个一行，状态由界面实时合上。"""
     st, plats = {}, []
@@ -334,11 +423,12 @@ def catalog():
                        "login" if p.get("login") else "auto", p["key"]))
     for n, r, c, k, u, w, a, key in L2:
         x = {"n": n, "r": r, "rn": R[r], "c": c, "k": k, "u": u, "w": w, "a": a, "an": A[a], "key": key, "why": WHY.get(a, ""),
-             "ch": [{"k": q[0], "n": q[1], "u": q[2], "w": q[3], "f": q[4]} for q in (CH.get(key) or CH.get(n) or [])]}
+             "ch": [{"k": q[0], "n": q[1], "u": q[2], "w": q[3], "f": q[4], "h": how_for(q[0], q[1], q[4])} for q in (CH.get(key) or CH.get(n) or [])],
+             "h": INST_STEPS if k == "统计机构" and n != "国家统计局" else []}
         s = st.get(key) or {}
         if key and s:
             x.update(n_ok=s.get("n_ok", 0), n_bad=s.get("n_bad", 0), skip=s.get("skip", ""))
         rows.append(x)
     kinds = sorted({row["k"] for row in rows}, key=lambda k: [row["k"] for row in rows].index(k))
     return {"ok": True, "rows": rows, "regions": [{"k": k, "n": v, "c": sum(1 for x in rows if x["r"] == k)} for k, v in R.items()],
-            "kinds": kinds, "access": A, "n": len(rows), "n_auto": sum(1 for x in rows if x["a"] in ("auto", "login"))}
+            "kinds": kinds, "access": A, "kind_info": KIND_INFO, "n": len(rows), "n_auto": sum(1 for x in rows if x["a"] in ("auto", "login"))}
