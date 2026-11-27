@@ -1440,3 +1440,10 @@ body.dark .view-biz .bz-rm-acc.a-auto { color: #6fd19c; }
 body.dark .view-biz .bz-rm-acc.a-login { color: #8bb8ef; }
 body.dark .view-biz .bz-rm-acc.a-key { color: #e6c16a; }
 body.dark .view-biz .bz-rm-acc.a-paid { color: #e59a9a; }
+
+/* ===== v200：一键登录全部 ===== */
+.view-biz .bz-rm-lhead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.view-biz .bz-rm-lhead .sp { flex: 1; }
+.view-biz .bz-rm-lbatch { margin: 8px 0 4px; padding: 8px 10px; border-radius: 8px; background: var(--bg-hover); font-size: 12.5px; line-height: 1.6; }
+.view-biz .bz-rm-needlogin { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.view-biz .bz-rm-src .bz-btn.sm, .view-biz .bz-rm-catt .bz-btn.sm { margin-top: 4px; }

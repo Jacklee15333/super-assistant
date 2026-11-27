@@ -6727,6 +6727,8 @@ class Handler(BaseHTTPRequestHandler):
                         return self._send(_tb.logout(body.get("site", "")))
                     if body.get("action") == "status":
                         return self._send(dict(_tb.status(), ok=True))
+                    if body.get("action") == "all":                      # v200：一键登录全部
+                        return self._send(_tb.open_login_all(force=bool(body.get("force"))))
                     if body.get("action") == "verify":                   # v199：平台弹了滑块 / 验证码，打开窗口让你自己过
                         return self._send(_tb.open_verify(body.get("site", "")))
                     return self._send(_tb.open_login(body.get("site", "")))
