@@ -161,7 +161,8 @@ _PRICE = ("price", "salePrice", "jdPrice", "finalPrice", "promotionPrice", "pric
           "price_info", "priceInfo", "amount", "value")
 _SOLD = ("realSales", "sales", "sold", "saleQuantity", "sales_tip", "salesTip", "soldCount", "volume", "monthSales", "tradeQuantity",
          "bookedCount", "saleCount", "inOrderCount30Days", "totalSold", "buyCount", "sale_num", "soldQuantity", "goodsSales",
-         "itemSoldCntShow", "soldNum", "sellCount", "saleNum", "boughtCount", "quantitySumMonth", "historical_sold", "wantNum")
+         "itemSoldCntShow", "soldNum", "sellCount", "saleNum", "boughtCount", "quantitySumMonth", "historical_sold", "wantNum", "boughtInPastMonth", "purchaseVolumeText", "salesVolume", "boughtPastMonth",
+         "salesVolumeNumeric")
 _CMT = ("commentCount", "comments", "comment_count", "reviewCount", "reviews", "review", "feedbacks", "ratingCount",
         "userRatingCount", "rating_count", "evaluateCount", "commentNum", "commentFuzzy", "numberOfReviews", "reviewsCount",
         "ratingsTotal", "totalReviews")
@@ -193,7 +194,9 @@ def _price_val(v):
     if isinstance(v, (int, float)):
         return float(v)
     if isinstance(v, str):
-        return money(re.sub(r"[^\d.,\-]", " ", v).strip().split(" ")[0] if re.search(r"\d", v) else "", ".")
+        t = re.sub(r"[^\d.,\-]", " ", v).strip().split(" ")[0] if re.search(r"\d", v) else ""
+        dec = "," if re.search(r"\d,\d{2}$", t) and not re.search(r"\.\d{1,2}$", t) else "."     # 12,99 € / 1.299,00 €
+        return money(t, dec)
     return None
 
 
@@ -258,7 +261,7 @@ def goods_json(h, int_div=1.0):
 def goods_from_page(h, p):
     """按平台设置（价格写法、销量写法）认一页商品：先认结构化数据，再认网页文字。"""
     dec = p.get("dec", ".")
-    its = goods_json(h, p.get("int_div", 1.0))
+    its = goods_json(h, 1.0 if 'data-apify="1"' in (h or "")[:300] else p.get("int_div", 1.0))   # Apify 给的是正常价格
     text = plain(h)
     sold, cmts = [], []
     if len(its) >= 3:

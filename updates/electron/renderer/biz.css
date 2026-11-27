@@ -1495,3 +1495,20 @@ body.dark .view-biz .bz-rm-pchips .pc.bad { color: #e59a9a; }
 .view-biz .bz-rm-unlock .in p { margin: 4px 0; line-height: 1.6; }
 .view-biz .bz-rm-unlock .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 6px 0; }
 .view-biz .bz-rm-unlock .row .bz-input { width: 260px; }
+
+/* ===== v203：还能从哪拿数据、Apify ===== */
+.view-biz .bz-rm-unlock .sec { border-top: 1px dashed var(--line); margin-top: 6px; }
+.view-biz .bz-rm-unlock .sec:first-of-type { border-top: 0; }
+.view-biz .bz-rm-ch { margin-top: 5px; font-size: 12px; }
+.view-biz .bz-rm-ch summary { cursor: pointer; color: var(--accent); }
+.view-biz .bz-rm-ch ul { list-style: none; margin: 4px 0 0; padding: 0; }
+.view-biz .bz-rm-ch li { padding: 4px 0; border-top: 1px dotted var(--line); line-height: 1.5; }
+.view-biz .bz-rm-ch li small { display: block; }
+.view-biz .bz-rm-chk { display: inline-block; margin-right: 6px; padding: 0 6px; border-radius: 5px; font-size: 11px; background: var(--bg-hover); color: var(--text-dim); }
+.view-biz .bz-rm-chk.k-gov { background: rgba(47, 110, 186, .14); color: #2f6eba; }
+.view-biz .bz-rm-chk.k-aff { background: rgba(120, 80, 180, .14); color: #6a45a8; }
+.view-biz .bz-rm-chk.k-act { background: rgba(47, 143, 91, .14); color: #2f8f5b; }
+.view-biz .bz-rm-chk.k-paid { background: rgba(170, 70, 70, .12); color: #a04646; }
+.view-biz .bz-rm-chk.k-sel { background: rgba(196, 140, 30, .16); color: #a07010; }
+body.dark .view-biz .bz-rm-chk.k-gov { color: #8bb8ef; } body.dark .view-biz .bz-rm-chk.k-aff { color: #b9a0e6; }
+body.dark .view-biz .bz-rm-chk.k-act { color: #6fd19c; } body.dark .view-biz .bz-rm-chk.k-paid { color: #e59a9a; } body.dark .view-biz .bz-rm-chk.k-sel { color: #e6c16a; }

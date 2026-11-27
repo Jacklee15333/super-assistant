@@ -2506,8 +2506,11 @@
         '<div class="bz-rm-checks" id="bzRmChecks"></div></section>' +
       '<section class="bz-rm-tp" data-rmtp="trade" hidden>' +
         '<div class="bz-rm-tact"><div><div id="bzRmTAct"></div>' +                                // v201：整页只有一张全世界平台总表
-          '<details class="bz-rm-unlock"><summary>更强的抓取：付费解锁服务（可选）<span id="bzRmUnlockSt"></span></summary>' +       // v202
-          '<div class="in"><p class="bz-dim">国外平台（亚马逊、Jumia、Lazada 这类）用免费办法都抓不到时，才交给它：它用真人家里的网络 IP、自动过验证去打开网页。' +
+          '<details class="bz-rm-unlock"><summary>更强的抓取（可选，要花钱）<span id="bzRmApifySt"></span><span id="bzRmUnlockSt"></span></summary>' +       // v202 / v203
+          '<div class="in sec"><b>① Apify 现成爬虫（推荐）</b><p class="bz-dim" id="bzRmApifyNote"></p>' +
+          '<div class="row"><input class="bz-input" id="bzRmApifyT" type="password" autocomplete="off" placeholder="粘贴 Apify 令牌（API token）" aria-label="Apify 令牌">' +
+          '<button type="button" class="bz-btn sm" data-act="rm-apify-save">保存</button><button type="button" class="bz-link" data-act="rm-apify-off">不用了</button></div></div>' +
+          '<div class="in sec"><b>② 付费解锁服务</b><p class="bz-dim">国外平台（亚马逊、Jumia、Lazada 这类）用免费办法都抓不到时，才交给它：它用真人家里的网络 IP、自动过验证去打开网页。' +
           "要你自己去它网站注册、拿一个钥匙（API Key）填在这里；钥匙加密存在你电脑上，不会传到 GitHub。每天最多用 100 次。</p>" +
           '<div class="row"><select class="bz-select" id="bzRmUnlockP" aria-label="用哪家"></select>' +
           '<input class="bz-input" id="bzRmUnlockK" type="password" autocomplete="off" placeholder="粘贴钥匙（API Key）" aria-label="钥匙">' +
@@ -3008,7 +3011,16 @@
   }
   // v198：京东 / 1688 登录、国外平台开关
   // v201：交易平台抓取——一个操作栏 + 实时进度 + 一张全世界平台总表
-  const RM_TF = [["", "全部"], ["sw", "软件会抓"], ["login", "要登录的"], ["ok", "抓到过"], ["bad", "还没抓到"], ["self", "只能自己看"]];
+  const RM_TF = [["", "全部"], ["sw", "软件会抓"], ["login", "要登录的"], ["ok", "抓到过"], ["bad", "还没抓到"], ["self", "只能自己看"], ["ch", "还有别的拿数据办法"]];
+  const RM_CHK = { "官方接口": "gov", "联盟接口": "aff", "现成爬虫": "act", "数据服务": "paid", "卖家后台": "sel" };
+  function rmChHTML(x) {                                              // v203：这个平台还能从哪拿数据（官方接口、联盟接口、现成爬虫、数据服务、卖家后台）
+    if (!x.ch || !x.ch.length) return "";
+    const ap = !!(S.rm.data && S.rm.data.trade_cfg && S.rm.data.trade_cfg.apify && S.rm.data.trade_cfg.apify.on);
+    return '<details class="bz-rm-ch"><summary>还能从哪拿（' + x.ch.length + "）</summary><ul>" + x.ch.map((c) =>
+      '<li><span class="bz-rm-chk k-' + (RM_CHK[c.k] || "x") + '">' + esc(c.k) + '</span><a class="bz-link" href="' + esc(c.u) + '" target="_blank" rel="noopener">' + esc(c.n) + "</a>" +
+      '<small class="bz-dim">' + esc(c.w) + "</small>" + (c.f === "done" ? '<small class="bz-rm-ok">✓ 软件在用</small>' :
+        c.f === "apify" ? (ap ? '<small class="bz-rm-ok">✓ 软件在用（Apify）</small>' : '<small class="bz-dim">（填了 Apify 令牌，软件就会用）</small>') : "") + "</li>").join("") + "</ul></details>";
+  }
   const rmSpin = '<span class="bz-spin" aria-hidden="true"></span>';
   const rmShort = (n) => String(n || "").replace(/（.*?）/g, "").trim();
   function rmTBusy() {
@@ -3030,6 +3042,7 @@
     if (F === "ok") return !!(s && s.n_ok);
     if (F === "bad") return !!(s && !s.n_ok);
     if (F === "self") return !s;
+    if (F === "ch") return !!(x.ch && x.ch.length);
     return true;
   }
   function rmTRows(T) {
@@ -3073,15 +3086,18 @@
   function rmTStatus(x, T) {
     const s = x.key && T.src[x.key];
     if (!s) return '<span class="bz-rm-acc a-' + esc(x.a) + '">' + esc(x.an) + '</span><br><small class="bz-dim">' + esc(x.why || "") + "</small>";
-    const lg = T.L[x.key], tr = T.tr[x.key], k = esc(x.key);
-    let h = "";
-    if (lg) {
+    const tr = T.tr[x.key], k = esc(x.key), apf = T.d.trade_cfg && T.d.trade_cfg.apify;
+    let lg = T.L[x.key], h = "";
+    if (lg && !lg.logged && !lg.waiting && apf && apf.on && (apf.keys || []).includes(x.key)) {          // v203：Apify 能抓的，不登录也行
+      h += '<span class="bz-rm-ok">不用登录：交给 Apify 抓</span> <button type="button" class="bz-link" data-rm-login="' + k + '">（也可以登录）</button>';
+      lg = null;
+    } else if (lg) {
       h += lg.waiting ? '<span class="bz-rm-bad">' + rmSpin + (lg.mode === "verify" ? "验证窗口开着，过一下验证…" : "登录窗口开着，等你登录…") + "</span>" :
         lg.verify ? '<span class="bz-rm-bad">要过一下验证</span> <button type="button" class="bz-btn sm" data-rm-verify="' + k + '">去验证</button>' :
         lg.logged ? '<span class="bz-rm-ok">✓ 已登录</span>' + (lg.today ? ' <small class="bz-dim">今天搜了 ' + lg.today + "/" + (lg.cap || 100) + "</small>" : "") + ' <button type="button" class="bz-link" data-rm-logout="' + k + '">退出</button>' :
         (lg.expired ? '<span class="bz-rm-bad">登录过期了</span> ' : '<span class="bz-dim">要登录才抓</span> ') + '<button type="button" class="bz-btn sm" data-rm-login="' + k + '">登录' + esc(lg.name) + "</button>" +
           (lg.hint ? '<br><small class="bz-dim">' + esc(lg.hint) + "</small>" : "");
-    } else h += '<span class="bz-rm-acc a-' + esc(x.a) + '">' + esc(x.an) + "</span>";
+    } else if (!h) h += '<span class="bz-rm-acc a-' + esc(x.a) + '">' + esc(x.an) + "</span>";
     const vf = !lg && T.vf[x.key];                                                               // v202：不用登录的平台弹了验证
     if (vf) h += vf.waiting ? '<div class="bz-rm-bad">' + rmSpin + "验证窗口开着，在弹出的 Chrome 里过一下验证…</div>" :
       '<div><span class="bz-rm-bad">弹了滑块 / 验证码</span> <button type="button" class="bz-btn sm" data-rm-verify="' + k + '">去验证</button></div>';
@@ -3108,7 +3124,7 @@
           const s = x.key && T.src[x.key];
           return '<tr class="' + (s ? (T.off.has(x.key) ? "off" : "") : "self") + '"><td class="on">' + (s ? '<input type="checkbox" data-rm-on="' + esc(x.key) + '"' + (T.off.has(x.key) ? "" : " checked") +
             ' aria-label="抓不抓' + esc(x.n) + '">' : "") + '</td><td class="nm"><a class="bz-link strong" href="' + esc(x.u) + '" target="_blank" rel="noopener">' + esc(x.n) + "</a></td><td>" +
-            esc(x.c || x.rn) + '</td><td class="ds">' + esc(x.k) + '</td><td class="ds">' + esc(x.w) + '</td><td class="st">' + rmTStatus(x, T) + "</td></tr>";
+            esc(x.c || x.rn) + '</td><td class="ds">' + esc(x.k) + '</td><td class="ds">' + esc(x.w) + rmChHTML(x) + '</td><td class="st">' + rmTStatus(x, T) + "</td></tr>";
         }).join("") + "</tbody></table>" : empty("这个筛选下没有平台。"));
   }
   function rmTHeadHTML(T, rows) {
@@ -3153,15 +3169,25 @@
       rmSetHTML(tr.querySelector("td.st"), rmTStatus(x, T));
     });
   }
+  function rmApifyRender() {                                          // v203：Apify 的状态
+    const a = (S.rm.data && S.rm.data.trade_cfg && S.rm.data.trade_cfg.apify) || null;
+    if (!a) return;
+    rmSetHTML($("bzRmApifySt"), a.on ? ' <span class="bz-rm-ok">✓ Apify 在用（令牌 …' + esc(a.tail) + "，今天跑了 " + a.today + "/" + a.cap + " 次）</span>" : ' <span class="bz-dim">Apify 没开</span>');
+    rmSetHTML($("bzRmApifyNote"), "别人写好、一直在维护的爬虫，被封和改版都由他们处理；只按拿到的商品付钱，抓不到不收钱，免费套餐每月送 5 美元额度。" +
+      "现在接了：" + esc(a.plats.join("、")) + "（免费办法抓不到时自动用；Shopee 用它就不用你登录）。" +
+      '先去 <a class="bz-link" href="' + esc(a.site) + '" target="_blank" rel="noopener">Apify 注册</a>，再到 <a class="bz-link" href="' + esc(a.token_url) +
+      '" target="_blank" rel="noopener">设置 → API &amp; Integrations</a> 复制令牌（API token）填在下面。令牌加密存在你电脑上，不会传到 GitHub。每天最多跑 ' + a.cap + " 次。");
+  }
   function rmUnlockRender() {                                         // v202：付费解锁服务的状态
+    rmApifyRender();
     const u = (S.rm.data && S.rm.data.trade_cfg && S.rm.data.trade_cfg.unlock) || null, sel = $("bzRmUnlockP");
     if (!u || !sel) return;
     if (!sel.options.length) {
       sel.innerHTML = u.list.map((x) => '<option value="' + esc(x.k) + '">' + esc(x.name) + "</option>").join("");
       sel.value = u.provider || "scrapfly";
     }
-    rmSetHTML($("bzRmUnlockSt"), u.provider ? ' <span class="bz-rm-ok">✓ 在用 ' + esc((u.list.find((x) => x.k === u.provider) || {}).name || "") + "（钥匙 …" + esc(u.tail) + "），今天用了 " + u.today + "/" + u.cap + " 次</span>" :
-      ' <span class="bz-dim">没开</span>');
+    rmSetHTML($("bzRmUnlockSt"), u.provider ? ' <span class="bz-rm-ok">✓ 解锁服务在用 ' + esc((u.list.find((x) => x.k === u.provider) || {}).name || "") + "（钥匙 …" + esc(u.tail) + "），今天用了 " + u.today + "/" + u.cap + " 次</span>" :
+      ' <span class="bz-dim">· 解锁服务没开</span>');
     const cur = u.list.find((x) => x.k === sel.value) || u.list[0];
     rmSetHTML($("bzRmUnlockNote"), cur ? '去 <a class="bz-link" href="' + esc(cur.site) + '" target="_blank" rel="noopener">' + esc(cur.name) + "</a> 注册拿钥匙：" + esc(cur.free) + "。" +
       "各家的测试结果出入很大（每家自己测都说自己最好），建议先用免费额度在「试抓」里试试抓不到的那几个平台。" : "");
@@ -3980,6 +4006,18 @@
           rmLoad();
         }
         else if (a === "rm-report-close") { S.rm.showReport = false; renderReal(); }
+        else if (a === "rm-apify-save" || a === "rm-apify-off") {                                // v203：Apify 令牌
+          const off = a === "rm-apify-off";
+          if (off && !confirm("不用 Apify 了？（会删掉存在电脑上的令牌）")) return;
+          const tok = off ? "" : $("bzRmApifyT").value.trim();
+          if (!off && !tok) { toast("先粘贴 Apify 令牌"); return; }
+          const r = await api("/biz/real/trade_cfg", { apify: { token: tok } }).catch((e) => ({ ok: false, error: e.message }));
+          if (!r.ok) { toast(r.error || "没存上"); return; }
+          $("bzRmApifyT").value = "";
+          if (S.rm.data && S.rm.data.trade_cfg) S.rm.data.trade_cfg.apify = r.apify;
+          toast(off ? "不用 Apify 了，令牌已删掉。" : "存好了：" + r.apify.plats.join("、") + " 免费办法抓不到时会交给 Apify。在表里点「试抓」试试。");
+          rmUnlockRender(); if ($("bzRmTTable")) $("bzRmTTable").__sig = ""; rmCatRender();     // 「还能从哪拿」里的标记跟着变
+        }
         else if (a === "rm-unlock-save" || a === "rm-unlock-off") {                            // v202：付费解锁服务
           const off = a === "rm-unlock-off";
           if (off && !confirm("不用付费解锁服务了？（会删掉存在电脑上的钥匙）")) return;

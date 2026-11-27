@@ -1345,7 +1345,7 @@ def _logins():
 def _tcfg():
     try:
         import biz_trade as BT
-        return dict(BT.cfg(), unlock=BT.unlock_info())         # v202：付费解锁服务（只给名字和钥匙尾号）
+        return dict(BT.cfg(), unlock=BT.unlock_info(), apify=BT.apify_info())   # v202 / v203：付费服务（只给名字和钥匙尾号）
     except Exception:
         return {}
 

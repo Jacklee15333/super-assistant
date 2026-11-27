@@ -6736,6 +6736,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(_tb.open_login(body.get("site", "")))
                 if path == "/biz/real/trade_cfg":                    # v198：交易平台设置（国外平台开关）
                     import biz_trade as _bt
+                    if isinstance(body.get("apify"), dict):             # v203：Apify 令牌（加密存在本机）
+                        return self._send(_bt.set_apify(body["apify"].get("token", "")))
                     if isinstance(body.get("unlock"), dict):            # v202：付费解锁服务（钥匙加密存在本机）
                         u = body["unlock"]
                         return self._send(_bt.set_unlock(u.get("provider", ""), u.get("key", "")))
