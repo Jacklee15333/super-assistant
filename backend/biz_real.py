@@ -983,8 +983,13 @@ def overview():
         cov = BT.coverage()
         for p in BT.status():
             c = cov.get(p["key"]) or {}
+            how = ("官方公开接口（不用登录、不用钥匙，最稳）" if p.get("api") else
+                   "要先登录（上面「登录」）；之后用登录好的爬虫专用 Chrome 慢慢搜（两次隔 15 秒以上，一天最多 100 次）" if p.get("login") else
+                   "爬虫抓（直连 → Scrapling 快速 → Scrapling 浏览器，走软件设置里的代理）；搜索词自动翻成当地语言" if p.get("foreign") else
+                   "爬虫抓（直连 → Scrapling 快速 → Scrapling 浏览器 → 爬虫专用 Chrome，管用的记住）")
             srcs.append({"fit": c.get("fit", 0), "done": c.get("done", 0), "key": "tp_" + p["key"], "name": p["name"], "what": p["what"], "url": p["url"], "auto": False, "crawl": True,
-                         "how": "爬虫抓（直连 → Scrapling 快速 → 真浏览器，管用的记住）；核实时自动抓，也可以在体检卡里点「去平台抓」，或点上面「交易平台全部抓一遍」",
+                         "how": how + "；核实时自动抓，也可以在体检卡里点「去平台抓」，或点上面「交易平台全部抓一遍」",
+                         "rname": p.get("rname", ""), "skip": p.get("skip", ""), "login": bool(p.get("login")), "api": bool(p.get("api")),
                          "n_ok": p.get("n_ok", 0), "n_bad": p.get("n_bad", 0), "last_ok": p.get("last_ok", 0), "at": p.get("at", 0),
                          "via": p.get("via", ""), "err": p.get("err", "")})
         srcs = [x for x in srcs if x["key"] not in ("ecom", "trade", "bid")]
@@ -1007,7 +1012,7 @@ def overview():
                     "extra": "利润率 %s%%" % ir["总计"]["margin"] if ir["总计"].get("margin") is not None else ""})
     return {"ok": True, "updated": d.get("updated", 0), "updating": dict(_upd), "report": d.get("last_report"), "sources": srcs, "kpi": kpi, "by": by,
             "listed": {k: L.get(k) for k in ("annual", "latest", "annual_name", "latest_name", "companies")},
-            "checks": [_check_brief(c) for c in _checks()[:300]], "batch": batch_status(), "tbatch": _tbatch(), "logins": _logins(), "trade_cfg": _tcfg(), "now": int(time.time())}
+            "checks": [_check_brief(c) for c in _checks()[:300]], "batch": batch_status(), "tbatch": _tbatch(), "logins": _logins(), "trade_cfg": _tcfg(), "trade_regions": _tregions(), "now": int(time.time())}
 
 
 def item(gid):
@@ -1343,6 +1348,14 @@ def _tcfg():
         return BT.cfg()
     except Exception:
         return {}
+
+
+def _tregions():
+    try:
+        import biz_trade as BT
+        return BT.regions_info()
+    except Exception:
+        return []
 
 
 def _tbatch():

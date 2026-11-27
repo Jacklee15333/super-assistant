@@ -8,6 +8,10 @@
   · 猪八戒网：服务接单的报价和成交（卖服务、接项目的生意）
 抓法和市场雷达一样：先普通方式直连；被拦、要登录、只拿到空壳时，用 Scrapling 快速模式补救，再不行开真浏览器；
 哪种管用记下来，下次先用。要登录才能看的就不硬闯，记成「要登录」。不用 AI。
+v199：① 加「爬虫专用 Chrome」这一档（真 Chrome + 防检测 + 顺手收下网页自己调的接口数据），国内平台前三档都不行时用它；
+      ② 淘宝 / 天猫、拼多多也能登录后抓；③ 「请登录」只出现在页面顶上的不算被拦（苏宁就是被它误判的）；
+      ④ 国外平台加到 30 个左右（亚马逊多国站、沃尔玛、乐天、美客多……），加官方公开接口（美国联邦采购、欧盟招标、
+      苹果应用商店、Freelancer、Kickstarter），见 biz_trade_x.py；⑤ 几个平台同时抓，快很多。
 结果存 memory/biz/real/trade.json，交给 AI 核实时当「资料③」，也显示在体检卡上。
 """
 from __future__ import annotations
@@ -19,22 +23,29 @@ import statistics
 import threading
 import time
 import urllib.parse
+from concurrent.futures import ThreadPoolExecutor
 
 import biz_intel as BZ
+import biz_trade_x as X
 
 TRADE_FILE = BZ.BIZ_DIR / "real" / "trade.json"
 STATE_FILE = BZ.BIZ_DIR / "real" / "trade_state.json"
-SC_NAME = {"direct": "普通方式", "fast": "Scrapling 快速", "browser": "Scrapling 浏览器", "login": "已登录的浏览器"}
+SC_NAME = {"direct": "普通方式", "fast": "Scrapling 快速", "browser": "Scrapling 浏览器", "login": "已登录的浏览器",
+           "chrome": "爬虫专用 Chrome", "api": "官方接口"}
 
 PLATFORMS = [
     {"key": "ccgp", "name": "中国政府采购网", "kind": "采购", "url": "http://www.ccgp.gov.cn/",
      "what": "政府、学校、医院、国企近半年的采购和中标公告有多少条，抽几条看预算和中标金额"},
-    {"key": "b2b", "name": "1688（阿里巴巴批发）", "kind": "批发", "url": "https://www.1688.com/",
+    {"key": "b2b", "name": "1688（阿里巴巴批发）", "kind": "批发", "url": "https://www.1688.com/", "login": True,
      "what": "批发价格带、货源多不多、成交件数：进货要多少钱、上游卖得动不动"},
     {"key": "ywg", "name": "义乌购（义乌小商品批发）", "kind": "批发", "url": "https://www.yiwugo.com/",
      "what": "不用登录的批发价：义乌商贸城几万家商户的出厂 / 批发价格带（1688 要登录时靠它）"},
-    {"key": "jd", "name": "京东", "kind": "零售", "url": "https://www.jd.com/",
+    {"key": "jd", "name": "京东", "kind": "零售", "url": "https://www.jd.com/", "login": True,
      "what": "零售价格带和评价数（评价数大致反映卖了多少）"},
+    {"key": "tb", "name": "淘宝 / 天猫", "kind": "零售", "url": "https://www.taobao.com/", "login": True,
+     "what": "全国最大的网购平台：零售价格带、「多少人付款」"},
+    {"key": "pdd", "name": "拼多多", "kind": "零售", "url": "https://www.pinduoduo.com/", "login": True,
+     "what": "下沉市场的价格带、「已拼多少件」"},
     {"key": "sn", "name": "苏宁易购", "kind": "零售", "url": "https://www.suning.com/",
      "what": "不用登录的零售价：家电、数码、日用、食品的标价和评价数（京东要登录时靠它）"},
     {"key": "smzdm", "name": "什么值得买", "kind": "到手价", "url": "https://www.smzdm.com/",
@@ -42,16 +53,25 @@ PLATFORMS = [
     {"key": "zbj", "name": "猪八戒网", "kind": "服务接单", "url": "https://www.zbj.com/",
      "what": "卖服务、接项目的报价和成交笔数"},
     # v198：国外主流平台（要能上外网：走软件设置里的代理；搜索词自动翻成英文）
-    {"key": "amazon", "name": "亚马逊 Amazon（美国站）", "kind": "国外零售", "url": "https://www.amazon.com/", "foreign": True,
+    {"key": "amazon", "name": "亚马逊 Amazon（美国站）", "kind": "国外零售", "url": "https://www.amazon.com/", "foreign": True, "region": "na",
      "what": "美国零售价格带、「上个月卖了多少」（亚马逊在搜索结果里直接写 1K+ bought in past month）"},
-    {"key": "ebay", "name": "eBay（已成交的）", "kind": "国外成交", "url": "https://www.ebay.com/", "foreign": True,
+    {"key": "ebay", "name": "eBay（已成交的）", "kind": "国外成交", "url": "https://www.ebay.com/", "foreign": True, "region": "na",
      "what": "只看已经卖出去的：真实成交价和最近卖出了多少件"},
-    {"key": "aliexpress", "name": "速卖通 AliExpress", "kind": "跨境零售", "url": "https://www.aliexpress.com/", "foreign": True,
+    {"key": "aliexpress", "name": "速卖通 AliExpress", "kind": "跨境零售", "url": "https://www.aliexpress.com/", "foreign": True, "region": "b2b",
      "what": "中国卖家卖到国外的零售价和销量（xxx sold）"},
-    {"key": "alibaba", "name": "阿里巴巴国际站 Alibaba.com", "kind": "外贸批发", "url": "https://www.alibaba.com/", "foreign": True,
+    {"key": "alibaba", "name": "阿里巴巴国际站 Alibaba.com", "kind": "外贸批发", "url": "https://www.alibaba.com/", "foreign": True, "region": "b2b",
      "what": "外贸批发价（美元）和起订量：国外买家进货要多少钱"},
 ]
+PLATFORMS.insert(next(i for i, p in enumerate(PLATFORMS) if p["key"] == "zbj") + 1,
+                 {"key": X.APPSTORE_CN["key"], "name": X.APPSTORE_CN["name"], "kind": X.APPSTORE_CN["kind"], "url": X.APPSTORE_CN["home"],
+                  "what": X.APPSTORE_CN["what"], "api": True})
+PLATFORMS += [{"key": p["key"], "name": p["name"], "kind": p["kind"], "url": p["home"], "what": p["what"], "foreign": True,
+               "region": p["region"], "api": bool(p.get("api"))} for p in X.G]
+for _p in PLATFORMS:
+    _p.setdefault("region", "cn")
 FOREIGN = {p["key"] for p in PLATFORMS if p.get("foreign")}
+LOGIN_SITES = {p["key"] for p in PLATFORMS if p.get("login")}
+CN_CHROME = {"ccgp", "b2b", "ywg", "jd", "tb", "pdd", "sn", "smzdm", "zbj"}     # 国内平台：前三档都不行时用爬虫专用 Chrome
 USD = 7.1
 P_NAME = {p["key"]: p["name"] for p in PLATFORMS}
 
@@ -89,8 +109,25 @@ def _plain(h):
 
 
 # ───────────────────────── 抓网页：直连 → Scrapling 快速 → 浏览器 ─────────────────────────
-_BLOCK = re.compile(r"(请登录|登录后|扫码登录|密码登录|passport\.jd\.com|login\.taobao|login\.1688|punish|滑动验证|拖动下方滑块|安全验证|"
-                    r"访问过于频繁|频繁访问|验证码|人机验证|captcha|访问受限|系统繁忙|Robot Check|Pardon Our Interruption|unusual traffic|Access Denied|verify you are a human)", re.I)
+# v199：分成三种。「请登录」很多网站页面顶上本来就有（苏宁：您好，请登录），只在页面几乎没内容时才算被要求登录
+_LOGIN_URL = re.compile(r"(passport\.jd\.com|login\.taobao\.com|login\.tmall\.com|login\.1688\.com|yangkeduo\.com/login|passport\.alibaba|signin\.ebay|ap/signin)", re.I)
+_CAPTCHA = re.compile(r"(punish|滑动验证|拖动下方滑块|请拖动|安全验证|访问过于频繁|频繁访问|人机验证|请完成验证|验证一下|captcha|访问受限|系统繁忙|"
+                      r"Robot Check|Robot or human|Pardon Our Interruption|unusual traffic|Access Denied|verify you are a human)", re.I)
+_SOFT = re.compile(r"(请登录|登录后|扫码登录|密码登录)")
+_BLOCK = _CAPTCHA
+
+
+def _why(h, final, txt):
+    m = _LOGIN_URL.search(str(final or ""))
+    if m:
+        return "要登录（%s）" % m.group(1).replace("\\", "")
+    c = _CAPTCHA.search((h or "")[:200000])
+    if c:
+        return "被拦了（%s）" % c.group(1)
+    if len(txt) < 300:
+        s = _SOFT.search((h or "")[:20000])
+        return ("要登录或被拦（%s）" % s.group(1)) if s else ("页面是空壳（只有 %d 个字）" % len(txt))
+    return "没认出商品 / 公告列表"
 
 
 def _direct(url, timeout=20):
@@ -112,7 +149,15 @@ def _tbmod():
         return None
 
 
+_SEM = {"browser": threading.Semaphore(1), "fast": threading.Semaphore(3)}
+
+
 def _sc(url, mode):
+    with _SEM.get(mode) or threading.Semaphore(9):
+        return _sc0(url, mode)
+
+
+def _sc0(url, mode):
     import scrapling_fetch as SF
     if not SF.available():
         raise RuntimeError("网页抓取增强（Scrapling）还没装好")
@@ -126,14 +171,16 @@ def _sc(url, mode):
 
 
 def fetch(pkey, url, ok, trace):
-    """抓一个平台的一页。ok(html) 判断抓到的是不是真内容。返回 (html, 方法)；都不行抛错（带原因）。"""
+    """抓一个平台的一页。ok(html) 判断抓到的是不是真内容。返回 (html, 方法)；都不行抛错（带原因）。
+    顺序：普通方式 → Scrapling 快速 → Scrapling 浏览器 →（国内平台）爬虫专用 Chrome；登录过的平台先用登录好的 Chrome。"""
     st = _read(STATE_FILE, {})
     pref = (st.get(pkey) or {}).get("pref", "")
     order = ["direct", "fast", "browser"]
     TB = _tbmod()
-    if TB and pkey in TB.SITES and TB.logged_in(pkey):     # v198：你登录过：先用登录好的浏览器
-        order = ["login"] + order
-        pref = "login"
+    if TB and pkey in CN_CHROME:
+        order.append("chrome")
+    if TB and pkey in TB.SITES and TB.logged_in(pkey):     # v198：你登录过：先用登录好的浏览器（v199：只用它，免得没登录的方式把账号连累了）
+        order, pref = ["login"], "login"
     if pref in order:
         order.remove(pref)
         order.insert(0, pref)
@@ -141,7 +188,11 @@ def fetch(pkey, url, ok, trace):
     for m in order:
         t0 = time.time()
         try:
-            h, final = _direct(url) if m == "direct" else TB.fetch(url) if m == "login" else _sc(url, m)
+            if m in ("login", "chrome"):
+                r = TB.fetch_ex(url, site=pkey if m == "login" else None, login=(m == "login"))
+                h, final = r["html"], r["url"]
+            else:
+                h, final = _direct(url) if m == "direct" else _sc(url, m)
             txt = _plain(h)
             if ok(h):
                 trace.append({"m": SC_NAME[m], "ok": True, "ms": int((time.time() - t0) * 1000)})
@@ -151,16 +202,15 @@ def fetch(pkey, url, ok, trace):
                         st.setdefault(pkey, {})["pref"] = m
                         _write(STATE_FILE, st)
                 return h, m
-            bm = _BLOCK.search(h[:200000]) or _BLOCK.search(str(final or ""))
-            if m == "login" and bm:
-                TB.mark_expired(pkey)                       # 登录过的也被要求登录：过期了
-            r = ("要登录或被拦（%s）" % bm.group(1)) if bm else ("页面是空壳（只有 %d 个字）" % len(txt)) if len(txt) < 300 else "没认出商品 / 公告列表"
+            r = _why(h, final, txt)
         except Exception as e:
-            r = str(e).split("\n")[0][:80]
+            r = str(e).split("\n")[0][:90]
         trace.append({"m": SC_NAME[m], "ok": False, "ms": int((time.time() - t0) * 1000), "why": r})
         why.append("%s：%s" % (SC_NAME[m], r))
-        if "还没装好" in r:
-            break
+        if "还没装好" in r or "今天在" in r:
+            if "今天在" in r:
+                break
+            continue
     raise RuntimeError("；".join(why[-2:]) or "没抓到")
 
 
@@ -195,10 +245,19 @@ def _total(text):
 
 
 SOLD_RX = re.compile(r"(?:已售|销量|成交|月销|付款|已拼|售出)\s*[:：]?\s*([\d.]+\s*万?)\s*\+?\s*(?:件|笔|单|人|个)?")
+SOLD_RX2 = re.compile(r"([\d.]+\s*万?)\s*\+?\s*(?:人付款|人收货|人已买|人买过|件已售|人已拼|人购买|人想要)")      # v199：淘宝「1万+人付款」这种数字在前的
 
 
-def parse_goods(h, price_rx=None):
-    """商品列表页 → 价格带、销量 / 评价数、商品数（不同网站写法不一样，先认结构化数据，再认页面文字）。"""
+def parse_goods(h, price_rx=None, int_div=1.0):
+    """商品列表页 → 价格带、销量 / 评价数、商品数（不同网站写法不一样，先认结构化数据，再认页面文字）。
+    v199：先认接口数据（爬虫专用 Chrome 收下来的 JSON、网页自带的 __NEXT_DATA__ / ld+json），认到 3 个以上商品就用它。"""
+    its = X.goods_json(h, int_div)
+    if len(its) >= 3:
+        text = _plain(h)
+        sold = [i["s"] for i in its if i.get("s")] or [x for x in (_num(y) for y in (SOLD_RX.findall(text)[:80] + SOLD_RX2.findall(text)[:80])) if x]
+        cmt = [i["c"] for i in its if i.get("c")]
+        return {"band": _band([i["p"] for i in its]), "sold": int(sum(sold)) if sold else None, "sold_n": len(sold),
+                "comments": int(sum(cmt)) if cmt else None, "total": _total(text), "src": "接口数据", "n_items": len(its)}
     prices = []
     for rx in ([price_rx] if price_rx else []) + [r'"(?:price|priceInfo|salePrice|jdPrice|p)"\s*:\s*"?(\d+(?:\.\d+)?)"?',
                                                    r"[¥￥]\s*(\d+(?:\.\d+)?)", r"价格\s*[:：]?\s*[¥￥]?\s*(\d+(?:\.\d+)?)"]:
@@ -206,17 +265,16 @@ def parse_goods(h, price_rx=None):
         if len(prices) >= 8:
             break
     text = _plain(h)
-    sold = [_num(x) for x in SOLD_RX.findall(text)[:80]]
+    sold = [_num(x) for x in (SOLD_RX.findall(text)[:80] + SOLD_RX2.findall(text)[:80])]
     sold = [x for x in sold if x]
     cmt = [_num(x) for x in re.findall(r"([\d.]+万?)\+?\s*条评价", text)[:80]]
     cmt = [x for x in cmt if x]
     return {"band": _band(prices), "sold": int(sum(sold)) if sold else None, "sold_n": len(sold),
-            "comments": int(sum(cmt)) if cmt else None, "total": _total(text)}
+            "comments": int(sum(cmt)) if cmt else None, "total": _total(text), "src": "网页文字"}
 
 
-def _good_goods(h, price_rx=None):
-    g = parse_goods(h, price_rx)
-    return bool(g["band"]) and not _BLOCK.search(h[:5000])
+def _good_goods(h, price_rx=None, int_div=1.0):
+    return bool(parse_goods(h, price_rx, int_div)["band"])
 
 
 # 中国政府采购网
@@ -285,9 +343,9 @@ def probe_ccgp(kw, trace):
             "amt_n": len(amts), "url": ccgp_url(kw), "via": m, "days": 180}
 
 
-def probe_goods(key, url, kw, trace, price_rx=None):
-    h, m = fetch(key, url, lambda x: _good_goods(x, price_rx), trace)
-    g = parse_goods(h, price_rx)
+def probe_goods(key, url, kw, trace, price_rx=None, int_div=1.0):
+    h, m = fetch(key, url, lambda x: _good_goods(x, price_rx, int_div), trace)
+    g = parse_goods(h, price_rx, int_div)
     g.update(url=url, via=m)
     return g
 
@@ -302,6 +360,14 @@ def ywg_url(kw):
 
 def sn_url(kw):
     return "https://search.suning.com/" + urllib.parse.quote(kw) + "/"
+
+
+def tb_url(kw):
+    return "https://s.taobao.com/search?q=" + urllib.parse.quote(kw)
+
+
+def pdd_url(kw):
+    return "https://mobile.yangkeduo.com/search_result.html?search_key=" + urllib.parse.quote(kw)
 
 
 def jd_url(kw):
@@ -325,37 +391,18 @@ def set_cfg(**kw):
     with _lock:
         st = _read(STATE_FILE, {})
         c = st.setdefault("_cfg", {})
+        if isinstance(kw.get("regions"), dict):
+            r = c.setdefault("regions", {})
+            r.update({k: bool(v) for k, v in kw.pop("regions").items() if k in dict(X.REGIONS)})
+        kw.pop("regions", None)
         c.update({k: v for k, v in kw.items() if v is not None})
         _write(STATE_FILE, st)
     return {"ok": True, "cfg": cfg()}
 
 
 def english(kw):
-    """搜索词翻成英文（微软翻译，翻过的记住）。"""
-    st = _read(STATE_FILE, {})
-    cache = st.get("_en") or {}
-    if kw in cache:
-        return cache[kw]
-    import biz_crawler as BC
-    en = ""
-    for px in BC._proxies("https://edge.microsoft.com/"):
-        try:
-            tok = BC._req_json("https://edge.microsoft.com/translate/auth", proxy=px, timeout=10)
-            r = BC._req_json("https://api-edge.cognitive.microsofttranslator.com/translate?from=zh-Hans&to=en&api-version=3.0",
-                             data=[{"Text": kw}], headers={"Authorization": "Bearer " + str(tok).strip()}, proxy=px, timeout=20)
-            en = ((r[0].get("translations") or [{}])[0].get("text") or "").strip()
-            if en:
-                break
-        except Exception:
-            continue
-    if not en:
-        raise RuntimeError("搜索词翻不成英文（微软翻译连不上）")
-    en = re.sub(r"[^\w\s&'-]", " ", en).strip()
-    with _lock:
-        st = _read(STATE_FILE, {})
-        st.setdefault("_en", {})[kw] = en
-        _write(STATE_FILE, st)
-    return en
+    """搜索词翻成英文。v199：先查内置词表（软件里全部行业），再联网翻（微软 → 谷歌 → MyMemory），见 biz_trade_x.translate。"""
+    return X.translate(kw, "en")
 
 
 def _k(x):
@@ -400,7 +447,7 @@ def probe_foreign(key, kw, trace):
     en = english(kw)
     url = FOREIGN_URL[key](en)
     prx, srx = FOREIGN_RX[key]
-    h, m = fetch(key, url, lambda x: bool(parse_foreign(x, prx)["band"]) and not _BLOCK.search(x[:5000]), trace)
+    h, m = fetch(key, url, lambda x: bool(parse_foreign(x, prx)["band"]), trace)
     g = parse_foreign(h, prx, srx)
     g.update(url=url, via=m, en=en)
     return g
@@ -418,22 +465,42 @@ PROBES = {
     "ebay": lambda kw, tr: probe_foreign("ebay", kw, tr),
     "aliexpress": lambda kw, tr: probe_foreign("aliexpress", kw, tr),
     "alibaba": lambda kw, tr: probe_foreign("alibaba", kw, tr),
+    "tb": lambda kw, tr: probe_goods("tb", tb_url(kw), kw, tr),
+    "pdd": lambda kw, tr: probe_goods("pdd", pdd_url(kw), kw, tr, int_div=100.0),
 }
+PROBES.update(X.probes(fetch))             # v199：全世界的平台 + 官方公开接口
+FAIL_SKIP_N = 6            # 连着 6 次被拦 / 空壳（不是要登录）→ 先跳过 1 天
+
 LOGIN_SKIP_N = 3            # 连着 3 次都要登录 → 先跳过 7 天（省时间），用不用登录的平台顶上
 LOGIN_SKIP_DAYS = 7
 
 
 # ───────────────────────── 一个方向去哪些平台、用什么词搜 ─────────────────────────
+APP_L2 = {"游戏", "软件开发", "IT服务", "社交", "数字媒体", "教育", "出版", "影视院线", "互联网电商", "本地生活服务"}
+APP_TRK = {"t:ai", "t:edu", "t:creator", "t:local", "t:livecom", "t:data", "t:silver"}
+CROWD_L2 = {"消费电子", "小家电", "文娱用品", "家居用品", "饰品", "体育", "其他电子", "照明设备", "个护用品", "厨卫电器", "其他家电"}
+CROWD_TRK = {"t:newcons", "t:pet", "t:robot", "t:lowalt", "t:silver"}
+NO_GOV_L1 = {"银行", "非银金融", "房地产"}
+FOREIGN_TRK = {"t:crossborder", "t:pet", "t:newcons", "t:ev", "t:energy", "t:robot", "t:lowalt"}
+CN_GOODS = ["b2b", "ywg", "jd", "tb", "pdd", "sn", "smzdm"]
+
+
+def regions_on():
+    r = cfg().get("regions") or {}
+    return {k for k, _n in X.REGIONS if r.get(k, True)}
+
+
 def plan(target):
-    """方向 → (搜索词, 平台列表)。"""
+    """方向 → (搜索词, 平台列表)。v199：国内平台 + 按「卖货 / 卖服务 / App / 众筹 / 政府采购」配国外平台（只配开着的地区）。"""
     tx = BZ._tx()
     t = (target or "").strip()
-    kw, l1, sec, trk = t, "", "", ""
+    kw, l1, l2n, sec, trk = t, "", "", "", ""
     if t in tx.get("l3", {}):
         kw = tx["l3"][t]["name"]
-        l1 = tx["l2"].get(tx["l3"][t]["l2"], {}).get("l1", "")
+        l2 = tx["l2"].get(tx["l3"][t]["l2"], {})
+        l1, l2n = l2.get("l1", ""), l2.get("name", "")
     elif t in tx["l2"]:
-        kw, l1 = tx["l2"][t]["name"], tx["l2"][t]["l1"]
+        kw, l1, l2n = tx["l2"][t]["name"], tx["l2"][t]["l1"], tx["l2"][t]["name"]
     elif t in tx["l1"]:
         kw, l1 = t, t
     elif t in tx["trk"]:
@@ -442,19 +509,52 @@ def plan(target):
     if l1:
         sec = next((k.replace("sec:", "") for k, v in tx["sec"].items() if l1 in v["l1"]), "")
     kw = re.sub(r"^其他|Ⅱ$", "", kw).strip() or t
-    plats = ["ccgp"]
+    plats, fits = ["ccgp"], set()
+    custom = not (trk or l1)
     if trk:
-        plats += ["zbj"] if trk in SERVICE_TRK else []
-        plats += ["b2b", "ywg", "jd", "sn", "smzdm"] if trk not in ("t:ai", "t:data", "t:edu", "t:creator", "t:local") else []
-        if trk in ("t:crossborder", "t:pet", "t:newcons", "t:ev", "t:energy", "t:robot", "t:lowalt"):
-            plats += ["amazon", "ebay", "aliexpress", "alibaba"]
+        if trk in SERVICE_TRK:
+            plats.append("zbj")
+            fits.add("svc")
+        if trk not in ("t:ai", "t:data", "t:edu", "t:creator", "t:local"):
+            plats += CN_GOODS
+            if trk in FOREIGN_TRK:
+                fits.add("goods")
+        if trk in APP_TRK:
+            fits.add("app")
+        if trk in CROWD_TRK:
+            fits.add("crowd")
+        fits.add("gov")
     elif l1:
         if l1 not in NO_RETAIL_L1 and sec in GOODS_SECS and l1 not in SERVICE_L1:
-            plats += ["b2b", "ywg", "jd", "sn", "smzdm", "amazon", "ebay", "aliexpress", "alibaba"]
+            plats += CN_GOODS
+            fits.add("goods")
         if l1 in SERVICE_L1 or kw in ("IT服务", "软件开发", "专业服务", "教育", "广告营销"):
-            plats += ["zbj"]
+            plats.append("zbj")
+            fits.add("svc")
+        if l2n in APP_L2:
+            fits.add("app")
+        if l2n in CROWD_L2:
+            fits.add("crowd")
+        if l1 not in NO_GOV_L1:
+            fits.add("gov")
     else:                                                 # 自己写的方向：都查一遍
-        plats += ["b2b", "ywg", "jd", "sn", "smzdm", "zbj", "amazon", "ebay", "aliexpress", "alibaba"]
+        plats += CN_GOODS + ["zbj"]
+        fits = {"goods", "svc", "app", "crowd", "gov"}
+    if "app" in fits:
+        plats.append("appstore_cn")
+    on = regions_on()
+    old_foreign = {"goods": ["amazon", "ebay", "aliexpress", "alibaba"]}
+    for f in ("goods", "svc", "app", "crowd", "gov"):
+        if f not in fits:
+            continue
+        for k in old_foreign.get(f, []):
+            if PREG.get(k) in on:
+                plats.append(k)
+        for p in X.G:
+            if p["fit"] == f and p["region"] in on:
+                plats.append(p["key"])
+    if custom:
+        pass
     return kw, list(dict.fromkeys(plats))
 
 
@@ -469,22 +569,23 @@ def probe(target, only=None):
             return {"ok": False, "error": "这个方向正在抓"}
         _run["running"][key] = int(time.time())
     res = {}
+
+    def one(p):
+        trace, t0 = [], time.time()
+        sk = _skip_why(p)
+        if sk:
+            return p, {"ok": False, "skipped": True, "error": sk, "trace": [], "ms": 0}
+        try:
+            r = PROBES[p](kw, trace)
+            r.update(ok=True, trace=trace, ms=int((time.time() - t0) * 1000))
+        except Exception as e:
+            r = {"ok": False, "error": str(e)[:200], "trace": trace, "ms": int((time.time() - t0) * 1000)}
+        _note(p, r)
+        return p, r
     try:
-        for p in plats:
-            trace = []
-            t0 = time.time()
-            sk = _skip_why(p)
-            if sk:
-                res[p] = {"ok": False, "skipped": True, "error": sk, "trace": [], "ms": 0}
-                continue
-            try:
-                r = PROBES[p](kw, trace)
-                r.update(ok=True, trace=trace, ms=int((time.time() - t0) * 1000))
-            except Exception as e:
-                r = {"ok": False, "error": str(e)[:200], "trace": trace, "ms": int((time.time() - t0) * 1000)}
-            res[p] = r
-            _note(p, r)
-            time.sleep(1.0)
+        with ThreadPoolExecutor(max_workers=4) as ex:        # v199：几个平台同时抓（同一个平台还是一个一个来）
+            for p, r in ex.map(one, plats):
+                res[p] = r
     finally:
         with _lock:
             _run["running"].pop(key, None)
@@ -512,7 +613,11 @@ def _skip_why(p):
         return ""
     if p in FOREIGN and not cfg().get("foreign", True):
         return "国外平台在设置里关掉了"
+    if p in LOGIN_SITES and TB and p in TB.SITES:
+        return "要先登录（在「交易平台抓取」标签最上面点「登录%s」）" % TB.SITES[p]["name"]
     s = _read(STATE_FILE, {}).get(p) or {}
+    if s.get("fail_streak", 0) >= FAIL_SKIP_N and time.time() - s.get("fail_at", 0) < 86400:
+        return "连着 %d 次被拦或没认出，先跳过，明天再试" % s["fail_streak"]
     if s.get("login_streak", 0) >= LOGIN_SKIP_N:
         left = s.get("login_at", 0) + LOGIN_SKIP_DAYS * 86400 - time.time()
         if left > 0:
@@ -524,11 +629,17 @@ def _note(p, r):
     with _lock:
         st = _read(STATE_FILE, {})
         s = st.setdefault(p, {})
+        if r.get("skipped"):
+            return
+        err = str(r.get("error", ""))
         if r.get("ok"):
-            s["login_streak"] = 0
-        elif "登录" in str(r.get("error", "")) or "空壳" in str(r.get("error", "")):
+            s["login_streak"] = s["fail_streak"] = 0
+        elif "要登录" in err:
             s["login_streak"] = s.get("login_streak", 0) + 1
             s["login_at"] = int(time.time())
+        elif "今天在" not in err:
+            s["fail_streak"] = s.get("fail_streak", 0) + 1
+            s["fail_at"] = int(time.time())
         s["at"] = int(time.time())
         s["n_ok" if r.get("ok") else "n_bad"] = s.get("n_ok" if r.get("ok") else "n_bad", 0) + 1
         if r.get("ok"):
@@ -556,8 +667,21 @@ def status():
         x.update(st.get(p["key"]) or {})
         x["skip"] = _skip_why(p["key"])
         x["foreign"] = bool(p.get("foreign"))
+        x["rname"] = X.R_NAME.get(p.get("region", "cn"), "")
         out.append(x)
+    order = ["cn"] + [k for k, _n in X.REGIONS]
+    out.sort(key=lambda x: order.index(x.get("region", "cn")) if x.get("region", "cn") in order else 99)
     return out
+
+
+def regions_info():
+    """给界面：每个地区有哪些平台、开没开。"""
+    on = regions_on()
+    names = {}
+    for p in PLATFORMS:
+        if p.get("foreign"):
+            names.setdefault(p["region"], []).append(re.sub(r"（.*?）|\s*Amazon|\s*Walmart", "", p["name"]).strip())
+    return [{"key": k, "name": n, "on": k in on, "plats": "、".join(names.get(k, []))} for k, n in X.REGIONS]
 
 
 # ───────────────────────── 给人看、给 AI 看 ─────────────────────────
@@ -576,6 +700,9 @@ def lines(rec):
         nm = P_NAME.get(p, p)
         if not r.get("ok"):
             out.append({"p": p, "ok": False, "txt": "%s：%s（%s）" % (nm, "跳过" if r.get("skipped") else "没抓到", r.get("error", "")[:80])})
+            continue
+        if p in X.KEYS:
+            out.append({"p": p, "ok": True, "txt": X.line(p, r, rec["kw"], nm), "url": r.get("url", ""), "via": SC_NAME.get(r.get("via"), "")})
             continue
         if p == "ccgp":
             s = "%s：近半年搜「%s」有 %s 条采购公告" % (nm, rec["kw"], r["total"] if r.get("total") is not None else "?")
@@ -604,6 +731,8 @@ def lines(rec):
                 s += "；首页写着的成交 / 销量合计约 %d" % r["sold"]
             if r.get("comments"):
                 s += "；评价数合计约 %d" % r["comments"]
+            if r.get("src") == "接口数据":
+                s += "（取自网页的接口数据，%d 个商品）" % (r.get("n_items") or b.get("n", 0))
         out.append({"p": p, "ok": True, "txt": s, "url": r.get("url", ""), "via": SC_NAME.get(r.get("via"), "")})
     return out
 
@@ -618,7 +747,7 @@ def prompt_text(rec):
     if items:
         body += "\n  政府采购网最近的几条：" + "；".join("%s %s%s%s" % (it.get("d", ""), it["t"], ("（%s）" % it["buyer"]) if it.get("buyer") else "",
                                                        "，%s %s 万元" % (it.get("amt_k", "金额"), _yuan(it["amt"])) if it.get("amt") else "") for it in items[:5])
-    return "（%s 爬虫在平台上直接抓的，口径写「交易平台」「电商平台」或「招投标」；国外平台是美元，按 1 美元≈7.1 元换算）\n%s" % (d, body)
+    return "（%s 爬虫在平台上直接抓的，口径写「交易平台」「电商平台」或「招投标」；国外平台的价格按当天汇率换算成人民币，是大概数；政府采购的「份数 / 条数」是关键词搜出来的，可能混进不相关的）\n%s" % (d, body)
 
 
 # ───────────────────────── v193：全部抓一遍（不用 AI，只跑爬虫）─────────────────────────
@@ -697,3 +826,27 @@ def coverage():
             if p in ((data.get(g) or {}).get("res") or {}):
                 out[p]["done"] += 1
     return out
+
+
+PREG = {p["key"]: p.get("region", "cn") for p in PLATFORMS}
+
+
+def _migrate():
+    """v199 第一次跑：v198 及以前「连着 3 次要登录 → 跳过 7 天」的记录清掉，让新办法（爬虫专用 Chrome、登录、内置词表）都试一遍。"""
+    try:
+        with _lock:
+            st = _read(STATE_FILE, {})
+            c = st.setdefault("_cfg", {})
+            if c.get("mig199"):
+                return
+            for k, v in st.items():
+                if not k.startswith("_") and isinstance(v, dict):
+                    for f in ("login_streak", "login_at", "pref"):
+                        v.pop(f, None)
+            c["mig199"] = 1
+            _write(STATE_FILE, st)
+    except Exception:
+        pass
+
+
+_migrate()

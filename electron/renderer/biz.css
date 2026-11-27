@@ -1414,3 +1414,29 @@ body.dark .view-biz .bz-kind.k-custom { color: #b8a2f0; }
 .view-biz .bz-rm-lrow .sp { flex: 1; }
 .view-biz .bz-rm-login-in .bz-rm-chkbox { display: flex; gap: 6px; align-items: center; margin-top: 6px; font-size: 13px; }
 @media (max-width: 1000px) { .view-biz .bz-rm-login-in { grid-template-columns: 1fr; } }
+
+/* ===== v199：交易平台——地区开关、按地区分组、全世界平台目录 ===== */
+.view-biz .bz-rm-regs { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 4px 12px; margin: 6px 0 8px; }
+.view-biz .bz-rm-regs[hidden] { display: none; }
+.view-biz .bz-rm-reg { display: flex; gap: 6px; align-items: flex-start; font-size: 12.5px; line-height: 1.4; cursor: pointer; }
+.view-biz .bz-rm-reg input { margin-top: 3px; }
+.view-biz .bz-rm-reg small { display: block; color: var(--text-dim); font-size: 11.5px; }
+.view-biz .bz-rm-eng { margin-top: 6px; }
+.view-biz .bz-rm-src tr.bz-rm-grp td { background: var(--bg-hover); font-weight: 600; font-size: 12.5px; padding-top: 6px; padding-bottom: 6px; }
+.view-biz .bz-rm-cat { margin: 14px 0 4px; }
+.view-biz .bz-rm-cat > .bz-btn { width: 100%; text-align: left; }
+.view-biz .bz-rm-cat #bzRmCat { margin-top: 10px; }
+.view-biz .bz-rm-cat #bzRmCat[hidden] { display: none; }
+.view-biz .bz-rm-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.view-biz .bz-rm-chips button { border: 1px solid var(--line); background: transparent; color: var(--text); border-radius: 999px; padding: 3px 10px; font-size: 12px; cursor: pointer; }
+.view-biz .bz-rm-chips button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.view-biz .bz-rm-catt td { vertical-align: top; font-size: 12.5px; }
+.view-biz .bz-rm-acc { display: inline-block; padding: 1px 7px; border-radius: 6px; font-size: 11.5px; white-space: nowrap; background: var(--bg-hover); color: var(--text-dim); }
+.view-biz .bz-rm-acc.a-auto { background: rgba(47, 143, 91, .14); color: #2f8f5b; }
+.view-biz .bz-rm-acc.a-login { background: rgba(47, 110, 186, .14); color: #2f6eba; }
+.view-biz .bz-rm-acc.a-key { background: rgba(196, 140, 30, .16); color: #a07010; }
+.view-biz .bz-rm-acc.a-paid { background: rgba(170, 70, 70, .13); color: #a04646; }
+body.dark .view-biz .bz-rm-acc.a-auto { color: #6fd19c; }
+body.dark .view-biz .bz-rm-acc.a-login { color: #8bb8ef; }
+body.dark .view-biz .bz-rm-acc.a-key { color: #e6c16a; }
+body.dark .view-biz .bz-rm-acc.a-paid { color: #e59a9a; }

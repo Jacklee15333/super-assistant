@@ -90,7 +90,7 @@ _LOG_QUIET_PATHS = {"/biz/article_media", "/intake_kind", "/douyin/login",
     "/creator/x_cookie_status",
     "/logs", "/ai_live", "/ai_live_shot", "/version", "/gpu_status", "/creator_profiles", "/creator_avatar", "/creator_scan_all",
     "/scrapling/status", "/sniff/sources",
-    "/biz/job", "/biz/overview", "/biz/taxonomy", "/biz/items", "/biz/reports", "/biz/report", "/biz/opps", "/biz/topics", "/biz/fit", "/biz/fit_options", "/biz/real", "/biz/real/item", "/biz/real/check",
+    "/biz/job", "/biz/overview", "/biz/taxonomy", "/biz/items", "/biz/reports", "/biz/report", "/biz/opps", "/biz/topics", "/biz/fit", "/biz/fit_options", "/biz/real", "/biz/real/item", "/biz/real/check", "/biz/real/catalog",
     "/kb/overview", "/kb/page", "/kb/search", "/kb/candidates", "/kb/raw", "/kb/raw_item", "/kb/graph",
     "/biz/radar/status", "/biz/radar/plan", "/biz/radar_tops", "/biz/brief_info", "/biz/radar/sources", "/biz/radar/engines", "/biz/radar/runs", "/biz/radar/report",
 }
@@ -5722,6 +5722,9 @@ class Handler(BaseHTTPRequestHandler):
                 if path == "/biz/real/item":
                     import biz_real as _br
                     return self._send(_br.item(q1("id")))
+                if path == "/biz/real/catalog":                      # v199：全世界的交易平台目录
+                    import biz_trade_catalog as _btc
+                    return self._send(_btc.catalog())
                 if path == "/biz/real/check":
                     import biz_real as _br
                     return self._send(_br.check_get(q1("id")))
@@ -6724,10 +6727,12 @@ class Handler(BaseHTTPRequestHandler):
                         return self._send(_tb.logout(body.get("site", "")))
                     if body.get("action") == "status":
                         return self._send(dict(_tb.status(), ok=True))
+                    if body.get("action") == "verify":                   # v199：平台弹了滑块 / 验证码，打开窗口让你自己过
+                        return self._send(_tb.open_verify(body.get("site", "")))
                     return self._send(_tb.open_login(body.get("site", "")))
                 if path == "/biz/real/trade_cfg":                    # v198：交易平台设置（国外平台开关）
                     import biz_trade as _bt
-                    return self._send(_bt.set_cfg(foreign=body.get("foreign")))
+                    return self._send(_bt.set_cfg(foreign=body.get("foreign"), regions=body.get("regions")))   # v199：按地区开关
                 if path == "/biz/real/check_delete":
                     import biz_real as _br
                     return self._send(_br.check_delete(body.get("id", "")))

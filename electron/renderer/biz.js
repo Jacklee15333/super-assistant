@@ -2495,7 +2495,9 @@
         '<div class="bz-rm-checks" id="bzRmChecks"></div></section>' +
       '<section class="bz-rm-tp" data-rmtp="trade" hidden>' +
         '<div class="bz-rm-login" id="bzRmLogin"></div>' +                                        // v198：京东 / 1688 登录、国外平台
-        '<div class="bz-rm-tbar" id="bzRmTBar"></div><div class="bz-tablewrap" id="bzRmSrc"></div></section>' +
+        '<div class="bz-rm-tbar" id="bzRmTBar"></div><div class="bz-tablewrap" id="bzRmSrc"></div>' +
+        '<div class="bz-rm-cat"><button type="button" class="bz-btn ghost" data-act="rm-cat" id="bzRmCatBtn">🌍 全世界的交易平台目录（按地区、类型列出，写清楚软件能不能抓）</button>' +   // v199
+        '<div id="bzRmCat" hidden></div></div></section>' +
       '<section class="bz-rm-tp bz-rm-tp-map" data-rmtp="map">' +                    // v196：地图也是一个标签（以前放在三个标签下面共用，看着像每个标签里都有）
         '<div class="bz-bar bz-rm-mapbar">' + seg("rmmetric", RM_METRIC) + seg("rmview", [["map", "地图"], ["list", "列表"]]) +
           '<input type="search" class="bz-input" id="bzRmQ" placeholder="找行业：白酒、化妆品、教育…" aria-label="找行业"></div>' +
@@ -2691,7 +2693,9 @@
     const d = S.rm.data;
     if (!d) return "";
     const rows = d.sources.filter((s) => (kind === "auto" ? s.auto : !s.auto));
+    let grp = null;                                                  // v199：交易平台按地区分组
     return '<table class="bz-ltab bz-rm-src"><thead><tr><th>信息源</th><th>看什么</th><th>怎么取</th><th>状态</th></tr></thead><tbody>' + rows.map((s) =>
+      (s.crawl && s.rname && s.rname !== grp ? ((grp = s.rname), '<tr class="bz-rm-grp"><td colspan="4">' + esc(s.rname === "国内" ? "国内平台" : "国外 · " + s.rname) + "</td></tr>") : "") +
       "<tr><td class=\"nm\">" + (s.url ? '<a class="bz-link strong" href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.name) + "</a>" : "<b>" + esc(s.name) + "</b>") +
       '</td><td class="ds">' + esc(s.what) + '</td><td class="ds">' + esc(s.how) + "</td><td>" +
       (s.crawl ? '<small class="bz-dim">适用 ' + (s.fit || 0) + " 个行业，已抓 " + (s.done || 0) + " 个</small><br>" + (s.n_ok || s.n_bad ? '<span class="' + (s.last_ok ? "bz-rm-ok" : "bz-rm-bad") + '">' + (s.last_ok ? "✓ 抓到过 " + s.n_ok + " 次" : "还没抓到过") + "</span>" +
@@ -2983,22 +2987,61 @@
     bzLivePlace();
   }
   // v198：京东 / 1688 登录、国外平台开关
-  function rmLoginHTML() {
-    const d = S.rm.data || {}, L = (d.logins && d.logins.sites) || {}, c = d.trade_cfg || {};
+  // v199：全世界的交易平台目录
+  async function rmCatToggle() {
+    const box = $("bzRmCat");
+    if (!box) return;
+    box.hidden = !box.hidden;
+    if (box.hidden) return;
+    if (!S.rm.cat) {
+      box.innerHTML = loading("正在读目录…");
+      const r = await api("/biz/real/catalog").catch((e) => ({ ok: false, error: e.message }));
+      if (!r.ok) { box.innerHTML = empty("读不到：" + esc(r.error || "")); return; }
+      S.rm.cat = r;
+    }
+    rmCatRender();
+  }
+  function rmCatRender() {
+    const box = $("bzRmCat"), c = S.rm.cat;
+    if (!box || !c) return;
+    const R = S.rm.catR || "", K = S.rm.catK || "";
+    const rows = c.rows.filter((x) => (!R || x.r === R) && (!K || x.k === K));
+    const chip = (attr, v, label, on) => '<button type="button" class="' + (on ? "on" : "") + '" data-' + attr + '="' + esc(v) + '">' + esc(label) + "</button>";
+    box.innerHTML = '<p class="bz-dim">一共 ' + c.n + " 个平台，软件会自动抓的 " + c.n_auto + " 个（「✓ 自动抓」「登录后自动抓」）。其余的：「要申请免费钥匙」的以后可以接；「付费数据」最准但要钱；「先自己看」的是反爬很严或只能在 App 里看。</p>" +
+      '<div class="bz-rm-chips">' + chip("rm-catr", "", "全部地区", !R) + c.regions.map((g) => chip("rm-catr", g.k, g.n + " " + g.c, R === g.k)).join("") + "</div>" +
+      '<div class="bz-rm-chips">' + chip("rm-catk", "", "全部类型", !K) + c.kinds.map((k) => chip("rm-catk", k, k, K === k)).join("") + "</div>" +
+      '<table class="bz-ltab bz-rm-catt"><thead><tr><th>平台</th><th>国家 / 地区</th><th>类型</th><th>能看到什么</th><th>软件能不能抓</th></tr></thead><tbody>' +
+      rows.map((x) => '<tr><td class="nm"><a class="bz-link strong" href="' + esc(x.u) + '" target="_blank" rel="noopener">' + esc(x.n) + "</a></td><td>" + esc(x.c) +
+        '</td><td class="ds">' + esc(x.k) + '</td><td class="ds">' + esc(x.w) + '</td><td><span class="bz-rm-acc a-' + esc(x.a) + '">' + esc(x.an) + "</span>" +
+        (x.key && (x.n_ok || x.n_bad) ? '<br><small class="bz-dim">抓到过 ' + (x.n_ok || 0) + " 次，没抓到 " + (x.n_bad || 0) + " 次</small>" : "") + "</td></tr>").join("") +
+      "</tbody></table>";
+  }
+  function rmLoginHTML() {                                          // v198：京东 / 1688 登录；v199：加淘宝、拼多多、过验证、按地区选国外平台
+    const d = S.rm.data || {}, LG = d.logins || {}, L = LG.sites || {}, c = d.trade_cfg || {}, regs = d.trade_regions || [];
+    const spin = '<span class="bz-spin" aria-hidden="true"></span>';
     const row = (k) => {
-      const x = L[k] || { name: k === "jd" ? "京东" : "1688" };
-      const st = x.waiting ? '<span class="bz-rm-bad"><span class="bz-spin" aria-hidden="true"></span>登录窗口开着，等你登录…（屏幕上弹出来的那个 Chrome）</span>' :
-        x.logged ? '<span class="bz-rm-ok">✓ 已登录</span><small class="bz-dim">（' + esc(ago(x.at)) + "登录的；爬虫抓" + esc(x.name) + "时会用它）</small>" :
-        x.expired ? '<span class="bz-rm-bad">登录过期了</span><small class="bz-dim">（抓的时候又被要求登录）</small>' : '<span class="bz-dim">没登录</span>';
-      const btn = x.waiting ? "" : x.logged ? '<button type="button" class="bz-btn sm ghost" data-rm-login="' + k + '">重新登录</button><button type="button" class="bz-link" data-rm-logout="' + k + '">退出</button>' :
-        '<button type="button" class="bz-btn sm" data-rm-login="' + k + '">登录' + esc(x.name) + "</button>";
+      const x = L[k] || { name: k };
+      const today = x.today ? '<small class="bz-dim">今天搜了 ' + x.today + "/" + (x.cap || 100) + " 次</small>" : "";
+      const st = x.waiting ? '<span class="bz-rm-bad">' + spin + (x.mode === "verify" ? "验证窗口开着，在弹出来的 Chrome 里拖一下滑块 / 输一下验证码…" : "登录窗口开着，等你登录…（屏幕上弹出来的那个 Chrome）") + "</span>" :
+        x.verify ? '<span class="bz-rm-bad">要过一下验证</span><small class="bz-dim">（平台弹了滑块 / 验证码，点右边「去验证」，在弹出的窗口里自己过一下）</small>' :
+        x.logged ? '<span class="bz-rm-ok">✓ 已登录</span><small class="bz-dim">（' + esc(ago(x.at)) + "登录的）</small>" + today :
+        x.expired ? '<span class="bz-rm-bad">登录过期了</span><small class="bz-dim">（抓的时候又被要求登录）</small>' : '<span class="bz-dim">没登录（不登录就不去抓它）</span>';
+      const btn = x.waiting ? "" : (x.verify ? '<button type="button" class="bz-btn sm" data-rm-verify="' + k + '">去验证</button>' : "") +
+        (x.logged ? '<button type="button" class="bz-btn sm ghost" data-rm-login="' + k + '">重新登录</button><button type="button" class="bz-link" data-rm-logout="' + k + '">退出</button>' :
+          '<button type="button" class="bz-btn sm" data-rm-login="' + k + '">登录' + esc(x.name) + "</button>");
       return '<div class="bz-rm-lrow"><b>' + esc(x.name) + "</b>" + st + '<span class="sp"></span>' + btn + "</div>";
     };
-    return '<div class="bz-rm-login-in"><div><b>要登录才给看的平台</b><p class="bz-dim">京东、1688 现在搜东西要登录。点「登录」会在你屏幕上弹出一个专门给爬虫用的 Chrome（和你自己的 Chrome、AI 池都分开），' +
-      "扫码或输密码登录就行；软件看到登录好了，会自动把窗口收到屏幕外。登录一次一直能用，过期了这里会提示。</p>" + row("jd") + row("b2b") +
-      (d.logins && d.logins.err ? '<p class="bz-rm-bad">' + esc(d.logins.err) + "</p>" : "") + "</div>" +
-      '<div><b>国外平台</b><label class="bz-rm-chkbox"><input type="checkbox" id="bzRmForeign"' + (c.foreign !== false ? " checked" : "") + "> 也抓国外的主流平台</label>" +
-      '<p class="bz-dim">亚马逊（美国站，含「上个月卖了多少」）、eBay（只看已经成交的）、速卖通、阿里巴巴国际站。要能上外网：走软件设置里的代理；搜索词自动翻成英文；价格是美元，按 1 美元≈7.1 元换算。只在卖货的行业和跨境电商这类赛道去抓。</p></div></div>';
+    const fo = c.foreign !== false;
+    return '<div class="bz-rm-login-in"><div><b>要登录才给看的平台</b><p class="bz-dim">京东、淘宝 / 天猫、拼多多、1688 搜东西要登录。点「登录」会弹出一个专门给爬虫用的 Chrome（和你自己的 Chrome、AI 池都分开），' +
+      "扫码登录就行，软件看到登录好了会自动把窗口收到屏幕外。登录信息加密存在你电脑上（不会跟着提交传到 GitHub），浏览器关了再开也还在。" +
+      "为了不让账号被风控，同一个平台两次搜索隔 15 秒以上、一天最多 100 次；平台弹滑块时这里会提示你自己过一下。<b>建议用小号登录。</b></p>" +
+      (LG.order || ["jd", "tb", "pdd", "b2b"]).map(row).join("") +
+      '<p class="bz-dim bz-rm-eng">爬虫浏览器：' + esc(LG.engine === "Patchright" ? "Patchright（防检测版）" : "普通 Playwright（防检测版 Patchright 正在后台装，装好后自动换）") + "</p>" +
+      (LG.err ? '<p class="bz-rm-bad">' + esc(LG.err) + "</p>" : "") + "</div>" +
+      '<div><b>国外平台</b><label class="bz-rm-chkbox"><input type="checkbox" id="bzRmForeign"' + (fo ? " checked" : "") + "> 也抓国外的平台</label>" +
+      '<div class="bz-rm-regs"' + (fo ? "" : " hidden") + ">" + regs.map((r) => '<label class="bz-rm-reg"><input type="checkbox" data-rm-reg="' + esc(r.key) + '"' + (r.on ? " checked" : "") +
+        "><span><b>" + esc(r.name) + "</b><small>" + esc(r.plats) + "</small></span></label>").join("") + "</div>" +
+      '<p class="bz-dim">要能上外网：走软件设置里的代理。搜索词用内置词表翻成当地语言（翻不了再联网翻）；价格按当天汇率换算成人民币。政府采购、App、接单、众筹走官方公开接口，不用登录。地区勾得越多，「全部抓一遍」越久。</p></div></div>';
   }
   // v193：交易平台「全部抓一遍」
   function rmTBarHTML() {
@@ -3006,8 +3049,9 @@
     const hrs = (sec) => (sec >= 3600 ? (sec / 3600).toFixed(1).replace(/\.0$/, "") + " 小时" : Math.max(1, Math.round(sec / 60)) + " 分钟");
     let h = '<div class="bz-rm-tbar-in"><div><b>爬虫什么时候去抓交易平台？</b>' +
       '<p class="bz-dim">① 核实任何一个方向（下拉框选的、自己写的、「全部核实」排队的）时，会先自动抓；② 体检卡里点「去平台抓」；③ 点右边按钮，把全部行业抓一遍（不用 AI）。' +
-      "不是每个平台都适合每个行业：1688、义乌购、京东、苏宁易购、什么值得买只在卖货的行业（吃穿用、电子、医药、宠物…）去抓；猪八戒只在卖服务的行业（教育、软件、AI、营销…）去抓；政府采购网每个都抓。表格里「适用」就是会去抓的行业数。" +
-      "京东和 1688 要登录：在上面登录一次，之后就用登录好的浏览器去抓；没登录的话，连着 3 次被要求登录就先跳过 7 天，用不用登录的义乌购（批发价）和苏宁易购（零售价）顶上。</p></div>";
+      "不是每个平台都适合每个行业：电商和批发平台只在卖货的行业（吃穿用、电子、医药、宠物…）去抓；猪八戒、Freelancer 只在卖服务的行业去抓；应用商店只在软件、游戏、教育、AI 这类去查；" +
+      "政府采购（国内、美国、欧盟）几乎每个都查。表格里「适用」就是会去抓的行业数。几个平台同时抓，同一个平台一个一个来。" +
+      "京东、淘宝、拼多多、1688 要先在上面登录，不登录就不去抓（不硬闯）。连着 6 次被拦的平台先跳过 1 天。</p></div>";
     if (tb && tb.running) {
       const pct = tb.n ? Math.round((tb.i / tb.n) * 100) : 0;
       h += '<div class="bz-rm-tprog"><p><span class="bz-spin" aria-hidden="true"></span><b>正在抓：' + esc(tb.cur_name || "…") + "</b>　" + tb.i + " / " + tb.n +
@@ -3015,7 +3059,7 @@
         '<button type="button" class="bz-btn sm ghost" data-act="rm-tstop"' + (tb.stop ? " disabled" : "") + ">" + (tb.stop ? "正在停…" : "停止") + "</button></div>";
     } else {
       h += '<div class="bz-rm-tprog">' + (tb && tb.ended ? '<p class="bz-dim">上次「' + esc(tb.name) + "」抓完了：抓到 " + tb.ok + " 个，没抓到 " + tb.bad + " 个" + (tb.skipped ? "，跳过 " + tb.skipped + " 个刚抓过的" : "") + "。</p>" : "") +
-        '<button type="button" class="bz-btn" data-act="rm-tall">交易平台全部抓一遍</button><p class="bz-dim">155 个行业，不用 AI，约 1～2 小时；3 天内抓过的跳过</p></div>';
+        '<button type="button" class="bz-btn" data-act="rm-tall">交易平台全部抓一遍</button><p class="bz-dim">155 个行业，不用 AI，国外地区全开约 3～4 小时（适合晚上挂着）；3 天内抓过的跳过</p></div>';
     }
     return h + "</div>";
   }
@@ -3721,6 +3765,14 @@
         else { S.rm.lwait = Object.assign(S.rm.lwait || {}, { [site]: 1 }); toast("登录窗口已经弹出来了（一个新的 Chrome），在里面扫码或输密码登录。"); }
         rmLoad(); return;
       }
+      if ((b = t.closest("[data-rm-verify]"))) {                                                 // v199：平台弹了验证，打开窗口自己过
+        b.disabled = true; b.textContent = "正在打开…";
+        const r = await api("/biz/real/login", { site: b.dataset.rmVerify, action: "verify" }).catch((e) => ({ ok: false, error: e.message }));
+        toast(r.ok ? "验证窗口弹出来了：在里面拖一下滑块或输验证码，过了软件会自动收起窗口。" : r.error || "窗口没打开");
+        rmLoad(); return;
+      }
+      if ((b = t.closest("[data-rm-catr]"))) { S.rm.catR = b.dataset.rmCatr; rmCatRender(); return; }          // v199：目录筛选
+      if ((b = t.closest("[data-rm-catk]"))) { S.rm.catK = b.dataset.rmCatk; rmCatRender(); return; }
       if ((b = t.closest("[data-rm-logout]"))) {
         if (!confirm("退出登录？之后爬虫抓这个平台会又被要求登录。")) return;
         await api("/biz/real/login", { site: b.dataset.rmLogout, action: "logout" }).catch(() => null);
@@ -3744,6 +3796,7 @@
         }
         else if (a === "rm-report-close") { S.rm.showReport = false; renderReal(); }
         else if (a === "rm-tall") { b.disabled = true; await api("/biz/real/trade", { action: "all", scope: "all" }).then((r) => toast(r.ok ? "开始一个个抓了：" + r.n + " 个行业" + (r.skipped ? "（3 天内抓过的 " + r.skipped + " 个跳过）" : "") : r.error)).catch(() => null); rmLoad(); }
+        else if (a === "rm-cat") { rmCatToggle(); }
         else if (a === "rm-tstop") { await api("/biz/real/trade", { action: "stop" }).catch(() => null); toast("抓完手上这一个就停。"); rmLoad(); }
         else if (a === "rm-close") { S.rm.sel = ""; store.set("rmSel", ""); root.querySelectorAll("#bzRmMain .sel").forEach((e) => e.classList.remove("sel")); rmRenderDetail(); }
         else if (a === "rm-check-sel") rmCheck("", S.rm.sel);
@@ -4008,6 +4061,12 @@
     root.addEventListener("change", async (e) => {
       const t = e.target;
       if (t.matches("#bzCuForm select[data-cu]")) { cuQueueSave(120); return; }        // v187：商业定制
+      if (t.matches("[data-rm-reg]")) {                                                          // v199：按地区开关国外平台
+        const regions = {};
+        root.querySelectorAll("[data-rm-reg]").forEach((x) => { regions[x.dataset.rmReg] = x.checked; });
+        await api("/biz/real/trade_cfg", { regions: regions }).catch(() => null);
+        toast((t.checked ? "之后会抓：" : "之后不抓：") + (t.closest("label").querySelector("b") || {}).textContent); rmLoad(); return;
+      }
       if (t.id === "bzRmForeign") { await api("/biz/real/trade_cfg", { foreign: t.checked }).catch(() => null); toast(t.checked ? "之后会顺便抓国外平台。" : "之后不抓国外平台了。"); rmLoad(); return; }   // v198
       if (t.id === "bzRmPick") { S.rm.pick = t.value; if (t.value) $("bzRmTarget").value = ""; return; }        // v192：真实市场下拉框
       if (t.id === "bzRmBScope") { S.rm.bscope = t.value; $("bzRmBatch").innerHTML = rmBatchHTML(); return; }
