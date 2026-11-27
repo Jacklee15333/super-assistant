@@ -12,6 +12,8 @@ v199 改了这些（v198 登录两分钟就「过期」，原因是下面前两�
   · 网页自己去调的接口数据（商品列表 JSON）顺手收下来，交给取数的代码；比在网页文字里认价格准得多，也不用破解签名。
   · 像人一样慢慢搜：同一个平台两次搜索至少隔 15～28 秒，每个平台一天最多搜 100 次，免得账号被风控。
   · 平台弹滑块 / 验证码时不硬闯：标成「要过一下验证」，你点一下，窗口弹出来，自己拖一下就好。
+v200：「一键登录全部」——没登录的平台一次全打开（一个窗口里几个标签页），登好一个自动关掉、跳到下一个；
+      点「登录」前先清掉这个平台的旧登录信息（不然过期的旧 Cookie 还在，软件会误以为马上就登录好了）。
 所有页面操作都在一个专门的线程里做（Playwright 只能在一个线程里用）；闲置 5 分钟自动关掉浏览器，省内存。
 """
 from __future__ import annotations
@@ -53,13 +55,13 @@ GAP_OTHER = (4, 9)
 
 SITES = {
     "jd": {"name": "京东", "login": "https://passport.jd.com/new/login.aspx?ReturnUrl=https%3A%2F%2Fwww.jd.com%2F", "home": "https://www.jd.com/",
-           "domain": "jd.com", "cookies": ("thor", "pt_key", "pinId", "unick", "pin")},
+           "domain": "jd.com", "domains": ("jd.com",), "cookies": ("thor", "pt_key", "pinId", "unick", "pin")},
     "tb": {"name": "淘宝 / 天猫", "login": "https://login.taobao.com/member/login.jhtml?redirectURL=https%3A%2F%2Fwww.taobao.com%2F",
-           "home": "https://www.taobao.com/", "domain": "taobao.com", "cookies": ("unb", "_nk_", "cookie17", "lgc")},
+           "home": "https://www.taobao.com/", "domain": "taobao.com", "domains": ("taobao.com", "tmall.com"), "cookies": ("unb", "_nk_", "cookie17", "lgc")},
     "pdd": {"name": "拼多多", "login": "https://mobile.yangkeduo.com/login.html", "home": "https://mobile.yangkeduo.com/",
-            "domain": "yangkeduo.com", "cookies": ("PDDAccessToken", "pdd_user_id")},
+            "domain": "yangkeduo.com", "domains": ("yangkeduo.com", "pinduoduo.com"), "cookies": ("PDDAccessToken", "pdd_user_id")},
     "b2b": {"name": "1688", "login": "https://login.1688.com/member/signin.htm?Done=https%3A%2F%2Fwww.1688.com%2F", "home": "https://www.1688.com/",
-            "domain": "1688.com", "cookies": ("__cn_logon__", "unb", "cookie17", "__cn_logon_id__")},
+            "domain": "1688.com", "domains": ("1688.com",), "cookies": ("__cn_logon__", "unb", "cookie17", "__cn_logon_id__")},
 }
 ORDER = ["jd", "tb", "pdd", "b2b"]
 KEEP = ("jd.com", "taobao.com", "tmall.com", "1688.com", "yangkeduo.com", "pinduoduo.com", "alibaba.com")
@@ -69,7 +71,7 @@ CAPTCHA = re.compile(r"(滑动验证|拖动下方滑块|请拖动|安全验证|�
 
 _q = queue.Queue()
 _st = {"thread": None, "pw": None, "ctx": None, "eng": "", "last": 0, "login": {}, "visible": False, "err": "", "saved": 0,
-       "last_at": {}, "old_done": False, "tried_install": 0}
+       "last_at": {}, "old_done": False, "tried_install": 0, "batch": None}
 _lock = threading.Lock()
 _pace_lock = threading.Lock()
 
@@ -357,11 +359,11 @@ def _tick():
                 done = False
             if done and now - L["started"] > 4:
                 _done_login(site, True)
-            elif now - L["started"] > LOGIN_WAIT:
+            elif now - L["started"] > L.get("wait", LOGIN_WAIT):
                 _done_login(site, False)
         elif _logged(site):
             _done_login(site, True)
-        elif now - L["started"] > LOGIN_WAIT:
+        elif now - L["started"] > L.get("wait", LOGIN_WAIT):
             _done_login(site, False)
     if _st["ctx"] and not _st["login"] and now - _st["last"] > IDLE_CLOSE:
         _save_cookies(force=True)
@@ -398,19 +400,94 @@ def _done_login(site, ok):
             pg.close()
     except Exception:
         pass
+    _next_tab()
+
+
+def _next_tab():
+    """一键登录：登好一个，跳到下一个还没登录的标签页（二维码放久了会失效，顺手刷新一下）。"""
+    left = [x for x in ORDER if x in _st["login"]]
+    if not left:
+        _st["batch"] = None
+        return
+    L = _st["login"][left[0]]
+    try:
+        pg = L["page"]
+        if L.get("batch") and time.time() - L.get("shown", L["started"]) > 60:
+            pg.reload(wait_until="domcontentloaded", timeout=30000)
+        L["shown"] = time.time()
+        _show(pg, True)
+    except Exception as e:
+        _log("切到下一个登录页没成功：%s" % str(e)[:80])
 
 
 # ───────────────────────── 对外 ─────────────────────────
+def _clear_site(site):
+    """只清这一个平台的登录信息（别的平台不动）。"""
+    ctx = _ctx()
+    doms = SITES[site].get("domains") or (SITES[site]["domain"],)
+    try:
+        ctx.clear_cookies(domain=re.compile(r"(^|\.)(%s)$" % "|".join(re.escape(d) for d in doms)))
+        return
+    except Exception:
+        pass
+    pg = ctx.pages[0] if ctx.pages else ctx.new_page()
+    cdp = ctx.new_cdp_session(pg)
+    for c in ctx.cookies():
+        if any((c.get("domain") or "").lstrip(".").endswith(d) for d in doms):
+            try:
+                cdp.send("Network.deleteCookies", {"name": c["name"], "domain": c["domain"], "path": c.get("path") or "/"})
+            except Exception:
+                pass
+
+
 def _open_login(site, mode="login"):
     ctx = _ctx()
+    if mode == "login":
+        _clear_site(site)              # 旧的（多半过期了）先清掉，免得一打开就被当成「登录好了」
     pg = ctx.new_page()
     url = SITES[site]["login"]
     if mode == "verify":
         url = (_read().get(site) or {}).get("verify_url") or SITES[site]["home"]
     pg.goto(url, wait_until="domcontentloaded", timeout=40000)
     _show(pg, True)
-    _st["login"][site] = {"started": time.time(), "page": pg, "checked": 0, "mode": mode}
+    _st["login"][site] = {"started": time.time(), "page": pg, "checked": 0, "mode": mode, "shown": time.time()}
     return True
+
+
+def _open_all(force):
+    """一键登录：没登录的平台（force＝全部）各开一个标签页，先把第一个放到前面。"""
+    d = _read()
+    todo = [x for x in ORDER if x not in _st["login"] and (force or not (d.get(x) or {}).get("logged"))]
+    if not todo:
+        return []
+    ctx = _ctx()
+    opened, now = [], time.time()
+    for i, site in enumerate(todo):
+        try:
+            _clear_site(site)
+            pg = ctx.new_page()
+            pg.goto(SITES[site]["login"], wait_until="domcontentloaded", timeout=40000)
+            _st["login"][site] = {"started": now, "page": pg, "checked": 0, "mode": "login", "batch": True,
+                                  "wait": LOGIN_WAIT + 300 * i, "shown": now}
+            opened.append(site)
+        except Exception as e:
+            _log("%s 的登录页没打开：%s" % (SITES[site]["name"], str(e)[:80]))
+    if opened:
+        _st["batch"] = {"sites": opened, "started": int(now)}
+        first = _st["login"][opened[0]]["page"]
+        _show(first, True)
+        _log("一键登录：开了 %s 的登录页" % "、".join(SITES[x]["name"] for x in opened))
+    return opened
+
+
+def open_login_all(force=False):
+    try:
+        opened = _run(_open_all, bool(force), timeout=240)
+    except Exception as e:
+        return {"ok": False, "error": "登录窗口没打开：%s" % str(e)[:150]}
+    if not opened:
+        return {"ok": True, "n": 0, "msg": "都已经登录了"}
+    return {"ok": True, "n": len(opened), "sites": opened, "names": [SITES[x]["name"] for x in opened]}
 
 
 def open_login(site, mode="login"):
@@ -428,11 +505,7 @@ def open_verify(site):
 
 
 def _logout(site):
-    ctx = _ctx()
-    try:
-        ctx.clear_cookies(domain=SITES[site]["domain"])
-    except TypeError:                       # 老版本 Playwright 不能按网站清：全清
-        ctx.clear_cookies()
+    _clear_site(site)
     _save_cookies(force=True)
     return True
 
@@ -593,4 +666,11 @@ def status():
         x["today"] = x.get("n_today", 0) if x.get("day") == today else 0
         x["cap"] = DAILY_CAP
         out[site] = x
-    return {"sites": out, "order": ORDER, "open": bool(_st["ctx"]), "err": _st["err"], "engine": engine_name(), "home": str(HOME)}
+    b = _st["batch"]
+    batch = None
+    if b:
+        left = [x for x in b["sites"] if x in _st["login"]]
+        batch = {"n": len(b["sites"]), "left": left, "left_names": [SITES[x]["name"] for x in left],
+                 "cur": SITES[left[0]]["name"] if left else "", "done": len(b["sites"]) - len(left)}
+    return {"sites": out, "order": ORDER, "open": bool(_st["ctx"]), "err": _st["err"], "engine": engine_name(), "home": str(HOME),
+            "batch": batch}
