@@ -6717,9 +6717,11 @@ class Handler(BaseHTTPRequestHandler):
                 if path == "/biz/real/trade":                        # v192：只抓交易平台（不用 AI）；v193：all＝全部抓一遍，stop＝停
                     import biz_trade as _bt
                     if body.get("action") == "all":
-                        return self._send(_bt.batch_start(body.get("scope", "all")))
+                        return self._send(_bt.batch_start(body.get("scope", "all"), int(body.get("fresh", 3))))   # v201：fresh=0 → 全部重新抓
                     if body.get("action") == "stop":
                         return self._send(_bt.batch_stop())
+                    if body.get("action") == "try":                      # v201：表里点「试抓」，只抓一个平台
+                        return self._send(_bt.try_one(body.get("key", ""), body.get("kw", "")))
                     return self._send(_bt.probe_async(body.get("target", "")))
                 if path == "/biz/real/login":                        # v198：京东 / 1688 登录（打开登录窗口 / 退出）
                     import trade_browser as _tb
@@ -6734,7 +6736,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(_tb.open_login(body.get("site", "")))
                 if path == "/biz/real/trade_cfg":                    # v198：交易平台设置（国外平台开关）
                     import biz_trade as _bt
-                    return self._send(_bt.set_cfg(foreign=body.get("foreign"), regions=body.get("regions")))   # v199：按地区开关
+                    return self._send(_bt.set_cfg(foreign=body.get("foreign"), regions=body.get("regions"), off=body.get("off")))   # v199：按地区开关
                 if path == "/biz/real/check_delete":
                     import biz_real as _br
                     return self._send(_br.check_delete(body.get("id", "")))

@@ -1447,3 +1447,41 @@ body.dark .view-biz .bz-rm-acc.a-paid { color: #e59a9a; }
 .view-biz .bz-rm-lbatch { margin: 8px 0 4px; padding: 8px 10px; border-radius: 8px; background: var(--bg-hover); font-size: 12.5px; line-height: 1.6; }
 .view-biz .bz-rm-needlogin { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .view-biz .bz-rm-src .bz-btn.sm, .view-biz .bz-rm-catt .bz-btn.sm { margin-top: 4px; }
+
+/* ===== v201：交易平台抓取——操作栏、实时进度、一张总表 ===== */
+.view-biz .bz-rm-tact { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; padding: 10px 12px; margin: 0 0 10px; border: 1px solid var(--line); border-radius: 10px; }
+.view-biz .bz-rm-tact > div { flex: 1; min-width: 0; }
+.view-biz .bz-rm-tbtns { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.view-biz .bz-rm-thelp { margin: 8px 0 0; font-size: 12.5px; line-height: 1.6; }
+.view-biz .bz-rm-tkw { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-dim); white-space: nowrap; }
+.view-biz .bz-rm-tkw .bz-input { width: 150px; }
+.view-biz .bz-rm-tlive { padding: 10px 12px; margin: 0 0 10px; border-radius: 10px; background: var(--bg-hover); }
+.view-biz .bz-rm-tlive p { margin: 0 0 6px; font-size: 13px; }
+.view-biz .bz-rm-tlast { margin: 0 0 10px; font-size: 12.5px; }
+.view-biz .bz-rm-pchips { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin: 0 0 10px; font-size: 12px; }
+.view-biz .bz-rm-pchips .lab { color: var(--text-dim); margin-right: 2px; }
+.view-biz .bz-rm-pchips .pc { padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--text-dim); white-space: nowrap; }
+.view-biz .bz-rm-pchips .pc.run { border-color: var(--accent); color: var(--accent); }
+.view-biz .bz-rm-pchips .pc.ok { background: rgba(47, 143, 91, .12); border-color: transparent; color: #2f8f5b; }
+.view-biz .bz-rm-pchips .pc.bad { background: rgba(170, 70, 70, .10); border-color: transparent; color: #a04646; }
+.view-biz .bz-rm-pchips .pc.skip { opacity: .55; }
+.view-biz .bz-rm-pchips .bz-spin, .view-biz .bz-rm-now .bz-spin { width: 10px; height: 10px; }
+.view-biz .bz-rm-feed { margin: 0 0 12px; padding: 8px 12px; border-left: 3px solid var(--accent); font-size: 12.5px; }
+.view-biz .bz-rm-feed p { margin: 3px 0; line-height: 1.5; }
+.view-biz .bz-rm-feed p.bad { color: var(--text-dim); }
+.view-biz .bz-rm-feed p span { display: inline-block; width: 44px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.view-biz .bz-rm-tfilt { margin: 4px 0 6px; }
+.view-biz .bz-rm-chips .lab { font-size: 12px; color: var(--text-dim); min-width: 36px; align-self: center; }
+.view-biz .bz-rm-tbulk { margin: 4px 0 8px; font-size: 12.5px; }
+.view-biz .bz-rm-catt td.on, .view-biz .bz-rm-catt th.on { width: 28px; text-align: center; }
+.view-biz .bz-rm-catt td.st { min-width: 230px; }
+.view-biz .bz-rm-catt tr.off td:not(.on) { opacity: .5; }
+.view-biz .bz-rm-catt tr.self td { color: var(--text-dim); }
+.view-biz .bz-rm-now { margin-top: 4px; font-size: 12px; color: var(--accent); }
+.view-biz .bz-rm-tryres { margin-top: 4px; font-size: 12px; line-height: 1.5; }
+.view-biz .bz-rm-trybtn { margin-top: 5px; }
+body.dark .view-biz .bz-rm-pchips .pc.ok { color: #6fd19c; }
+body.dark .view-biz .bz-rm-pchips .pc.bad { color: #e59a9a; }
+@media (max-width: 900px) { .view-biz .bz-rm-tact { flex-direction: column; } }
+.view-biz .bz-rm-tmsg { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 9px 12px; margin: 0 0 10px; border-radius: 10px; background: var(--bg-hover); font-size: 13px; }
+.view-biz .bz-rm-tmsg span { flex: 1; min-width: 240px; }
